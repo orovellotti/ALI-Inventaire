@@ -1,0 +1,222 @@
+Voici un **prompt complet, prêt à l’emploi**, optimisé pour un **outil de vibe coding** (Lovable, Cursor, v0, Bolt, etc.).
+Il est écrit pour générer **directement une application fonctionnelle** conforme à *Inventaire Flash*, avec ton UX, ta charte graphique et une implémentation réaliste.
+
+---
+
+## 🎛️ PROMPT — Vibe Coding
+
+### Projet : **Inventaire Flash**
+
+Tu es un **senior full-stack engineer + product designer** spécialisé en cartographie, UX moderne et data environnementale.
+Tu dois concevoir une **application web interactive** appelée **Inventaire Flash**.
+
+---
+
+## 🎯 Objectif du produit
+
+Créer un outil web simple et rapide permettant de :
+
+* rechercher un lieu ou cliquer sur une carte,
+* définir un **rayon d’analyse**,
+* interroger l’API **GBIF** pour récupérer des occurrences d’espèces,
+* afficher les résultats sous forme :
+
+  * de **zones colorées sur la carte**,
+  * d’un **panneau latéral de synthèse**,
+  * d’un **texte interprétable**,
+* exporter le résultat en **texte** ou **image JPG**.
+
+L’outil est un **pré-diagnostic écologique (inventaire flash)**, pas un inventaire terrain.
+
+---
+
+## 🧭 Architecture UX (à respecter strictement)
+
+### Layout principal
+
+* **Carte plein écran** (100% viewport) — élément central
+* **Panneau de recherche flottant**
+
+  * centré en haut
+  * semi-transparent
+  * backdrop blur
+* **Panneau de résultats latéral**
+
+  * glisse depuis la droite
+  * largeur fixe : **400px**
+  * animation **spring**
+* **Logo en haut à gauche**
+
+  * discret mais visible
+  * cliquable (reset de l’état)
+
+---
+
+### Flux utilisateur
+
+1. **Recherche**
+
+   * champ texte (lieu, commune, adresse)
+   * ou clic direct sur la carte
+2. **Configuration**
+
+   * slider pour définir le **rayon d’analyse** (ex. 100 m → 5 km)
+3. **Analyse**
+
+   * bouton principal : *« Lancer l’inventaire flash »*
+4. **Résultats**
+
+   * panneau latéral
+   * zones colorées sur la carte selon densité/alerte
+5. **Export**
+
+   * génération :
+
+     * d’un **texte synthétique**
+     * ou d’une **image JPG** de la carte
+
+---
+
+## 🗺️ Fonctionnalités cartographiques
+
+* Carte basée sur **MapLibre ou Leaflet**
+* Fond de carte : **CartoDB Light**
+* Interaction :
+
+  * clic pour définir le centre
+  * cercle dynamique représentant le rayon
+* Visualisation résultats :
+
+  * heatmap ou clusters
+  * couleurs selon niveaux d’alerte
+
+---
+
+## 🔌 Données & API
+
+### Source
+
+* **GBIF Occurrence API**
+* Requête basée sur :
+
+  * géométrie circulaire (buffer autour du point)
+  * présence de coordonnées
+  * résultats limités (mode flash)
+
+### Traitements
+
+* comptage du nombre d’occurrences
+* agrégation par espèce
+* calcul d’un indicateur simple :
+
+  * faible / moyen / fort enjeu (heuristique simple)
+
+---
+
+## 🎨 Charte graphique (obligatoire)
+
+### Couleurs
+
+| Élément           | Couleur    | Code          |
+| ----------------- | ---------- | ------------- |
+| Primaire (accent) | Teal       | `#0d9488`     |
+| Alerte haute      | Rouge      | `#dc2626`     |
+| Alerte moyenne    | Orange     | `#f59e0b`     |
+| Alerte faible     | Vert       | `#22c55e`     |
+| Fond carte        | Gris clair | CartoDB Light |
+
+### Typographie
+
+* **Titres** : Inter, bold, 16–20px
+* **Corps** : Inter, regular, 13–14px
+* **Code / données** : JetBrains Mono, 10–11px
+
+---
+
+## 🧩 Composants UI
+
+* **Boutons**
+
+  * border-radius : 8px
+  * variantes : solid / outline
+* **Cartes**
+
+  * fond blanc à 95% d’opacité
+  * bordure légère
+  * ombre douce
+* **Badges**
+
+  * petits
+  * colorés selon le type d’alerte
+  * coins arrondis
+* **Modales**
+
+  * fond flouté
+  * animation fade
+
+---
+
+## ✨ Effets & animations
+
+* **Backdrop blur** : `backdrop-blur-xl`
+* **Ombres** : `shadow-lg` à `shadow-2xl`
+* **Animations**
+
+  * Framer Motion
+  * spring
+  * damping = 25
+
+---
+
+## 🧾 Contenu du panneau de résultats
+
+* Titre : *Inventaire Flash*
+* Indicateurs :
+
+  * nombre d’occurrences
+  * nombre d’espèces
+* Liste des espèces dominantes
+* Badges de niveau d’alerte
+* Texte généré automatiquement :
+
+  > *Cet inventaire flash repose sur les données GBIF.
+  > Il fournit une indication rapide et ne constitue pas une preuve d’absence ni un inventaire terrain.*
+
+---
+
+## 📤 Exports
+
+* **Texte**
+
+  * copiable
+  * format markdown ou texte brut
+* **Image JPG**
+
+  * capture de la carte + légende
+  * haute résolution
+
+---
+
+## 🛠️ Contraintes techniques
+
+* Stack moderne (React + Tailwind + Framer Motion recommandé)
+* Code clair, commenté, structuré
+* Pas d’authentification
+* Pas de backend lourd (API calls directes ou proxy simple)
+
+---
+
+## 🧠 Ton & qualité attendue
+
+* UX fluide, minimaliste, élégante
+* Sens du détail (espaces, transitions, micro-interactions)
+* Pensé pour des **écologues, urbanistes, bureaux d’études**
+* Le produit doit donner une impression de **vitesse, clarté et fiabilité**
+
+---
+
+Si tu veux, au prochain message je peux :
+
+* te faire une **version ultra-courte du prompt** (1 page max),
+* ou un **prompt spécialisé Cursor / Lovable / v0**,
+* ou un **mapping composants React → UX** prêt à coder.
