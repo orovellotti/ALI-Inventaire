@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Slider } from "@/components/ui/slider";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Search, Loader2 } from "lucide-react";
+import { Search, Loader2, Zap } from "lucide-react";
 import { motion } from "framer-motion";
 
 interface SearchPanelProps {
@@ -22,6 +22,7 @@ export function SearchPanel({ onSearch, isLoading, radius, setRadius }: SearchPa
       className="absolute top-6 left-1/2 -translate-x-1/2 z-[1000] w-[90%] max-w-md"
     >
       <div className="glass-panel p-4 rounded-xl flex flex-col gap-4">
+        {/* Search Bar */}
         <div className="flex gap-2">
           <div className="relative flex-1">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -34,14 +35,16 @@ export function SearchPanel({ onSearch, isLoading, radius, setRadius }: SearchPa
             />
           </div>
           <Button 
+            variant="secondary"
             onClick={() => onSearch(radius, query)}
-            disabled={isLoading}
-            className="bg-primary hover:bg-primary/90 text-white font-medium shadow-sm transition-all"
+            disabled={isLoading || !query}
+            className="font-medium shadow-sm transition-all"
           >
-            {isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : "Lancer"}
+            Aller à
           </Button>
         </div>
 
+        {/* Radius Slider */}
         <div className="space-y-3 px-1">
           <div className="flex justify-between text-xs font-medium text-muted-foreground uppercase tracking-wider">
             <span>Rayon d'analyse</span>
@@ -55,6 +58,24 @@ export function SearchPanel({ onSearch, isLoading, radius, setRadius }: SearchPa
             step={100}
             className="cursor-pointer"
           />
+        </div>
+
+        {/* Main Action Button */}
+        <div className="pt-1">
+          <Button 
+            onClick={() => onSearch(radius)} // No query = analyze center
+            disabled={isLoading}
+            className="w-full bg-primary hover:bg-primary/90 text-white font-bold h-11 shadow-md transition-all flex items-center justify-center gap-2 text-base"
+          >
+            {isLoading ? (
+              <Loader2 className="h-5 w-5 animate-spin" />
+            ) : (
+              <>
+                <Zap className="h-4 w-4 fill-current" />
+                Lancer l'inventaire flash
+              </>
+            )}
+          </Button>
         </div>
       </div>
     </motion.div>
