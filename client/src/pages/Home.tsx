@@ -4,6 +4,7 @@ import { SearchPanel } from "@/components/SearchPanel";
 import { ResultsPanel } from "@/components/ResultsPanel";
 import { searchGBIF, InventoryResult } from "@/lib/gbif";
 import { searchPlace } from "@/lib/geocoding";
+import { analyzeSpeciesWithAI } from "@/lib/ai-analysis";
 import { useToast } from "@/hooks/use-toast";
 import { Leaf } from "lucide-react";
 
@@ -51,11 +52,63 @@ export default function Home() {
 
     try {
       const data = await searchGBIF(center[0], center[1], r);
+      
+      // Run AI analysis on species
+      if (data.occurrences.length > 0) {
+        toast({
+          title: "Analyse IA en cours...",
+          description: "Évaluation des enjeux écologiques par OpenAI.",
+        });
+        
+        try {
+          const aiAnalysis = await analyzeSpeciesWithAI(
+            data.occurrences.map(o => ({
+              scientificName: o.scientificName,
+              vernacularName: o.vernacularName
+            }))
+          );
+          
+          // Merge AI analysis with GBIF data
+          const enrichedOccurrences = data.occurrences.map(occ => {
+            const aiSpecies = aiAnalysis.species.find(
+              s => s.scientificName.toLowerCase() === occ.scientificName.toLowerCase()
+            );
+            if (aiSpecies) {
+              return {
+                ...occ,
+                alertLevel: aiSpecies.alertLevel,
+                iucnStatus: aiSpecies.iucnStatus,
+                protectionStatus: aiSpecies.protectionStatus,
+                ecologicalNote: aiSpecies.ecologicalNote,
+                vernacularName: aiSpecies.vernacularName || occ.vernacularName
+              };
+            }
+            return occ;
+          });
+          
+          const sensitiveCount = enrichedOccurrences.filter(
+            o => o.alertLevel === "high" || o.alertLevel === "medium"
+          ).length;
+          
+          data.occurrences = enrichedOccurrences;
+          data.stats.sensitiveCount = sensitiveCount;
+          data.aiSummary = aiAnalysis.summary;
+          data.overallRisk = aiAnalysis.overallRisk;
+        } catch (aiError) {
+          console.error("AI Analysis failed:", aiError);
+          toast({
+            title: "Analyse IA indisponible",
+            description: "Les données GBIF seront affichées sans enrichissement IA.",
+            variant: "destructive",
+          });
+        }
+      }
+      
       setResults(data);
       setIsPanelOpen(true);
       toast({
         title: "Inventaire terminé",
-        description: `${data.stats.total} occurrences trouvées dans un rayon de ${r}m.`,
+        description: `${data.stats.speciesCount} espèces trouvées dans un rayon de ${r}m.`,
       });
     } catch (error) {
       toast({

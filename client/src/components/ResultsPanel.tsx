@@ -2,7 +2,7 @@ import { useState, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { X, Download, FileText, AlertTriangle, Leaf, Info, ChevronDown, ChevronUp, ImageOff } from "lucide-react";
+import { X, Download, FileText, AlertTriangle, Leaf, Info, ChevronDown, ChevronUp, ImageOff, Brain, Shield } from "lucide-react";
 import { InventoryResult, Occurrence, getIucnLabel } from "@/lib/gbif";
 import html2canvas from "html2canvas";
 
@@ -121,6 +121,21 @@ Note: Cet inventaire flash repose sur les données GBIF. Il fournit une indicati
                 <span className="text-2xl font-bold text-gray-900">{results.stats.sensitiveCount}</span>
               </div>
             </div>
+
+            {/* AI Summary */}
+            {results.aiSummary && (
+              <div className={`p-4 rounded-xl border ${
+                results.overallRisk === 'high' ? 'bg-red-50/50 border-red-200' :
+                results.overallRisk === 'medium' ? 'bg-orange-50/50 border-orange-200' :
+                'bg-green-50/50 border-green-200'
+              }`}>
+                <div className="flex items-center gap-2 mb-2">
+                  <Brain className="h-4 w-4 text-purple-600" />
+                  <span className="text-xs font-bold uppercase text-purple-700">Analyse IA</span>
+                </div>
+                <p className="text-sm text-gray-700 leading-relaxed">{results.aiSummary}</p>
+              </div>
+            )}
 
             {/* HIGH ALERT - Always visible */}
             <div>
@@ -260,9 +275,22 @@ function SpeciesCard({ occ }: { occ: Occurrence }) {
           {occ.vernacularName || "Nom vernaculaire N/A"}
         </div>
         {/* Status Badge */}
-        <div className="mt-1.5">
+        <div className="mt-1.5 flex flex-wrap gap-1">
           <StatusBadge status={occ.iucnStatus} />
         </div>
+        {/* Protection Status */}
+        {occ.protectionStatus && occ.protectionStatus !== "Non déterminé" && (
+          <div className="mt-1 flex items-center gap-1 text-[10px] text-gray-500">
+            <Shield className="h-3 w-3" />
+            <span className="truncate">{occ.protectionStatus}</span>
+          </div>
+        )}
+        {/* Ecological Note */}
+        {occ.ecologicalNote && occ.ecologicalNote !== "Analyse IA indisponible" && (
+          <div className="mt-1 text-[10px] text-gray-400 italic truncate">
+            {occ.ecologicalNote}
+          </div>
+        )}
       </div>
     </div>
   );
