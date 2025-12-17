@@ -2,8 +2,7 @@ import { useState, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { X, Download, FileText, AlertTriangle, Leaf, Info, ChevronDown } from "lucide-react";
+import { X, Download, FileText, AlertTriangle, Leaf, Info, ChevronDown, ChevronUp } from "lucide-react";
 import { InventoryResult, Occurrence } from "@/lib/gbif";
 import html2canvas from "html2canvas";
 
@@ -79,141 +78,159 @@ Note: Cet inventaire flash repose sur les données GBIF. Il fournit une indicati
     alert("Rapport copié dans le presse-papier !");
   };
 
+  if (!isOpen || !results) return null;
+
   return (
     <AnimatePresence>
-      {isOpen && results && (
-        <motion.div
-          initial={{ x: "100%" }}
-          animate={{ x: 0 }}
-          exit={{ x: "100%" }}
-          transition={{ type: "spring", damping: 25, stiffness: 200 }}
-          className="fixed top-0 right-0 h-full w-[400px] z-[2000] bg-white/95 backdrop-blur-xl shadow-2xl border-l border-white/20 flex flex-col"
-        >
-          {/* Header */}
-          <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-white/50">
-            <div>
-              <h2 className="text-xl font-bold text-gray-900 tracking-tight">Inventaire Flash</h2>
-              <p className="text-xs text-muted-foreground mt-1 font-mono">
-                GBIF DATA • {results.stats.total} OCCURRENCES
-              </p>
-            </div>
-            <Button variant="ghost" size="icon" onClick={onClose} className="hover:bg-gray-100 rounded-full h-8 w-8">
-              <X className="h-4 w-4" />
-            </Button>
+      <motion.div
+        initial={{ x: "100%" }}
+        animate={{ x: 0 }}
+        exit={{ x: "100%" }}
+        transition={{ type: "spring", damping: 25, stiffness: 200 }}
+        className="fixed top-0 right-0 h-full w-[400px] z-[2000] bg-white/95 backdrop-blur-xl shadow-2xl border-l border-white/20 flex flex-col"
+      >
+        {/* Header */}
+        <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-white/50">
+          <div>
+            <h2 className="text-xl font-bold text-gray-900 tracking-tight">Inventaire Flash</h2>
+            <p className="text-xs text-muted-foreground mt-1 font-mono">
+              GBIF DATA • {results.stats.total} OCCURRENCES
+            </p>
           </div>
+          <Button variant="ghost" size="icon" onClick={onClose} className="hover:bg-gray-100 rounded-full h-8 w-8">
+            <X className="h-4 w-4" />
+          </Button>
+        </div>
 
-          {/* Content */}
-          <ScrollArea className="flex-1 p-6">
-            <div className="space-y-6">
-              {/* Stats Grid */}
-              <div className="grid grid-cols-2 gap-4">
-                <div className="p-4 bg-teal-50/50 rounded-xl border border-teal-100">
-                  <div className="flex items-center gap-2 text-teal-700 mb-1">
-                    <Leaf className="h-4 w-4" />
-                    <span className="text-xs font-bold uppercase">Espèces</span>
-                  </div>
-                  <span className="text-2xl font-bold text-gray-900">{results.stats.speciesCount}</span>
+        {/* Content */}
+        <ScrollArea className="flex-1 p-6">
+          <div className="space-y-6">
+            {/* Stats Grid */}
+            <div className="grid grid-cols-2 gap-4">
+              <div className="p-4 bg-teal-50/50 rounded-xl border border-teal-100">
+                <div className="flex items-center gap-2 text-teal-700 mb-1">
+                  <Leaf className="h-4 w-4" />
+                  <span className="text-xs font-bold uppercase">Espèces</span>
                 </div>
-                <div className="p-4 bg-orange-50/50 rounded-xl border border-orange-100">
-                  <div className="flex items-center gap-2 text-orange-700 mb-1">
-                    <AlertTriangle className="h-4 w-4" />
-                    <span className="text-xs font-bold uppercase">Sensibles</span>
-                  </div>
-                  <span className="text-2xl font-bold text-gray-900">{results.stats.sensitiveCount}</span>
-                </div>
+                <span className="text-2xl font-bold text-gray-900">{results.stats.speciesCount}</span>
               </div>
+              <div className="p-4 bg-orange-50/50 rounded-xl border border-orange-100">
+                <div className="flex items-center gap-2 text-orange-700 mb-1">
+                  <AlertTriangle className="h-4 w-4" />
+                  <span className="text-xs font-bold uppercase">Sensibles</span>
+                </div>
+                <span className="text-2xl font-bold text-gray-900">{results.stats.sensitiveCount}</span>
+              </div>
+            </div>
 
-              {/* HIGH ALERT - Always visible */}
-              <div>
-                <div className="flex items-center gap-2 mb-3">
-                  <div className="w-3 h-3 rounded-full bg-red-500"></div>
-                  <h3 className="text-sm font-bold text-red-700 uppercase tracking-wide">
-                    Enjeux Forts ({sortedSpecies.high.length})
+            {/* HIGH ALERT - Always visible */}
+            <div>
+              <div className="flex items-center gap-2 mb-3">
+                <div className="w-3 h-3 rounded-full bg-red-500"></div>
+                <h3 className="text-sm font-bold text-red-700 uppercase tracking-wide">
+                  Enjeux Forts ({sortedSpecies.high.length})
+                </h3>
+              </div>
+              {sortedSpecies.high.length > 0 ? (
+                <div className="space-y-2 bg-red-50/50 rounded-xl p-3 border border-red-100">
+                  {sortedSpecies.high.map((occ) => (
+                    <SpeciesRow key={occ.key} occ={occ} />
+                  ))}
+                </div>
+              ) : (
+                <p className="text-sm text-gray-400 italic pl-5">Aucune espèce à enjeu fort détectée</p>
+              )}
+            </div>
+
+            {/* MEDIUM ALERT - Collapsible */}
+            <div>
+              <button 
+                onClick={() => setShowMedium(!showMedium)}
+                className="flex items-center justify-between w-full group cursor-pointer"
+              >
+                <div className="flex items-center gap-2">
+                  <div className="w-3 h-3 rounded-full bg-orange-500"></div>
+                  <h3 className="text-sm font-bold text-orange-700 uppercase tracking-wide">
+                    Enjeux Moyens ({sortedSpecies.medium.length})
                   </h3>
                 </div>
-                {sortedSpecies.high.length > 0 ? (
-                  <div className="space-y-2 bg-red-50/50 rounded-xl p-3 border border-red-100">
-                    {sortedSpecies.high.map((occ) => (
-                      <SpeciesRow key={occ.key} occ={occ} />
-                    ))}
-                  </div>
+                {showMedium ? (
+                  <ChevronUp className="h-4 w-4 text-orange-500" />
                 ) : (
-                  <p className="text-sm text-gray-400 italic pl-5">Aucune espèce à enjeu fort détectée</p>
+                  <ChevronDown className="h-4 w-4 text-orange-500" />
                 )}
-              </div>
-
-              {/* MEDIUM ALERT - Collapsible */}
-              <Collapsible open={showMedium} onOpenChange={setShowMedium}>
-                <CollapsibleTrigger className="flex items-center justify-between w-full group">
-                  <div className="flex items-center gap-2">
-                    <div className="w-3 h-3 rounded-full bg-orange-500"></div>
-                    <h3 className="text-sm font-bold text-orange-700 uppercase tracking-wide">
-                      Enjeux Moyens ({sortedSpecies.medium.length})
-                    </h3>
-                  </div>
-                  <ChevronDown className={`h-4 w-4 text-orange-500 transition-transform ${showMedium ? 'rotate-180' : ''}`} />
-                </CollapsibleTrigger>
-                <CollapsibleContent>
+              </button>
+              {showMedium && (
+                <div className="mt-3">
                   {sortedSpecies.medium.length > 0 ? (
-                    <div className="space-y-2 bg-orange-50/50 rounded-xl p-3 border border-orange-100 mt-3">
+                    <div className="space-y-2 bg-orange-50/50 rounded-xl p-3 border border-orange-100">
                       {sortedSpecies.medium.map((occ) => (
                         <SpeciesRow key={occ.key} occ={occ} />
                       ))}
                     </div>
                   ) : (
-                    <p className="text-sm text-gray-400 italic pl-5 mt-3">Aucune espèce à enjeu moyen détectée</p>
+                    <p className="text-sm text-gray-400 italic pl-5">Aucune espèce à enjeu moyen détectée</p>
                   )}
-                </CollapsibleContent>
-              </Collapsible>
+                </div>
+              )}
+            </div>
 
-              {/* LOW ALERT - Collapsible */}
-              <Collapsible open={showLow} onOpenChange={setShowLow}>
-                <CollapsibleTrigger className="flex items-center justify-between w-full group">
-                  <div className="flex items-center gap-2">
-                    <div className="w-3 h-3 rounded-full bg-green-500"></div>
-                    <h3 className="text-sm font-bold text-green-700 uppercase tracking-wide">
-                      Enjeux Faibles ({sortedSpecies.low.length})
-                    </h3>
-                  </div>
-                  <ChevronDown className={`h-4 w-4 text-green-500 transition-transform ${showLow ? 'rotate-180' : ''}`} />
-                </CollapsibleTrigger>
-                <CollapsibleContent>
+            {/* LOW ALERT - Collapsible */}
+            <div>
+              <button 
+                onClick={() => setShowLow(!showLow)}
+                className="flex items-center justify-between w-full group cursor-pointer"
+              >
+                <div className="flex items-center gap-2">
+                  <div className="w-3 h-3 rounded-full bg-green-500"></div>
+                  <h3 className="text-sm font-bold text-green-700 uppercase tracking-wide">
+                    Enjeux Faibles ({sortedSpecies.low.length})
+                  </h3>
+                </div>
+                {showLow ? (
+                  <ChevronUp className="h-4 w-4 text-green-500" />
+                ) : (
+                  <ChevronDown className="h-4 w-4 text-green-500" />
+                )}
+              </button>
+              {showLow && (
+                <div className="mt-3">
                   {sortedSpecies.low.length > 0 ? (
-                    <div className="space-y-2 bg-green-50/50 rounded-xl p-3 border border-green-100 mt-3">
+                    <div className="space-y-2 bg-green-50/50 rounded-xl p-3 border border-green-100">
                       {sortedSpecies.low.map((occ) => (
                         <SpeciesRow key={occ.key} occ={occ} />
                       ))}
                     </div>
                   ) : (
-                    <p className="text-sm text-gray-400 italic pl-5 mt-3">Aucune espèce à enjeu faible détectée</p>
+                    <p className="text-sm text-gray-400 italic pl-5">Aucune espèce à enjeu faible détectée</p>
                   )}
-                </CollapsibleContent>
-              </Collapsible>
-
-              {/* Disclaimer */}
-              <div className="p-4 bg-gray-50 rounded-xl text-xs text-gray-500 leading-relaxed border border-gray-100 flex gap-3">
-                <Info className="h-4 w-4 shrink-0 mt-0.5 text-gray-400" />
-                <p>
-                  Cet inventaire flash repose sur les données GBIF. 
-                  Il fournit une indication rapide et ne constitue pas une preuve d'absence ni un inventaire terrain complet.
-                </p>
-              </div>
+                </div>
+              )}
             </div>
-          </ScrollArea>
 
-          {/* Footer Actions */}
-          <div className="p-6 border-t border-gray-100 bg-white/50 space-y-3">
-            <Button onClick={handleExportText} variant="outline" className="w-full justify-start gap-2 h-11 border-gray-200 hover:bg-gray-50 hover:text-gray-900 text-gray-600">
-              <FileText className="h-4 w-4" />
-              Copier le rapport texte
-            </Button>
-            <Button onClick={handleExportImage} className="w-full justify-start gap-2 h-11 bg-gray-900 hover:bg-black text-white">
-              <Download className="h-4 w-4" />
-              Exporter la carte (JPG)
-            </Button>
+            {/* Disclaimer */}
+            <div className="p-4 bg-gray-50 rounded-xl text-xs text-gray-500 leading-relaxed border border-gray-100 flex gap-3">
+              <Info className="h-4 w-4 shrink-0 mt-0.5 text-gray-400" />
+              <p>
+                Cet inventaire flash repose sur les données GBIF. 
+                Il fournit une indication rapide et ne constitue pas une preuve d'absence ni un inventaire terrain complet.
+              </p>
+            </div>
           </div>
-        </motion.div>
-      )}
+        </ScrollArea>
+
+        {/* Footer Actions */}
+        <div className="p-6 border-t border-gray-100 bg-white/50 space-y-3">
+          <Button onClick={handleExportText} variant="outline" className="w-full justify-start gap-2 h-11 border-gray-200 hover:bg-gray-50 hover:text-gray-900 text-gray-600">
+            <FileText className="h-4 w-4" />
+            Copier le rapport texte
+          </Button>
+          <Button onClick={handleExportImage} className="w-full justify-start gap-2 h-11 bg-gray-900 hover:bg-black text-white">
+            <Download className="h-4 w-4" />
+            Exporter la carte (JPG)
+          </Button>
+        </div>
+      </motion.div>
     </AnimatePresence>
   );
 }
