@@ -38,26 +38,41 @@ function getBoundingBox(lat: number, lng: number, radiusMeters: number) {
 export function getIucnLabel(code: string | undefined): string {
   const labels: Record<string, string> = {
     "EX": "Éteint",
+    "EXTINCT": "Éteint",
     "EW": "Éteint à l'état sauvage",
+    "EXTINCT_IN_THE_WILD": "Éteint à l'état sauvage",
     "CR": "En danger critique",
+    "CRITICALLY_ENDANGERED": "En danger critique",
     "EN": "En danger",
+    "ENDANGERED": "En danger",
     "VU": "Vulnérable",
+    "VULNERABLE": "Vulnérable",
     "NT": "Quasi menacé",
+    "NEAR_THREATENED": "Quasi menacé",
     "LC": "Préoccupation mineure",
+    "LEAST_CONCERN": "Préoccupation mineure",
     "DD": "Données insuffisantes",
-    "NE": "Non évalué"
+    "DATA_DEFICIENT": "Données insuffisantes",
+    "NE": "Non évalué",
+    "NOT_EVALUATED": "Non évalué"
   };
   return labels[code || ""] || "Non évalué";
 }
 
 function getAlertLevelFromIucn(iucnStatus: string | undefined): "high" | "medium" | "low" {
-  switch (iucnStatus) {
+  const status = iucnStatus?.toUpperCase();
+  switch (status) {
     case "CR":
+    case "CRITICALLY_ENDANGERED":
     case "EN":
+    case "ENDANGERED":
     case "VU":
+    case "VULNERABLE":
     case "NT":
+    case "NEAR_THREATENED":
       return "high";
     case "DD":
+    case "DATA_DEFICIENT":
       return "medium";
     default:
       return "low";
