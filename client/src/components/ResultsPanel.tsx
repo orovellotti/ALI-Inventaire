@@ -56,25 +56,43 @@ export function ResultsPanel({ isOpen, onClose, results }: ResultsPanelProps) {
 
   const reportText = useMemo(() => {
     if (!results) return "";
+    
+    const highCount = sortedSpecies.high.length;
+    const mediumCount = sortedSpecies.medium.length;
+    const lowCount = sortedSpecies.low.length;
+    const totalInReport = highCount + mediumCount + lowCount;
+    
+    const highList = sortedSpecies.high.length > 0 
+      ? sortedSpecies.high.map(o => `- ${o.scientificName} (${o.vernacularName || 'N/A'}) - ${getIucnLabel(o.iucnStatus)}`).join('\n')
+      : 'Aucune';
+    
+    const mediumList = sortedSpecies.medium.length > 0
+      ? sortedSpecies.medium.map(o => `- ${o.scientificName} (${o.vernacularName || 'N/A'}) - ${getIucnLabel(o.iucnStatus)}`).join('\n')
+      : 'Aucune';
+    
+    const lowList = sortedSpecies.low.length > 0
+      ? sortedSpecies.low.map(o => `- ${o.scientificName} (${o.vernacularName || 'N/A'}) - ${getIucnLabel(o.iucnStatus)}`).join('\n')
+      : 'Aucune';
+
     return `INVENTAIRE FLASH
 Date: ${new Date().toLocaleDateString()}
 Centre: ${results.center[0].toFixed(5)}, ${results.center[1].toFixed(5)}
 Rayon: ${results.radius}m
 
 RÉSULTATS
-Total espèces: ${results.stats.speciesCount}
-Espèces sensibles: ${results.stats.sensitiveCount}
+Total espèces dans le rapport: ${totalInReport}
+Espèces sensibles (forts + moyens): ${highCount + mediumCount}
 
-ENJEUX FORTS
-${sortedSpecies.high.map(o => `- ${o.scientificName} (${o.vernacularName || 'N/A'}) - ${getIucnLabel(o.iucnStatus)}`).join('\n') || 'Aucune'}
+ENJEUX FORTS (${highCount} espèces)
+${highList}
 
-ENJEUX MOYENS
-${sortedSpecies.medium.map(o => `- ${o.scientificName} (${o.vernacularName || 'N/A'}) - ${getIucnLabel(o.iucnStatus)}`).join('\n') || 'Aucune'}
+ENJEUX MOYENS (${mediumCount} espèces)
+${mediumList}
 
-ENJEUX FAIBLES
-${sortedSpecies.low.map(o => `- ${o.scientificName} (${o.vernacularName || 'N/A'}) - ${getIucnLabel(o.iucnStatus)}`).join('\n') || 'Aucune'}
+ENJEUX FAIBLES (${lowCount} espèces)
+${lowList}
 
-Note: Cet inventaire flash repose sur les données GBIF. Il fournit une indication rapide et ne constitue pas une preuve d'absence ni un inventaire terrain.`;
+Note: Cet inventaire flash repose sur les données GBIF et les statuts IUCN. Il fournit une indication rapide et ne constitue pas une preuve d'absence ni un inventaire terrain.`;
   }, [results, sortedSpecies]);
 
   const handleCopyReport = () => {
