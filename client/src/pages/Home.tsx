@@ -11,46 +11,46 @@ export default function Home() {
   const [center, setCenter] = useState<[number, number]>([48.8566, 2.3522]); // Paris default
   const [radius, setRadius] = useState(500);
   const [results, setResults] = useState<InventoryResult | null>(null);
-  const [isLoading, setIsLoading] = useState(false);
+  const [isSearching, setIsSearching] = useState(false);
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [isPanelOpen, setIsPanelOpen] = useState(false);
   const { toast } = useToast();
 
-  const handleSearch = async (r: number, query?: string) => {
-    setIsLoading(true);
-    setRadius(r);
-    
-    let searchLat = center[0];
-    let searchLng = center[1];
-
-    if (query) {
-      try {
-        const place = await searchPlace(query);
-        if (place) {
-          searchLat = place.lat;
-          searchLng = place.lon;
-          setCenter([searchLat, searchLng]);
-          toast({
-            title: "Lieu trouvé",
-            description: `Centré sur : ${place.display_name}`,
-          });
-        } else {
-          toast({
-            title: "Lieu introuvable",
-            description: `Nous n'avons pas pu localiser "${query}". Recherche effectuée sur la position actuelle.`,
-            variant: "destructive",
-          });
-        }
-      } catch (error) {
+  const handleGoToPlace = async (query: string) => {
+    setIsSearching(true);
+    try {
+      const place = await searchPlace(query);
+      if (place) {
+        setCenter([place.lat, place.lon]);
+        if (isPanelOpen) setIsPanelOpen(false);
         toast({
-          title: "Erreur de géocodage",
-          description: "Impossible de contacter le service de localisation.",
+          title: "Lieu trouvé",
+          description: place.display_name,
+        });
+      } else {
+        toast({
+          title: "Lieu introuvable",
+          description: `Nous n'avons pas pu localiser "${query}".`,
           variant: "destructive",
         });
       }
+    } catch (error) {
+      toast({
+        title: "Erreur de géocodage",
+        description: "Impossible de contacter le service de localisation.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsSearching(false);
     }
+  };
+
+  const handleLaunchAnalysis = async (r: number) => {
+    setIsAnalyzing(true);
+    setRadius(r);
 
     try {
-      const data = await searchGBIF(searchLat, searchLng, r);
+      const data = await searchGBIF(center[0], center[1], r);
       setResults(data);
       setIsPanelOpen(true);
       toast({
@@ -64,17 +64,12 @@ export default function Home() {
         variant: "destructive",
       });
     } finally {
-      setIsLoading(false);
+      setIsAnalyzing(false);
     }
   };
 
   const handleMapClick = (lat: number, lng: number) => {
     setCenter([lat, lng]);
-    // Optionally auto-search on click if that's desired, or just move the "cursor"
-    // The prompt says: "clic pour définir le centre" -> then "Lancer l'inventaire"
-    // So we just update center. 
-    // If results are open, we might want to close them or keep them stale? 
-    // Let's close them to indicate new analysis needed.
     if (isPanelOpen) setIsPanelOpen(false);
   };
 
@@ -91,8 +86,10 @@ export default function Home() {
 
       {/* Floating UI */}
       <SearchPanel 
-        onSearch={handleSearch} 
-        isLoading={isLoading} 
+        onGoToPlace={handleGoToPlace}
+        onLaunchAnalysis={handleLaunchAnalysis}
+        isSearching={isSearching}
+        isAnalyzing={isAnalyzing}
         radius={radius}
         setRadius={setRadius}
       />

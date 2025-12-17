@@ -2,18 +2,26 @@ import { useState } from "react";
 import { Slider } from "@/components/ui/slider";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Search, Loader2, Zap } from "lucide-react";
+import { Search, Loader2, Zap, MapPin } from "lucide-react";
 import { motion } from "framer-motion";
 
 interface SearchPanelProps {
-  onSearch: (radius: number, query?: string) => void;
-  isLoading: boolean;
+  onGoToPlace: (query: string) => void;
+  onLaunchAnalysis: (radius: number) => void;
+  isSearching: boolean;
+  isAnalyzing: boolean;
   radius: number;
   setRadius: (v: number) => void;
 }
 
-export function SearchPanel({ onSearch, isLoading, radius, setRadius }: SearchPanelProps) {
+export function SearchPanel({ onGoToPlace, onLaunchAnalysis, isSearching, isAnalyzing, radius, setRadius }: SearchPanelProps) {
   const [query, setQuery] = useState("");
+
+  const handleGoTo = () => {
+    if (query.trim()) {
+      onGoToPlace(query.trim());
+    }
+  };
 
   return (
     <motion.div 
@@ -31,15 +39,16 @@ export function SearchPanel({ onSearch, isLoading, radius, setRadius }: SearchPa
               className="pl-9 bg-white/50 border-0 focus-visible:ring-1 focus-visible:ring-primary/50"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && onSearch(radius, query)}
+              onKeyDown={(e) => e.key === 'Enter' && handleGoTo()}
             />
           </div>
           <Button 
             variant="secondary"
-            onClick={() => onSearch(radius, query)}
-            disabled={isLoading || !query}
-            className="font-medium shadow-sm transition-all"
+            onClick={handleGoTo}
+            disabled={isSearching || !query.trim()}
+            className="font-medium shadow-sm transition-all gap-2"
           >
+            {isSearching ? <Loader2 className="h-4 w-4 animate-spin" /> : <MapPin className="h-4 w-4" />}
             Aller à
           </Button>
         </div>
@@ -63,11 +72,11 @@ export function SearchPanel({ onSearch, isLoading, radius, setRadius }: SearchPa
         {/* Main Action Button */}
         <div className="pt-1">
           <Button 
-            onClick={() => onSearch(radius)} // No query = analyze center
-            disabled={isLoading}
+            onClick={() => onLaunchAnalysis(radius)}
+            disabled={isAnalyzing}
             className="w-full bg-primary hover:bg-primary/90 text-white font-bold h-11 shadow-md transition-all flex items-center justify-center gap-2 text-base"
           >
-            {isLoading ? (
+            {isAnalyzing ? (
               <Loader2 className="h-5 w-5 animate-spin" />
             ) : (
               <>
