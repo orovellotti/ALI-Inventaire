@@ -3,6 +3,7 @@ import { Map } from "@/components/Map";
 import { SearchPanel } from "@/components/SearchPanel";
 import { ResultsPanel } from "@/components/ResultsPanel";
 import { searchGBIF, InventoryResult } from "@/lib/gbif";
+import { searchPlace } from "@/lib/geocoding";
 import { useToast } from "@/hooks/use-toast";
 import { Leaf } from "lucide-react";
 
@@ -18,17 +19,38 @@ export default function Home() {
     setIsLoading(true);
     setRadius(r);
     
-    // In a real app, query would be geocoded here. 
-    // For now, we assume the user clicked the map or we use the current center.
+    let searchLat = center[0];
+    let searchLng = center[1];
+
     if (query) {
-      toast({
-        title: "Recherche simulée",
-        description: `Recherche pour "${query}" centrée sur la vue actuelle.`,
-      });
+      try {
+        const place = await searchPlace(query);
+        if (place) {
+          searchLat = place.lat;
+          searchLng = place.lon;
+          setCenter([searchLat, searchLng]);
+          toast({
+            title: "Lieu trouvé",
+            description: `Centré sur : ${place.display_name}`,
+          });
+        } else {
+          toast({
+            title: "Lieu introuvable",
+            description: `Nous n'avons pas pu localiser "${query}". Recherche effectuée sur la position actuelle.`,
+            variant: "destructive",
+          });
+        }
+      } catch (error) {
+        toast({
+          title: "Erreur de géocodage",
+          description: "Impossible de contacter le service de localisation.",
+          variant: "destructive",
+        });
+      }
     }
 
     try {
-      const data = await searchGBIF(center[0], center[1], r);
+      const data = await searchGBIF(searchLat, searchLng, r);
       setResults(data);
       setIsPanelOpen(true);
       toast({
