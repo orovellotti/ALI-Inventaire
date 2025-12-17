@@ -2,8 +2,8 @@ import { useState, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { X, Download, FileText, AlertTriangle, Leaf, Info, ChevronDown, ChevronUp } from "lucide-react";
-import { InventoryResult, Occurrence } from "@/lib/gbif";
+import { X, Download, FileText, AlertTriangle, Leaf, Info, ChevronDown, ChevronUp, ImageOff } from "lucide-react";
+import { InventoryResult, Occurrence, getIucnLabel } from "@/lib/gbif";
 import html2canvas from "html2canvas";
 
 interface ResultsPanelProps {
@@ -59,18 +59,17 @@ Centre: ${results.center[0].toFixed(5)}, ${results.center[1].toFixed(5)}
 Rayon: ${results.radius}m
 
 RÉSULTATS
-Total occurrences: ${results.stats.total}
-Espèces uniques: ${results.stats.speciesCount}
+Total espèces: ${results.stats.speciesCount}
 Espèces sensibles: ${results.stats.sensitiveCount}
 
 ENJEUX FORTS
-${sortedSpecies.high.map(o => `- ${o.scientificName} (${o.vernacularName || 'N/A'})`).join('\n') || 'Aucune'}
+${sortedSpecies.high.map(o => `- ${o.scientificName} (${o.vernacularName || 'N/A'}) - ${getIucnLabel(o.iucnStatus)}`).join('\n') || 'Aucune'}
 
 ENJEUX MOYENS
-${sortedSpecies.medium.map(o => `- ${o.scientificName} (${o.vernacularName || 'N/A'})`).join('\n') || 'Aucune'}
+${sortedSpecies.medium.map(o => `- ${o.scientificName} (${o.vernacularName || 'N/A'}) - ${getIucnLabel(o.iucnStatus)}`).join('\n') || 'Aucune'}
 
 ENJEUX FAIBLES
-${sortedSpecies.low.map(o => `- ${o.scientificName} (${o.vernacularName || 'N/A'})`).join('\n') || 'Aucune'}
+${sortedSpecies.low.map(o => `- ${o.scientificName} (${o.vernacularName || 'N/A'}) - ${getIucnLabel(o.iucnStatus)}`).join('\n') || 'Aucune'}
 
 Note: Cet inventaire flash repose sur les données GBIF. Il fournit une indication rapide et ne constitue pas une preuve d'absence ni un inventaire terrain.`;
     
@@ -87,14 +86,14 @@ Note: Cet inventaire flash repose sur les données GBIF. Il fournit une indicati
         animate={{ x: 0 }}
         exit={{ x: "100%" }}
         transition={{ type: "spring", damping: 25, stiffness: 200 }}
-        className="fixed top-0 right-0 h-full w-[400px] z-[2000] bg-white/95 backdrop-blur-xl shadow-2xl border-l border-white/20 flex flex-col"
+        className="fixed top-0 right-0 h-full w-[420px] z-[2000] bg-white/95 backdrop-blur-xl shadow-2xl border-l border-white/20 flex flex-col"
       >
         {/* Header */}
         <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-white/50">
           <div>
             <h2 className="text-xl font-bold text-gray-900 tracking-tight">Inventaire Flash</h2>
             <p className="text-xs text-muted-foreground mt-1 font-mono">
-              GBIF DATA • {results.stats.total} OCCURRENCES
+              GBIF DATA • {results.stats.speciesCount} ESPÈCES
             </p>
           </div>
           <Button variant="ghost" size="icon" onClick={onClose} className="hover:bg-gray-100 rounded-full h-8 w-8">
@@ -134,7 +133,7 @@ Note: Cet inventaire flash repose sur les données GBIF. Il fournit une indicati
               {sortedSpecies.high.length > 0 ? (
                 <div className="space-y-2 bg-red-50/50 rounded-xl p-3 border border-red-100">
                   {sortedSpecies.high.map((occ) => (
-                    <SpeciesRow key={occ.key} occ={occ} />
+                    <SpeciesCard key={occ.key} occ={occ} />
                   ))}
                 </div>
               ) : (
@@ -165,7 +164,7 @@ Note: Cet inventaire flash repose sur les données GBIF. Il fournit une indicati
                   {sortedSpecies.medium.length > 0 ? (
                     <div className="space-y-2 bg-orange-50/50 rounded-xl p-3 border border-orange-100">
                       {sortedSpecies.medium.map((occ) => (
-                        <SpeciesRow key={occ.key} occ={occ} />
+                        <SpeciesCard key={occ.key} occ={occ} />
                       ))}
                     </div>
                   ) : (
@@ -198,7 +197,7 @@ Note: Cet inventaire flash repose sur les données GBIF. Il fournit une indicati
                   {sortedSpecies.low.length > 0 ? (
                     <div className="space-y-2 bg-green-50/50 rounded-xl p-3 border border-green-100">
                       {sortedSpecies.low.map((occ) => (
-                        <SpeciesRow key={occ.key} occ={occ} />
+                        <SpeciesCard key={occ.key} occ={occ} />
                       ))}
                     </div>
                   ) : (
@@ -235,14 +234,66 @@ Note: Cet inventaire flash repose sur les données GBIF. Il fournit une indicati
   );
 }
 
-function SpeciesRow({ occ }: { occ: Occurrence }) {
+function SpeciesCard({ occ }: { occ: Occurrence }) {
+  const [imageError, setImageError] = useState(false);
+
   return (
-    <div className="flex items-start justify-between p-2 bg-white/60 rounded-lg">
-      <div>
-        <div className="font-medium text-sm text-gray-900">{occ.scientificName}</div>
-        <div className="text-xs text-muted-foreground italic">{occ.vernacularName || "Nom vernaculaire N/A"}</div>
+    <div className="flex items-start gap-3 p-3 bg-white/80 rounded-lg border border-gray-100">
+      {/* Image */}
+      <div className="w-14 h-14 rounded-lg overflow-hidden bg-gray-100 flex-shrink-0 flex items-center justify-center">
+        {occ.imageUrl && !imageError ? (
+          <img 
+            src={occ.imageUrl} 
+            alt={occ.scientificName}
+            className="w-full h-full object-cover"
+            onError={() => setImageError(true)}
+          />
+        ) : (
+          <ImageOff className="h-5 w-5 text-gray-300" />
+        )}
+      </div>
+      
+      {/* Info */}
+      <div className="flex-1 min-w-0">
+        <div className="font-medium text-sm text-gray-900 truncate">{occ.scientificName}</div>
+        <div className="text-xs text-muted-foreground italic truncate">
+          {occ.vernacularName || "Nom vernaculaire N/A"}
+        </div>
+        {/* Status Badge */}
+        <div className="mt-1.5">
+          <StatusBadge status={occ.iucnStatus} />
+        </div>
       </div>
     </div>
+  );
+}
+
+function StatusBadge({ status }: { status: string | undefined }) {
+  const label = getIucnLabel(status);
+  
+  const getStatusStyle = () => {
+    switch (status) {
+      case "CR":
+        return "bg-red-600 text-white";
+      case "EN":
+        return "bg-red-500 text-white";
+      case "VU":
+        return "bg-orange-500 text-white";
+      case "NT":
+        return "bg-yellow-500 text-white";
+      case "LC":
+        return "bg-green-500 text-white";
+      case "DD":
+        return "bg-gray-400 text-white";
+      default:
+        return "bg-gray-200 text-gray-600";
+    }
+  };
+
+  return (
+    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${getStatusStyle()}`}>
+      {status ? `${status} - ${label}` : label}
+    </span>
   );
 }
 
