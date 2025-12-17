@@ -134,8 +134,8 @@ Note: Cet inventaire flash repose sur les données GBIF. Il fournit une indicati
               </div>
               {sortedSpecies.high.length > 0 ? (
                 <div className="space-y-2 bg-red-50/50 rounded-xl p-3 border border-red-100">
-                  {sortedSpecies.high.map((occ) => (
-                    <SpeciesCard key={occ.key} occ={occ} />
+                  {sortedSpecies.high.map((occ, idx) => (
+                    <SpeciesCard key={`high-${occ.scientificName}-${idx}`} occ={occ} />
                   ))}
                 </div>
               ) : (
@@ -164,8 +164,8 @@ Note: Cet inventaire flash repose sur les données GBIF. Il fournit une indicati
                 <div className="mt-3">
                   {sortedSpecies.medium.length > 0 ? (
                     <div className="space-y-2 bg-orange-50/50 rounded-xl p-3 border border-orange-100">
-                      {sortedSpecies.medium.map((occ) => (
-                        <SpeciesCard key={occ.key} occ={occ} />
+                      {sortedSpecies.medium.map((occ, idx) => (
+                        <SpeciesCard key={`medium-${occ.scientificName}-${idx}`} occ={occ} />
                       ))}
                     </div>
                   ) : (
@@ -196,8 +196,8 @@ Note: Cet inventaire flash repose sur les données GBIF. Il fournit une indicati
                 <div className="mt-3">
                   {sortedSpecies.low.length > 0 ? (
                     <div className="space-y-2 bg-green-50/50 rounded-xl p-3 border border-green-100">
-                      {sortedSpecies.low.map((occ) => (
-                        <SpeciesCard key={occ.key} occ={occ} />
+                      {sortedSpecies.low.map((occ, idx) => (
+                        <SpeciesCard key={`low-${occ.scientificName}-${idx}`} occ={occ} />
                       ))}
                     </div>
                   ) : (

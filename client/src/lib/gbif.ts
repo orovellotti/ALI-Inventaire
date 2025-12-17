@@ -107,6 +107,32 @@ async function fetchSpeciesIucnStatus(speciesKey: number): Promise<string | unde
   return undefined;
 }
 
+async function fetchFrenchVernacularName(speciesKey: number): Promise<string | undefined> {
+  try {
+    const response = await fetch(`https://api.gbif.org/v1/species/${speciesKey}/vernacularNames?language=fra&limit=1`);
+    if (response.ok) {
+      const data = await response.json();
+      if (data.results && data.results.length > 0) {
+        return data.results[0].vernacularName;
+      }
+    }
+    // Try without language filter and look for French
+    const fallbackResponse = await fetch(`https://api.gbif.org/v1/species/${speciesKey}/vernacularNames?limit=20`);
+    if (fallbackResponse.ok) {
+      const fallbackData = await fallbackResponse.json();
+      const frenchName = fallbackData.results?.find(
+        (v: any) => v.language === "fra" || v.language === "fr" || v.language === "fre"
+      );
+      if (frenchName) {
+        return frenchName.vernacularName;
+      }
+    }
+  } catch (e) {
+    // Silently fail
+  }
+  return undefined;
+}
+
 export async function searchGBIF(lat: number, lng: number, radiusMeters: number): Promise<InventoryResult> {
   const bbox = getBoundingBox(lat, lng, radiusMeters);
   
@@ -115,7 +141,7 @@ export async function searchGBIF(lat: number, lng: number, radiusMeters: number)
   url.searchParams.set("decimalLongitude", `${bbox.minLng.toFixed(4)},${bbox.maxLng.toFixed(4)}`);
   url.searchParams.set("hasCoordinate", "true");
   url.searchParams.set("hasGeospatialIssue", "false");
-  url.searchParams.set("limit", "300");
+  url.searchParams.set("limit", "1000");
 
   try {
     const response = await fetch(url.toString());
@@ -151,11 +177,13 @@ export async function searchGBIF(lat: number, lng: number, radiusMeters: number)
         const speciesKey = record.speciesKey || record.taxonKey;
         let imageUrl: string | undefined;
         let iucnStatus: string | undefined;
+        let frenchName: string | undefined;
 
         if (speciesKey) {
-          [imageUrl, iucnStatus] = await Promise.all([
+          [imageUrl, iucnStatus, frenchName] = await Promise.all([
             fetchSpeciesMedia(speciesKey),
-            fetchSpeciesIucnStatus(speciesKey)
+            fetchSpeciesIucnStatus(speciesKey),
+            fetchFrenchVernacularName(speciesKey)
           ]);
         }
 
@@ -166,7 +194,7 @@ export async function searchGBIF(lat: number, lng: number, radiusMeters: number)
           scientificName: record.scientificName || "Inconnu",
           decimalLatitude: record.decimalLatitude,
           decimalLongitude: record.decimalLongitude,
-          vernacularName: record.vernacularName || record.species || record.genus,
+          vernacularName: frenchName || record.vernacularName || record.species || record.genus,
           order: record.order,
           family: record.family,
           alertLevel,
