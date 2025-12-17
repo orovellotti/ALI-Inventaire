@@ -2,7 +2,8 @@ import { useState, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { X, Download, FileText, AlertTriangle, Leaf, Info, ChevronDown, ChevronUp, ImageOff } from "lucide-react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { X, Download, FileText, AlertTriangle, Leaf, Info, ChevronDown, ChevronUp, ImageOff, Copy, Check } from "lucide-react";
 import { InventoryResult, Occurrence, getIucnLabel } from "@/lib/gbif";
 import html2canvas from "html2canvas";
 
@@ -15,6 +16,8 @@ interface ResultsPanelProps {
 export function ResultsPanel({ isOpen, onClose, results }: ResultsPanelProps) {
   const [showMedium, setShowMedium] = useState(false);
   const [showLow, setShowLow] = useState(false);
+  const [showReportPreview, setShowReportPreview] = useState(false);
+  const [copied, setCopied] = useState(false);
 
   const sortedSpecies = useMemo(() => {
     if (!results) return { high: [], medium: [], low: [] };
@@ -51,9 +54,9 @@ export function ResultsPanel({ isOpen, onClose, results }: ResultsPanelProps) {
     }
   };
 
-  const handleExportText = () => {
-    if (!results) return;
-    const text = `INVENTAIRE FLASH
+  const reportText = useMemo(() => {
+    if (!results) return "";
+    return `INVENTAIRE FLASH
 Date: ${new Date().toLocaleDateString()}
 Centre: ${results.center[0].toFixed(5)}, ${results.center[1].toFixed(5)}
 Rayon: ${results.radius}m
@@ -72,9 +75,12 @@ ENJEUX FAIBLES
 ${sortedSpecies.low.map(o => `- ${o.scientificName} (${o.vernacularName || 'N/A'}) - ${getIucnLabel(o.iucnStatus)}`).join('\n') || 'Aucune'}
 
 Note: Cet inventaire flash repose sur les données GBIF. Il fournit une indication rapide et ne constitue pas une preuve d'absence ni un inventaire terrain.`;
-    
-    navigator.clipboard.writeText(text);
-    alert("Rapport copié dans le presse-papier !");
+  }, [results, sortedSpecies]);
+
+  const handleCopyReport = () => {
+    navigator.clipboard.writeText(reportText);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
   };
 
   if (!isOpen || !results) return null;
@@ -212,9 +218,9 @@ Note: Cet inventaire flash repose sur les données GBIF. Il fournit une indicati
         </ScrollArea>
 
         <div className="p-6 border-t border-gray-100 bg-white/50 space-y-3">
-          <Button onClick={handleExportText} variant="outline" className="w-full justify-start gap-2 h-11 border-gray-200 hover:bg-gray-50 hover:text-gray-900 text-gray-600">
+          <Button onClick={() => setShowReportPreview(true)} variant="outline" className="w-full justify-start gap-2 h-11 border-gray-200 hover:bg-gray-50 hover:text-gray-900 text-gray-600">
             <FileText className="h-4 w-4" />
-            Copier le rapport texte
+            Voir le rapport texte
           </Button>
           <Button onClick={handleExportImage} className="w-full justify-start gap-2 h-11 bg-gray-900 hover:bg-black text-white">
             <Download className="h-4 w-4" />
@@ -222,6 +228,31 @@ Note: Cet inventaire flash repose sur les données GBIF. Il fournit une indicati
           </Button>
         </div>
       </motion.div>
+
+      <Dialog open={showReportPreview} onOpenChange={setShowReportPreview}>
+        <DialogContent className="max-w-2xl max-h-[80vh] flex flex-col">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <FileText className="h-5 w-5" />
+              Rapport d'inventaire
+            </DialogTitle>
+          </DialogHeader>
+          <ScrollArea className="flex-1 mt-4">
+            <pre className="text-sm font-mono whitespace-pre-wrap bg-gray-50 p-4 rounded-lg border border-gray-200 text-gray-700">
+              {reportText}
+            </pre>
+          </ScrollArea>
+          <div className="flex justify-end gap-2 mt-4 pt-4 border-t">
+            <Button variant="outline" onClick={() => setShowReportPreview(false)}>
+              Fermer
+            </Button>
+            <Button onClick={handleCopyReport} className="gap-2">
+              {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
+              {copied ? "Copié !" : "Copier"}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </AnimatePresence>
   );
 }
