@@ -55,8 +55,9 @@ function getAlertLevelFromIucn(iucnStatus: string | undefined): "high" | "medium
     case "CR":
     case "EN":
     case "VU":
-      return "high";
     case "NT":
+      return "high";
+    case "DD":
       return "medium";
     default:
       return "low";
