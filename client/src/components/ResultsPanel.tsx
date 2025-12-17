@@ -1,7 +1,9 @@
+import { useState, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { X, Download, FileText, AlertTriangle, Leaf, Info } from "lucide-react";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { X, Download, FileText, AlertTriangle, Leaf, Info, ChevronDown } from "lucide-react";
 import { InventoryResult, Occurrence } from "@/lib/gbif";
 import html2canvas from "html2canvas";
 
@@ -12,7 +14,29 @@ interface ResultsPanelProps {
 }
 
 export function ResultsPanel({ isOpen, onClose, results }: ResultsPanelProps) {
-  
+  const [showMedium, setShowMedium] = useState(false);
+  const [showLow, setShowLow] = useState(false);
+
+  const sortedSpecies = useMemo(() => {
+    if (!results) return { high: [], medium: [], low: [] };
+    
+    const uniqueMap = new Map<string, Occurrence>();
+    results.occurrences.forEach((occ) => {
+      const existing = uniqueMap.get(occ.scientificName);
+      if (!existing || getAlertPriority(occ.alertLevel) > getAlertPriority(existing.alertLevel)) {
+        uniqueMap.set(occ.scientificName, occ);
+      }
+    });
+
+    const unique = Array.from(uniqueMap.values());
+    
+    return {
+      high: unique.filter(o => o.alertLevel === "high"),
+      medium: unique.filter(o => o.alertLevel === "medium"),
+      low: unique.filter(o => o.alertLevel === "low"),
+    };
+  }, [results]);
+
   const handleExportImage = async () => {
     const mapElement = document.getElementById("map-container");
     if (mapElement) {
@@ -40,10 +64,16 @@ Total occurrences: ${results.stats.total}
 Espèces uniques: ${results.stats.speciesCount}
 Espèces sensibles: ${results.stats.sensitiveCount}
 
-ESPÈCES DOMINANTES
-${results.occurrences.slice(0, 10).map(o => `- ${o.scientificName} (${o.vernacularName || 'N/A'}) [${o.alertLevel}]`).join('\n')}
+ENJEUX FORTS
+${sortedSpecies.high.map(o => `- ${o.scientificName} (${o.vernacularName || 'N/A'})`).join('\n') || 'Aucune'}
 
-Note: Cet inventaire flash repose sur les données GBIF. Il fournit une indication rapide et ne constitue pas une preuve d’absence ni un inventaire terrain.`;
+ENJEUX MOYENS
+${sortedSpecies.medium.map(o => `- ${o.scientificName} (${o.vernacularName || 'N/A'})`).join('\n') || 'Aucune'}
+
+ENJEUX FAIBLES
+${sortedSpecies.low.map(o => `- ${o.scientificName} (${o.vernacularName || 'N/A'})`).join('\n') || 'Aucune'}
+
+Note: Cet inventaire flash repose sur les données GBIF. Il fournit une indication rapide et ne constitue pas une preuve d'absence ni un inventaire terrain.`;
     
     navigator.clipboard.writeText(text);
     alert("Rapport copié dans le presse-papier !");
@@ -74,7 +104,7 @@ Note: Cet inventaire flash repose sur les données GBIF. Il fournit une indicati
 
           {/* Content */}
           <ScrollArea className="flex-1 p-6">
-            <div className="space-y-8">
+            <div className="space-y-6">
               {/* Stats Grid */}
               <div className="grid grid-cols-2 gap-4">
                 <div className="p-4 bg-teal-50/50 rounded-xl border border-teal-100">
@@ -93,33 +123,79 @@ Note: Cet inventaire flash repose sur les données GBIF. Il fournit une indicati
                 </div>
               </div>
 
-              {/* Species List */}
+              {/* HIGH ALERT - Always visible */}
               <div>
-                <h3 className="text-sm font-semibold text-gray-900 mb-4 uppercase tracking-wide">Espèces détectées</h3>
-                <div className="space-y-3">
-                  {results.occurrences.slice(0, 15).map((occ) => (
-                    <div key={occ.key} className="flex items-start justify-between group p-2 hover:bg-gray-50 rounded-lg transition-colors border border-transparent hover:border-gray-100">
-                      <div>
-                        <div className="font-medium text-sm text-gray-900">{occ.scientificName}</div>
-                        <div className="text-xs text-muted-foreground italic">{occ.vernacularName || "Nom vernaculaire N/A"}</div>
-                      </div>
-                      <Badge level={occ.alertLevel} />
-                    </div>
-                  ))}
-                  {results.occurrences.length > 15 && (
-                    <p className="text-xs text-center text-muted-foreground mt-4 italic">
-                      + {results.occurrences.length - 15} autres occurrences...
-                    </p>
-                  )}
+                <div className="flex items-center gap-2 mb-3">
+                  <div className="w-3 h-3 rounded-full bg-red-500"></div>
+                  <h3 className="text-sm font-bold text-red-700 uppercase tracking-wide">
+                    Enjeux Forts ({sortedSpecies.high.length})
+                  </h3>
                 </div>
+                {sortedSpecies.high.length > 0 ? (
+                  <div className="space-y-2 bg-red-50/50 rounded-xl p-3 border border-red-100">
+                    {sortedSpecies.high.map((occ) => (
+                      <SpeciesRow key={occ.key} occ={occ} />
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-sm text-gray-400 italic pl-5">Aucune espèce à enjeu fort détectée</p>
+                )}
               </div>
+
+              {/* MEDIUM ALERT - Collapsible */}
+              <Collapsible open={showMedium} onOpenChange={setShowMedium}>
+                <CollapsibleTrigger className="flex items-center justify-between w-full group">
+                  <div className="flex items-center gap-2">
+                    <div className="w-3 h-3 rounded-full bg-orange-500"></div>
+                    <h3 className="text-sm font-bold text-orange-700 uppercase tracking-wide">
+                      Enjeux Moyens ({sortedSpecies.medium.length})
+                    </h3>
+                  </div>
+                  <ChevronDown className={`h-4 w-4 text-orange-500 transition-transform ${showMedium ? 'rotate-180' : ''}`} />
+                </CollapsibleTrigger>
+                <CollapsibleContent>
+                  {sortedSpecies.medium.length > 0 ? (
+                    <div className="space-y-2 bg-orange-50/50 rounded-xl p-3 border border-orange-100 mt-3">
+                      {sortedSpecies.medium.map((occ) => (
+                        <SpeciesRow key={occ.key} occ={occ} />
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-sm text-gray-400 italic pl-5 mt-3">Aucune espèce à enjeu moyen détectée</p>
+                  )}
+                </CollapsibleContent>
+              </Collapsible>
+
+              {/* LOW ALERT - Collapsible */}
+              <Collapsible open={showLow} onOpenChange={setShowLow}>
+                <CollapsibleTrigger className="flex items-center justify-between w-full group">
+                  <div className="flex items-center gap-2">
+                    <div className="w-3 h-3 rounded-full bg-green-500"></div>
+                    <h3 className="text-sm font-bold text-green-700 uppercase tracking-wide">
+                      Enjeux Faibles ({sortedSpecies.low.length})
+                    </h3>
+                  </div>
+                  <ChevronDown className={`h-4 w-4 text-green-500 transition-transform ${showLow ? 'rotate-180' : ''}`} />
+                </CollapsibleTrigger>
+                <CollapsibleContent>
+                  {sortedSpecies.low.length > 0 ? (
+                    <div className="space-y-2 bg-green-50/50 rounded-xl p-3 border border-green-100 mt-3">
+                      {sortedSpecies.low.map((occ) => (
+                        <SpeciesRow key={occ.key} occ={occ} />
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-sm text-gray-400 italic pl-5 mt-3">Aucune espèce à enjeu faible détectée</p>
+                  )}
+                </CollapsibleContent>
+              </Collapsible>
 
               {/* Disclaimer */}
               <div className="p-4 bg-gray-50 rounded-xl text-xs text-gray-500 leading-relaxed border border-gray-100 flex gap-3">
                 <Info className="h-4 w-4 shrink-0 mt-0.5 text-gray-400" />
                 <p>
                   Cet inventaire flash repose sur les données GBIF. 
-                  Il fournit une indication rapide et ne constitue pas une preuve d’absence ni un inventaire terrain complet.
+                  Il fournit une indication rapide et ne constitue pas une preuve d'absence ni un inventaire terrain complet.
                 </p>
               </div>
             </div>
@@ -142,22 +218,19 @@ Note: Cet inventaire flash repose sur les données GBIF. Il fournit une indicati
   );
 }
 
-function Badge({ level }: { level: "high" | "medium" | "low" }) {
-  const styles = {
-    high: "bg-red-100 text-red-700 border-red-200",
-    medium: "bg-orange-100 text-orange-700 border-orange-200",
-    low: "bg-green-100 text-green-700 border-green-200"
-  };
-
-  const labels = {
-    high: "Fort",
-    medium: "Moyen",
-    low: "Faible"
-  };
-
+function SpeciesRow({ occ }: { occ: Occurrence }) {
   return (
-    <span className={`text-[10px] font-bold px-2 py-1 rounded-full border ${styles[level]}`}>
-      {labels[level]}
-    </span>
+    <div className="flex items-start justify-between p-2 bg-white/60 rounded-lg">
+      <div>
+        <div className="font-medium text-sm text-gray-900">{occ.scientificName}</div>
+        <div className="text-xs text-muted-foreground italic">{occ.vernacularName || "Nom vernaculaire N/A"}</div>
+      </div>
+    </div>
   );
+}
+
+function getAlertPriority(level: "high" | "medium" | "low"): number {
+  if (level === "high") return 3;
+  if (level === "medium") return 2;
+  return 1;
 }
