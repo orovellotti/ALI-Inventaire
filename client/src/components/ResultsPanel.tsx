@@ -2,7 +2,7 @@ import { useState, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { X, Download, FileText, AlertTriangle, Leaf, Info, ChevronDown, ChevronUp, ImageOff, Brain, Shield } from "lucide-react";
+import { X, Download, FileText, AlertTriangle, Leaf, Info, ChevronDown, ChevronUp, ImageOff } from "lucide-react";
 import { InventoryResult, Occurrence, getIucnLabel } from "@/lib/gbif";
 import html2canvas from "html2canvas";
 
@@ -88,7 +88,6 @@ Note: Cet inventaire flash repose sur les données GBIF. Il fournit une indicati
         transition={{ type: "spring", damping: 25, stiffness: 200 }}
         className="fixed top-0 right-0 h-full w-[420px] z-[2000] bg-white/95 backdrop-blur-xl shadow-2xl border-l border-white/20 flex flex-col"
       >
-        {/* Header */}
         <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-white/50">
           <div>
             <h2 className="text-xl font-bold text-gray-900 tracking-tight">Inventaire Flash</h2>
@@ -101,10 +100,8 @@ Note: Cet inventaire flash repose sur les données GBIF. Il fournit une indicati
           </Button>
         </div>
 
-        {/* Content */}
         <ScrollArea className="flex-1 p-6">
           <div className="space-y-6">
-            {/* Stats Grid */}
             <div className="grid grid-cols-2 gap-4">
               <div className="p-4 bg-teal-50/50 rounded-xl border border-teal-100">
                 <div className="flex items-center gap-2 text-teal-700 mb-1">
@@ -122,22 +119,6 @@ Note: Cet inventaire flash repose sur les données GBIF. Il fournit une indicati
               </div>
             </div>
 
-            {/* AI Summary */}
-            {results.aiSummary && (
-              <div className={`p-4 rounded-xl border ${
-                results.overallRisk === 'high' ? 'bg-red-50/50 border-red-200' :
-                results.overallRisk === 'medium' ? 'bg-orange-50/50 border-orange-200' :
-                'bg-green-50/50 border-green-200'
-              }`}>
-                <div className="flex items-center gap-2 mb-2">
-                  <Brain className="h-4 w-4 text-purple-600" />
-                  <span className="text-xs font-bold uppercase text-purple-700">Analyse IA</span>
-                </div>
-                <p className="text-sm text-gray-700 leading-relaxed">{results.aiSummary}</p>
-              </div>
-            )}
-
-            {/* HIGH ALERT - Always visible */}
             <div>
               <div className="flex items-center gap-2 mb-3">
                 <div className="w-3 h-3 rounded-full bg-red-500"></div>
@@ -156,7 +137,6 @@ Note: Cet inventaire flash repose sur les données GBIF. Il fournit une indicati
               )}
             </div>
 
-            {/* MEDIUM ALERT - Collapsible */}
             <div>
               <button 
                 onClick={() => setShowMedium(!showMedium)}
@@ -189,7 +169,6 @@ Note: Cet inventaire flash repose sur les données GBIF. Il fournit une indicati
               )}
             </div>
 
-            {/* LOW ALERT - Collapsible */}
             <div>
               <button 
                 onClick={() => setShowLow(!showLow)}
@@ -222,18 +201,16 @@ Note: Cet inventaire flash repose sur les données GBIF. Il fournit une indicati
               )}
             </div>
 
-            {/* Disclaimer */}
             <div className="p-4 bg-gray-50 rounded-xl text-xs text-gray-500 leading-relaxed border border-gray-100 flex gap-3">
               <Info className="h-4 w-4 shrink-0 mt-0.5 text-gray-400" />
               <p>
-                Cet inventaire flash repose sur les données GBIF. 
+                Cet inventaire flash repose sur les données GBIF et les statuts IUCN. 
                 Il fournit une indication rapide et ne constitue pas une preuve d'absence ni un inventaire terrain complet.
               </p>
             </div>
           </div>
         </ScrollArea>
 
-        {/* Footer Actions */}
         <div className="p-6 border-t border-gray-100 bg-white/50 space-y-3">
           <Button onClick={handleExportText} variant="outline" className="w-full justify-start gap-2 h-11 border-gray-200 hover:bg-gray-50 hover:text-gray-900 text-gray-600">
             <FileText className="h-4 w-4" />
@@ -254,7 +231,6 @@ function SpeciesCard({ occ }: { occ: Occurrence }) {
 
   return (
     <div className="flex items-start gap-3 p-3 bg-white/80 rounded-lg border border-gray-100">
-      {/* Image */}
       <div className="w-14 h-14 rounded-lg overflow-hidden bg-gray-100 flex-shrink-0 flex items-center justify-center">
         {occ.imageUrl && !imageError ? (
           <img 
@@ -268,29 +244,14 @@ function SpeciesCard({ occ }: { occ: Occurrence }) {
         )}
       </div>
       
-      {/* Info */}
       <div className="flex-1 min-w-0">
         <div className="font-medium text-sm text-gray-900 truncate">{occ.scientificName}</div>
         <div className="text-xs text-muted-foreground italic truncate">
           {occ.vernacularName || "Nom vernaculaire N/A"}
         </div>
-        {/* Status Badge */}
         <div className="mt-1.5 flex flex-wrap gap-1">
           <StatusBadge status={occ.iucnStatus} />
         </div>
-        {/* Protection Status */}
-        {occ.protectionStatus && occ.protectionStatus !== "Non déterminé" && (
-          <div className="mt-1 flex items-center gap-1 text-[10px] text-gray-500">
-            <Shield className="h-3 w-3" />
-            <span className="truncate">{occ.protectionStatus}</span>
-          </div>
-        )}
-        {/* Ecological Note */}
-        {occ.ecologicalNote && occ.ecologicalNote !== "Analyse IA indisponible" && (
-          <div className="mt-1 text-[10px] text-gray-400 italic truncate">
-            {occ.ecologicalNote}
-          </div>
-        )}
       </div>
     </div>
   );

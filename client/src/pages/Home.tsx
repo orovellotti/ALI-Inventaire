@@ -4,12 +4,11 @@ import { SearchPanel } from "@/components/SearchPanel";
 import { ResultsPanel } from "@/components/ResultsPanel";
 import { searchGBIF, InventoryResult } from "@/lib/gbif";
 import { searchPlace } from "@/lib/geocoding";
-import { analyzeSpeciesWithAI } from "@/lib/ai-analysis";
 import { useToast } from "@/hooks/use-toast";
 import { Leaf } from "lucide-react";
 
 export default function Home() {
-  const [center, setCenter] = useState<[number, number]>([48.8566, 2.3522]); // Paris default
+  const [center, setCenter] = useState<[number, number]>([48.8566, 2.3522]);
   const [radius, setRadius] = useState(500);
   const [results, setResults] = useState<InventoryResult | null>(null);
   const [isSearching, setIsSearching] = useState(false);
@@ -52,58 +51,6 @@ export default function Home() {
 
     try {
       const data = await searchGBIF(center[0], center[1], r);
-      
-      // Run AI analysis on species
-      if (data.occurrences.length > 0) {
-        toast({
-          title: "Analyse IA en cours...",
-          description: "Évaluation des enjeux écologiques par OpenAI.",
-        });
-        
-        try {
-          const aiAnalysis = await analyzeSpeciesWithAI(
-            data.occurrences.map(o => ({
-              scientificName: o.scientificName,
-              vernacularName: o.vernacularName
-            }))
-          );
-          
-          // Merge AI analysis with GBIF data
-          const enrichedOccurrences = data.occurrences.map(occ => {
-            const aiSpecies = aiAnalysis.species.find(
-              s => s.scientificName.toLowerCase() === occ.scientificName.toLowerCase()
-            );
-            if (aiSpecies) {
-              return {
-                ...occ,
-                alertLevel: aiSpecies.alertLevel,
-                iucnStatus: aiSpecies.iucnStatus,
-                protectionStatus: aiSpecies.protectionStatus,
-                ecologicalNote: aiSpecies.ecologicalNote,
-                vernacularName: aiSpecies.vernacularName || occ.vernacularName
-              };
-            }
-            return occ;
-          });
-          
-          const sensitiveCount = enrichedOccurrences.filter(
-            o => o.alertLevel === "high" || o.alertLevel === "medium"
-          ).length;
-          
-          data.occurrences = enrichedOccurrences;
-          data.stats.sensitiveCount = sensitiveCount;
-          data.aiSummary = aiAnalysis.summary;
-          data.overallRisk = aiAnalysis.overallRisk;
-        } catch (aiError) {
-          console.error("AI Analysis failed:", aiError);
-          toast({
-            title: "Analyse IA indisponible",
-            description: "Les données GBIF seront affichées sans enrichissement IA.",
-            variant: "destructive",
-          });
-        }
-      }
-      
       setResults(data);
       setIsPanelOpen(true);
       toast({
@@ -129,7 +76,6 @@ export default function Home() {
   return (
     <div className="relative w-full h-screen overflow-hidden bg-gray-100">
       
-      {/* Map Layer */}
       <Map 
         center={center} 
         radius={radius} 
@@ -137,7 +83,6 @@ export default function Home() {
         onMapClick={handleMapClick} 
       />
 
-      {/* Floating UI */}
       <SearchPanel 
         onGoToPlace={handleGoToPlace}
         onLaunchAnalysis={handleLaunchAnalysis}
@@ -153,7 +98,6 @@ export default function Home() {
         results={results} 
       />
 
-      {/* Logo / Brand */}
       <div 
         className="absolute top-6 left-6 z-[1000] flex items-center gap-2 bg-white/80 backdrop-blur px-3 py-2 rounded-lg cursor-pointer hover:bg-white transition-colors shadow-sm"
         onClick={() => {
