@@ -259,20 +259,27 @@ function SpeciesCard({ occ }: { occ: Occurrence }) {
 
 function StatusBadge({ status }: { status: string | undefined }) {
   const label = getIucnLabel(status);
+  const s = status?.toUpperCase();
   
   const getStatusStyle = () => {
-    switch (status) {
+    switch (s) {
       case "CR":
+      case "CRITICALLY_ENDANGERED":
         return "bg-red-600 text-white";
       case "EN":
+      case "ENDANGERED":
         return "bg-red-500 text-white";
       case "VU":
+      case "VULNERABLE":
         return "bg-orange-500 text-white";
       case "NT":
+      case "NEAR_THREATENED":
         return "bg-yellow-500 text-white";
       case "LC":
+      case "LEAST_CONCERN":
         return "bg-green-500 text-white";
       case "DD":
+      case "DATA_DEFICIENT":
         return "bg-gray-400 text-white";
       default:
         return "bg-gray-200 text-gray-600";
@@ -281,7 +288,7 @@ function StatusBadge({ status }: { status: string | undefined }) {
 
   return (
     <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${getStatusStyle()}`}>
-      {status ? `${status} - ${label}` : label}
+      {label}
     </span>
   );
 }
