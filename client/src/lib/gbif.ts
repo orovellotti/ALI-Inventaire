@@ -144,7 +144,7 @@ export async function searchGBIF(lat: number, lng: number, radiusMeters: number)
       }
     }
 
-    const uniqueSpecies = Array.from(speciesMap.values()).slice(0, 30);
+    const uniqueSpecies = Array.from(speciesMap.values());
     
     const speciesWithData = await Promise.all(
       uniqueSpecies.map(async (record) => {
