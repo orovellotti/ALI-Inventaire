@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { X, Download, FileText, AlertTriangle, Leaf, Info, ChevronDown, ChevronUp, ImageOff, Copy, Check, ExternalLink } from "lucide-react";
+import { X, Download, FileText, AlertTriangle, Leaf, Info, ChevronDown, ChevronUp, ImageOff, Copy, Check, ExternalLink, BookOpen } from "lucide-react";
 import { InventoryResult, Occurrence, getIucnLabel } from "@/lib/gbif";
 import html2canvas from "html2canvas";
 
@@ -295,6 +295,7 @@ Note: Cet inventaire flash repose sur les données GBIF et les statuts IUCN. Il 
 function SpeciesCard({ occ, isSelected, onSelect }: { occ: Occurrence; isSelected: boolean; onSelect: () => void }) {
   const [imageError, setImageError] = useState(false);
   const gbifUrl = occ.taxonKey ? `https://www.gbif.org/species/${occ.taxonKey}` : null;
+  const wikiUrl = `https://fr.wikipedia.org/wiki/${encodeURIComponent(occ.scientificName.split(' ').slice(0, 2).join('_'))}`;
 
   return (
     <div 
@@ -319,8 +320,18 @@ function SpeciesCard({ occ, isSelected, onSelect }: { occ: Occurrence; isSelecte
       </div>
       
       <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-1">
+        <div className="flex items-center gap-1.5">
           <span className="font-medium text-sm text-gray-900 truncate">{occ.scientificName}</span>
+          <a 
+            href={wikiUrl} 
+            target="_blank" 
+            rel="noopener noreferrer"
+            className="text-blue-600 hover:text-blue-800 flex-shrink-0"
+            title="Voir sur Wikipédia"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <BookOpen className="h-3.5 w-3.5" />
+          </a>
           {gbifUrl && (
             <a 
               href={gbifUrl} 
@@ -328,6 +339,7 @@ function SpeciesCard({ occ, isSelected, onSelect }: { occ: Occurrence; isSelecte
               rel="noopener noreferrer"
               className="text-teal-600 hover:text-teal-800 flex-shrink-0"
               title="Voir sur GBIF"
+              onClick={(e) => e.stopPropagation()}
             >
               <ExternalLink className="h-3 w-3" />
             </a>
