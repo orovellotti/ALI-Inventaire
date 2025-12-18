@@ -272,7 +272,7 @@ Note: Cet inventaire flash repose sur les données GBIF et les statuts IUCN. Il 
               Rapport d'inventaire
             </DialogTitle>
           </DialogHeader>
-          <ScrollArea className="flex-1 mt-4">
+          <ScrollArea className="flex-1 mt-4 h-[50vh] overflow-auto">
             <pre className="text-sm font-mono whitespace-pre-wrap bg-gray-50 p-4 rounded-lg border border-gray-200 text-gray-700">
               {reportText}
             </pre>
