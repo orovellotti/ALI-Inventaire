@@ -265,7 +265,7 @@ Note: Cet inventaire flash repose sur les données GBIF et les statuts IUCN. Il 
       </motion.div>
 
       <Dialog open={showReportPreview} onOpenChange={setShowReportPreview}>
-        <DialogContent className="max-w-2xl max-h-[80vh] flex flex-col z-[3000]">
+        <DialogContent className="max-w-4xl w-[90vw] max-h-[85vh] flex flex-col z-[3000]">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <FileText className="h-5 w-5" />
