@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { X, Download, FileText, AlertTriangle, Leaf, Info, ChevronDown, ChevronUp, ImageOff, Copy, Check } from "lucide-react";
+import { X, Download, FileText, AlertTriangle, Leaf, Info, ChevronDown, ChevronUp, ImageOff, Copy, Check, ExternalLink } from "lucide-react";
 import { InventoryResult, Occurrence, getIucnLabel } from "@/lib/gbif";
 import html2canvas from "html2canvas";
 
@@ -277,6 +277,7 @@ Note: Cet inventaire flash repose sur les données GBIF et les statuts IUCN. Il 
 
 function SpeciesCard({ occ }: { occ: Occurrence }) {
   const [imageError, setImageError] = useState(false);
+  const gbifUrl = occ.taxonKey ? `https://www.gbif.org/species/${occ.taxonKey}` : null;
 
   return (
     <div className="flex items-start gap-3 p-3 bg-white/80 rounded-lg border border-gray-100">
@@ -294,7 +295,20 @@ function SpeciesCard({ occ }: { occ: Occurrence }) {
       </div>
       
       <div className="flex-1 min-w-0">
-        <div className="font-medium text-sm text-gray-900 truncate">{occ.scientificName}</div>
+        <div className="flex items-center gap-1">
+          <span className="font-medium text-sm text-gray-900 truncate">{occ.scientificName}</span>
+          {gbifUrl && (
+            <a 
+              href={gbifUrl} 
+              target="_blank" 
+              rel="noopener noreferrer"
+              className="text-teal-600 hover:text-teal-800 flex-shrink-0"
+              title="Voir sur GBIF"
+            >
+              <ExternalLink className="h-3 w-3" />
+            </a>
+          )}
+        </div>
         <div className="text-xs text-muted-foreground italic truncate">
           {occ.vernacularName || "Nom vernaculaire N/A"}
         </div>
