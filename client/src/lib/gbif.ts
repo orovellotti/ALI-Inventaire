@@ -41,6 +41,8 @@ export function getIucnLabel(code: string | undefined): string {
     "EXTINCT": "Éteint",
     "EW": "Éteint à l'état sauvage",
     "EXTINCT_IN_THE_WILD": "Éteint à l'état sauvage",
+    "RE": "Éteint régionalement",
+    "REGIONALLY_EXTINCT": "Éteint régionalement",
     "CR": "En danger critique",
     "CRITICALLY_ENDANGERED": "En danger critique",
     "EN": "En danger",
@@ -53,6 +55,8 @@ export function getIucnLabel(code: string | undefined): string {
     "LEAST_CONCERN": "Préoccupation mineure",
     "DD": "Données insuffisantes",
     "DATA_DEFICIENT": "Données insuffisantes",
+    "NA": "Non applicable",
+    "NOT_APPLICABLE": "Non applicable",
     "NE": "Non évalué",
     "NOT_EVALUATED": "Non évalué"
   };
@@ -62,6 +66,12 @@ export function getIucnLabel(code: string | undefined): string {
 function getAlertLevelFromIucn(iucnStatus: string | undefined): "high" | "medium" | "low" {
   const status = iucnStatus?.toUpperCase();
   switch (status) {
+    case "EX":
+    case "EXTINCT":
+    case "EW":
+    case "EXTINCT_IN_THE_WILD":
+    case "RE":
+    case "REGIONALLY_EXTINCT":
     case "CR":
     case "CRITICALLY_ENDANGERED":
     case "EN":
