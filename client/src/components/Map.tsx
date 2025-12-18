@@ -22,6 +22,7 @@ interface MapProps {
   radius: number;
   results: InventoryResult | null;
   onMapClick: (lat: number, lng: number) => void;
+  selectedSpecies: string | null;
 }
 
 function MapController({ center }: { center: [number, number] }) {
@@ -41,7 +42,7 @@ function MapEvents({ onMapClick }: { onMapClick: (lat: number, lng: number) => v
   return null;
 }
 
-export function Map({ center, radius, results, onMapClick }: MapProps) {
+export function Map({ center, radius, results, onMapClick, selectedSpecies }: MapProps) {
   return (
     <div id="map-container" className="h-full w-full relative z-0">
       <MapContainer 
@@ -71,19 +72,22 @@ export function Map({ center, radius, results, onMapClick }: MapProps) {
         </CircleMarker>
 
         {/* Results Visualization */}
-        {results && results.occurrences.map((occ) => (
-          <CircleMarker
-            key={occ.key}
-            center={[occ.decimalLatitude, occ.decimalLongitude]}
-            radius={occ.alertLevel === 'high' ? 8 : (occ.alertLevel === 'medium' ? 6 : 4)}
-            pathOptions={{
-              color: 'white',
-              weight: 1,
-              fillColor: occ.alertLevel === 'high' ? '#dc2626' : (occ.alertLevel === 'medium' ? '#f59e0b' : '#22c55e'),
-              fillOpacity: 0.8
-            }}
-          />
-        ))}
+        {results && results.occurrences.map((occ) => {
+          const isSelected = selectedSpecies === occ.scientificName;
+          return (
+            <CircleMarker
+              key={occ.key}
+              center={[occ.decimalLatitude, occ.decimalLongitude]}
+              radius={isSelected ? 14 : (occ.alertLevel === 'high' ? 8 : (occ.alertLevel === 'medium' ? 6 : 4))}
+              pathOptions={{
+                color: isSelected ? '#0d9488' : 'white',
+                weight: isSelected ? 3 : 1,
+                fillColor: occ.alertLevel === 'high' ? '#dc2626' : (occ.alertLevel === 'medium' ? '#f59e0b' : '#22c55e'),
+                fillOpacity: isSelected ? 1 : 0.8
+              }}
+            />
+          );
+        })}
       </MapContainer>
       
       {/* Attribution Overlay */}

@@ -14,6 +14,7 @@ export default function Home() {
   const [isSearching, setIsSearching] = useState(false);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [isPanelOpen, setIsPanelOpen] = useState(false);
+  const [selectedSpecies, setSelectedSpecies] = useState<string | null>(null);
   const { toast } = useToast();
 
   const handleGoToPlace = async (query: string) => {
@@ -80,7 +81,8 @@ export default function Home() {
         center={center} 
         radius={radius} 
         results={results} 
-        onMapClick={handleMapClick} 
+        onMapClick={handleMapClick}
+        selectedSpecies={selectedSpecies}
       />
 
       <SearchPanel 
@@ -95,7 +97,9 @@ export default function Home() {
       <ResultsPanel 
         isOpen={isPanelOpen} 
         onClose={() => setIsPanelOpen(false)} 
-        results={results} 
+        results={results}
+        selectedSpecies={selectedSpecies}
+        onSelectSpecies={setSelectedSpecies}
       />
 
       <div 

@@ -11,9 +11,11 @@ interface ResultsPanelProps {
   isOpen: boolean;
   onClose: () => void;
   results: InventoryResult | null;
+  selectedSpecies: string | null;
+  onSelectSpecies: (species: string | null) => void;
 }
 
-export function ResultsPanel({ isOpen, onClose, results }: ResultsPanelProps) {
+export function ResultsPanel({ isOpen, onClose, results, selectedSpecies, onSelectSpecies }: ResultsPanelProps) {
   const [showMedium, setShowMedium] = useState(false);
   const [showLow, setShowLow] = useState(false);
   const [showReportPreview, setShowReportPreview] = useState(false);
@@ -153,7 +155,12 @@ Note: Cet inventaire flash repose sur les données GBIF et les statuts IUCN. Il 
               {sortedSpecies.high.length > 0 ? (
                 <div className="space-y-2 bg-red-50/50 rounded-xl p-3 border border-red-100">
                   {sortedSpecies.high.map((occ, idx) => (
-                    <SpeciesCard key={`high-${occ.scientificName}-${idx}`} occ={occ} />
+                    <SpeciesCard 
+                      key={`high-${occ.scientificName}-${idx}`} 
+                      occ={occ} 
+                      isSelected={selectedSpecies === occ.scientificName}
+                      onSelect={() => onSelectSpecies(selectedSpecies === occ.scientificName ? null : occ.scientificName)}
+                    />
                   ))}
                 </div>
               ) : (
@@ -183,7 +190,12 @@ Note: Cet inventaire flash repose sur les données GBIF et les statuts IUCN. Il 
                   {sortedSpecies.medium.length > 0 ? (
                     <div className="space-y-2 bg-orange-50/50 rounded-xl p-3 border border-orange-100">
                       {sortedSpecies.medium.map((occ, idx) => (
-                        <SpeciesCard key={`medium-${occ.scientificName}-${idx}`} occ={occ} />
+                        <SpeciesCard 
+                          key={`medium-${occ.scientificName}-${idx}`} 
+                          occ={occ}
+                          isSelected={selectedSpecies === occ.scientificName}
+                          onSelect={() => onSelectSpecies(selectedSpecies === occ.scientificName ? null : occ.scientificName)}
+                        />
                       ))}
                     </div>
                   ) : (
@@ -215,7 +227,12 @@ Note: Cet inventaire flash repose sur les données GBIF et les statuts IUCN. Il 
                   {sortedSpecies.low.length > 0 ? (
                     <div className="space-y-2 bg-green-50/50 rounded-xl p-3 border border-green-100">
                       {sortedSpecies.low.map((occ, idx) => (
-                        <SpeciesCard key={`low-${occ.scientificName}-${idx}`} occ={occ} />
+                        <SpeciesCard 
+                          key={`low-${occ.scientificName}-${idx}`} 
+                          occ={occ}
+                          isSelected={selectedSpecies === occ.scientificName}
+                          onSelect={() => onSelectSpecies(selectedSpecies === occ.scientificName ? null : occ.scientificName)}
+                        />
                       ))}
                     </div>
                   ) : (
@@ -275,12 +292,19 @@ Note: Cet inventaire flash repose sur les données GBIF et les statuts IUCN. Il 
   );
 }
 
-function SpeciesCard({ occ }: { occ: Occurrence }) {
+function SpeciesCard({ occ, isSelected, onSelect }: { occ: Occurrence; isSelected: boolean; onSelect: () => void }) {
   const [imageError, setImageError] = useState(false);
   const gbifUrl = occ.taxonKey ? `https://www.gbif.org/species/${occ.taxonKey}` : null;
 
   return (
-    <div className="flex items-start gap-3 p-3 bg-white/80 rounded-lg border border-gray-100">
+    <div 
+      className={`flex items-start gap-3 p-3 rounded-lg border cursor-pointer transition-all ${
+        isSelected 
+          ? 'bg-teal-50 border-teal-300 ring-2 ring-teal-500' 
+          : 'bg-white/80 border-gray-100 hover:bg-gray-50'
+      }`}
+      onClick={onSelect}
+    >
       <div className="w-14 h-14 rounded-lg overflow-hidden bg-gray-100 flex-shrink-0 flex items-center justify-center">
         {occ.imageUrl && !imageError ? (
           <img 
