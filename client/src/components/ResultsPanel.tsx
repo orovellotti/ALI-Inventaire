@@ -3,8 +3,8 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { X, Download, FileText, AlertTriangle, Leaf, Info, ChevronDown, ChevronUp, ImageOff, Copy, Check, ExternalLink, BookOpen } from "lucide-react";
-import { InventoryResult, Occurrence, getIucnLabel } from "@/lib/gbif";
+import { X, Download, FileText, AlertTriangle, Leaf, Info, ChevronDown, ChevronUp, ImageOff, Copy, Check, ExternalLink, BookOpen, Shield, MapPin, Tag, Calendar, Link, Flag, Layers } from "lucide-react";
+import { InventoryResult, Occurrence, getIucnLabel, ConfidenceScore } from "@/lib/gbif";
 import html2canvas from "html2canvas";
 
 interface ResultsPanelProps {
@@ -76,10 +76,25 @@ export function ResultsPanel({ isOpen, onClose, results, selectedSpecies, onSele
       ? sortedSpecies.low.map(o => `- ${o.scientificName} (${o.vernacularName || 'N/A'}) - ${getIucnLabel(o.iucnStatus)}`).join('\n')
       : 'Aucune';
 
+    const conf = results.confidence;
+    const confLabel = conf.interpretation === "excellent" ? "Excellent" 
+      : conf.interpretation === "good" ? "Bon"
+      : conf.interpretation === "moderate" ? "Modéré" 
+      : "Faible";
+
     return `INVENTAIRE FLASH
 Date: ${new Date().toLocaleDateString()}
 Centre: ${results.center[0].toFixed(5)}, ${results.center[1].toFixed(5)}
 Rayon: ${results.radius}m
+
+INDICE DE CONFIANCE GBIF: ${conf.total}/100 (${confLabel})
+- Qualité géographique: ${conf.geo}%
+- Qualité taxonomique: ${conf.tax}%
+- Fraîcheur temporelle: ${conf.time}%
+- Traçabilité: ${conf.trace}%
+- Flags GBIF: ${conf.issues}%
+- Redondance: ${conf.dup}%
+${conf.message}
 
 RÉSULTATS
 Total espèces dans le rapport: ${totalInReport}
@@ -144,6 +159,8 @@ Note: Cet inventaire flash repose sur les données GBIF et les statuts IUCN. Il 
                 <span className="text-2xl font-bold text-gray-900">{results.stats.sensitiveCount}</span>
               </div>
             </div>
+
+            <ConfidencePanel confidence={results.confidence} />
 
             <div>
               <div className="flex items-center gap-2 mb-3">
@@ -393,6 +410,93 @@ function StatusBadge({ status }: { status: string | undefined }) {
     <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${getStatusStyle()}`}>
       {label}
     </span>
+  );
+}
+
+function ConfidencePanel({ confidence }: { confidence: ConfidenceScore }) {
+  const [expanded, setExpanded] = useState(false);
+  
+  const getConfidenceColor = () => {
+    if (confidence.total >= 80) return "text-green-600 bg-green-50 border-green-200";
+    if (confidence.total >= 60) return "text-blue-600 bg-blue-50 border-blue-200";
+    if (confidence.total >= 40) return "text-orange-600 bg-orange-50 border-orange-200";
+    return "text-red-600 bg-red-50 border-red-200";
+  };
+
+  const getConfidenceLabel = () => {
+    if (confidence.interpretation === "excellent") return "Excellent";
+    if (confidence.interpretation === "good") return "Bon";
+    if (confidence.interpretation === "moderate") return "Modéré";
+    return "Faible";
+  };
+
+  const getProgressColor = (value: number) => {
+    if (value >= 70) return "bg-green-500";
+    if (value >= 50) return "bg-blue-500";
+    if (value >= 30) return "bg-orange-500";
+    return "bg-red-500";
+  };
+
+  const subScores = [
+    { label: "Géographie", value: confidence.geo, icon: MapPin },
+    { label: "Taxonomie", value: confidence.tax, icon: Tag },
+    { label: "Fraîcheur", value: confidence.time, icon: Calendar },
+    { label: "Traçabilité", value: confidence.trace, icon: Link },
+    { label: "Qualité GBIF", value: confidence.issues, icon: Flag },
+    { label: "Unicité", value: confidence.dup, icon: Layers },
+  ];
+
+  return (
+    <div className={`rounded-xl border p-4 ${getConfidenceColor()}`}>
+      <button 
+        onClick={() => setExpanded(!expanded)}
+        className="w-full"
+      >
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Shield className="h-5 w-5" />
+            <span className="font-bold text-sm">Indice de Confiance</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="text-2xl font-bold">{confidence.total}</span>
+            <span className="text-sm">/100</span>
+            <span className="text-xs px-2 py-0.5 rounded-full bg-white/50 font-medium">
+              {getConfidenceLabel()}
+            </span>
+            {expanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+          </div>
+        </div>
+      </button>
+
+      {expanded && (
+        <div className="mt-4 space-y-3">
+          <div className="grid grid-cols-2 gap-2">
+            {subScores.map(({ label, value, icon: Icon }) => (
+              <div key={label} className="bg-white/60 rounded-lg p-2">
+                <div className="flex items-center gap-1.5 mb-1">
+                  <Icon className="h-3 w-3" />
+                  <span className="text-xs font-medium">{label}</span>
+                  <span className="text-xs ml-auto font-bold">{value}%</span>
+                </div>
+                <div className="h-1.5 bg-white/80 rounded-full overflow-hidden">
+                  <div 
+                    className={`h-full rounded-full transition-all ${getProgressColor(value)}`}
+                    style={{ width: `${value}%` }}
+                  />
+                </div>
+              </div>
+            ))}
+          </div>
+          
+          <div className="text-xs bg-white/60 rounded-lg p-2">
+            <p className="font-medium">{confidence.message}</p>
+            <p className="mt-1 text-gray-500">
+              {confidence.rawCount} occurrences analysées, {confidence.dedupCount} uniques
+            </p>
+          </div>
+        </div>
+      )}
+    </div>
   );
 }
 

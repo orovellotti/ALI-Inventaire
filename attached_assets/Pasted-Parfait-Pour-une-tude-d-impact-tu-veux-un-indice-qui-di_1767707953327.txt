@@ -1,0 +1,170 @@
+Parfait. Pour une **étude d’impact**, tu veux un indice qui dit : *“à quel point je peux utiliser ces occurrences GBIF sans raconter n’importe quoi”*. Donc un **indice de confiance des données**, pas un indice “bio” (richesse etc.). On peut le construire comme un score **0–100** calculé à partir de critères qualité, cohérence et “auditabilité”.
+
+Voilà une proposition directement utilisable.
+
+## Indice de confiance GBIF (0–100) pour étude d’impact
+
+### Principe
+
+Tu prends les occurrences GBIF retournées (dans ton emprise : point + rayon/polygone).
+Tu calcules 6 sous-scores (0–1), puis tu fais une moyenne pondérée :
+
+[
+Score = 100 \times \sum_i w_i \cdot s_i \quad\text{avec}\quad \sum w_i=1
+]
+
+### 1) Qualité géographique (poids 0,25)
+
+Objectif : savoir si la géoloc est exploitable à l’échelle de l’impact.
+
+**Mesures** :
+
+* `hasCoordinate` (sinon score 0 direct)
+* `coordinateUncertaintyInMeters` (si absent → pénalité)
+* cohérence `countryCode=FR` / coordonnées dans France (sinon pénalité forte)
+* `geodeticDatum` présent (sinon petite pénalité)
+
+**Score simple** :
+
+* On définit un seuil “étude d’impact” (ex. 100 m, 300 m ou 1000 m selon contexte).
+* (p =) proportion d’occurrences avec incertitude ≤ seuil
+* (q =) proportion avec incertitude renseignée
+* (s_{geo}=0.7p + 0.3q)
+
+👉 Reco : seuil **300 m** par défaut (sinon tu risques de “déplacer” un enjeu).
+
+### 2) Qualité taxonomique (poids 0,20)
+
+Objectif : savoir si l’identification est solide.
+
+**Mesures** :
+
+* `taxonRank` : species/subspecies mieux que genus/family
+* `taxonomicStatus` (accepted vs synonym)
+* `identifiedBy` et/ou `identificationVerificationStatus` (quand dispo)
+* `name` résolu en `speciesKey` (GBIF backbone)
+
+**Score** :
+
+* (a=) proportion au rang espèce (species/subspecies)
+* (b=) proportion “accepted”
+* (s_{tax}=0.6a+0.4b)
+
+### 3) Fraîcheur temporelle (poids 0,15)
+
+Objectif : éviter de baser l’impact sur des données obsolètes (habitat changé).
+
+**Mesures** :
+
+* `eventDate` ou `year`
+* proportion “récente” (ex. ≤ 10 ans) vs “ancienne”
+
+**Score** (exemple) :
+
+* (r=) proportion ≤ 10 ans
+* (m=) proportion avec date renseignée
+* (s_{time}=0.7r+0.3m)
+
+👉 Reco : pour EIE, **10 ans** est souvent un bon compromis (à adapter).
+
+### 4) Preuve / traçabilité (poids 0,15)
+
+Objectif : est-ce qu’un expert peut auditer l’occurrence ?
+
+**Mesures** :
+
+* `basisOfRecord` (HUMAN_OBSERVATION / PRESERVED_SPECIMEN etc.)
+* `references` / `occurrenceID` stable
+* présence de média (`mediaType`, `associatedMedia`) si dispo
+* présence de `recordedBy`, `institutionCode`, `collectionCode`
+
+**Score** :
+
+* (t=) proportion avec `occurrenceID` ou `references`
+* (u=) proportion avec auteur/institution
+* (s_{trace}=0.5t+0.5u)
+
+### 5) Contrôles GBIF / flags (poids 0,15)
+
+Objectif : capturer ce que GBIF signale déjà comme problématique.
+
+**Mesures** :
+
+* `issue` (liste des flags GBIF : coordonnées suspectes, 0/0, inversions lat/lon, etc.)
+* proportion d’occurrences **sans issues critiques**
+
+**Score** :
+
+* On définit une liste “critique” (coordonnées invalides, 0/0, country mismatch, etc.)
+* (c=) proportion sans issues critiques
+* (s_{issue}=c)
+
+### 6) Redondance & biais d’échantillonnage (poids 0,10)
+
+Objectif : éviter qu’un seul spot/observateur fasse exploser la liste.
+
+**Mesures** :
+
+* dédoublonnage spatio-temporel : même `speciesKey` + même jour + même cellule 100 m → 1
+* proportion de doublons
+* concentration (ex. top 10% des cellules contiennent X% des points)
+
+**Score** :
+
+* (d=) 1 − taux de doublons (après règle ci-dessus)
+* (s_{dup}=d)
+
+---
+
+## Interprétation (barème)
+
+* **80–100** : exploitable pour cadrage des enjeux + appui à l’expertise terrain.
+* **60–80** : utilisable mais **à recouper** (risque géoloc/taxon/date).
+* **40–60** : indicatif uniquement (pré-diagnostic), pas de conclusion d’absence.
+* **<40** : faible valeur probante ; à traiter comme “signal à vérifier”, pas comme preuve.
+
+Et surtout : même à 95/100, GBIF ne prouve jamais l’absence d’espèce. Il prouve au mieux une présence plausible.
+
+---
+
+## “Mode étude d’impact” : recommandations de filtres (avant score)
+
+Pour éviter de scorer du bruit :
+
+* garder `hasCoordinate=true`
+* exclure `coordinateUncertaintyInMeters` manquant (ou le pénaliser très fort)
+* exclure occurrences avec flags critiques
+* garder rang espèce si possible
+* option : limiter à `year >= 2000` (selon projet)
+
+---
+
+## Résultat attendu (sortie type)
+
+Pour ton point+rayon (ou ton polygone), tu renvoies :
+
+* `confidence_score` (0–100)
+* sous-scores : `geo, tax, time, trace, issues, dup`
+* `n_raw`, `n_after_filters`, `n_dedup`
+* un “message” automatique : *“principal risque : incertitude spatiale élevée (42% > 300 m)”*
+
+Ça fait très “audit trail”, et les bureaux d’études aiment ça.
+
+---
+
+## Petite mise en garde “juridico-tech”
+
+Pour une EIE, on ne devrait **jamais** conclure “pas d’enjeu” sur base GBIF seule. GBIF sert à :
+
+* cadrer les enjeux potentiels,
+* orienter les prospections,
+* documenter une présence déjà connue,
+* compléter par données locales (INPN, SINP, conservatoires, inventaires bureau d’étude).
+
+---
+
+Si tu passes ton emprise et un export GBIF (CSV), je peux te donner directement :
+
+* les colonnes exactes à utiliser,
+* la formule finale 0–100,
+* et une version “prête à coder” en pseudo-code (ou Python/R) sans blabla.

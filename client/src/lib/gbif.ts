@@ -12,6 +12,21 @@ export interface Occurrence {
   taxonKey?: number;
 }
 
+export interface ConfidenceScore {
+  total: number;
+  geo: number;
+  tax: number;
+  time: number;
+  trace: number;
+  issues: number;
+  dup: number;
+  interpretation: "excellent" | "good" | "moderate" | "low";
+  message: string;
+  rawCount: number;
+  filteredCount: number;
+  dedupCount: number;
+}
+
 export interface InventoryResult {
   occurrences: Occurrence[];
   stats: {
@@ -21,6 +36,7 @@ export interface InventoryResult {
   };
   center: [number, number];
   radius: number;
+  confidence: ConfidenceScore;
 }
 
 function getBoundingBox(lat: number, lng: number, radiusMeters: number) {
@@ -89,6 +105,167 @@ function getAlertLevelFromIucn(iucnStatus: string | undefined): "high" | "medium
   }
 }
 
+const CRITICAL_ISSUES = [
+  "ZERO_COORDINATE",
+  "COORDINATE_OUT_OF_RANGE",
+  "COORDINATE_INVALID",
+  "COUNTRY_COORDINATE_MISMATCH",
+  "COORDINATE_REPROJECTION_FAILED",
+  "GEODETIC_DATUM_INVALID",
+  "PRESUMED_SWAPPED_COORDINATE",
+  "PRESUMED_NEGATED_LATITUDE",
+  "PRESUMED_NEGATED_LONGITUDE"
+];
+
+function calculateConfidenceScore(rawRecords: any[]): ConfidenceScore {
+  if (rawRecords.length === 0) {
+    return {
+      total: 0,
+      geo: 0,
+      tax: 0,
+      time: 0,
+      trace: 0,
+      issues: 0,
+      dup: 0,
+      interpretation: "low",
+      message: "Aucune donnée disponible",
+      rawCount: 0,
+      filteredCount: 0,
+      dedupCount: 0
+    };
+  }
+
+  const n = rawRecords.length;
+  const currentYear = new Date().getFullYear();
+  const uncertaintyThreshold = 300;
+
+  let geoWithUncertainty = 0;
+  let geoUnderThreshold = 0;
+  let taxSpeciesRank = 0;
+  let taxAccepted = 0;
+  let timeWithDate = 0;
+  let timeRecent = 0;
+  let traceWithId = 0;
+  let traceWithAuthor = 0;
+  let issuesClean = 0;
+
+  for (const r of rawRecords) {
+    if (r.coordinateUncertaintyInMeters !== undefined && r.coordinateUncertaintyInMeters !== null) {
+      geoWithUncertainty++;
+      if (r.coordinateUncertaintyInMeters <= uncertaintyThreshold) {
+        geoUnderThreshold++;
+      }
+    }
+
+    const rank = r.taxonRank?.toUpperCase();
+    if (rank === "SPECIES" || rank === "SUBSPECIES" || rank === "VARIETY") {
+      taxSpeciesRank++;
+    }
+    if (r.taxonomicStatus?.toUpperCase() === "ACCEPTED") {
+      taxAccepted++;
+    }
+
+    if (r.year || r.eventDate) {
+      timeWithDate++;
+      const year = r.year || new Date(r.eventDate).getFullYear();
+      if (currentYear - year <= 10) {
+        timeRecent++;
+      }
+    }
+
+    if (r.occurrenceID || r.references) {
+      traceWithId++;
+    }
+    if (r.recordedBy || r.institutionCode) {
+      traceWithAuthor++;
+    }
+
+    let recordIssues: string[] = [];
+    if (r.issues) {
+      if (Array.isArray(r.issues)) {
+        recordIssues = r.issues;
+      } else if (typeof r.issues === 'string') {
+        recordIssues = r.issues.split(';').filter(Boolean);
+      }
+    }
+    const hasCritical = recordIssues.some((issue: string) => CRITICAL_ISSUES.includes(issue));
+    if (!hasCritical) {
+      issuesClean++;
+    }
+  }
+
+  const dedupKey = new Set<string>();
+  for (const r of rawRecords) {
+    const key = `${r.speciesKey || r.scientificName}_${r.year || 'nodate'}_${Math.round((r.decimalLatitude || 0) * 1000)}_${Math.round((r.decimalLongitude || 0) * 1000)}`;
+    dedupKey.add(key);
+  }
+  const dedupCount = dedupKey.size;
+  const dupRatio = 1 - (n - dedupCount) / n;
+
+  const p = geoWithUncertainty > 0 ? geoUnderThreshold / geoWithUncertainty : 0;
+  const q = geoWithUncertainty / n;
+  const geoScore = 0.7 * p + 0.3 * q;
+
+  const a = taxSpeciesRank / n;
+  const b = taxAccepted / n;
+  const taxScore = 0.6 * a + 0.4 * b;
+
+  const r_time = timeWithDate > 0 ? timeRecent / timeWithDate : 0;
+  const m = timeWithDate / n;
+  const timeScore = 0.7 * r_time + 0.3 * m;
+
+  const t = traceWithId / n;
+  const u = traceWithAuthor / n;
+  const traceScore = 0.5 * t + 0.5 * u;
+
+  const issuesScore = issuesClean / n;
+
+  const dupScore = dupRatio;
+
+  const total = Math.round(
+    100 * (
+      0.25 * geoScore +
+      0.20 * taxScore +
+      0.15 * timeScore +
+      0.15 * traceScore +
+      0.15 * issuesScore +
+      0.10 * dupScore
+    )
+  );
+
+  let interpretation: "excellent" | "good" | "moderate" | "low";
+  if (total >= 80) interpretation = "excellent";
+  else if (total >= 60) interpretation = "good";
+  else if (total >= 40) interpretation = "moderate";
+  else interpretation = "low";
+
+  const issues: string[] = [];
+  if (geoScore < 0.5) issues.push(`incertitude spatiale élevée (${Math.round((1 - p) * 100)}% > ${uncertaintyThreshold}m)`);
+  if (taxScore < 0.5) issues.push(`qualité taxonomique faible`);
+  if (timeScore < 0.5) issues.push(`données anciennes (${Math.round((1 - r_time) * 100)}% > 10 ans)`);
+  if (traceScore < 0.5) issues.push(`traçabilité insuffisante`);
+  if (issuesScore < 0.7) issues.push(`${Math.round((1 - issuesScore) * 100)}% avec alertes GBIF`);
+
+  const message = issues.length > 0 
+    ? `Points d'attention : ${issues.join(", ")}`
+    : "Données de bonne qualité pour étude d'impact";
+
+  return {
+    total,
+    geo: Math.round(geoScore * 100),
+    tax: Math.round(taxScore * 100),
+    time: Math.round(timeScore * 100),
+    trace: Math.round(traceScore * 100),
+    issues: Math.round(issuesScore * 100),
+    dup: Math.round(dupScore * 100),
+    interpretation,
+    message,
+    rawCount: n,
+    filteredCount: n,
+    dedupCount
+  };
+}
+
 async function fetchSpeciesMedia(speciesKey: number): Promise<string | undefined> {
   try {
     const response = await fetch(`https://api.gbif.org/v1/species/${speciesKey}/media?limit=1`);
@@ -99,7 +276,6 @@ async function fetchSpeciesMedia(speciesKey: number): Promise<string | undefined
       }
     }
   } catch (e) {
-    // Silently fail - image is optional
   }
   return undefined;
 }
@@ -112,7 +288,6 @@ async function fetchSpeciesIucnStatus(speciesKey: number): Promise<string | unde
       return data.category;
     }
   } catch (e) {
-    // Silently fail
   }
   return undefined;
 }
@@ -126,7 +301,6 @@ async function fetchFrenchVernacularName(speciesKey: number): Promise<string | u
         return data.results[0].vernacularName;
       }
     }
-    // Try without language filter and look for French
     const fallbackResponse = await fetch(`https://api.gbif.org/v1/species/${speciesKey}/vernacularNames?limit=20`);
     if (fallbackResponse.ok) {
       const fallbackData = await fallbackResponse.json();
@@ -138,7 +312,6 @@ async function fetchFrenchVernacularName(speciesKey: number): Promise<string | u
       }
     }
   } catch (e) {
-    // Silently fail
   }
   return undefined;
 }
@@ -167,9 +340,12 @@ export async function searchGBIF(lat: number, lng: number, radiusMeters: number)
         occurrences: [],
         stats: { total: 0, speciesCount: 0, sensitiveCount: 0 },
         center: [lat, lng],
-        radius: radiusMeters
+        radius: radiusMeters,
+        confidence: calculateConfidenceScore([])
       };
     }
+
+    const confidence = calculateConfidenceScore(data.results);
 
     const speciesMap = new Map<string, any>();
     for (const record of data.results) {
@@ -243,7 +419,8 @@ export async function searchGBIF(lat: number, lng: number, radiusMeters: number)
         sensitiveCount
       },
       center: [lat, lng],
-      radius: radiusMeters
+      radius: radiusMeters,
+      confidence
     };
   } catch (error) {
     console.error("GBIF fetch error:", error);
