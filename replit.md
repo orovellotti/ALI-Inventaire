@@ -55,7 +55,9 @@ Preferred communication style: Simple, everyday language.
 - **Full-screen map layout**: Map occupies 100% viewport with floating UI panels
 - **Glass morphism UI**: Semi-transparent panels with backdrop blur effects
 - **Alert-based species classification**: Species categorized as high/medium/low priority based on conservation status
-- **Confidence scoring**: GBIF data quality assessed using geographic, taxonomic, and temporal factors
+- **Confidence scoring**: GBIF data quality assessed using geographic, taxonomic, and temporal factors (6 criteria: geo, tax, time, trace, issues, dedup)
+- **Multi-circle buffer zones**: Users can add up to 6 analysis circles with independent centers/radii; analysis merges species across all zones with averaged confidence scores
+- **Color-coded circles**: Each buffer circle gets a distinct color (teal, indigo, rose, orange, violet, sky) for visual differentiation
 
 ## External Dependencies
 

@@ -27,6 +27,12 @@ export interface ConfidenceScore {
   dedupCount: number;
 }
 
+export interface BufferCircle {
+  id: string;
+  center: [number, number];
+  radius: number;
+}
+
 export interface InventoryResult {
   occurrences: Occurrence[];
   stats: {
@@ -36,6 +42,7 @@ export interface InventoryResult {
   };
   center: [number, number];
   radius: number;
+  circles: BufferCircle[];
   confidence: ConfidenceScore;
 }
 
@@ -341,6 +348,7 @@ export async function searchGBIF(lat: number, lng: number, radiusMeters: number)
         stats: { total: 0, speciesCount: 0, sensitiveCount: 0 },
         center: [lat, lng],
         radius: radiusMeters,
+        circles: [{ id: "main", center: [lat, lng], radius: radiusMeters }],
         confidence: calculateConfidenceScore([])
       };
     }
@@ -420,10 +428,85 @@ export async function searchGBIF(lat: number, lng: number, radiusMeters: number)
       },
       center: [lat, lng],
       radius: radiusMeters,
+      circles: [{ id: "main", center: [lat, lng], radius: radiusMeters }],
       confidence
     };
   } catch (error) {
     console.error("GBIF fetch error:", error);
     throw error;
   }
+}
+
+export async function searchGBIFMultiCircle(circles: BufferCircle[]): Promise<InventoryResult> {
+  if (circles.length === 0) {
+    throw new Error("No circles provided");
+  }
+
+  if (circles.length === 1) {
+    const c = circles[0];
+    const result = await searchGBIF(c.center[0], c.center[1], c.radius);
+    result.circles = circles;
+    return result;
+  }
+
+  const results = await Promise.all(
+    circles.map(c => searchGBIF(c.center[0], c.center[1], c.radius))
+  );
+
+  const mergedOccurrences = new Map<string, Occurrence>();
+  for (const result of results) {
+    for (const occ of result.occurrences) {
+      const existing = mergedOccurrences.get(occ.scientificName);
+      if (!existing) {
+        mergedOccurrences.set(occ.scientificName, occ);
+      } else {
+        const priority = (level: string) => level === "high" ? 3 : level === "medium" ? 2 : 1;
+        if (priority(occ.alertLevel) > priority(existing.alertLevel)) {
+          mergedOccurrences.set(occ.scientificName, occ);
+        }
+      }
+    }
+  }
+
+  const occurrences = Array.from(mergedOccurrences.values());
+  const sensitiveCount = occurrences.filter(
+    o => o.alertLevel === "high" || o.alertLevel === "medium"
+  ).length;
+
+  const totalScores = results.map(r => r.confidence);
+  const avgConfidence: ConfidenceScore = {
+    total: Math.round(totalScores.reduce((s, c) => s + c.total, 0) / totalScores.length),
+    geo: Math.round(totalScores.reduce((s, c) => s + c.geo, 0) / totalScores.length),
+    tax: Math.round(totalScores.reduce((s, c) => s + c.tax, 0) / totalScores.length),
+    time: Math.round(totalScores.reduce((s, c) => s + c.time, 0) / totalScores.length),
+    trace: Math.round(totalScores.reduce((s, c) => s + c.trace, 0) / totalScores.length),
+    issues: Math.round(totalScores.reduce((s, c) => s + c.issues, 0) / totalScores.length),
+    dup: Math.round(totalScores.reduce((s, c) => s + c.dup, 0) / totalScores.length),
+    interpretation: (() => {
+      const avg = Math.round(totalScores.reduce((s, c) => s + c.total, 0) / totalScores.length);
+      if (avg >= 80) return "excellent";
+      if (avg >= 60) return "good";
+      if (avg >= 40) return "moderate";
+      return "low";
+    })(),
+    message: `Moyenne sur ${circles.length} zones d'analyse`,
+    rawCount: totalScores.reduce((s, c) => s + c.rawCount, 0),
+    filteredCount: totalScores.reduce((s, c) => s + c.filteredCount, 0),
+    dedupCount: totalScores.reduce((s, c) => s + c.dedupCount, 0),
+  };
+
+  const primaryCircle = circles[0];
+
+  return {
+    occurrences,
+    stats: {
+      total: occurrences.length,
+      speciesCount: new Set(occurrences.map(o => o.scientificName)).size,
+      sensitiveCount
+    },
+    center: primaryCircle.center,
+    radius: primaryCircle.radius,
+    circles,
+    confidence: avgConfidence
+  };
 }

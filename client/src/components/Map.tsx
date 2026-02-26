@@ -2,9 +2,8 @@ import { MapContainer, TileLayer, Circle, CircleMarker, useMapEvents, useMap } f
 import { useEffect } from "react";
 import "leaflet/dist/leaflet.css";
 import L from "leaflet";
-import { InventoryResult } from "@/lib/gbif";
+import { InventoryResult, BufferCircle } from "@/lib/gbif";
 
-// Fix Leaflet icons
 import icon from 'leaflet/dist/images/marker-icon.png';
 import iconShadow from 'leaflet/dist/images/marker-shadow.png';
 
@@ -17,12 +16,28 @@ let DefaultIcon = L.icon({
 
 L.Marker.prototype.options.icon = DefaultIcon;
 
+const CIRCLE_COLORS = [
+  "#0d9488",
+  "#6366f1",
+  "#e11d48",
+  "#ea580c",
+  "#8b5cf6",
+  "#0284c7",
+];
+
+function getCircleColor(index: number) {
+  return CIRCLE_COLORS[index % CIRCLE_COLORS.length];
+}
+
 interface MapProps {
   center: [number, number];
   radius: number;
+  circles: BufferCircle[];
+  activeCircleId: string;
   results: InventoryResult | null;
   onMapClick: (lat: number, lng: number) => void;
   selectedSpecies: string | null;
+  isPlacingCircle: boolean;
 }
 
 function MapController({ center }: { center: [number, number] }) {
@@ -42,7 +57,23 @@ function MapEvents({ onMapClick }: { onMapClick: (lat: number, lng: number) => v
   return null;
 }
 
-export function Map({ center, radius, results, onMapClick, selectedSpecies }: MapProps) {
+function CursorStyle({ isPlacingCircle }: { isPlacingCircle: boolean }) {
+  const map = useMap();
+  useEffect(() => {
+    const container = map.getContainer();
+    if (isPlacingCircle) {
+      container.style.cursor = 'crosshair';
+    } else {
+      container.style.cursor = '';
+    }
+    return () => {
+      container.style.cursor = '';
+    };
+  }, [isPlacingCircle, map]);
+  return null;
+}
+
+export function Map({ center, radius, circles, activeCircleId, results, onMapClick, selectedSpecies, isPlacingCircle }: MapProps) {
   return (
     <div id="map-container" className="h-full w-full relative z-0">
       <MapContainer 
@@ -59,19 +90,45 @@ export function Map({ center, radius, results, onMapClick, selectedSpecies }: Ma
         
         <MapController center={center} />
         <MapEvents onMapClick={onMapClick} />
+        <CursorStyle isPlacingCircle={isPlacingCircle} />
 
-        {/* Analysis Radius */}
-        <Circle 
-          center={center}
-          pathOptions={{ fillColor: '#0d9488', color: '#0d9488', weight: 2, fillOpacity: 0.1, dashArray: '5, 10' }}
-          radius={radius}
-        />
+        {circles.map((circle, index) => {
+          const color = getCircleColor(index);
+          const isActive = circle.id === activeCircleId;
+          return (
+            <Circle
+              key={circle.id}
+              center={circle.center}
+              pathOptions={{
+                fillColor: color,
+                color: color,
+                weight: isActive ? 3 : 2,
+                fillOpacity: isActive ? 0.12 : 0.06,
+                dashArray: isActive ? undefined : '5, 10'
+              }}
+              radius={circle.radius}
+            />
+          );
+        })}
 
-        {/* Center Marker */}
-        <CircleMarker center={center} radius={6} pathOptions={{ color: '#0d9488', fillColor: '#0d9488', fillOpacity: 1 }}>
-        </CircleMarker>
+        {circles.map((circle, index) => {
+          const color = getCircleColor(index);
+          const isActive = circle.id === activeCircleId;
+          return (
+            <CircleMarker
+              key={`center-${circle.id}`}
+              center={circle.center}
+              radius={isActive ? 7 : 5}
+              pathOptions={{
+                color: color,
+                fillColor: color,
+                fillOpacity: 1,
+                weight: isActive ? 3 : 1
+              }}
+            />
+          );
+        })}
 
-        {/* Results Visualization */}
         {results && results.occurrences.map((occ) => {
           const isSelected = selectedSpecies === occ.scientificName;
           return (
@@ -90,7 +147,6 @@ export function Map({ center, radius, results, onMapClick, selectedSpecies }: Ma
         })}
       </MapContainer>
       
-      {/* Attribution Overlay */}
       <div className="absolute bottom-1 right-1 bg-white/50 backdrop-blur px-2 py-0.5 text-[10px] text-gray-500 rounded z-[400] pointer-events-none">
         Données GBIF | Fond CartoDB
       </div>
