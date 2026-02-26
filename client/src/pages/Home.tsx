@@ -2,26 +2,31 @@ import { useState, useCallback } from "react";
 import { Map } from "@/components/Map";
 import { SearchPanel } from "@/components/SearchPanel";
 import { ResultsPanel } from "@/components/ResultsPanel";
-import { searchGBIFMultiCircle, InventoryResult, BufferCircle } from "@/lib/gbif";
+import { searchGBIFMultiCircle, InventoryResult, BufferCircle, STUDY_AREAS } from "@/lib/gbif";
 import { searchPlace } from "@/lib/geocoding";
 import { useToast } from "@/hooks/use-toast";
 import { Leaf } from "lucide-react";
 
-let circleIdCounter = 1;
+function createDefaultCircles(center: [number, number]): BufferCircle[] {
+  return STUDY_AREAS.map(area => ({
+    id: area.id,
+    center,
+    radius: area.radius,
+    label: area.label,
+    enabled: area.id === "immediate",
+  }));
+}
 
 export default function Home() {
   const [center, setCenter] = useState<[number, number]>([48.8566, 2.3522]);
-  const [radius, setRadius] = useState(500);
-  const [circles, setCircles] = useState<BufferCircle[]>([
-    { id: "circle-0", center: [48.8566, 2.3522], radius: 500 }
-  ]);
-  const [activeCircleId, setActiveCircleId] = useState("circle-0");
+  const [circles, setCircles] = useState<BufferCircle[]>(
+    createDefaultCircles([48.8566, 2.3522])
+  );
   const [results, setResults] = useState<InventoryResult | null>(null);
   const [isSearching, setIsSearching] = useState(false);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [isPanelOpen, setIsPanelOpen] = useState(false);
   const [selectedSpecies, setSelectedSpecies] = useState<string | null>(null);
-  const [isPlacingCircle, setIsPlacingCircle] = useState(false);
   const { toast } = useToast();
 
   const handleGoToPlace = async (query: string) => {
@@ -31,9 +36,7 @@ export default function Home() {
       if (place) {
         const newCenter: [number, number] = [place.lat, place.lon];
         setCenter(newCenter);
-        setCircles(prev => prev.map(c => 
-          c.id === activeCircleId ? { ...c, center: newCenter } : c
-        ));
+        setCircles(prev => prev.map(c => ({ ...c, center: newCenter })));
         if (isPanelOpen) setIsPanelOpen(false);
         toast({
           title: "Lieu trouvé",
@@ -58,16 +61,24 @@ export default function Home() {
   };
 
   const handleLaunchAnalysis = async () => {
-    setIsAnalyzing(true);
+    const enabledCount = circles.filter(c => c.enabled).length;
+    if (enabledCount === 0) {
+      toast({
+        title: "Aucune aire sélectionnée",
+        description: "Activez au moins une aire d'étude pour lancer l'analyse.",
+        variant: "destructive",
+      });
+      return;
+    }
 
+    setIsAnalyzing(true);
     try {
       const data = await searchGBIFMultiCircle(circles);
       setResults(data);
       setIsPanelOpen(true);
-      const totalCircles = circles.length;
       toast({
         title: "Inventaire terminé",
-        description: `${data.stats.speciesCount} espèces trouvées dans ${totalCircles} zone${totalCircles > 1 ? 's' : ''}.`,
+        description: `${data.stats.speciesCount} espèces trouvées dans ${enabledCount} aire${enabledCount > 1 ? 's' : ''} d'étude.`,
       });
     } catch (error) {
       toast({
@@ -82,77 +93,32 @@ export default function Home() {
 
   const handleMapClick = (lat: number, lng: number) => {
     const newCenter: [number, number] = [lat, lng];
-    
-    if (isPlacingCircle) {
-      const newId = `circle-${circleIdCounter++}`;
-      const newCircle: BufferCircle = { id: newId, center: newCenter, radius };
-      setCircles(prev => [...prev, newCircle]);
-      setActiveCircleId(newId);
-      setCenter(newCenter);
-      setIsPlacingCircle(false);
-      toast({
-        title: "Cercle ajouté",
-        description: `Zone d'analyse #${circles.length + 1} placée.`,
-      });
-    } else {
-      setCenter(newCenter);
-      setCircles(prev => prev.map(c => 
-        c.id === activeCircleId ? { ...c, center: newCenter } : c
-      ));
-    }
+    setCenter(newCenter);
+    setCircles(prev => prev.map(c => ({ ...c, center: newCenter })));
     if (isPanelOpen) setIsPanelOpen(false);
   };
 
-  const handleAddCircle = useCallback(() => {
-    setIsPlacingCircle(true);
-    toast({
-      title: "Placez le nouveau cercle",
-      description: "Cliquez sur la carte pour positionner la nouvelle zone d'analyse.",
-    });
-  }, [toast]);
-
-  const handleRemoveCircle = useCallback((id: string) => {
-    setCircles(prev => {
-      const updated = prev.filter(c => c.id !== id);
-      if (updated.length === 0) return prev;
-      if (activeCircleId === id) {
-        const next = updated[0];
-        setActiveCircleId(next.id);
-        setCenter(next.center);
-        setRadius(next.radius);
-      }
-      return updated;
-    });
-  }, [activeCircleId]);
-
-  const handleSelectCircle = useCallback((id: string) => {
-    setActiveCircleId(id);
-    const circle = circles.find(c => c.id === id);
-    if (circle) {
-      setCenter(circle.center);
-      setRadius(circle.radius);
-    }
-  }, [circles]);
-
-  const handleRadiusChange = useCallback((newRadius: number) => {
-    setRadius(newRadius);
+  const handleToggleCircle = useCallback((id: string) => {
     setCircles(prev => prev.map(c => 
-      c.id === activeCircleId ? { ...c, radius: newRadius } : c
+      c.id === id ? { ...c, enabled: !c.enabled } : c
     ));
-  }, [activeCircleId]);
+  }, []);
+
+  const handleRadiusChange = useCallback((id: string, newRadius: number) => {
+    setCircles(prev => prev.map(c => 
+      c.id === id ? { ...c, radius: newRadius } : c
+    ));
+  }, []);
 
   return (
     <div className="relative w-full h-screen overflow-hidden bg-gray-100">
       
       <Map 
         center={center} 
-        radius={radius} 
         circles={circles}
-        activeCircleId={activeCircleId}
         results={results} 
         onMapClick={handleMapClick}
         selectedSpecies={selectedSpecies}
-        isPlacingCircle={isPlacingCircle}
       />
 
       <SearchPanel 
@@ -160,15 +126,9 @@ export default function Home() {
         onLaunchAnalysis={handleLaunchAnalysis}
         isSearching={isSearching}
         isAnalyzing={isAnalyzing}
-        radius={radius}
-        setRadius={handleRadiusChange}
         circles={circles}
-        activeCircleId={activeCircleId}
-        onAddCircle={handleAddCircle}
-        onRemoveCircle={handleRemoveCircle}
-        onSelectCircle={handleSelectCircle}
-        isPlacingCircle={isPlacingCircle}
-        onCancelPlacing={() => setIsPlacingCircle(false)}
+        onToggleCircle={handleToggleCircle}
+        onRadiusChange={handleRadiusChange}
       />
 
       <ResultsPanel 

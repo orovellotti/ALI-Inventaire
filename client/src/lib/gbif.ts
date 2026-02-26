@@ -31,7 +31,15 @@ export interface BufferCircle {
   id: string;
   center: [number, number];
   radius: number;
+  label: string;
+  enabled: boolean;
 }
+
+export const STUDY_AREAS = [
+  { id: "immediate", label: "Aire d'étude immédiate", radius: 500, color: "#0d9488", dashArray: undefined as string | undefined },
+  { id: "rapprochee", label: "Aire d'étude rapprochée", radius: 2000, color: "#2563eb", dashArray: "10, 8" },
+  { id: "eloignee", label: "Aire d'étude éloignée", radius: 6000, color: "#6366f1", dashArray: "5, 10" },
+] as const;
 
 export interface InventoryResult {
   occurrences: Occurrence[];
@@ -348,7 +356,7 @@ export async function searchGBIF(lat: number, lng: number, radiusMeters: number)
         stats: { total: 0, speciesCount: 0, sensitiveCount: 0 },
         center: [lat, lng],
         radius: radiusMeters,
-        circles: [{ id: "main", center: [lat, lng], radius: radiusMeters }],
+        circles: [{ id: "main", center: [lat, lng], radius: radiusMeters, label: "Zone", enabled: true }],
         confidence: calculateConfidenceScore([])
       };
     }
@@ -428,7 +436,7 @@ export async function searchGBIF(lat: number, lng: number, radiusMeters: number)
       },
       center: [lat, lng],
       radius: radiusMeters,
-      circles: [{ id: "main", center: [lat, lng], radius: radiusMeters }],
+      circles: [{ id: "main", center: [lat, lng], radius: radiusMeters, label: "Zone", enabled: true }],
       confidence
     };
   } catch (error) {
@@ -438,19 +446,20 @@ export async function searchGBIF(lat: number, lng: number, radiusMeters: number)
 }
 
 export async function searchGBIFMultiCircle(circles: BufferCircle[]): Promise<InventoryResult> {
-  if (circles.length === 0) {
-    throw new Error("No circles provided");
+  const enabledCircles = circles.filter(c => c.enabled);
+  if (enabledCircles.length === 0) {
+    throw new Error("No circles enabled");
   }
 
-  if (circles.length === 1) {
-    const c = circles[0];
+  if (enabledCircles.length === 1) {
+    const c = enabledCircles[0];
     const result = await searchGBIF(c.center[0], c.center[1], c.radius);
     result.circles = circles;
     return result;
   }
 
   const results = await Promise.all(
-    circles.map(c => searchGBIF(c.center[0], c.center[1], c.radius))
+    enabledCircles.map(c => searchGBIF(c.center[0], c.center[1], c.radius))
   );
 
   const mergedOccurrences = new Map<string, Occurrence>();
@@ -489,13 +498,13 @@ export async function searchGBIFMultiCircle(circles: BufferCircle[]): Promise<In
       if (avg >= 40) return "moderate";
       return "low";
     })(),
-    message: `Moyenne sur ${circles.length} zones d'analyse`,
+    message: `Moyenne sur ${enabledCircles.length} aires d'étude`,
     rawCount: totalScores.reduce((s, c) => s + c.rawCount, 0),
     filteredCount: totalScores.reduce((s, c) => s + c.filteredCount, 0),
     dedupCount: totalScores.reduce((s, c) => s + c.dedupCount, 0),
   };
 
-  const primaryCircle = circles[0];
+  const immediateCircle = enabledCircles.find(c => c.id === "immediate") || enabledCircles[0];
 
   return {
     occurrences,
@@ -504,8 +513,8 @@ export async function searchGBIFMultiCircle(circles: BufferCircle[]): Promise<In
       speciesCount: new Set(occurrences.map(o => o.scientificName)).size,
       sensitiveCount
     },
-    center: primaryCircle.center,
-    radius: primaryCircle.radius,
+    center: immediateCircle.center,
+    radius: immediateCircle.radius,
     circles,
     confidence: avgConfidence
   };

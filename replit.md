@@ -56,8 +56,7 @@ Preferred communication style: Simple, everyday language.
 - **Glass morphism UI**: Semi-transparent panels with backdrop blur effects
 - **Alert-based species classification**: Species categorized as high/medium/low priority based on conservation status
 - **Confidence scoring**: GBIF data quality assessed using geographic, taxonomic, and temporal factors (6 criteria: geo, tax, time, trace, issues, dedup)
-- **Multi-circle buffer zones**: Users can add up to 6 analysis circles with independent centers/radii; analysis merges species across all zones with averaged confidence scores
-- **Color-coded circles**: Each buffer circle gets a distinct color (teal, indigo, rose, orange, violet, sky) for visual differentiation
+- **Concentric EIE buffer zones**: Three predefined concentric study areas matching environmental impact study standards: Aire immédiate (500m, teal, solid), Aire rapprochée (2km, blue, dashed), Aire éloignée (6km, indigo, dashed). All share the same center; users can enable/disable each zone and customize radii. Analysis merges species across enabled zones with averaged confidence scores.
 
 ## External Dependencies
 
