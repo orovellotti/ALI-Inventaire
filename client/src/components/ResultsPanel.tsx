@@ -5,6 +5,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { X, Download, FileText, AlertTriangle, Leaf, Info, ChevronDown, ChevronUp, ImageOff, Copy, Check, ExternalLink, BookOpen, Shield, MapPin, Tag, Calendar, Link, Flag, Layers } from "lucide-react";
 import { InventoryResult, Occurrence, getIucnLabel, ConfidenceScore } from "@/lib/gbif";
+import { findSINPPlatforms, SINPPlatform } from "@/lib/sinp";
 import html2canvas from "html2canvas";
 
 interface ResultsPanelProps {
@@ -259,6 +260,8 @@ Note: Cet inventaire flash repose sur les données GBIF et les statuts IUCN. Il 
               )}
             </div>
 
+            <SINPPanel center={results.center} />
+
             <div className="p-4 bg-gray-50 rounded-xl text-xs text-gray-500 leading-relaxed border border-gray-100 flex gap-3">
               <Info className="h-4 w-4 shrink-0 mt-0.5 text-gray-400" />
               <p>
@@ -410,6 +413,60 @@ function StatusBadge({ status }: { status: string | undefined }) {
     <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${getStatusStyle()}`}>
       {label}
     </span>
+  );
+}
+
+function SINPPanel({ center }: { center: [number, number] }) {
+  const platforms = useMemo(() => findSINPPlatforms(center[0], center[1]), [center]);
+  const [expanded, setExpanded] = useState(false);
+
+  if (platforms.length === 0) return null;
+
+  return (
+    <div className="rounded-xl border border-indigo-200 bg-indigo-50/50 p-4">
+      <button onClick={() => setExpanded(!expanded)} className="w-full">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <MapPin className="h-4 w-4 text-indigo-600" />
+            <span className="font-bold text-sm text-indigo-700">Plateformes SINP régionales</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-indigo-500 bg-indigo-100 px-2 py-0.5 rounded-full">
+              {platforms.length} région{platforms.length > 1 ? 's' : ''}
+            </span>
+            {expanded ? <ChevronUp className="h-4 w-4 text-indigo-500" /> : <ChevronDown className="h-4 w-4 text-indigo-500" />}
+          </div>
+        </div>
+      </button>
+
+      {expanded && (
+        <div className="mt-3 space-y-3">
+          <p className="text-xs text-indigo-600/70">
+            Complétez votre inventaire avec les données du SINP de votre région :
+          </p>
+          {platforms.map((platform) => (
+            <div key={platform.code} className="bg-white/70 rounded-lg p-3">
+              <span className="text-xs font-bold text-indigo-800 block mb-2">{platform.region}</span>
+              <div className="space-y-1.5">
+                {platform.links.map((link) => (
+                  <a
+                    key={link.url}
+                    href={link.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center gap-2 text-xs text-indigo-600 hover:text-indigo-800 hover:bg-indigo-50 rounded px-2 py-1.5 transition-colors"
+                    data-testid={`sinp-link-${platform.code}`}
+                  >
+                    <ExternalLink className="h-3 w-3 flex-shrink-0" />
+                    <span className="truncate">{link.label}</span>
+                  </a>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
   );
 }
 

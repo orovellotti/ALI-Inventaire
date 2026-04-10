@@ -58,6 +58,8 @@ Preferred communication style: Simple, everyday language.
 - **Confidence scoring**: GBIF data quality assessed using geographic, taxonomic, and temporal factors (6 criteria: geo, tax, time, trace, issues, dedup)
 - **Concentric EIE buffer zones**: Three predefined concentric study areas matching environmental impact study standards: Aire immédiate (500m, teal, solid), Aire rapprochée (2km, blue, dashed), Aire éloignée (6km, indigo, dashed). All share the same center; users can enable/disable each zone and customize radii. Analysis merges species across enabled zones with averaged confidence scores.
 
+- **SINP regional links**: Auto-detects which French region the study area is in using coordinate bounds, and displays relevant SINP (Système d'Information Nature et Paysages) platform links for complementary local data (14 regions covered including overseas territories)
+
 ## External Dependencies
 
 ### APIs and Services
