@@ -2,10 +2,11 @@ import { useState, useCallback } from "react";
 import { Map } from "@/components/Map";
 import { SearchPanel } from "@/components/SearchPanel";
 import { ResultsPanel } from "@/components/ResultsPanel";
+import { AboutDialog } from "@/components/AboutDialog";
 import { searchGBIFMultiCircle, InventoryResult, BufferCircle, STUDY_AREAS } from "@/lib/gbif";
 import { searchPlace } from "@/lib/geocoding";
 import { useToast } from "@/hooks/use-toast";
-import { Leaf } from "lucide-react";
+import { Leaf, HelpCircle } from "lucide-react";
 
 function createDefaultCircles(center: [number, number]): BufferCircle[] {
   return STUDY_AREAS.map(area => ({
@@ -27,6 +28,7 @@ export default function Home() {
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [isPanelOpen, setIsPanelOpen] = useState(false);
   const [selectedSpecies, setSelectedSpecies] = useState<string | null>(null);
+  const [showAbout, setShowAbout] = useState(false);
   const { toast } = useToast();
 
   const handleGoToPlace = async (query: string) => {
@@ -139,17 +141,34 @@ export default function Home() {
         onSelectSpecies={setSelectedSpecies}
       />
 
-      <div 
-        className="absolute top-6 left-6 z-[1000] flex items-center gap-2 bg-white/80 backdrop-blur px-3 py-2 rounded-lg cursor-pointer hover:bg-white transition-colors shadow-sm"
-        onClick={() => {
-          setResults(null);
-          setIsPanelOpen(false);
-        }}
-      >
-        <div className="bg-teal-600 p-1.5 rounded-md">
-          <Leaf className="h-4 w-4 text-white" />
-        </div>
-        <span className="font-bold text-gray-900 tracking-tight text-sm">Inventaire Flash</span>
+      <AboutDialog open={showAbout} onOpenChange={setShowAbout} />
+
+      <div className="absolute top-6 left-6 z-[1000] flex items-center gap-2">
+        <button 
+          type="button"
+          className="flex items-center gap-2 bg-white/80 backdrop-blur px-3 py-2 rounded-lg cursor-pointer hover:bg-white transition-colors shadow-sm"
+          onClick={() => {
+            setResults(null);
+            setIsPanelOpen(false);
+          }}
+          aria-label="Réinitialiser la vue"
+          data-testid="button-reset"
+        >
+          <div className="bg-teal-600 p-1.5 rounded-md">
+            <Leaf className="h-4 w-4 text-white" />
+          </div>
+          <span className="font-bold text-gray-900 tracking-tight text-sm">Inventaire Flash</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setShowAbout(true)}
+          className="bg-white/80 backdrop-blur p-2 rounded-lg cursor-pointer hover:bg-white transition-colors shadow-sm"
+          aria-label="À propos de la méthodologie"
+          data-testid="button-about"
+        >
+          <HelpCircle className="h-4 w-4 text-gray-600" />
+        </button>
       </div>
 
     </div>

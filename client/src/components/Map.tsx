@@ -99,7 +99,7 @@ export function Map({ center, circles, results, onMapClick, selectedSpecies }: M
           const isSelected = selectedSpecies === occ.scientificName;
           return (
             <CircleMarker
-              key={occ.key}
+              key={occ.key || `occ-${occ.scientificName}-${occ.decimalLatitude}-${occ.decimalLongitude}`}
               center={[occ.decimalLatitude, occ.decimalLongitude]}
               radius={isSelected ? 14 : (occ.alertLevel === 'high' ? 8 : (occ.alertLevel === 'medium' ? 6 : 4))}
               pathOptions={{
