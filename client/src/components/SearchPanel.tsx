@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Search, Loader2, Zap, MapPin, ChevronDown, ChevronUp } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
-import { BufferCircle, STUDY_AREAS } from "@/lib/gbif";
+import { BufferCircle, STUDY_AREAS, PROJECT_PRESETS, ProjectPreset } from "@/lib/gbif";
 
 interface SearchPanelProps {
   onGoToPlace: (query: string) => void;
@@ -14,14 +14,18 @@ interface SearchPanelProps {
   circles: BufferCircle[];
   onToggleCircle: (id: string) => void;
   onRadiusChange: (id: string, radius: number) => void;
+  activePresetId: string;
+  onApplyPreset: (preset: ProjectPreset) => void;
 }
 
 export function SearchPanel({ 
   onGoToPlace, onLaunchAnalysis, isSearching, isAnalyzing, 
-  circles, onToggleCircle, onRadiusChange
+  circles, onToggleCircle, onRadiusChange,
+  activePresetId, onApplyPreset
 }: SearchPanelProps) {
   const [query, setQuery] = useState("");
   const [expandedCircle, setExpandedCircle] = useState<string | null>(null);
+  const [showPresets, setShowPresets] = useState(false);
 
   const handleGoTo = () => {
     if (query.trim()) {
@@ -30,6 +34,7 @@ export function SearchPanel({
   };
 
   const enabledCount = circles.filter(c => c.enabled).length;
+  const activePreset = PROJECT_PRESETS.find(p => p.id === activePresetId);
 
   return (
     <motion.div 
@@ -37,7 +42,7 @@ export function SearchPanel({
       animate={{ y: 0, opacity: 1 }}
       className="absolute top-6 left-1/2 -translate-x-1/2 z-[1000] w-[90%] max-w-md"
     >
-      <div className="glass-panel p-4 rounded-xl flex flex-col gap-4">
+      <div className="glass-panel p-4 rounded-xl flex flex-col gap-3">
         <div className="flex gap-2">
           <div className="relative flex-1">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -60,6 +65,72 @@ export function SearchPanel({
             {isSearching ? <Loader2 className="h-4 w-4 animate-spin" /> : <MapPin className="h-4 w-4" />}
             Aller à
           </Button>
+        </div>
+
+        <div className="space-y-2">
+          <button
+            type="button"
+            onClick={() => setShowPresets(!showPresets)}
+            className="w-full flex items-center justify-between text-xs font-medium text-muted-foreground uppercase tracking-wider hover:text-foreground transition-colors"
+            data-testid="button-toggle-presets"
+          >
+            <div className="flex items-center gap-1.5">
+              <span>Type de projet</span>
+              {activePreset && (
+                <span className={`normal-case tracking-normal px-1.5 py-0.5 rounded text-[10px] font-semibold ${
+                  activePreset.id === "custom" 
+                    ? 'bg-gray-100 text-gray-500' 
+                    : 'bg-teal-100 text-teal-700'
+                }`}>
+                  {activePreset.icon} {activePreset.label}
+                </span>
+              )}
+            </div>
+            {showPresets 
+              ? <ChevronUp className="h-3 w-3" /> 
+              : <ChevronDown className="h-3 w-3" />
+            }
+          </button>
+
+          <AnimatePresence>
+            {showPresets && (
+              <motion.div
+                initial={{ opacity: 0, height: 0 }}
+                animate={{ opacity: 1, height: "auto" }}
+                exit={{ opacity: 0, height: 0 }}
+                className="overflow-hidden"
+              >
+                <div className="grid grid-cols-2 gap-1.5 pb-2">
+                  {PROJECT_PRESETS.filter(p => p.id !== "custom").map((preset) => (
+                    <button
+                      key={preset.id}
+                      type="button"
+                      onClick={() => {
+                        onApplyPreset(preset);
+                        setShowPresets(false);
+                      }}
+                      className={`text-left px-2.5 py-2 rounded-lg transition-all text-xs ${
+                        activePresetId === preset.id
+                          ? 'bg-teal-50 ring-1 ring-teal-300 shadow-sm'
+                          : 'bg-white/50 hover:bg-white/80 ring-1 ring-black/5'
+                      }`}
+                      data-testid={`preset-${preset.id}`}
+                    >
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-sm">{preset.icon}</span>
+                        <span className={`font-semibold ${activePresetId === preset.id ? 'text-teal-800' : 'text-gray-800'}`}>
+                          {preset.label}
+                        </span>
+                      </div>
+                      <p className={`text-[10px] mt-0.5 leading-tight ${activePresetId === preset.id ? 'text-teal-600' : 'text-gray-400'}`}>
+                        {preset.description}
+                      </p>
+                    </button>
+                  ))}
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
         </div>
 
         <div className="space-y-2">

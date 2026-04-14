@@ -57,7 +57,8 @@ Preferred communication style: Simple, everyday language.
 - **Alert-based species classification**: Species categorized as high/medium/low priority based on conservation status
 - **Confidence scoring**: GBIF data quality assessed using geographic, taxonomic, and temporal factors (6 criteria: geo, tax, time, trace, issues, dedup)
 - **Concentric EIE buffer zones**: Three predefined concentric study areas matching environmental impact study standards: Aire immédiate (500m, teal, solid), Aire rapprochée (2km, blue, dashed), Aire éloignée (6km, indigo, dashed). All share the same center; users can enable/disable each zone and customize radii. Analysis merges species across enabled zones with averaged confidence scores.
-
+- **Project type presets**: Standard configurations for common EIE project types (Éolien, PV sol petit/moyen/grand, Urbanisation, Infrastructure linéaire, Carrière/ICPE). Each preset auto-configures the three study area radii and enabled states. Manual adjustments switch to "Personnalisé" mode. Presets defined in `PROJECT_PRESETS` array in `gbif.ts`.
+- **About dialog**: Methodology documentation accessible via a "?" button, explaining GBIF API usage, EIE study areas, IUCN classification, and the 6-criteria confidence index.
 - **SINP regional links**: Auto-detects which French region the study area is in using coordinate bounds, and displays relevant SINP (Système d'Information Nature et Paysages) platform links for complementary local data (14 regions covered including overseas territories)
 
 ## External Dependencies

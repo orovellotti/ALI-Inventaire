@@ -3,7 +3,7 @@ import { Map } from "@/components/Map";
 import { SearchPanel } from "@/components/SearchPanel";
 import { ResultsPanel } from "@/components/ResultsPanel";
 import { AboutDialog } from "@/components/AboutDialog";
-import { searchGBIFMultiCircle, InventoryResult, BufferCircle, STUDY_AREAS } from "@/lib/gbif";
+import { searchGBIFMultiCircle, InventoryResult, BufferCircle, STUDY_AREAS, ProjectPreset } from "@/lib/gbif";
 import { searchPlace } from "@/lib/geocoding";
 import { useToast } from "@/hooks/use-toast";
 import { Leaf, HelpCircle } from "lucide-react";
@@ -29,6 +29,7 @@ export default function Home() {
   const [isPanelOpen, setIsPanelOpen] = useState(false);
   const [selectedSpecies, setSelectedSpecies] = useState<string | null>(null);
   const [showAbout, setShowAbout] = useState(false);
+  const [activePresetId, setActivePresetId] = useState("custom");
   const { toast } = useToast();
 
   const handleGoToPlace = async (query: string) => {
@@ -100,16 +101,29 @@ export default function Home() {
     if (isPanelOpen) setIsPanelOpen(false);
   };
 
-  const handleToggleCircle = useCallback((id: string) => {
-    setCircles(prev => prev.map(c => 
-      c.id === id ? { ...c, enabled: !c.enabled } : c
-    ));
-  }, []);
-
   const handleRadiusChange = useCallback((id: string, newRadius: number) => {
     setCircles(prev => prev.map(c => 
       c.id === id ? { ...c, radius: newRadius } : c
     ));
+    setActivePresetId("custom");
+  }, []);
+
+  const handleToggleCircleWithPreset = useCallback((id: string) => {
+    setCircles(prev => prev.map(c => 
+      c.id === id ? { ...c, enabled: !c.enabled } : c
+    ));
+    setActivePresetId("custom");
+  }, []);
+
+  const handleApplyPreset = useCallback((preset: ProjectPreset) => {
+    setActivePresetId(preset.id);
+    setCircles(prev => prev.map(c => {
+      const zone = preset.zones[c.id as keyof typeof preset.zones];
+      if (zone) {
+        return { ...c, radius: zone.radius, enabled: zone.enabled };
+      }
+      return c;
+    }));
   }, []);
 
   return (
@@ -129,8 +143,10 @@ export default function Home() {
         isSearching={isSearching}
         isAnalyzing={isAnalyzing}
         circles={circles}
-        onToggleCircle={handleToggleCircle}
+        onToggleCircle={handleToggleCircleWithPreset}
         onRadiusChange={handleRadiusChange}
+        activePresetId={activePresetId}
+        onApplyPreset={handleApplyPreset}
       />
 
       <ResultsPanel 
