@@ -1,0 +1,109 @@
+RE: Outil Ali Data
+
+
+Résume cet e-mail
+Jean-Christophe WEIDMANN<jean-christophe.weidmann@auddice.com>
+
+​
+Olivier Rovellotti​
+​
+Laëtitia Bucari Manu;​
+Martin Ongolo;​
+Bruno Chandon​
+Hello tous et toutes,
+
+C'est un super début ! L'accès à openobs/INPN et aux plateforme sinp régionale sera un point de passage obligé (pas au stade poc mais ensuite; prévoir en fait l'import des données sinp au stade POC suite à demande conforme au process des SINP régionaux : demande souvent par formulaire ou email, réponse suite à validation de la dde). + données des BDD ZNIEFF et Natura 2000 (BDD des FSD) seront essentielles à aggloméré aussi.
+
+au lieu d'une localité faudrait charger la ZIP du projet en shp. -> via formulaire qui décrit le projet en fait directement ?
+
+
+il faudra :
+
+- une base de données statut et un bon algo pour bien classer les enjeux (à nous de jouer pour indiquer les règles de décision pour passer des LR à des enjeux classés) de faible à très fort/majeur par ex.
+
+- un filtrage/classement par taxon et en selectionnant/désélectionnant les taxons à voir
+
+- il va nous falloire les habitats aussi
+- et bien sûr sortir les tableaux mise en forme pour le rapport
+
+- mais c'est déjà intéressant aussi au stade "offre" si on avait GBIF/INPN+ZNIEFF+Natura 2000 (+ autres sites : APPB, RNX, etc.).
+
+Pour les aires, le curseur est bien ergonomique mais il nous faut des configuration standard pour pas refaire à chaque projet quand le projet est bateau (on charge le shp, le type de projet et on a la configuration par défaut ex : PV de talle moyenne (3 ha-50 ha)/grande (> 50 ha), éolien, amenégament d'une parcelle urbanisation etc. avec des valeurs choisies par nous).
+
+
+et le graal c'est un modèle de distribution qui nous indique la probabilité d'avoir les espèces à enjeux potentielles.
+
+
+c'est appétissant !
+
+
+
+
+
+
+Jean-Christophe WEIDMANN
+Directeur Métier Biodiversité
+Agence Bourgogne-Franche-Comté
+06 31 36 55 73
+Siège : ZAC du Chevalement
+5 rue des Molletes
+59 286 Roost-Warendin
+03  27 97 36 39
+
+
+auddice.com
+
+
+
+De : Olivier Rovellotti <olivier_rovellotti@natural-solutions.eu>
+Envoyé : vendredi 10 avril 2026 18:15
+À : Jean-Christophe WEIDMANN
+Cc : Laëtitia Bucari Manu; Martin Ongolo; Bruno Chandon
+Objet : Outil Ali Data
+ 
+Bonjour Jean Christophe 
+ 
+
+J’espère que tu vas bien
+
+
+
+On a échangé avec Patrinat la semaine dernière et le service n'ai pas prêt d'etre en ligne 
+
+J'ai bricolé cet outil pour les occurrences cette semaine, est ce que ça peut vous rendre service :
+ali-inventaire.replit.app
+
+A très bientôt
+
+ 
+
+Merci
+
+ 
+
+ 
+
+
+
+
+
+Rovellotti Olivier
+
+CEO
+
+Mobile: 06 09 57 66 53
+Twitter : orovellotti
+
+Linkedin : olivier rovellotti
+
+Prendre rdv avec moi
+
+ 
+
+68 Rue sainte Marseille
+
+www.natural-solutions.eu
+
+ 
+
+ 
