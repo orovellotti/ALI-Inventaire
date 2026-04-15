@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -562,8 +562,12 @@ function StatusBadge({ status }: { status: string | undefined }) {
 }
 
 function SINPPanel({ center }: { center: [number, number] }) {
-  const platforms = useMemo(() => findSINPPlatforms(center[0], center[1]), [center]);
+  const [platforms, setPlatforms] = useState<SINPPlatform[]>([]);
   const [expanded, setExpanded] = useState(false);
+
+  useEffect(() => {
+    findSINPPlatforms(center[0], center[1]).then(setPlatforms);
+  }, [center]);
 
   if (platforms.length === 0) return null;
 
