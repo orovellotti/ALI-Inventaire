@@ -56,7 +56,8 @@ Preferred communication style: Simple, everyday language.
 - **Glass morphism UI**: Semi-transparent panels with backdrop blur effects
 - **Alert-based species classification**: Species categorized as high/medium/low priority based on conservation status
 - **Confidence scoring**: GBIF data quality assessed using geographic, taxonomic, and temporal factors (6 criteria: geo, tax, time, trace, issues, dedup)
-- **Concentric EIE buffer zones**: Three predefined concentric study areas matching environmental impact study standards: Aire immédiate (500m, teal, solid), Aire rapprochée (2km, blue, dashed), Aire éloignée (6km, indigo, dashed). All share the same center; users can enable/disable each zone and customize radii. Analysis merges species across enabled zones with averaged confidence scores.
+- **Shapefile loading**: Users can upload a .zip shapefile to define the real project footprint. Parsed client-side with `shpjs`. The polygon is displayed on the map, and the centroid is used as center for buffer zones. Users can clear the shapefile to revert to point mode. Module in `client/src/lib/shapefile.ts`.
+- **Concentric EIE buffer zones**: Three predefined concentric study areas matching environmental impact study standards: Aire immédiate (500m, teal, solid), Aire rapprochée (2km, blue, dashed), Aire éloignée (6km, indigo, dashed). All share the same center (map click point or shapefile centroid); users can enable/disable each zone and customize radii. Analysis merges species across enabled zones with averaged confidence scores.
 - **Project type presets**: Standard configurations for common EIE project types (Éolien, PV sol petit/moyen/grand, Urbanisation, Infrastructure linéaire, Carrière/ICPE). Each preset auto-configures the three study area radii and enabled states. Manual adjustments switch to "Personnalisé" mode. Presets defined in `PROJECT_PRESETS` array in `gbif.ts`.
 - **About dialog**: Methodology documentation accessible via a "?" button, explaining GBIF API usage, EIE study areas, IUCN classification, and the 6-criteria confidence index.
 - **Data export**: CSV (semicolon-delimited with BOM for Excel FR compatibility, formula injection sanitized) and Excel (.xlsx with 3 sheets: Espèces, Métadonnées, Synthèse par groupe). Exports respect active taxon filters. Export module in `client/src/lib/export.ts`.
@@ -78,6 +79,7 @@ Preferred communication style: Simple, everyday language.
 - **UI**: Full shadcn/ui component suite (@radix-ui/react-*)
 - **Data**: @tanstack/react-query for async state management
 - **Export**: html2canvas for map image export functionality
+- **Shapefile**: shpjs for client-side shapefile parsing
 - **Animations**: framer-motion for UI animations
 
 ### Development Tools

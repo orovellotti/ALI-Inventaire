@@ -5,6 +5,7 @@ import { ResultsPanel } from "@/components/ResultsPanel";
 import { AboutDialog } from "@/components/AboutDialog";
 import { searchGBIFMultiCircle, InventoryResult, BufferCircle, STUDY_AREAS, ProjectPreset, TAXON_GROUPS, getTaxonGroupId } from "@/lib/gbif";
 import { searchPlace } from "@/lib/geocoding";
+import { parseShapefile, ProjectPolygon } from "@/lib/shapefile";
 import { useToast } from "@/hooks/use-toast";
 import { Leaf, HelpCircle } from "lucide-react";
 
@@ -33,6 +34,8 @@ export default function Home() {
   const [activeTaxonFilters, setActiveTaxonFilters] = useState<Set<string>>(
     () => new Set(TAXON_GROUPS.map(g => g.id))
   );
+  const [projectPolygon, setProjectPolygon] = useState<ProjectPolygon | null>(null);
+  const [isLoadingShapefile, setIsLoadingShapefile] = useState(false);
   const { toast } = useToast();
 
   const handleGoToPlace = async (query: string) => {
@@ -43,6 +46,7 @@ export default function Home() {
         const newCenter: [number, number] = [place.lat, place.lon];
         setCenter(newCenter);
         setCircles(prev => prev.map(c => ({ ...c, center: newCenter })));
+        if (projectPolygon) setProjectPolygon(null);
         if (isPanelOpen) setIsPanelOpen(false);
         toast({
           title: "Lieu trouvé",
@@ -98,6 +102,7 @@ export default function Home() {
   };
 
   const handleMapClick = (lat: number, lng: number) => {
+    if (projectPolygon) return;
     const newCenter: [number, number] = [lat, lng];
     setCenter(newCenter);
     setCircles(prev => prev.map(c => ({ ...c, center: newCenter })));
@@ -164,6 +169,39 @@ export default function Home() {
     });
   }, []);
 
+  const handleShapefileLoad = useCallback(async (file: File) => {
+    setIsLoadingShapefile(true);
+    try {
+      const polygon = await parseShapefile(file);
+      setProjectPolygon(polygon);
+      const newCenter: [number, number] = polygon.centroid;
+      setCenter(newCenter);
+      setCircles(prev => prev.map(c => ({ ...c, center: newCenter })));
+      if (isPanelOpen) setIsPanelOpen(false);
+      toast({
+        title: "Shapefile chargé",
+        description: `${polygon.geojson.features.length} entité(s) — "${polygon.name}"`,
+      });
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : "Format non reconnu";
+      toast({
+        title: "Erreur de chargement",
+        description: msg,
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoadingShapefile(false);
+    }
+  }, [isPanelOpen, toast]);
+
+  const handleShapefileClear = useCallback(() => {
+    setProjectPolygon(null);
+    toast({
+      title: "Shapefile supprimé",
+      description: "Mode point restauré. Cliquez sur la carte pour placer le centre.",
+    });
+  }, [toast]);
+
   return (
     <div className="relative w-full h-screen overflow-hidden bg-gray-100">
       
@@ -174,6 +212,7 @@ export default function Home() {
         onMapClick={handleMapClick}
         selectedSpecies={selectedSpecies}
         activeTaxonFilters={activeTaxonFilters}
+        projectPolygon={projectPolygon}
       />
 
       <SearchPanel 
@@ -186,6 +225,10 @@ export default function Home() {
         onRadiusChange={handleRadiusChange}
         activePresetId={activePresetId}
         onApplyPreset={handleApplyPreset}
+        onShapefileLoad={handleShapefileLoad}
+        onShapefileClear={handleShapefileClear}
+        projectPolygon={projectPolygon}
+        isLoadingShapefile={isLoadingShapefile}
       />
 
       <ResultsPanel 

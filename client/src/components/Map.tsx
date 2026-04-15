@@ -1,8 +1,9 @@
-import { MapContainer, TileLayer, Circle, CircleMarker, useMapEvents, useMap } from "react-leaflet";
+import { MapContainer, TileLayer, Circle, CircleMarker, GeoJSON, useMapEvents, useMap } from "react-leaflet";
 import { useEffect, useMemo } from "react";
 import "leaflet/dist/leaflet.css";
 import L from "leaflet";
 import { InventoryResult, BufferCircle, STUDY_AREAS, getTaxonGroupId } from "@/lib/gbif";
+import type { ProjectPolygon } from "@/lib/shapefile";
 
 import icon from 'leaflet/dist/images/marker-icon.png';
 import iconShadow from 'leaflet/dist/images/marker-shadow.png';
@@ -23,13 +24,18 @@ interface MapProps {
   onMapClick: (lat: number, lng: number) => void;
   selectedSpecies: string | null;
   activeTaxonFilters: Set<string>;
+  projectPolygon: ProjectPolygon | null;
 }
 
-function MapController({ center }: { center: [number, number] }) {
+function MapController({ center, projectPolygon }: { center: [number, number]; projectPolygon: ProjectPolygon | null }) {
   const map = useMap();
   useEffect(() => {
-    map.flyTo(center, map.getZoom());
-  }, [center, map]);
+    if (projectPolygon) {
+      map.fitBounds(projectPolygon.bounds, { padding: [60, 60], maxZoom: 15 });
+    } else {
+      map.flyTo(center, map.getZoom());
+    }
+  }, [center, projectPolygon, map]);
   return null;
 }
 
@@ -42,7 +48,7 @@ function MapEvents({ onMapClick }: { onMapClick: (lat: number, lng: number) => v
   return null;
 }
 
-export function Map({ center, circles, results, onMapClick, selectedSpecies, activeTaxonFilters }: MapProps) {
+export function Map({ center, circles, results, onMapClick, selectedSpecies, activeTaxonFilters, projectPolygon }: MapProps) {
   const sortedCircles = [...circles]
     .filter(c => c.enabled)
     .sort((a, b) => b.radius - a.radius);
@@ -66,8 +72,22 @@ export function Map({ center, circles, results, onMapClick, selectedSpecies, act
           url="https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png"
         />
         
-        <MapController center={center} />
+        <MapController center={center} projectPolygon={projectPolygon} />
         <MapEvents onMapClick={onMapClick} />
+
+        {projectPolygon && (
+          <GeoJSON
+            key={projectPolygon.name}
+            data={projectPolygon.geojson}
+            style={{
+              color: "#0d9488",
+              weight: 3,
+              fillColor: "#0d9488",
+              fillOpacity: 0.15,
+              dashArray: undefined,
+            }}
+          />
+        )}
 
         {sortedCircles.map((circle) => {
           const studyArea = STUDY_AREAS.find(a => a.id === circle.id);
@@ -92,7 +112,7 @@ export function Map({ center, circles, results, onMapClick, selectedSpecies, act
 
         <CircleMarker
           center={center}
-          radius={6}
+          radius={projectPolygon ? 4 : 6}
           pathOptions={{
             color: '#0d9488',
             fillColor: '#0d9488',

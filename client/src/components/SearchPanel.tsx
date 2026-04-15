@@ -1,10 +1,11 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { Slider } from "@/components/ui/slider";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Search, Loader2, Zap, MapPin, ChevronDown, ChevronUp } from "lucide-react";
+import { Search, Loader2, Zap, MapPin, ChevronDown, ChevronUp, Upload, X, FileArchive } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { BufferCircle, STUDY_AREAS, PROJECT_PRESETS, ProjectPreset } from "@/lib/gbif";
+import type { ProjectPolygon } from "@/lib/shapefile";
 
 interface SearchPanelProps {
   onGoToPlace: (query: string) => void;
@@ -16,16 +17,30 @@ interface SearchPanelProps {
   onRadiusChange: (id: string, radius: number) => void;
   activePresetId: string;
   onApplyPreset: (preset: ProjectPreset) => void;
+  onShapefileLoad: (file: File) => void;
+  onShapefileClear: () => void;
+  projectPolygon: ProjectPolygon | null;
+  isLoadingShapefile: boolean;
 }
 
 export function SearchPanel({ 
   onGoToPlace, onLaunchAnalysis, isSearching, isAnalyzing, 
   circles, onToggleCircle, onRadiusChange,
-  activePresetId, onApplyPreset
+  activePresetId, onApplyPreset,
+  onShapefileLoad, onShapefileClear, projectPolygon, isLoadingShapefile
 }: SearchPanelProps) {
   const [query, setQuery] = useState("");
   const [expandedCircle, setExpandedCircle] = useState<string | null>(null);
   const [showPresets, setShowPresets] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      onShapefileLoad(file);
+      e.target.value = "";
+    }
+  };
 
   const handleGoTo = () => {
     if (query.trim()) {
@@ -65,6 +80,50 @@ export function SearchPanel({
             {isSearching ? <Loader2 className="h-4 w-4 animate-spin" /> : <MapPin className="h-4 w-4" />}
             Aller à
           </Button>
+        </div>
+
+        <div className="space-y-1">
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".zip"
+            onChange={handleFileChange}
+            className="hidden"
+            data-testid="input-shapefile"
+          />
+          {projectPolygon ? (
+            <div className="flex items-center gap-2 bg-teal-50 rounded-lg px-2.5 py-2 ring-1 ring-teal-200">
+              <FileArchive className="h-4 w-4 text-teal-600 flex-shrink-0" />
+              <div className="flex-1 min-w-0">
+                <div className="text-xs font-semibold text-teal-800 truncate">{projectPolygon.name}</div>
+                <div className="text-[10px] text-teal-600">{projectPolygon.geojson.features.length} entité(s) — centroïde utilisé</div>
+              </div>
+              <button
+                type="button"
+                onClick={onShapefileClear}
+                className="p-1 hover:bg-teal-100 rounded transition-colors flex-shrink-0"
+                aria-label="Supprimer le shapefile"
+                data-testid="button-clear-shapefile"
+              >
+                <X className="h-3.5 w-3.5 text-teal-600" />
+              </button>
+            </div>
+          ) : (
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              disabled={isLoadingShapefile}
+              className="w-full flex items-center justify-center gap-2 text-xs py-2 rounded-lg border border-dashed border-gray-300 text-muted-foreground hover:border-teal-400 hover:text-teal-700 hover:bg-teal-50/50 transition-all"
+              data-testid="button-upload-shapefile"
+            >
+              {isLoadingShapefile ? (
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              ) : (
+                <Upload className="h-3.5 w-3.5" />
+              )}
+              {isLoadingShapefile ? "Chargement…" : "Charger un shapefile (.zip)"}
+            </button>
+          )}
         </div>
 
         <div className="space-y-2">

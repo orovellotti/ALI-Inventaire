@@ -117,6 +117,11 @@ export function AboutDialog({ open, onOpenChange }: AboutDialogProps) {
                 Chaque aire peut être activée/désactivée et son rayon est ajustable. 
                 L'analyse fusionne les espèces trouvées dans toutes les aires actives.
               </p>
+              <p className="mt-2 text-xs text-gray-500">
+                <strong>Shapefile :</strong> vous pouvez charger un shapefile (.zip) pour définir l'emprise 
+                réelle du projet. Le centroïde du polygone sert alors de centre aux aires d'étude concentriques, 
+                et l'emprise est affichée sur la carte.
+              </p>
             </section>
 
             <section>
