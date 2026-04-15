@@ -3,8 +3,8 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { X, Download, FileText, AlertTriangle, Leaf, Info, ChevronDown, ChevronUp, ImageOff, Copy, Check, ExternalLink, BookOpen, Shield, MapPin, Tag, Calendar, Link, Flag, Layers } from "lucide-react";
-import { InventoryResult, Occurrence, getIucnLabel, ConfidenceScore } from "@/lib/gbif";
+import { X, Download, FileText, AlertTriangle, Leaf, Info, ChevronDown, ChevronUp, ImageOff, Copy, Check, ExternalLink, BookOpen, Shield, MapPin, Tag, Calendar, Link, Flag, Layers, Filter } from "lucide-react";
+import { InventoryResult, Occurrence, getIucnLabel, ConfidenceScore, TAXON_GROUPS, getTaxonGroupId } from "@/lib/gbif";
 import { findSINPPlatforms, SINPPlatform } from "@/lib/sinp";
 import html2canvas from "html2canvas";
 
@@ -14,13 +14,38 @@ interface ResultsPanelProps {
   results: InventoryResult | null;
   selectedSpecies: string | null;
   onSelectSpecies: (species: string | null) => void;
+  activeTaxonFilters: Set<string>;
+  onToggleTaxonFilter: (groupId: string) => void;
+  onToggleAllTaxonFilters: (presentGroupIds?: string[]) => void;
 }
 
-export function ResultsPanel({ isOpen, onClose, results, selectedSpecies, onSelectSpecies }: ResultsPanelProps) {
+export function ResultsPanel({ isOpen, onClose, results, selectedSpecies, onSelectSpecies, activeTaxonFilters, onToggleTaxonFilter, onToggleAllTaxonFilters }: ResultsPanelProps) {
   const [showMedium, setShowMedium] = useState(false);
   const [showLow, setShowLow] = useState(false);
   const [showReportPreview, setShowReportPreview] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [showFilters, setShowFilters] = useState(false);
+
+  const taxonCounts = useMemo(() => {
+    if (!results) return new Map<string, number>();
+    const uniqueMap = new Map<string, Occurrence>();
+    results.occurrences.forEach((occ) => {
+      const existing = uniqueMap.get(occ.scientificName);
+      if (!existing || getAlertPriority(occ.alertLevel) > getAlertPriority(existing.alertLevel)) {
+        uniqueMap.set(occ.scientificName, occ);
+      }
+    });
+    const counts = new Map<string, number>();
+    for (const occ of uniqueMap.values()) {
+      const groupId = getTaxonGroupId(occ);
+      counts.set(groupId, (counts.get(groupId) || 0) + 1);
+    }
+    return counts;
+  }, [results]);
+
+  const presentGroups = useMemo(() => {
+    return TAXON_GROUPS.filter(g => (taxonCounts.get(g.id) || 0) > 0);
+  }, [taxonCounts]);
 
   const sortedSpecies = useMemo(() => {
     if (!results) return { high: [], medium: [], low: [] };
@@ -33,14 +58,21 @@ export function ResultsPanel({ isOpen, onClose, results, selectedSpecies, onSele
       }
     });
 
-    const unique = Array.from(uniqueMap.values());
+    const unique = Array.from(uniqueMap.values()).filter(occ => 
+      activeTaxonFilters.has(getTaxonGroupId(occ))
+    );
     
     return {
       high: unique.filter(o => o.alertLevel === "high"),
       medium: unique.filter(o => o.alertLevel === "medium"),
       low: unique.filter(o => o.alertLevel === "low"),
     };
-  }, [results]);
+  }, [results, activeTaxonFilters]);
+
+  const filteredTotal = sortedSpecies.high.length + sortedSpecies.medium.length + sortedSpecies.low.length;
+  const allGroupCount = presentGroups.length;
+  const activeFilterCount = presentGroups.filter(g => activeTaxonFilters.has(g.id)).length;
+  const isAllActive = activeFilterCount === allGroupCount;
 
   const handleExportImage = async () => {
     const mapElement = document.getElementById("map-container");
@@ -83,10 +115,16 @@ export function ResultsPanel({ isOpen, onClose, results, selectedSpecies, onSele
       : conf.interpretation === "moderate" ? "Modéré" 
       : "Faible";
 
+    const activeGroupLabels = presentGroups
+      .filter(g => activeTaxonFilters.has(g.id))
+      .map(g => g.label)
+      .join(', ');
+
     return `INVENTAIRE FLASH
 Date: ${new Date().toLocaleDateString()}
 Centre: ${results.center[0].toFixed(5)}, ${results.center[1].toFixed(5)}
 Rayon: ${results.radius}m
+Filtres taxons: ${isAllActive ? 'Tous' : activeGroupLabels}
 
 INDICE DE CONFIANCE GBIF: ${conf.total}/100 (${confLabel})
 - Qualité géographique: ${conf.geo}%
@@ -111,7 +149,7 @@ ENJEUX FAIBLES (${lowCount} espèces)
 ${lowList}
 
 Note: Cet inventaire flash repose sur les données GBIF et les statuts IUCN. Il fournit une indication rapide et ne constitue pas une preuve d'absence ni un inventaire terrain.`;
-  }, [results, sortedSpecies]);
+  }, [results, sortedSpecies, activeTaxonFilters, presentGroups, isAllActive]);
 
   const handleCopyReport = () => {
     navigator.clipboard.writeText(reportText);
@@ -134,7 +172,7 @@ Note: Cet inventaire flash repose sur les données GBIF et les statuts IUCN. Il 
           <div>
             <h2 className="text-xl font-bold text-gray-900 tracking-tight">Inventaire Flash</h2>
             <p className="text-xs text-muted-foreground mt-1 font-mono">
-              GBIF DATA • {results.stats.speciesCount} ESPÈCES
+              GBIF DATA • {filteredTotal} ESPÈCES{!isAllActive && ` (filtrées)`}
             </p>
           </div>
           <Button variant="ghost" size="icon" onClick={onClose} className="hover:bg-gray-100 rounded-full h-8 w-8">
@@ -150,15 +188,89 @@ Note: Cet inventaire flash repose sur les données GBIF et les statuts IUCN. Il 
                   <Leaf className="h-4 w-4" />
                   <span className="text-xs font-bold uppercase">Espèces</span>
                 </div>
-                <span className="text-2xl font-bold text-gray-900">{results.stats.speciesCount}</span>
+                <span className="text-2xl font-bold text-gray-900">{filteredTotal}</span>
               </div>
               <div className="p-4 bg-orange-50/50 rounded-xl border border-orange-100">
                 <div className="flex items-center gap-2 text-orange-700 mb-1">
                   <AlertTriangle className="h-4 w-4" />
                   <span className="text-xs font-bold uppercase">Sensibles</span>
                 </div>
-                <span className="text-2xl font-bold text-gray-900">{results.stats.sensitiveCount}</span>
+                <span className="text-2xl font-bold text-gray-900">{sortedSpecies.high.length + sortedSpecies.medium.length}</span>
               </div>
+            </div>
+
+            <div className="rounded-xl border border-gray-200 bg-gray-50/50 overflow-hidden">
+              <button
+                type="button"
+                onClick={() => setShowFilters(!showFilters)}
+                className="w-full flex items-center justify-between px-4 py-3 hover:bg-gray-100/50 transition-colors"
+                data-testid="button-toggle-taxon-filters"
+              >
+                <div className="flex items-center gap-2">
+                  <Filter className="h-4 w-4 text-gray-600" />
+                  <span className="font-bold text-sm text-gray-700">Groupes taxonomiques</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  {!isAllActive && (
+                    <span className="text-[10px] bg-teal-100 text-teal-700 px-1.5 py-0.5 rounded font-semibold">
+                      {activeFilterCount}/{allGroupCount}
+                    </span>
+                  )}
+                  {showFilters
+                    ? <ChevronUp className="h-4 w-4 text-gray-400" />
+                    : <ChevronDown className="h-4 w-4 text-gray-400" />
+                  }
+                </div>
+              </button>
+
+              <AnimatePresence>
+                {showFilters && (
+                  <motion.div
+                    initial={{ opacity: 0, height: 0 }}
+                    animate={{ opacity: 1, height: "auto" }}
+                    exit={{ opacity: 0, height: 0 }}
+                    className="overflow-hidden"
+                  >
+                    <div className="px-4 pb-3 space-y-2">
+                      <div className="flex justify-between items-center">
+                        <button
+                          type="button"
+                          onClick={() => onToggleAllTaxonFilters(presentGroups.map(g => g.id))}
+                          className="text-[10px] font-semibold text-teal-600 hover:text-teal-800 transition-colors uppercase tracking-wider"
+                          data-testid="button-toggle-all-taxons"
+                        >
+                          {isAllActive ? "Tout désélectionner" : "Tout sélectionner"}
+                        </button>
+                      </div>
+                      <div className="flex flex-wrap gap-1.5">
+                        {presentGroups.map(group => {
+                          const count = taxonCounts.get(group.id) || 0;
+                          const isActive = activeTaxonFilters.has(group.id);
+                          return (
+                            <button
+                              key={group.id}
+                              type="button"
+                              onClick={() => onToggleTaxonFilter(group.id)}
+                              className={`flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-medium transition-all ${
+                                isActive
+                                  ? 'bg-teal-100 text-teal-800 ring-1 ring-teal-300 shadow-sm'
+                                  : 'bg-white text-gray-400 ring-1 ring-gray-200 hover:bg-gray-50'
+                              }`}
+                              data-testid={`taxon-filter-${group.id}`}
+                            >
+                              <span>{group.icon}</span>
+                              <span>{group.label}</span>
+                              <span className={`text-[10px] ml-0.5 ${isActive ? 'text-teal-600' : 'text-gray-300'}`}>
+                                {count}
+                              </span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
             </div>
 
             <ConfidencePanel confidence={results.confidence} />
@@ -316,6 +428,7 @@ function SpeciesCard({ occ, isSelected, onSelect }: { occ: Occurrence; isSelecte
   const [imageError, setImageError] = useState(false);
   const gbifUrl = occ.taxonKey ? `https://www.gbif.org/species/${occ.taxonKey}` : null;
   const wikiUrl = `https://fr.wikipedia.org/wiki/${encodeURIComponent(occ.scientificName.split(' ').slice(0, 2).join('_'))}`;
+  const taxonGroup = TAXON_GROUPS.find(g => g.id === getTaxonGroupId(occ));
 
   return (
     <div 
@@ -374,6 +487,11 @@ function SpeciesCard({ occ, isSelected, onSelect }: { occ: Occurrence; isSelecte
         </div>
         <div className="mt-1.5 flex flex-wrap gap-1">
           <StatusBadge status={occ.iucnStatus} />
+          {taxonGroup && (
+            <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-gray-100 text-gray-600">
+              {taxonGroup.icon} {taxonGroup.label}
+            </span>
+          )}
         </div>
       </div>
     </div>

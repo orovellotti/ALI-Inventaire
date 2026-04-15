@@ -1,8 +1,8 @@
 import { MapContainer, TileLayer, Circle, CircleMarker, useMapEvents, useMap } from "react-leaflet";
-import { useEffect } from "react";
+import { useEffect, useMemo } from "react";
 import "leaflet/dist/leaflet.css";
 import L from "leaflet";
-import { InventoryResult, BufferCircle, STUDY_AREAS } from "@/lib/gbif";
+import { InventoryResult, BufferCircle, STUDY_AREAS, getTaxonGroupId } from "@/lib/gbif";
 
 import icon from 'leaflet/dist/images/marker-icon.png';
 import iconShadow from 'leaflet/dist/images/marker-shadow.png';
@@ -22,6 +22,7 @@ interface MapProps {
   results: InventoryResult | null;
   onMapClick: (lat: number, lng: number) => void;
   selectedSpecies: string | null;
+  activeTaxonFilters: Set<string>;
 }
 
 function MapController({ center }: { center: [number, number] }) {
@@ -41,10 +42,15 @@ function MapEvents({ onMapClick }: { onMapClick: (lat: number, lng: number) => v
   return null;
 }
 
-export function Map({ center, circles, results, onMapClick, selectedSpecies }: MapProps) {
+export function Map({ center, circles, results, onMapClick, selectedSpecies, activeTaxonFilters }: MapProps) {
   const sortedCircles = [...circles]
     .filter(c => c.enabled)
     .sort((a, b) => b.radius - a.radius);
+
+  const filteredOccurrences = useMemo(() => {
+    if (!results) return [];
+    return results.occurrences.filter(occ => activeTaxonFilters.has(getTaxonGroupId(occ)));
+  }, [results, activeTaxonFilters]);
 
   return (
     <div id="map-container" className="h-full w-full relative z-0">
@@ -95,7 +101,7 @@ export function Map({ center, circles, results, onMapClick, selectedSpecies }: M
           }}
         />
 
-        {results && results.occurrences.map((occ) => {
+        {filteredOccurrences.map((occ) => {
           const isSelected = selectedSpecies === occ.scientificName;
           return (
             <CircleMarker

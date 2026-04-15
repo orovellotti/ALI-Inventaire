@@ -1,9 +1,9 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { Map } from "@/components/Map";
 import { SearchPanel } from "@/components/SearchPanel";
 import { ResultsPanel } from "@/components/ResultsPanel";
 import { AboutDialog } from "@/components/AboutDialog";
-import { searchGBIFMultiCircle, InventoryResult, BufferCircle, STUDY_AREAS, ProjectPreset } from "@/lib/gbif";
+import { searchGBIFMultiCircle, InventoryResult, BufferCircle, STUDY_AREAS, ProjectPreset, TAXON_GROUPS, getTaxonGroupId } from "@/lib/gbif";
 import { searchPlace } from "@/lib/geocoding";
 import { useToast } from "@/hooks/use-toast";
 import { Leaf, HelpCircle } from "lucide-react";
@@ -30,6 +30,9 @@ export default function Home() {
   const [selectedSpecies, setSelectedSpecies] = useState<string | null>(null);
   const [showAbout, setShowAbout] = useState(false);
   const [activePresetId, setActivePresetId] = useState("custom");
+  const [activeTaxonFilters, setActiveTaxonFilters] = useState<Set<string>>(
+    () => new Set(TAXON_GROUPS.map(g => g.id))
+  );
   const { toast } = useToast();
 
   const handleGoToPlace = async (query: string) => {
@@ -126,6 +129,41 @@ export default function Home() {
     }));
   }, []);
 
+  useEffect(() => {
+    if (selectedSpecies && results) {
+      const matchingOcc = results.occurrences.find(o => o.scientificName === selectedSpecies);
+      if (matchingOcc && !activeTaxonFilters.has(getTaxonGroupId(matchingOcc))) {
+        setSelectedSpecies(null);
+      }
+    }
+  }, [activeTaxonFilters, selectedSpecies, results]);
+
+  const handleToggleTaxonFilter = useCallback((groupId: string) => {
+    setActiveTaxonFilters(prev => {
+      const next = new Set(prev);
+      if (next.has(groupId)) {
+        next.delete(groupId);
+      } else {
+        next.add(groupId);
+      }
+      return next;
+    });
+  }, []);
+
+  const handleToggleAllTaxonFilters = useCallback((presentGroupIds?: string[]) => {
+    setActiveTaxonFilters(prev => {
+      const ids = presentGroupIds || TAXON_GROUPS.map(g => g.id);
+      const allPresent = ids.every(id => prev.has(id));
+      const next = new Set(prev);
+      if (allPresent) {
+        ids.forEach(id => next.delete(id));
+      } else {
+        ids.forEach(id => next.add(id));
+      }
+      return next;
+    });
+  }, []);
+
   return (
     <div className="relative w-full h-screen overflow-hidden bg-gray-100">
       
@@ -135,6 +173,7 @@ export default function Home() {
         results={results} 
         onMapClick={handleMapClick}
         selectedSpecies={selectedSpecies}
+        activeTaxonFilters={activeTaxonFilters}
       />
 
       <SearchPanel 
@@ -155,6 +194,9 @@ export default function Home() {
         results={results}
         selectedSpecies={selectedSpecies}
         onSelectSpecies={setSelectedSpecies}
+        activeTaxonFilters={activeTaxonFilters}
+        onToggleTaxonFilter={handleToggleTaxonFilter}
+        onToggleAllTaxonFilters={handleToggleAllTaxonFilters}
       />
 
       <AboutDialog open={showAbout} onOpenChange={setShowAbout} />

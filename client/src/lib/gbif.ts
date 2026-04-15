@@ -4,12 +4,44 @@ export interface Occurrence {
   decimalLatitude: number;
   decimalLongitude: number;
   vernacularName?: string;
+  kingdom?: string;
+  phylum?: string;
+  class?: string;
   order?: string;
   family?: string;
   alertLevel: "high" | "medium" | "low";
   imageUrl?: string;
   iucnStatus?: string;
   taxonKey?: number;
+}
+
+export interface TaxonGroup {
+  id: string;
+  label: string;
+  icon: string;
+  match: (occ: Occurrence) => boolean;
+}
+
+export const TAXON_GROUPS: TaxonGroup[] = [
+  { id: "oiseaux", label: "Oiseaux", icon: "🐦", match: (o) => o.class === "Aves" },
+  { id: "mammiferes", label: "Mammifères", icon: "🦊", match: (o) => o.class === "Mammalia" },
+  { id: "reptiles", label: "Reptiles", icon: "🦎", match: (o) => o.class === "Reptilia" },
+  { id: "amphibiens", label: "Amphibiens", icon: "🐸", match: (o) => o.class === "Amphibia" },
+  { id: "poissons", label: "Poissons", icon: "🐟", match: (o) => ["Actinopterygii", "Chondrichthyes", "Petromyzonti", "Cephalaspidomorphi"].includes(o.class || "") },
+  { id: "insectes", label: "Insectes", icon: "🦋", match: (o) => o.class === "Insecta" },
+  { id: "arachnides", label: "Arachnides", icon: "🕷️", match: (o) => o.class === "Arachnida" },
+  { id: "mollusques", label: "Mollusques", icon: "🐌", match: (o) => o.phylum === "Mollusca" },
+  { id: "plantes", label: "Plantes", icon: "🌿", match: (o) => o.kingdom === "Plantae" },
+  { id: "champignons", label: "Champignons", icon: "🍄", match: (o) => o.kingdom === "Fungi" },
+  { id: "autres", label: "Autres", icon: "🔬", match: () => true },
+];
+
+export function getTaxonGroupId(occ: Occurrence): string {
+  for (const group of TAXON_GROUPS) {
+    if (group.id === "autres") continue;
+    if (group.match(occ)) return group.id;
+  }
+  return "autres";
 }
 
 export interface ConfidenceScore {
@@ -500,6 +532,9 @@ export async function searchGBIF(lat: number, lng: number, radiusMeters: number)
           decimalLatitude: record.decimalLatitude,
           decimalLongitude: record.decimalLongitude,
           vernacularName: frenchName || record.vernacularName || record.species || record.genus,
+          kingdom: record.kingdom,
+          phylum: record.phylum,
+          class: record.class,
           order: record.order,
           family: record.family,
           alertLevel,
