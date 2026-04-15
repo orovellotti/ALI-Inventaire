@@ -3,9 +3,10 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { X, Download, FileText, AlertTriangle, Leaf, Info, ChevronDown, ChevronUp, ImageOff, Copy, Check, ExternalLink, BookOpen, Shield, MapPin, Tag, Calendar, Link, Flag, Layers, Filter } from "lucide-react";
+import { X, Download, FileText, AlertTriangle, Leaf, Info, ChevronDown, ChevronUp, ImageOff, Copy, Check, ExternalLink, BookOpen, Shield, MapPin, Tag, Calendar, Link, Flag, Layers, Filter, Table } from "lucide-react";
 import { InventoryResult, Occurrence, getIucnLabel, ConfidenceScore, TAXON_GROUPS, getTaxonGroupId } from "@/lib/gbif";
 import { findSINPPlatforms, SINPPlatform } from "@/lib/sinp";
+import { exportCSV, exportExcel } from "@/lib/export";
 import html2canvas from "html2canvas";
 
 interface ResultsPanelProps {
@@ -69,10 +70,24 @@ export function ResultsPanel({ isOpen, onClose, results, selectedSpecies, onSele
     };
   }, [results, activeTaxonFilters]);
 
-  const filteredTotal = sortedSpecies.high.length + sortedSpecies.medium.length + sortedSpecies.low.length;
+  const allFilteredSpecies = useMemo(() => {
+    return [...sortedSpecies.high, ...sortedSpecies.medium, ...sortedSpecies.low];
+  }, [sortedSpecies]);
+
+  const filteredTotal = allFilteredSpecies.length;
   const allGroupCount = presentGroups.length;
   const activeFilterCount = presentGroups.filter(g => activeTaxonFilters.has(g.id)).length;
   const isAllActive = activeFilterCount === allGroupCount;
+
+  const handleExportCSV = () => {
+    if (!results) return;
+    exportCSV({ results, filteredSpecies: allFilteredSpecies, activeTaxonFilters });
+  };
+
+  const handleExportExcel = () => {
+    if (!results) return;
+    exportExcel({ results, filteredSpecies: allFilteredSpecies, activeTaxonFilters });
+  };
 
   const handleExportImage = async () => {
     const mapElement = document.getElementById("map-container");
@@ -384,15 +399,27 @@ Note: Cet inventaire flash repose sur les données GBIF et les statuts IUCN. Il 
           </div>
         </ScrollArea>
 
-        <div className="p-6 border-t border-gray-100 bg-white/50 space-y-3">
-          <Button onClick={() => setShowReportPreview(true)} variant="outline" className="w-full justify-start gap-2 h-11 border-gray-200 hover:bg-gray-50 hover:text-gray-900 text-gray-600">
-            <FileText className="h-4 w-4" />
-            Voir le rapport texte
-          </Button>
-          <Button onClick={handleExportImage} className="w-full justify-start gap-2 h-11 bg-gray-900 hover:bg-black text-white">
-            <Download className="h-4 w-4" />
-            Exporter la carte (JPG)
-          </Button>
+        <div className="p-6 border-t border-gray-100 bg-white/50 space-y-2">
+          <div className="grid grid-cols-2 gap-2">
+            <Button onClick={handleExportExcel} className="w-full justify-start gap-2 h-10 bg-emerald-700 hover:bg-emerald-800 text-white text-xs" data-testid="button-export-excel">
+              <Table className="h-4 w-4" />
+              Export Excel
+            </Button>
+            <Button onClick={handleExportCSV} variant="outline" className="w-full justify-start gap-2 h-10 border-gray-200 hover:bg-gray-50 text-gray-700 text-xs" data-testid="button-export-csv">
+              <FileText className="h-4 w-4" />
+              Export CSV
+            </Button>
+          </div>
+          <div className="grid grid-cols-2 gap-2">
+            <Button onClick={() => setShowReportPreview(true)} variant="outline" className="w-full justify-start gap-2 h-10 border-gray-200 hover:bg-gray-50 hover:text-gray-900 text-gray-600 text-xs" data-testid="button-report-text">
+              <FileText className="h-4 w-4" />
+              Rapport texte
+            </Button>
+            <Button onClick={handleExportImage} variant="outline" className="w-full justify-start gap-2 h-10 border-gray-200 hover:bg-gray-50 text-gray-600 text-xs" data-testid="button-export-image">
+              <Download className="h-4 w-4" />
+              Carte JPG
+            </Button>
+          </div>
         </div>
       </motion.div>
 
