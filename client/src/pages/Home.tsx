@@ -3,11 +3,12 @@ import { Map } from "@/components/Map";
 import { SearchPanel } from "@/components/SearchPanel";
 import { ResultsPanel } from "@/components/ResultsPanel";
 import { AboutDialog } from "@/components/AboutDialog";
+import { ApiDialog } from "@/components/ApiDialog";
 import { searchGBIFMultiCircle, InventoryResult, BufferCircle, STUDY_AREAS, ProjectPreset, TAXON_GROUPS, getTaxonGroupId } from "@/lib/gbif";
 import { searchPlace } from "@/lib/geocoding";
 import { parseShapefile, ProjectPolygon } from "@/lib/shapefile";
 import { useToast } from "@/hooks/use-toast";
-import { Leaf, HelpCircle } from "lucide-react";
+import { Leaf, HelpCircle, Code2 } from "lucide-react";
 
 function createDefaultCircles(center: [number, number]): BufferCircle[] {
   return STUDY_AREAS.map(area => ({
@@ -30,6 +31,7 @@ export default function Home() {
   const [isPanelOpen, setIsPanelOpen] = useState(false);
   const [selectedSpecies, setSelectedSpecies] = useState<string | null>(null);
   const [showAbout, setShowAbout] = useState(false);
+  const [showApi, setShowApi] = useState(false);
   const [activePresetId, setActivePresetId] = useState("custom");
   const [activeTaxonFilters, setActiveTaxonFilters] = useState<Set<string>>(
     () => new Set(TAXON_GROUPS.map(g => g.id))
@@ -243,6 +245,7 @@ export default function Home() {
       />
 
       <AboutDialog open={showAbout} onOpenChange={setShowAbout} />
+      <ApiDialog open={showApi} onOpenChange={setShowApi} />
 
       <div className="absolute top-6 left-6 z-[1000] flex items-center gap-2">
         <button 
@@ -269,6 +272,16 @@ export default function Home() {
           data-testid="button-about"
         >
           <HelpCircle className="h-4 w-4 text-gray-600" />
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setShowApi(true)}
+          className="bg-white/80 backdrop-blur p-2 rounded-lg cursor-pointer hover:bg-white transition-colors shadow-sm"
+          aria-label="Documentation de l'API"
+          data-testid="button-api"
+        >
+          <Code2 className="h-4 w-4 text-gray-600" />
         </button>
       </div>
 
