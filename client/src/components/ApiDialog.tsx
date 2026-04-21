@@ -53,6 +53,18 @@ const ENDPOINTS: Endpoint[] = [
   },
   {
     method: "GET",
+    path: "/api/lieux-dits",
+    description: "Recherche de lieux-dits français (hameaux, fermes, quartiers) avec leur contour OSM si disponible — utilisable comme emprise projet.",
+    example: "/api/lieux-dits?q=Le+Bois+du+Cerf",
+  },
+  {
+    method: "GET",
+    path: "/api/data-sources",
+    description: "Catalogue d'autres sources de données biodiversité (DataCatalog) — 56 fournisseurs (Bretagne Vivante, Tela Botanica, OBIS, GeoNature régionaux…).",
+    example: "/api/data-sources",
+  },
+  {
+    method: "GET",
     path: "/api/sinp",
     description: "Liens SINP régionaux pertinents pour des coordonnées données.",
     example: "/api/sinp?lat=48.85&lng=2.35",
