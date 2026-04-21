@@ -168,6 +168,68 @@ export async function registerRoutes(
     res.json({ groups: TAXON_GROUPS });
   });
 
+  app.get("/api/lieux-dits", async (req: Request, res: Response) => {
+    try {
+      const query = (req.query.q as string)?.trim();
+      if (!query) {
+        return res.status(400).json({ error: "Paramètre 'q' requis" });
+      }
+
+      const params = new URLSearchParams({
+        q: query,
+        format: "json",
+        limit: "15",
+        addressdetails: "1",
+        polygon_geojson: "1",
+        countrycodes: "fr,gp,mq,gf,re,yt,pm",
+      });
+
+      const response = await fetch(`https://nominatim.openstreetmap.org/search?${params.toString()}`, {
+        headers: { "User-Agent": "InventaireFlash/1.0" },
+      });
+
+      if (!response.ok) {
+        return res.status(502).json({ error: "Erreur du service de géocodage" });
+      }
+
+      const data = await response.json();
+      const PLACE_TYPES = new Set([
+        "hamlet", "isolated_dwelling", "farm", "locality", "neighbourhood",
+        "quarter", "village", "suburb", "allotments",
+      ]);
+
+      const results = (Array.isArray(data) ? data : [])
+        .filter((r: any) => r.class === "place" && PLACE_TYPES.has(r.type))
+        .map((r: any) => {
+          const lat = parseFloat(r.lat);
+          const lng = parseFloat(r.lon);
+          const addr = r.address || {};
+          const commune = addr.village || addr.town || addr.municipality || addr.city || addr.hamlet || "";
+          const departement = addr.county || addr["state_district"] || "";
+          const region = addr.state || "";
+          const hasPolygon = r.geojson && (r.geojson.type === "Polygon" || r.geojson.type === "MultiPolygon");
+          return {
+            id: `${r.osm_type}-${r.osm_id}`,
+            name: r.name || r.display_name.split(",")[0],
+            displayName: r.display_name,
+            type: r.type,
+            lat,
+            lng,
+            commune,
+            departement,
+            region,
+            geometry: hasPolygon ? r.geojson : null,
+            boundingbox: r.boundingbox ? r.boundingbox.map(parseFloat) : null,
+          };
+        });
+
+      res.json({ results });
+    } catch (error: any) {
+      console.error("Lieux-dits error:", error);
+      res.status(500).json({ error: error.message || "Erreur lors de la recherche" });
+    }
+  });
+
   let dataSourcesCache: { data: any; expires: number } | null = null;
   app.get("/api/data-sources", async (_req: Request, res: Response) => {
     try {
@@ -200,6 +262,7 @@ export async function registerRoutes(
         { method: "GET", path: "/api/inventory/simple?lat=&lng=&radius=", description: "Inventaire simple (un point, un rayon)" },
         { method: "GET", path: "/api/species/:taxonKey", description: "Détails espèce (image, UICN, nom vernaculaire)" },
         { method: "GET", path: "/api/geocode?q=", description: "Géocodage (recherche de lieu)" },
+        { method: "GET", path: "/api/lieux-dits?q=", description: "Recherche de lieux-dits (avec polygone si disponible)" },
         { method: "GET", path: "/api/sinp?lat=&lng=", description: "Plateformes SINP régionales" },
         { method: "GET", path: "/api/sinp/all", description: "Toutes les plateformes SINP" },
         { method: "GET", path: "/api/presets", description: "Presets de projets EIE" },

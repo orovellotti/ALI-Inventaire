@@ -5,6 +5,7 @@ import { ResultsPanel } from "@/components/ResultsPanel";
 import { AboutDialog } from "@/components/AboutDialog";
 import { ApiDialog } from "@/components/ApiDialog";
 import { DataSourcesDialog } from "@/components/DataSourcesDialog";
+import { LieuxDitsDialog } from "@/components/LieuxDitsDialog";
 import { searchGBIFMultiCircle, InventoryResult, BufferCircle, STUDY_AREAS, ProjectPreset, TAXON_GROUPS, getTaxonGroupId } from "@/lib/gbif";
 import { searchPlace } from "@/lib/geocoding";
 import { parseShapefile, ProjectPolygon } from "@/lib/shapefile";
@@ -34,6 +35,7 @@ export default function Home() {
   const [showAbout, setShowAbout] = useState(false);
   const [showApi, setShowApi] = useState(false);
   const [showSources, setShowSources] = useState(false);
+  const [showLieuxDits, setShowLieuxDits] = useState(false);
   const [activePresetId, setActivePresetId] = useState("custom");
   const [activeTaxonFilters, setActiveTaxonFilters] = useState<Set<string>>(
     () => new Set(TAXON_GROUPS.map(g => g.id))
@@ -198,6 +200,30 @@ export default function Home() {
     }
   }, [isPanelOpen, toast]);
 
+  const handleSelectLieuDitPolygon = useCallback((polygon: ProjectPolygon) => {
+    setProjectPolygon(polygon);
+    const newCenter: [number, number] = polygon.centroid;
+    setCenter(newCenter);
+    setCircles(prev => prev.map(c => ({ ...c, center: newCenter })));
+    if (isPanelOpen) setIsPanelOpen(false);
+    toast({
+      title: "Lieu-dit chargé",
+      description: `Contour utilisé comme emprise — "${polygon.name}"`,
+    });
+  }, [isPanelOpen, toast]);
+
+  const handleSelectLieuDitPoint = useCallback((lat: number, lng: number, name: string) => {
+    const newCenter: [number, number] = [lat, lng];
+    setCenter(newCenter);
+    setCircles(prev => prev.map(c => ({ ...c, center: newCenter })));
+    if (projectPolygon) setProjectPolygon(null);
+    if (isPanelOpen) setIsPanelOpen(false);
+    toast({
+      title: "Lieu-dit localisé",
+      description: `Aires d'étude centrées sur "${name}" (pas de contour OSM disponible)`,
+    });
+  }, [isPanelOpen, projectPolygon, toast]);
+
   const handleShapefileClear = useCallback(() => {
     setProjectPolygon(null);
     toast({
@@ -233,6 +259,7 @@ export default function Home() {
         onShapefileClear={handleShapefileClear}
         projectPolygon={projectPolygon}
         isLoadingShapefile={isLoadingShapefile}
+        onOpenLieuxDits={() => setShowLieuxDits(true)}
       />
 
       <ResultsPanel 
@@ -249,6 +276,12 @@ export default function Home() {
       <AboutDialog open={showAbout} onOpenChange={setShowAbout} />
       <ApiDialog open={showApi} onOpenChange={setShowApi} />
       <DataSourcesDialog open={showSources} onOpenChange={setShowSources} />
+      <LieuxDitsDialog
+        open={showLieuxDits}
+        onOpenChange={setShowLieuxDits}
+        onSelectPolygon={handleSelectLieuDitPolygon}
+        onSelectPoint={handleSelectLieuDitPoint}
+      />
 
       <div className="absolute top-6 left-6 z-[1000] flex items-center gap-2">
         <button 

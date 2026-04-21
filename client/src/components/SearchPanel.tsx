@@ -2,7 +2,7 @@ import { useState, useRef } from "react";
 import { Slider } from "@/components/ui/slider";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Search, Loader2, Zap, MapPin, ChevronDown, ChevronUp, Upload, X, FileArchive } from "lucide-react";
+import { Search, Loader2, Zap, MapPin, ChevronDown, ChevronUp, Upload, X, FileArchive, Landmark } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { BufferCircle, STUDY_AREAS, PROJECT_PRESETS, ProjectPreset } from "@/lib/gbif";
 import type { ProjectPolygon } from "@/lib/shapefile";
@@ -21,13 +21,15 @@ interface SearchPanelProps {
   onShapefileClear: () => void;
   projectPolygon: ProjectPolygon | null;
   isLoadingShapefile: boolean;
+  onOpenLieuxDits: () => void;
 }
 
 export function SearchPanel({ 
   onGoToPlace, onLaunchAnalysis, isSearching, isAnalyzing, 
   circles, onToggleCircle, onRadiusChange,
   activePresetId, onApplyPreset,
-  onShapefileLoad, onShapefileClear, projectPolygon, isLoadingShapefile
+  onShapefileLoad, onShapefileClear, projectPolygon, isLoadingShapefile,
+  onOpenLieuxDits,
 }: SearchPanelProps) {
   const [query, setQuery] = useState("");
   const [expandedCircle, setExpandedCircle] = useState<string | null>(null);
@@ -81,6 +83,16 @@ export function SearchPanel({
             Aller à
           </Button>
         </div>
+
+        <button
+          type="button"
+          onClick={onOpenLieuxDits}
+          className="flex items-center justify-center gap-2 text-xs text-gray-700 hover:text-teal-700 bg-white/50 hover:bg-white border border-dashed border-gray-300 hover:border-teal-400 rounded-lg py-2 transition-colors"
+          data-testid="button-open-lieux-dits"
+        >
+          <Landmark className="h-3.5 w-3.5" />
+          Rechercher un lieu-dit comme emprise
+        </button>
 
         <div className="space-y-1">
           <input
