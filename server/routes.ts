@@ -168,6 +168,28 @@ export async function registerRoutes(
     res.json({ groups: TAXON_GROUPS });
   });
 
+  let dataSourcesCache: { data: any; expires: number } | null = null;
+  app.get("/api/data-sources", async (_req: Request, res: Response) => {
+    try {
+      if (dataSourcesCache && dataSourcesCache.expires > Date.now()) {
+        return res.json(dataSourcesCache.data);
+      }
+      const response = await fetch("https://data-catalog-tool.replit.app/api/providers");
+      if (!response.ok) {
+        throw new Error(`Catalog upstream returned ${response.status}`);
+      }
+      const data = await response.json();
+      dataSourcesCache = { data, expires: Date.now() + 10 * 60 * 1000 };
+      res.json(data);
+    } catch (error: any) {
+      console.error("Data sources error:", error);
+      if (dataSourcesCache) {
+        return res.json(dataSourcesCache.data);
+      }
+      res.status(502).json({ error: "Catalogue de sources indisponible" });
+    }
+  });
+
   app.get("/api/health", (_req: Request, res: Response) => {
     res.json({
       status: "ok",
@@ -183,6 +205,7 @@ export async function registerRoutes(
         { method: "GET", path: "/api/presets", description: "Presets de projets EIE" },
         { method: "GET", path: "/api/study-areas", description: "Définitions des aires d'étude" },
         { method: "GET", path: "/api/taxon-groups", description: "Groupes taxonomiques" },
+        { method: "GET", path: "/api/data-sources", description: "Catalogue d'autres sources de données biodiversité (DataCatalog)" },
       ]
     });
   });
