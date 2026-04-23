@@ -91,7 +91,7 @@ export function SearchPanel({
           data-testid="button-open-lieux-dits"
         >
           <Landmark className="h-3.5 w-3.5" />
-          Rechercher un lieu-dit comme emprise
+          Rechercher un lieu-dit ou une commune comme emprise
         </button>
 
         <div className="space-y-1">

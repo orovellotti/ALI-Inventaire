@@ -196,10 +196,16 @@ export async function registerRoutes(
       const PLACE_TYPES = new Set([
         "hamlet", "isolated_dwelling", "farm", "locality", "neighbourhood",
         "quarter", "village", "suburb", "allotments",
+        "city", "town", "municipality", "administrative",
       ]);
+      const ADMIN_TYPES = new Set(["administrative", "boundary"]);
 
       const results = (Array.isArray(data) ? data : [])
-        .filter((r: any) => r.class === "place" && PLACE_TYPES.has(r.type))
+        .filter((r: any) => {
+          if (r.class === "place" && PLACE_TYPES.has(r.type)) return true;
+          if (r.class === "boundary" && ADMIN_TYPES.has(r.type)) return true;
+          return false;
+        })
         .map((r: any) => {
           const lat = parseFloat(r.lat);
           const lng = parseFloat(r.lon);

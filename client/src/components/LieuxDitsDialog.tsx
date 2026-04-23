@@ -36,6 +36,11 @@ const TYPE_LABEL: Record<string, string> = {
   village: "Village",
   suburb: "Faubourg",
   allotments: "Jardins",
+  city: "Ville",
+  town: "Commune",
+  municipality: "Commune",
+  administrative: "Commune",
+  boundary: "Limite administrative",
 };
 
 function bboxToBounds(bbox: [number, number, number, number]): [[number, number], [number, number]] {
@@ -92,12 +97,12 @@ export function LieuxDitsDialog({ open, onOpenChange, onSelectPolygon, onSelectP
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <MapPin className="h-5 w-5 text-teal-600" />
-            Rechercher un lieu-dit
+            Rechercher un lieu-dit ou une commune
           </DialogTitle>
           <DialogDescription>
-            Trouvez un hameau, lieu-dit, ferme ou quartier. Si OpenStreetMap dispose
-            de son contour, il sera utilisé comme emprise du projet ; sinon les aires
-            d'étude seront centrées sur le point.
+            Trouvez un hameau, lieu-dit, ferme, quartier ou commune. Si OpenStreetMap
+            dispose de son contour (souvent le cas pour les communes), il sera utilisé
+            comme emprise du projet ; sinon les aires d'étude seront centrées sur le point.
           </DialogDescription>
         </DialogHeader>
 
@@ -108,7 +113,7 @@ export function LieuxDitsDialog({ open, onOpenChange, onSelectPolygon, onSelectP
               type="text"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              placeholder="ex : Le Bois du Cerf, La Croix Rouge…"
+              placeholder="ex : Moustoir-Ac, Le Bois du Cerf, Lille…"
               className="w-full pl-9 pr-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500/30 focus:border-teal-500"
               data-testid="input-lieu-dit-query"
               autoFocus
@@ -132,7 +137,7 @@ export function LieuxDitsDialog({ open, onOpenChange, onSelectPolygon, onSelectP
           )}
           {results && results.length === 0 && (
             <div className="text-center py-8 text-sm text-gray-500">
-              Aucun lieu-dit trouvé. Essayez une orthographe différente.
+              Aucun lieu-dit ni commune trouvé. Essayez une orthographe différente.
             </div>
           )}
           <div className="space-y-2">
