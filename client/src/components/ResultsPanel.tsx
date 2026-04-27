@@ -28,7 +28,7 @@ export function ResultsPanel({ isOpen, onClose, results, selectedSpecies, onSele
   const [showLow, setShowLow] = useState(false);
   const [showReportPreview, setShowReportPreview] = useState(false);
   const [copied, setCopied] = useState(false);
-  const [showFilters, setShowFilters] = useState(false);
+  const [showFilters, setShowFilters] = useState(true);
 
   const taxonCounts = useMemo(() => {
     if (!results) return new Map<string, number>();
