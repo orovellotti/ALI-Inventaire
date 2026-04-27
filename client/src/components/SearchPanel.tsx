@@ -39,6 +39,7 @@ export function SearchPanel({
   const [expandedCircle, setExpandedCircle] = useState<string | null>(null);
   const [showPresets, setShowPresets] = useState(false);
   const [showCircles, setShowCircles] = useState(false);
+  const [showShapefile, setShowShapefile] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   if (isCollapsed) {
@@ -120,49 +121,74 @@ export function SearchPanel({
           Rechercher un lieu-dit ou une commune comme emprise
         </button>
 
-        <div className="space-y-1">
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept=".zip"
-            onChange={handleFileChange}
-            className="hidden"
-            data-testid="input-shapefile"
-          />
-          {projectPolygon ? (
-            <div className="flex items-center gap-2 bg-teal-50 rounded-lg px-2.5 py-2 ring-1 ring-teal-200">
-              <FileArchive className="h-4 w-4 text-teal-600 flex-shrink-0" />
-              <div className="flex-1 min-w-0">
-                <div className="text-xs font-semibold text-teal-800 truncate">{projectPolygon.name}</div>
-                <div className="text-[10px] text-teal-600">{projectPolygon.geojson.features.length} entité(s) — centroïde utilisé</div>
-              </div>
-              <button
-                type="button"
-                onClick={onShapefileClear}
-                className="p-1 hover:bg-teal-100 rounded transition-colors flex-shrink-0"
-                aria-label="Supprimer le shapefile"
-                data-testid="button-clear-shapefile"
-              >
-                <X className="h-3.5 w-3.5 text-teal-600" />
-              </button>
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept=".zip"
+          onChange={handleFileChange}
+          className="hidden"
+          data-testid="input-shapefile"
+        />
+
+        {projectPolygon ? (
+          <div className="flex items-center gap-2 bg-teal-50 rounded-lg px-2.5 py-2 ring-1 ring-teal-200">
+            <FileArchive className="h-4 w-4 text-teal-600 flex-shrink-0" />
+            <div className="flex-1 min-w-0">
+              <div className="text-xs font-semibold text-teal-800 truncate">{projectPolygon.name}</div>
+              <div className="text-[10px] text-teal-600">{projectPolygon.geojson.features.length} entité(s) — centroïde utilisé</div>
             </div>
-          ) : (
             <button
               type="button"
-              onClick={() => fileInputRef.current?.click()}
-              disabled={isLoadingShapefile}
-              className="w-full flex items-center justify-center gap-2 text-xs py-2 rounded-lg border border-dashed border-gray-300 text-muted-foreground hover:border-teal-400 hover:text-teal-700 hover:bg-teal-50/50 transition-all"
-              data-testid="button-upload-shapefile"
+              onClick={onShapefileClear}
+              className="p-1 hover:bg-teal-100 rounded transition-colors flex-shrink-0"
+              aria-label="Supprimer le shapefile"
+              data-testid="button-clear-shapefile"
             >
-              {isLoadingShapefile ? (
-                <Loader2 className="h-3.5 w-3.5 animate-spin" />
-              ) : (
-                <Upload className="h-3.5 w-3.5" />
-              )}
-              {isLoadingShapefile ? "Chargement…" : "Charger un shapefile (.zip)"}
+              <X className="h-3.5 w-3.5 text-teal-600" />
             </button>
-          )}
-        </div>
+          </div>
+        ) : (
+          <div className="space-y-2">
+            <button
+              type="button"
+              onClick={() => setShowShapefile(!showShapefile)}
+              className="w-full flex items-center justify-between text-xs font-medium text-muted-foreground uppercase tracking-wider hover:text-foreground transition-colors"
+              data-testid="button-toggle-shapefile"
+            >
+              <span>Charger un shapefile</span>
+              {showShapefile
+                ? <ChevronUp className="h-3 w-3" />
+                : <ChevronDown className="h-3 w-3" />
+              }
+            </button>
+
+            <AnimatePresence>
+              {showShapefile && (
+                <motion.div
+                  initial={{ opacity: 0, height: 0 }}
+                  animate={{ opacity: 1, height: "auto" }}
+                  exit={{ opacity: 0, height: 0 }}
+                  className="overflow-hidden"
+                >
+                  <button
+                    type="button"
+                    onClick={() => fileInputRef.current?.click()}
+                    disabled={isLoadingShapefile}
+                    className="w-full flex items-center justify-center gap-2 text-xs py-2 rounded-lg border border-dashed border-gray-300 text-muted-foreground hover:border-teal-400 hover:text-teal-700 hover:bg-teal-50/50 transition-all"
+                    data-testid="button-upload-shapefile"
+                  >
+                    {isLoadingShapefile ? (
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    ) : (
+                      <Upload className="h-3.5 w-3.5" />
+                    )}
+                    {isLoadingShapefile ? "Chargement…" : "Sélectionner un fichier .zip"}
+                  </button>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
+        )}
 
         <div className="space-y-2">
           <button
