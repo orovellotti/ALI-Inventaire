@@ -2,7 +2,11 @@ import { useState, useRef } from "react";
 import { Slider } from "@/components/ui/slider";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Search, Loader2, Zap, MapPin, ChevronDown, ChevronUp, Upload, X, FileArchive, Landmark } from "lucide-react";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import {
+  Search, Loader2, Zap, ChevronDown, ChevronUp, Upload, X,
+  FileArchive, Landmark, Plus, Settings2, MapPin, Target,
+} from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { BufferCircle, STUDY_AREAS, PROJECT_PRESETS, ProjectPreset } from "@/lib/gbif";
 import type { ProjectPolygon } from "@/lib/shapefile";
@@ -26,8 +30,8 @@ interface SearchPanelProps {
   onExpand?: () => void;
 }
 
-export function SearchPanel({ 
-  onGoToPlace, onLaunchAnalysis, isSearching, isAnalyzing, 
+export function SearchPanel({
+  onGoToPlace, onLaunchAnalysis, isSearching, isAnalyzing,
   circles, onToggleCircle, onRadiusChange,
   activePresetId, onApplyPreset,
   onShapefileLoad, onShapefileClear, projectPolygon, isLoadingShapefile,
@@ -37,9 +41,8 @@ export function SearchPanel({
 }: SearchPanelProps) {
   const [query, setQuery] = useState("");
   const [expandedCircle, setExpandedCircle] = useState<string | null>(null);
-  const [showPresets, setShowPresets] = useState(false);
-  const [showCircles, setShowCircles] = useState(false);
-  const [showShapefile, setShowShapefile] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
+  const [moreOpen, setMoreOpen] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   if (isCollapsed) {
@@ -72,332 +75,312 @@ export function SearchPanel({
   };
 
   const handleGoTo = () => {
-    if (query.trim()) {
-      onGoToPlace(query.trim());
-    }
+    if (query.trim()) onGoToPlace(query.trim());
   };
 
   const enabledCount = circles.filter(c => c.enabled).length;
   const activePreset = PROJECT_PRESETS.find(p => p.id === activePresetId);
+  const enabledCircles = circles.filter(c => c.enabled);
+
+  const formatRadius = (r: number) =>
+    r >= 1000 ? `${(r / 1000).toFixed(r % 1000 === 0 ? 0 : 1)} km` : `${r} m`;
 
   return (
-    <motion.div 
+    <motion.div
       initial={{ y: -20, opacity: 0 }}
       animate={{ y: 0, opacity: 1 }}
-      className="absolute top-6 left-1/2 -translate-x-1/2 z-[1000] w-[90%] max-w-md"
+      className="absolute top-6 left-1/2 -translate-x-1/2 z-[1000] w-[92%] max-w-md"
     >
-      <div className="glass-panel p-4 rounded-xl flex flex-col gap-3">
-        <div className="flex gap-2">
-          <div className="relative flex-1">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <Input 
-              placeholder="Lieu, commune, adresse..." 
-              className="pl-9 bg-white/50 border-0 focus-visible:ring-1 focus-visible:ring-primary/50"
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && handleGoTo()}
-              data-testid="input-search"
-            />
-          </div>
-          <Button 
-            variant="secondary"
+      <div className="glass-panel p-3 rounded-2xl flex flex-col gap-2.5">
+
+        {/* === Étape 1 : Localisation === */}
+        <div className="relative flex items-center gap-1.5 bg-white/70 rounded-xl ring-1 ring-black/5 focus-within:ring-2 focus-within:ring-teal-400 transition-all pl-3 pr-1.5 py-1">
+          <Search className="h-4 w-4 text-gray-400 shrink-0" />
+          <Input
+            placeholder="Lieu, commune, adresse…"
+            className="border-0 bg-transparent shadow-none focus-visible:ring-0 px-1 h-9 text-sm"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            onKeyDown={(e) => e.key === 'Enter' && handleGoTo()}
+            data-testid="input-search"
+          />
+
+          <Popover open={moreOpen} onOpenChange={setMoreOpen}>
+            <PopoverTrigger asChild>
+              <button
+                type="button"
+                className="p-1.5 rounded-lg text-gray-500 hover:text-teal-700 hover:bg-teal-50 transition-colors shrink-0"
+                aria-label="Autres méthodes de localisation"
+                data-testid="button-more-location"
+              >
+                <Plus className="h-4 w-4" />
+              </button>
+            </PopoverTrigger>
+            <PopoverContent align="end" className="w-60 p-1.5 z-[2100]">
+              <button
+                type="button"
+                onClick={() => { setMoreOpen(false); onOpenLieuxDits(); }}
+                className="w-full flex items-start gap-2.5 px-2.5 py-2 rounded-lg hover:bg-teal-50 text-left transition-colors"
+                data-testid="popover-lieu-dit"
+              >
+                <Landmark className="h-4 w-4 text-teal-600 shrink-0 mt-0.5" />
+                <div className="min-w-0">
+                  <div className="text-xs font-semibold text-gray-900">Lieu-dit / commune</div>
+                  <div className="text-[10px] text-gray-500 leading-tight">Utiliser un contour OSM comme emprise</div>
+                </div>
+              </button>
+              <button
+                type="button"
+                onClick={() => { setMoreOpen(false); fileInputRef.current?.click(); }}
+                disabled={isLoadingShapefile}
+                className="w-full flex items-start gap-2.5 px-2.5 py-2 rounded-lg hover:bg-teal-50 text-left transition-colors disabled:opacity-50"
+                data-testid="popover-shapefile"
+              >
+                {isLoadingShapefile
+                  ? <Loader2 className="h-4 w-4 text-teal-600 shrink-0 mt-0.5 animate-spin" />
+                  : <Upload className="h-4 w-4 text-teal-600 shrink-0 mt-0.5" />}
+                <div className="min-w-0">
+                  <div className="text-xs font-semibold text-gray-900">Importer un shapefile</div>
+                  <div className="text-[10px] text-gray-500 leading-tight">Fichier .zip — emprise réelle du projet</div>
+                </div>
+              </button>
+            </PopoverContent>
+          </Popover>
+
+          <Button
+            size="sm"
             onClick={handleGoTo}
             disabled={isSearching || !query.trim()}
-            className="font-medium shadow-sm transition-all gap-2"
+            className="h-9 px-3 bg-teal-600 hover:bg-teal-700 text-white shrink-0"
             data-testid="button-goto"
+            aria-label="Localiser"
           >
-            {isSearching ? <Loader2 className="h-4 w-4 animate-spin" /> : <MapPin className="h-4 w-4" />}
-            Aller à
+            {isSearching
+              ? <Loader2 className="h-4 w-4 animate-spin" />
+              : <MapPin className="h-4 w-4" />}
           </Button>
+
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".zip"
+            onChange={handleFileChange}
+            className="hidden"
+            data-testid="input-shapefile"
+          />
         </div>
 
-        <button
-          type="button"
-          onClick={onOpenLieuxDits}
-          className="flex items-center justify-center gap-2 text-xs text-gray-700 hover:text-teal-700 bg-white/50 hover:bg-white border border-dashed border-gray-300 hover:border-teal-400 rounded-lg py-2 transition-colors"
-          data-testid="button-open-lieux-dits"
-        >
-          <Landmark className="h-3.5 w-3.5" />
-          Rechercher un lieu-dit ou une commune comme emprise
-        </button>
-
-        <input
-          ref={fileInputRef}
-          type="file"
-          accept=".zip"
-          onChange={handleFileChange}
-          className="hidden"
-          data-testid="input-shapefile"
-        />
-
-        {projectPolygon ? (
-          <div className="flex items-center gap-2 bg-teal-50 rounded-lg px-2.5 py-2 ring-1 ring-teal-200">
-            <FileArchive className="h-4 w-4 text-teal-600 flex-shrink-0" />
+        {/* Pastille emprise active (shapefile / lieu-dit) */}
+        {projectPolygon && (
+          <div className="flex items-center gap-2 bg-teal-50 rounded-lg px-2.5 py-1.5 ring-1 ring-teal-200">
+            <FileArchive className="h-3.5 w-3.5 text-teal-600 shrink-0" />
             <div className="flex-1 min-w-0">
-              <div className="text-xs font-semibold text-teal-800 truncate">{projectPolygon.name}</div>
-              <div className="text-[10px] text-teal-600">{projectPolygon.geojson.features.length} entité(s) — centroïde utilisé</div>
+              <div className="text-[11px] font-semibold text-teal-800 truncate" data-testid="text-polygon-name">
+                {projectPolygon.name}
+              </div>
+              <div className="text-[10px] text-teal-600">
+                {projectPolygon.geojson.features.length} entité(s) • centroïde utilisé
+              </div>
             </div>
             <button
               type="button"
               onClick={onShapefileClear}
-              className="p-1 hover:bg-teal-100 rounded transition-colors flex-shrink-0"
-              aria-label="Supprimer le shapefile"
+              className="p-1 hover:bg-teal-100 rounded transition-colors shrink-0"
+              aria-label="Supprimer l'emprise"
               data-testid="button-clear-shapefile"
             >
-              <X className="h-3.5 w-3.5 text-teal-600" />
+              <X className="h-3 w-3 text-teal-600" />
             </button>
-          </div>
-        ) : (
-          <div className="space-y-2">
-            <button
-              type="button"
-              onClick={() => setShowShapefile(!showShapefile)}
-              className="w-full flex items-center justify-between text-xs font-medium text-muted-foreground uppercase tracking-wider hover:text-foreground transition-colors"
-              data-testid="button-toggle-shapefile"
-            >
-              <span>Charger un shapefile</span>
-              {showShapefile
-                ? <ChevronUp className="h-3 w-3" />
-                : <ChevronDown className="h-3 w-3" />
-              }
-            </button>
-
-            <AnimatePresence>
-              {showShapefile && (
-                <motion.div
-                  initial={{ opacity: 0, height: 0 }}
-                  animate={{ opacity: 1, height: "auto" }}
-                  exit={{ opacity: 0, height: 0 }}
-                  className="overflow-hidden"
-                >
-                  <button
-                    type="button"
-                    onClick={() => fileInputRef.current?.click()}
-                    disabled={isLoadingShapefile}
-                    className="w-full flex items-center justify-center gap-2 text-xs py-2 rounded-lg border border-dashed border-gray-300 text-muted-foreground hover:border-teal-400 hover:text-teal-700 hover:bg-teal-50/50 transition-all"
-                    data-testid="button-upload-shapefile"
-                  >
-                    {isLoadingShapefile ? (
-                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                    ) : (
-                      <Upload className="h-3.5 w-3.5" />
-                    )}
-                    {isLoadingShapefile ? "Chargement…" : "Sélectionner un fichier .zip"}
-                  </button>
-                </motion.div>
-              )}
-            </AnimatePresence>
           </div>
         )}
 
-        <div className="space-y-2">
+        {/* === Étape 2 : Configuration de l'étude (un seul bloc) === */}
+        <div className="bg-white/40 rounded-xl ring-1 ring-black/5 overflow-hidden">
           <button
             type="button"
-            onClick={() => setShowPresets(!showPresets)}
-            className="w-full flex items-center justify-between text-xs font-medium text-muted-foreground uppercase tracking-wider hover:text-foreground transition-colors"
-            data-testid="button-toggle-presets"
+            onClick={() => setShowSettings(!showSettings)}
+            className="w-full flex items-center gap-2 px-3 py-2 hover:bg-white/60 transition-colors"
+            data-testid="button-toggle-settings"
           >
-            <div className="flex items-center gap-1.5">
-              <span>Type de projet</span>
-              {activePreset && (
-                <span className={`normal-case tracking-normal px-1.5 py-0.5 rounded text-[10px] font-semibold ${
-                  activePreset.id === "custom" 
-                    ? 'bg-gray-100 text-gray-500' 
-                    : 'bg-teal-100 text-teal-700'
-                }`}>
-                  {activePreset.icon} {activePreset.label}
-                </span>
-              )}
+            <Settings2 className="h-3.5 w-3.5 text-gray-500 shrink-0" />
+            <div className="flex-1 min-w-0 text-left">
+              <div className="text-[11px] font-semibold text-gray-700 leading-tight">
+                Paramètres de l'étude
+              </div>
+              <div className="text-[10px] text-gray-500 truncate flex items-center gap-1.5">
+                {activePreset && activePreset.id !== "custom" && (
+                  <span>{activePreset.icon} {activePreset.label}</span>
+                )}
+                {activePreset?.id === "custom" && <span>Personnalisé</span>}
+                <span className="text-gray-300">•</span>
+                <span>{enabledCount}/{circles.length} aire{enabledCount > 1 ? 's' : ''}</span>
+              </div>
             </div>
-            {showPresets 
-              ? <ChevronUp className="h-3 w-3" /> 
-              : <ChevronDown className="h-3 w-3" />
-            }
+            {showSettings
+              ? <ChevronUp className="h-3.5 w-3.5 text-gray-400" />
+              : <ChevronDown className="h-3.5 w-3.5 text-gray-400" />}
           </button>
 
           <AnimatePresence>
-            {showPresets && (
+            {showSettings && (
               <motion.div
-                initial={{ opacity: 0, height: 0 }}
-                animate={{ opacity: 1, height: "auto" }}
-                exit={{ opacity: 0, height: 0 }}
+                initial={{ height: 0, opacity: 0 }}
+                animate={{ height: "auto", opacity: 1 }}
+                exit={{ height: 0, opacity: 0 }}
                 className="overflow-hidden"
               >
-                <div className="grid grid-cols-2 gap-1.5 pb-2">
-                  {PROJECT_PRESETS.filter(p => p.id !== "custom").map((preset) => (
-                    <button
-                      key={preset.id}
-                      type="button"
-                      onClick={() => {
-                        onApplyPreset(preset);
-                        setShowPresets(false);
-                      }}
-                      className={`text-left px-2.5 py-2 rounded-lg transition-all text-xs ${
-                        activePresetId === preset.id
-                          ? 'bg-teal-50 ring-1 ring-teal-300 shadow-sm'
-                          : 'bg-white/50 hover:bg-white/80 ring-1 ring-black/5'
-                      }`}
-                      data-testid={`preset-${preset.id}`}
-                    >
-                      <div className="flex items-center gap-1.5">
-                        <span className="text-sm">{preset.icon}</span>
-                        <span className={`font-semibold ${activePresetId === preset.id ? 'text-teal-800' : 'text-gray-800'}`}>
-                          {preset.label}
+                <div className="px-3 pb-3 pt-1 space-y-3 border-t border-black/5">
+
+                  {/* Presets — chips horizontales */}
+                  <div>
+                    <div className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-1.5">
+                      Type de projet
+                    </div>
+                    <div className="flex flex-wrap gap-1">
+                      {PROJECT_PRESETS.filter(p => p.id !== "custom").map((preset) => (
+                        <button
+                          key={preset.id}
+                          type="button"
+                          onClick={() => onApplyPreset(preset)}
+                          title={preset.description}
+                          className={`text-[11px] px-2 py-1 rounded-full transition-all flex items-center gap-1 ${
+                            activePresetId === preset.id
+                              ? 'bg-teal-600 text-white shadow-sm'
+                              : 'bg-white/70 text-gray-700 ring-1 ring-black/5 hover:bg-white hover:ring-teal-300'
+                          }`}
+                          data-testid={`preset-${preset.id}`}
+                        >
+                          <span>{preset.icon}</span>
+                          <span className="font-medium">{preset.label}</span>
+                        </button>
+                      ))}
+                      {activePresetId === "custom" && (
+                        <span className="text-[11px] px-2 py-1 rounded-full bg-gray-100 text-gray-500 italic">
+                          Personnalisé
                         </span>
-                      </div>
-                      <p className={`text-[10px] mt-0.5 leading-tight ${activePresetId === preset.id ? 'text-teal-600' : 'text-gray-400'}`}>
-                        {preset.description}
-                      </p>
-                    </button>
-                  ))}
-                </div>
-              </motion.div>
-            )}
-          </AnimatePresence>
-        </div>
-
-        <div className="space-y-2">
-          <button
-            type="button"
-            onClick={() => setShowCircles(!showCircles)}
-            className="w-full flex items-center justify-between text-xs font-medium text-muted-foreground uppercase tracking-wider hover:text-foreground transition-colors"
-            data-testid="button-toggle-circles"
-          >
-            <span>Aires d'étude ({enabledCount}/{circles.length} actives)</span>
-            {showCircles
-              ? <ChevronUp className="h-3 w-3" />
-              : <ChevronDown className="h-3 w-3" />
-            }
-          </button>
-
-          <AnimatePresence>
-            {showCircles && (
-              <motion.div
-                initial={{ opacity: 0, height: 0 }}
-                animate={{ opacity: 1, height: "auto" }}
-                exit={{ opacity: 0, height: 0 }}
-                className="overflow-hidden"
-              >
-          <div className="space-y-1.5">
-            {circles.map((circle) => {
-              const studyArea = STUDY_AREAS.find(a => a.id === circle.id);
-              const color = studyArea?.color || "#0d9488";
-              const isExpanded = expandedCircle === circle.id;
-
-              return (
-                <div key={circle.id}>
-                  <div
-                    className={`flex items-center gap-2 rounded-lg px-2.5 py-2 cursor-pointer transition-all ${
-                      circle.enabled 
-                        ? 'bg-white/80 shadow-sm ring-1 ring-black/5' 
-                        : 'bg-white/30 hover:bg-white/40 opacity-60'
-                    }`}
-                    data-testid={`circle-item-${circle.id}`}
-                  >
-                    <button
-                      onClick={() => onToggleCircle(circle.id)}
-                      className="flex-shrink-0"
-                      data-testid={`toggle-circle-${circle.id}`}
-                    >
-                      <div 
-                        className={`w-4 h-4 rounded border-2 flex items-center justify-center transition-all`}
-                        style={{ 
-                          borderColor: color,
-                          backgroundColor: circle.enabled ? color : 'transparent' 
-                        }}
-                      >
-                        {circle.enabled && (
-                          <svg className="w-2.5 h-2.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                          </svg>
-                        )}
-                      </div>
-                    </button>
-
-                    <div 
-                      className="flex-1 min-w-0 flex items-center gap-2"
-                      onClick={() => setExpandedCircle(isExpanded ? null : circle.id)}
-                    >
-                      <div
-                        className="w-5 h-0 flex-shrink-0"
-                        style={{ 
-                          borderTop: `2px ${studyArea?.dashArray ? 'dashed' : 'solid'} ${color}`,
-                        }}
-                      />
-                      <span className="text-xs font-medium flex-1 truncate">
-                        {circle.label}
-                      </span>
-                      <span className="text-[10px] text-muted-foreground font-mono flex-shrink-0">
-                        {circle.radius >= 1000 
-                          ? `${(circle.radius/1000).toFixed(1)} km` 
-                          : `${circle.radius} m`
-                        }
-                      </span>
-                      {circle.enabled && (
-                        isExpanded 
-                          ? <ChevronUp className="h-3 w-3 text-muted-foreground flex-shrink-0" /> 
-                          : <ChevronDown className="h-3 w-3 text-muted-foreground flex-shrink-0" />
                       )}
                     </div>
                   </div>
 
-                  <AnimatePresence>
-                    {isExpanded && circle.enabled && (
-                      <motion.div
-                        initial={{ opacity: 0, height: 0 }}
-                        animate={{ opacity: 1, height: "auto" }}
-                        exit={{ opacity: 0, height: 0 }}
-                        className="overflow-hidden"
-                      >
-                        <div className="px-3 py-2 ml-6">
-                          <div className="flex justify-between text-[10px] text-muted-foreground mb-1.5">
-                            <span>Rayon</span>
-                            <span className="font-mono font-bold">
-                              {circle.radius >= 1000 
-                                ? `${(circle.radius/1000).toFixed(1)} km` 
-                                : `${circle.radius} m`
-                              }
-                            </span>
+                  {/* Zones — liste compacte avec slider */}
+                  <div>
+                    <div className="flex items-center justify-between text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-1.5">
+                      <span className="flex items-center gap-1">
+                        <Target className="h-3 w-3" />
+                        Aires d'étude
+                      </span>
+                      <span className="font-mono text-gray-400 normal-case">
+                        {enabledCount}/{circles.length}
+                      </span>
+                    </div>
+                    <div className="space-y-1">
+                      {circles.map((circle) => {
+                        const studyArea = STUDY_AREAS.find(a => a.id === circle.id);
+                        const color = studyArea?.color || "#0d9488";
+                        const isExpanded = expandedCircle === circle.id;
+
+                        return (
+                          <div key={circle.id} className="rounded-lg overflow-hidden">
+                            <div
+                              className={`flex items-center gap-2 px-2 py-1.5 transition-all ${
+                                circle.enabled ? 'bg-white/80 ring-1 ring-black/5' : 'bg-white/30 opacity-60'
+                              }`}
+                              data-testid={`circle-item-${circle.id}`}
+                            >
+                              <button
+                                onClick={() => onToggleCircle(circle.id)}
+                                className="shrink-0"
+                                aria-label={`${circle.enabled ? 'Désactiver' : 'Activer'} ${circle.label}`}
+                                data-testid={`toggle-circle-${circle.id}`}
+                              >
+                                <div
+                                  className="w-4 h-4 rounded border-2 flex items-center justify-center transition-all"
+                                  style={{
+                                    borderColor: color,
+                                    backgroundColor: circle.enabled ? color : 'transparent',
+                                  }}
+                                >
+                                  {circle.enabled && (
+                                    <svg className="w-2.5 h-2.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                                      <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                                    </svg>
+                                  )}
+                                </div>
+                              </button>
+
+                              <button
+                                type="button"
+                                onClick={() => circle.enabled && setExpandedCircle(isExpanded ? null : circle.id)}
+                                disabled={!circle.enabled}
+                                className="flex-1 min-w-0 flex items-center gap-2 text-left disabled:cursor-default"
+                              >
+                                <div
+                                  className="w-4 h-0 shrink-0"
+                                  style={{ borderTop: `2px ${studyArea?.dashArray ? 'dashed' : 'solid'} ${color}` }}
+                                />
+                                <span className="text-[11px] font-medium flex-1 truncate">
+                                  {circle.label}
+                                </span>
+                                <span className="text-[10px] text-gray-500 font-mono shrink-0">
+                                  {formatRadius(circle.radius)}
+                                </span>
+                                {circle.enabled && (
+                                  isExpanded
+                                    ? <ChevronUp className="h-3 w-3 text-gray-400 shrink-0" />
+                                    : <ChevronDown className="h-3 w-3 text-gray-400 shrink-0" />
+                                )}
+                              </button>
+                            </div>
+
+                            <AnimatePresence>
+                              {isExpanded && circle.enabled && (
+                                <motion.div
+                                  initial={{ opacity: 0, height: 0 }}
+                                  animate={{ opacity: 1, height: "auto" }}
+                                  exit={{ opacity: 0, height: 0 }}
+                                  className="overflow-hidden"
+                                >
+                                  <div className="px-3 py-2">
+                                    <Slider
+                                      value={[circle.radius]}
+                                      onValueChange={(vals) => onRadiusChange(circle.id, vals[0])}
+                                      max={circle.id === "eloignee" ? 15000 : circle.id === "rapprochee" ? 5000 : 2000}
+                                      min={100}
+                                      step={100}
+                                      className="cursor-pointer"
+                                      data-testid={`slider-radius-${circle.id}`}
+                                    />
+                                  </div>
+                                </motion.div>
+                              )}
+                            </AnimatePresence>
                           </div>
-                          <Slider 
-                            value={[circle.radius]} 
-                            onValueChange={(vals) => onRadiusChange(circle.id, vals[0])} 
-                            max={circle.id === "eloignee" ? 15000 : circle.id === "rapprochee" ? 5000 : 2000} 
-                            min={100} 
-                            step={100}
-                            className="cursor-pointer"
-                            data-testid={`slider-radius-${circle.id}`}
-                          />
-                        </div>
-                      </motion.div>
-                    )}
-                  </AnimatePresence>
+                        );
+                      })}
+                    </div>
+                  </div>
                 </div>
-              );
-            })}
-          </div>
               </motion.div>
             )}
           </AnimatePresence>
         </div>
 
-        <div className="pt-1">
-          <Button 
-            onClick={() => onLaunchAnalysis()}
-            disabled={isAnalyzing || enabledCount === 0}
-            className="w-full bg-primary hover:bg-primary/90 text-white font-bold h-11 shadow-md transition-all flex items-center justify-center gap-2 text-base"
-            data-testid="button-launch-analysis"
-          >
-            {isAnalyzing ? (
-              <Loader2 className="h-5 w-5 animate-spin" />
-            ) : (
-              <>
-                <Zap className="h-4 w-4 fill-current" />
-                Lancer l'inventaire flash
-              </>
-            )}
-          </Button>
-        </div>
+        {/* === Étape 3 : Lancer === */}
+        <Button
+          onClick={() => onLaunchAnalysis()}
+          disabled={isAnalyzing || enabledCount === 0}
+          className="w-full bg-primary hover:bg-primary/90 text-white font-bold h-11 shadow-md transition-all flex items-center justify-center gap-2 text-base rounded-xl"
+          data-testid="button-launch-analysis"
+        >
+          {isAnalyzing ? (
+            <Loader2 className="h-5 w-5 animate-spin" />
+          ) : (
+            <>
+              <Zap className="h-4 w-4 fill-current" />
+              Lancer l'inventaire flash
+            </>
+          )}
+        </Button>
       </div>
     </motion.div>
   );
