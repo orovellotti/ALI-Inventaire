@@ -22,6 +22,8 @@ interface SearchPanelProps {
   projectPolygon: ProjectPolygon | null;
   isLoadingShapefile: boolean;
   onOpenLieuxDits: () => void;
+  isCollapsed?: boolean;
+  onExpand?: () => void;
 }
 
 export function SearchPanel({ 
@@ -30,11 +32,34 @@ export function SearchPanel({
   activePresetId, onApplyPreset,
   onShapefileLoad, onShapefileClear, projectPolygon, isLoadingShapefile,
   onOpenLieuxDits,
+  isCollapsed = false,
+  onExpand,
 }: SearchPanelProps) {
   const [query, setQuery] = useState("");
   const [expandedCircle, setExpandedCircle] = useState<string | null>(null);
   const [showPresets, setShowPresets] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  if (isCollapsed) {
+    return (
+      <motion.div
+        initial={{ y: -20, opacity: 0 }}
+        animate={{ y: 0, opacity: 1 }}
+        className="absolute top-6 left-1/2 -translate-x-1/2 z-[1000]"
+      >
+        <button
+          type="button"
+          onClick={onExpand}
+          className="glass-panel flex items-center gap-2 px-4 py-2 rounded-full shadow-md text-sm font-medium text-gray-700 hover:text-teal-700 hover:shadow-lg transition-all"
+          data-testid="button-expand-search"
+        >
+          <Search className="h-4 w-4" />
+          Modifier la recherche
+          <ChevronDown className="h-4 w-4" />
+        </button>
+      </motion.div>
+    );
+  }
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];

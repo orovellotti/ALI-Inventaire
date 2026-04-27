@@ -260,6 +260,8 @@ export default function Home() {
         projectPolygon={projectPolygon}
         isLoadingShapefile={isLoadingShapefile}
         onOpenLieuxDits={() => setShowLieuxDits(true)}
+        isCollapsed={isPanelOpen}
+        onExpand={() => setIsPanelOpen(false)}
       />
 
       <ResultsPanel 
