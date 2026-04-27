@@ -6,6 +6,7 @@ import { AboutDialog } from "@/components/AboutDialog";
 import { ApiDialog } from "@/components/ApiDialog";
 import { DataSourcesDialog } from "@/components/DataSourcesDialog";
 import { LieuxDitsDialog } from "@/components/LieuxDitsDialog";
+import { PrioritySpeciesDialog } from "@/components/PrioritySpeciesDialog";
 import { searchGBIFMultiCircle, InventoryResult, BufferCircle, STUDY_AREAS, ProjectPreset, TAXON_GROUPS, getTaxonGroupId } from "@/lib/gbif";
 import { searchPlace } from "@/lib/geocoding";
 import { parseShapefile, ProjectPolygon } from "@/lib/shapefile";
@@ -36,6 +37,8 @@ export default function Home() {
   const [showApi, setShowApi] = useState(false);
   const [showSources, setShowSources] = useState(false);
   const [showLieuxDits, setShowLieuxDits] = useState(false);
+  const [showPriority, setShowPriority] = useState(false);
+  const [currentToponym, setCurrentToponym] = useState<string>("");
   const [activePresetId, setActivePresetId] = useState("custom");
   const [activeTaxonFilters, setActiveTaxonFilters] = useState<Set<string>>(
     () => new Set(TAXON_GROUPS.map(g => g.id))
@@ -54,6 +57,7 @@ export default function Home() {
         setCircles(prev => prev.map(c => ({ ...c, center: newCenter })));
         if (projectPolygon) setProjectPolygon(null);
         if (isPanelOpen) setIsPanelOpen(false);
+        setCurrentToponym(place.display_name);
         toast({
           title: "Lieu trouvé",
           description: place.display_name,
@@ -113,6 +117,7 @@ export default function Home() {
     setCenter(newCenter);
     setCircles(prev => prev.map(c => ({ ...c, center: newCenter })));
     if (isPanelOpen) setIsPanelOpen(false);
+    setCurrentToponym(`Point ${lat.toFixed(4)}, ${lng.toFixed(4)}`);
   };
 
   const handleRadiusChange = useCallback((id: string, newRadius: number) => {
@@ -184,6 +189,7 @@ export default function Home() {
       setCenter(newCenter);
       setCircles(prev => prev.map(c => ({ ...c, center: newCenter })));
       if (isPanelOpen) setIsPanelOpen(false);
+      setCurrentToponym(polygon.name);
       toast({
         title: "Shapefile chargé",
         description: `${polygon.geojson.features.length} entité(s) — "${polygon.name}"`,
@@ -206,6 +212,7 @@ export default function Home() {
     setCenter(newCenter);
     setCircles(prev => prev.map(c => ({ ...c, center: newCenter })));
     if (isPanelOpen) setIsPanelOpen(false);
+    setCurrentToponym(polygon.name);
     toast({
       title: "Lieu-dit chargé",
       description: `Contour utilisé comme emprise — "${polygon.name}"`,
@@ -218,6 +225,7 @@ export default function Home() {
     setCircles(prev => prev.map(c => ({ ...c, center: newCenter })));
     if (projectPolygon) setProjectPolygon(null);
     if (isPanelOpen) setIsPanelOpen(false);
+    setCurrentToponym(name);
     toast({
       title: "Lieu-dit localisé",
       description: `Aires d'étude centrées sur "${name}" (pas de contour OSM disponible)`,
@@ -273,7 +281,18 @@ export default function Home() {
         activeTaxonFilters={activeTaxonFilters}
         onToggleTaxonFilter={handleToggleTaxonFilter}
         onToggleAllTaxonFilters={handleToggleAllTaxonFilters}
+        onOpenPriority={() => setShowPriority(true)}
       />
+
+      {results && (
+        <PrioritySpeciesDialog
+          open={showPriority}
+          onOpenChange={setShowPriority}
+          toponym={currentToponym || `Point ${center[0].toFixed(4)}, ${center[1].toFixed(4)}`}
+          coords={center}
+          occurrences={results.occurrences}
+        />
+      )}
 
       <AboutDialog open={showAbout} onOpenChange={setShowAbout} />
       <ApiDialog open={showApi} onOpenChange={setShowApi} />

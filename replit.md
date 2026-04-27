@@ -42,6 +42,7 @@ Preferred communication style: Simple, everyday language.
 | `GET` | `/api/study-areas` | Study area definitions |
 | `GET` | `/api/taxon-groups` | Taxonomic groups |
 | `GET` | `/api/health` | Health check + endpoint documentation |
+| `POST` | `/api/llm/priority-species` | AI analysis of priority species (espèces à enjeux) for a toponym |
 
 ### Data Layer
 - **ORM**: Drizzle ORM with PostgreSQL dialect
@@ -83,6 +84,7 @@ Preferred communication style: Simple, everyday language.
 - **Data export**: CSV (semicolon-delimited with BOM for Excel FR compatibility, formula injection sanitized) and Excel (.xlsx with 3 sheets: Espèces, Métadonnées, Synthèse par groupe). Exports respect active taxon filters. Export module in `client/src/lib/export.ts`.
 - **Taxon group filtering**: Species can be filtered by taxonomic group (Oiseaux, Mammifères, Reptiles, Amphibiens, Poissons, Insectes, Arachnides, Mollusques, Plantes, Champignons, Autres). Toggle chips in ResultsPanel with counts; filters apply to both species list and map markers. Select/deselect all supported. `TAXON_GROUPS` and `getTaxonGroupId()` in `gbif.ts`. Occurrences carry `kingdom`, `phylum`, and `class` from GBIF.
 - **SINP regional links**: Auto-detects which French region the study area is in using coordinate bounds, and displays relevant SINP (Système d'Information Nature et Paysages) platform links for complementary local data (14 regions covered including overseas territories)
+- **AI priority species analysis**: `server/llm.ts` calls OpenAI (via Replit's AI Integrations modelfarm proxy) with the inventory data to identify "espèces à enjeux" — grouped by taxon with reasoning (UICN status, French protection, ZNIEFF déterminantes, Habitats/Birds Directives) and a level (majeur/fort/modéré). Triggered from `PrioritySpeciesDialog` via a Sparkles button in `ResultsPanel`. The current toponym is tracked in `Home.tsx` (set by geocoding, map click, shapefile load, or lieu-dit selection).
 
 ## External Dependencies
 

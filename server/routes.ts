@@ -3,7 +3,8 @@ import { createServer, type Server } from "http";
 import { searchGBIF, searchGBIFMultiCircle, fetchSpeciesDetails } from "./gbif";
 import { findSINPPlatforms, SINP_PLATFORMS } from "./sinp";
 import { STUDY_AREAS, PROJECT_PRESETS, TAXON_GROUPS } from "./constants";
-import type { BufferCircle } from "@shared/types";
+import { analyzePrioritySpecies } from "./llm";
+import type { BufferCircle, Occurrence } from "@shared/types";
 
 export async function registerRoutes(
   httpServer: Server,
@@ -168,6 +169,35 @@ export async function registerRoutes(
     res.json({ groups: TAXON_GROUPS });
   });
 
+  app.post("/api/llm/priority-species", async (req: Request, res: Response) => {
+    try {
+      const { toponym, coords, occurrences } = req.body as {
+        toponym: string;
+        coords: [number, number];
+        occurrences: Occurrence[];
+      };
+
+      if (!toponym || typeof toponym !== "string") {
+        return res.status(400).json({ error: "Champ 'toponym' requis" });
+      }
+      if (!coords || !Array.isArray(coords) || coords.length !== 2) {
+        return res.status(400).json({ error: "Champ 'coords' requis ([lat, lng])" });
+      }
+      if (!occurrences || !Array.isArray(occurrences) || occurrences.length === 0) {
+        return res.status(400).json({ error: "Champ 'occurrences' requis (tableau non vide)" });
+      }
+      if (occurrences.length > 5000) {
+        return res.status(400).json({ error: "Maximum 5000 occurrences" });
+      }
+
+      const analysis = await analyzePrioritySpecies(toponym, coords, occurrences);
+      res.json(analysis);
+    } catch (error: any) {
+      console.error("LLM priority-species error:", error);
+      res.status(500).json({ error: error.message || "Erreur lors de l'analyse IA" });
+    }
+  });
+
   app.get("/api/lieux-dits", async (req: Request, res: Response) => {
     try {
       const query = (req.query.q as string)?.trim();
@@ -275,6 +305,7 @@ export async function registerRoutes(
         { method: "GET", path: "/api/study-areas", description: "Définitions des aires d'étude" },
         { method: "GET", path: "/api/taxon-groups", description: "Groupes taxonomiques" },
         { method: "GET", path: "/api/data-sources", description: "Catalogue d'autres sources de données biodiversité (DataCatalog)" },
+        { method: "POST", path: "/api/llm/priority-species", description: "Analyse IA des espèces à enjeux pour un toponyme (corps : toponym, coords, occurrences)" },
       ]
     });
   });
