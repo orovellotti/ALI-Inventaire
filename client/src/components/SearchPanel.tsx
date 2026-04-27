@@ -38,6 +38,7 @@ export function SearchPanel({
   const [query, setQuery] = useState("");
   const [expandedCircle, setExpandedCircle] = useState<string | null>(null);
   const [showPresets, setShowPresets] = useState(false);
+  const [showCircles, setShowCircles] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   if (isCollapsed) {
@@ -230,10 +231,27 @@ export function SearchPanel({
         </div>
 
         <div className="space-y-2">
-          <div className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
-            Aires d'étude ({enabledCount}/{circles.length} actives)
-          </div>
+          <button
+            type="button"
+            onClick={() => setShowCircles(!showCircles)}
+            className="w-full flex items-center justify-between text-xs font-medium text-muted-foreground uppercase tracking-wider hover:text-foreground transition-colors"
+            data-testid="button-toggle-circles"
+          >
+            <span>Aires d'étude ({enabledCount}/{circles.length} actives)</span>
+            {showCircles
+              ? <ChevronUp className="h-3 w-3" />
+              : <ChevronDown className="h-3 w-3" />
+            }
+          </button>
 
+          <AnimatePresence>
+            {showCircles && (
+              <motion.div
+                initial={{ opacity: 0, height: 0 }}
+                animate={{ opacity: 1, height: "auto" }}
+                exit={{ opacity: 0, height: 0 }}
+                className="overflow-hidden"
+              >
           <div className="space-y-1.5">
             {circles.map((circle) => {
               const studyArea = STUDY_AREAS.find(a => a.id === circle.id);
@@ -332,6 +350,9 @@ export function SearchPanel({
               );
             })}
           </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
         </div>
 
         <div className="pt-1">
