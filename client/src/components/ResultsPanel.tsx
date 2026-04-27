@@ -65,11 +65,33 @@ export function ResultsPanel({ isOpen, onClose, results, selectedSpecies, onSele
     const unique = Array.from(uniqueMap.values()).filter(occ => 
       activeTaxonFilters.has(getTaxonGroupId(occ))
     );
-    
+
+    const iucnRank = (status: string | undefined): number => {
+      const s = status?.toUpperCase();
+      switch (s) {
+        case "EX": case "EXTINCT": return 9;
+        case "EW": case "EXTINCT_IN_THE_WILD": return 8;
+        case "RE": case "REGIONALLY_EXTINCT": return 7;
+        case "CR": case "CRITICALLY_ENDANGERED": return 6;
+        case "EN": case "ENDANGERED": return 5;
+        case "VU": case "VULNERABLE": return 4;
+        case "NT": case "NEAR_THREATENED": return 3;
+        case "DD": case "DATA_DEFICIENT": return 2;
+        case "LC": case "LEAST_CONCERN": return 1;
+        default: return 0;
+      }
+    };
+
+    const sortByEnjeu = (a: Occurrence, b: Occurrence) => {
+      const diff = iucnRank(b.iucnStatus) - iucnRank(a.iucnStatus);
+      if (diff !== 0) return diff;
+      return a.scientificName.localeCompare(b.scientificName);
+    };
+
     return {
-      high: unique.filter(o => o.alertLevel === "high"),
-      medium: unique.filter(o => o.alertLevel === "medium"),
-      low: unique.filter(o => o.alertLevel === "low"),
+      high: unique.filter(o => o.alertLevel === "high").sort(sortByEnjeu),
+      medium: unique.filter(o => o.alertLevel === "medium").sort(sortByEnjeu),
+      low: unique.filter(o => o.alertLevel === "low").sort(sortByEnjeu),
     };
   }, [results, activeTaxonFilters]);
 
