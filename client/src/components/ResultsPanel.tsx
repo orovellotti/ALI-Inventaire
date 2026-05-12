@@ -32,6 +32,40 @@ export function ResultsPanel({ isOpen, onClose, results, selectedSpecies, onSele
   const [showReportPreview, setShowReportPreview] = useState(false);
   const [copied, setCopied] = useState(false);
   const [showFilters, setShowFilters] = useState(true);
+  const [panelWidth, setPanelWidth] = useState<number>(() => {
+    if (typeof window === "undefined") return 600;
+    const saved = Number(localStorage.getItem("resultsPanelWidth"));
+    return Number.isFinite(saved) && saved >= 360 ? saved : 600;
+  });
+  const isResizingRef = useRef(false);
+
+  useEffect(() => {
+    function onMove(e: MouseEvent) {
+      if (!isResizingRef.current) return;
+      const newWidth = Math.max(360, Math.min(window.innerWidth - 80, window.innerWidth - e.clientX));
+      setPanelWidth(newWidth);
+    }
+    function onUp() {
+      if (!isResizingRef.current) return;
+      isResizingRef.current = false;
+      document.body.style.cursor = "";
+      document.body.style.userSelect = "";
+      try { localStorage.setItem("resultsPanelWidth", String(panelWidth)); } catch {}
+    }
+    window.addEventListener("mousemove", onMove);
+    window.addEventListener("mouseup", onUp);
+    return () => {
+      window.removeEventListener("mousemove", onMove);
+      window.removeEventListener("mouseup", onUp);
+    };
+  }, [panelWidth]);
+
+  const startResize = (e: React.MouseEvent) => {
+    e.preventDefault();
+    isResizingRef.current = true;
+    document.body.style.cursor = "ew-resize";
+    document.body.style.userSelect = "none";
+  };
 
   const marineCount = useMemo(() => {
     if (!results) return 0;
@@ -223,8 +257,16 @@ Note: Cet inventaire flash repose sur les données GBIF et iNaturalist et les st
         animate={{ x: 0 }}
         exit={{ x: "100%" }}
         transition={{ type: "spring", damping: 25, stiffness: 200 }}
-        className="fixed top-0 right-0 h-full w-[600px] max-w-[95vw] z-[2000] bg-white/95 backdrop-blur-xl shadow-2xl border-l border-white/20 flex flex-col"
+        className="fixed top-0 right-0 h-full max-w-[95vw] z-[2000] bg-white/95 backdrop-blur-xl shadow-2xl border-l border-white/20 flex flex-col"
+        style={{ width: panelWidth }}
       >
+        <div
+          onMouseDown={startResize}
+          onDoubleClick={() => { setPanelWidth(600); try { localStorage.setItem("resultsPanelWidth", "600"); } catch {} }}
+          title="Glisser pour redimensionner — double-clic pour réinitialiser"
+          className="absolute top-0 left-0 h-full w-1.5 -ml-0.5 cursor-ew-resize z-10 hover:bg-teal-400/40 active:bg-teal-500/60 transition-colors"
+          data-testid="handle-resize-panel"
+        />
         <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-white/50">
           <div>
             <h2 className="text-xl font-bold text-gray-900 tracking-tight">Inventaire Flash</h2>
