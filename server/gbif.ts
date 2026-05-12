@@ -1,6 +1,7 @@
 import type { Occurrence, ConfidenceScore, BufferCircle, InventoryResult } from "@shared/types";
 import { searchINaturalist } from "./inaturalist";
 import { fetchTaxRefCdNom } from "./taxref";
+import { applyFrenchPriorityBoost } from "./frenchPriority";
 
 const CRITICAL_ISSUES = [
   "ZERO_COORDINATE",
@@ -268,7 +269,8 @@ export async function searchGBIF(
         cdNom = await fetchTaxRefCdNom(record.scientificName || "");
       }
 
-      const alertLevel = getAlertLevelFromIucn(iucnStatus);
+      const baseLevel = getAlertLevelFromIucn(iucnStatus);
+      const alertLevel = applyFrenchPriorityBoost(baseLevel, record.family, record.order, record.class);
 
       return {
         key: record.key,
