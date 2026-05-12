@@ -1,4 +1,5 @@
 import type { Occurrence, ConfidenceScore, BufferCircle, InventoryResult } from "@shared/types";
+import { searchINaturalist } from "./inaturalist";
 
 const CRITICAL_ISSUES = [
   "ZERO_COORDINATE",
@@ -198,19 +199,31 @@ export async function searchGBIF(lat: number, lng: number, radiusMeters: number)
   url.searchParams.set("hasGeospatialIssue", "false");
   url.searchParams.set("limit", "1000");
 
+  const inatPromise = searchINaturalist(lat, lng, radiusMeters).catch(() => ({
+    occurrences: [] as Occurrence[],
+    summary: { records: 0, species: 0 },
+  }));
+
   const response = await fetch(url.toString());
   if (!response.ok) throw new Error(`GBIF API Error: ${response.status}`);
 
   const data = await response.json();
 
   if (!data.results || data.results.length === 0) {
+    const inatOnly = await inatPromise;
+    const occurrencesOnly = inatOnly.occurrences;
+    const sensitiveOnly = occurrencesOnly.filter(o => o.alertLevel === "high" || o.alertLevel === "medium").length;
+    const conf = calculateConfidenceScore([]);
+    if (occurrencesOnly.length > 0) {
+      conf.message = `Aucune donnée GBIF • iNaturalist : ${occurrencesOnly.length} espèce(s)`;
+    }
     return {
-      occurrences: [],
-      stats: { total: 0, speciesCount: 0, sensitiveCount: 0 },
+      occurrences: occurrencesOnly,
+      stats: { total: occurrencesOnly.length, speciesCount: occurrencesOnly.length, sensitiveCount: sensitiveOnly },
       center: [lat, lng],
       radius: radiusMeters,
       circles: [{ id: "main", center: [lat, lng], radius: radiusMeters, label: "Zone", enabled: true }],
-      confidence: calculateConfidenceScore([])
+      confidence: conf,
     };
   }
 
@@ -258,12 +271,14 @@ export async function searchGBIF(lat: number, lng: number, radiusMeters: number)
         alertLevel,
         imageUrl,
         iucnStatus,
-        taxonKey: speciesKey
+        taxonKey: speciesKey,
+        source: "gbif" as const,
+        sourceUrl: speciesKey ? `https://www.gbif.org/species/${speciesKey}` : undefined,
       };
     })
   );
 
-  const occurrences = speciesWithData.filter((occ) => {
+  const gbifOccurrences = speciesWithData.filter((occ) => {
     const R = 6371e3;
     const phi1 = lat * Math.PI / 180;
     const phi2 = occ.decimalLatitude * Math.PI / 180;
@@ -274,7 +289,37 @@ export async function searchGBIF(lat: number, lng: number, radiusMeters: number)
     return R * c <= radiusMeters;
   });
 
+  const inat = await inatPromise;
+  const inatOccurrences: Occurrence[] = inat.occurrences;
+  const inatSummary = inat.summary;
+
+  const mergedByName = new Map<string, Occurrence>();
+  for (const occ of gbifOccurrences) mergedByName.set(occ.scientificName, occ);
+  for (const iocc of inatOccurrences) {
+    const existing = mergedByName.get(iocc.scientificName);
+    if (!existing) {
+      mergedByName.set(iocc.scientificName, iocc);
+    } else {
+      const enriched: Occurrence = {
+        ...existing,
+        imageUrl: existing.imageUrl || iocc.imageUrl,
+        vernacularName: existing.vernacularName || iocc.vernacularName,
+        iucnStatus: existing.iucnStatus || iocc.iucnStatus,
+      };
+      if (!existing.iucnStatus && iocc.iucnStatus) {
+        enriched.alertLevel = iocc.alertLevel;
+      }
+      mergedByName.set(iocc.scientificName, enriched);
+    }
+  }
+
+  const occurrences = Array.from(mergedByName.values());
   const sensitiveCount = occurrences.filter(o => o.alertLevel === "high" || o.alertLevel === "medium").length;
+
+  if (inatSummary.species > 0) {
+    const onlyInat = inatOccurrences.filter(i => !gbifOccurrences.some(g => g.scientificName === i.scientificName)).length;
+    confidence.message = `${confidence.message} • iNaturalist : +${onlyInat} espèce(s) inédite(s) sur ${inatSummary.species}`;
+  }
 
   return {
     occurrences,

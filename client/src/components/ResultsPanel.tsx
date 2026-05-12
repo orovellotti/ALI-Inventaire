@@ -533,6 +533,7 @@ function SpeciesCard({ occ, isSelected, onSelect }: { occ: Occurrence; isSelecte
   const gbifUrl = occ.taxonKey ? `https://www.gbif.org/species/${occ.taxonKey}` : null;
   const wikiUrl = `https://fr.wikipedia.org/wiki/${encodeURIComponent(occ.scientificName.split(' ').slice(0, 2).join('_'))}`;
   const aliUrl = `https://alispecies.io/?q=${encodeURIComponent(occ.scientificName.split(' ').slice(0, 2).join(' '))}`;
+  const inatUrl = `https://www.inaturalist.org/search?q=${encodeURIComponent(occ.scientificName.split(' ').slice(0, 2).join(' '))}&source%5B%5D=taxa`;
   const taxonGroup = TAXON_GROUPS.find(g => g.id === getTaxonGroupId(occ));
 
   return (
@@ -596,6 +597,18 @@ function SpeciesCard({ occ, isSelected, onSelect }: { occ: Occurrence; isSelecte
             >
               <Sparkles className="h-3.5 w-3.5" />
               <span>ALI</span>
+            </a>
+            <a
+              href={inatUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center gap-1 text-xs px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-700 hover:bg-emerald-200 transition-colors"
+              title="Voir sur iNaturalist"
+              onClick={(e) => e.stopPropagation()}
+              data-testid={`link-inat-${occ.scientificName}`}
+            >
+              <Leaf className="h-3.5 w-3.5" />
+              <span>iNat</span>
             </a>
           </div>
         </div>

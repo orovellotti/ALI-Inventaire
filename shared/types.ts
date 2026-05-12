@@ -13,6 +13,8 @@ export interface Occurrence {
   imageUrl?: string;
   iucnStatus?: string;
   taxonKey?: number;
+  source?: "gbif" | "inaturalist";
+  sourceUrl?: string;
 }
 
 export interface ConfidenceScore {
