@@ -1,9 +1,9 @@
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { X, Download, FileText, AlertTriangle, Leaf, Info, ChevronDown, ChevronUp, ImageOff, Copy, Check, ExternalLink, BookOpen, Shield, MapPin, Tag, Calendar, Link, Flag, Layers, Filter, Table, Sparkles } from "lucide-react";
+import { X, Download, FileText, AlertTriangle, Leaf, Info, ChevronDown, ChevronUp, ImageOff, Copy, Check, ExternalLink, BookOpen, Shield, MapPin, Tag, Calendar, Link, Flag, Layers, Filter, Table, Sparkles, Loader2 } from "lucide-react";
 import { InventoryResult, Occurrence, getIucnLabel, ConfidenceScore, TAXON_GROUPS, getTaxonGroupId, isMarineSpecies } from "@/lib/gbif";
 import { findSINPPlatforms, SINPPlatform } from "@/lib/sinp";
 import { exportCSV, exportExcel } from "@/lib/export";
@@ -536,17 +536,31 @@ function SpeciesCard({ occ, isSelected, onSelect }: { occ: Occurrence; isSelecte
   const [imageError, setImageError] = useState(false);
   const gbifUrl = occ.taxonKey ? `https://www.gbif.org/species/${occ.taxonKey}` : null;
   const wikiUrl = `https://fr.wikipedia.org/wiki/${encodeURIComponent(occ.scientificName.split(' ').slice(0, 2).join('_'))}`;
-  const aliSlug = occ.scientificName
-    .split(' ')
-    .slice(0, 2)
-    .join('-')
-    .toLowerCase()
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .replace(/[^a-z0-9-]/g, '');
-  const aliUrl = occ.cdNom
-    ? `https://alispecies.io/taxon/${occ.cdNom}-${aliSlug}`
-    : `https://alispecies.io/?q=${encodeURIComponent(occ.scientificName.split(' ').slice(0, 2).join(' '))}`;
+  const [aliResolving, setAliResolving] = useState(false);
+  const aliCacheRef = useRef<string | null>(null);
+  const aliFallback = `https://alispecies.io/?q=${encodeURIComponent(occ.scientificName.split(' ').slice(0, 2).join(' '))}`;
+
+  const handleAliClick = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    e.preventDefault();
+    if (aliCacheRef.current) {
+      window.open(aliCacheRef.current, "_blank", "noopener,noreferrer");
+      return;
+    }
+    setAliResolving(true);
+    try {
+      const name = occ.scientificName.split(' ').slice(0, 2).join(' ');
+      const r = await fetch(`/api/ali/resolve?name=${encodeURIComponent(name)}`);
+      const data = await r.json();
+      const url = data.found ? data.url : aliFallback;
+      aliCacheRef.current = url;
+      window.open(url, "_blank", "noopener,noreferrer");
+    } catch {
+      window.open(aliFallback, "_blank", "noopener,noreferrer");
+    } finally {
+      setAliResolving(false);
+    }
+  };
   const inatUrl = `https://www.inaturalist.org/search?q=${encodeURIComponent(occ.scientificName.split(' ').slice(0, 2).join(' '))}&source%5B%5D=taxa`;
   const taxonGroup = TAXON_GROUPS.find(g => g.id === getTaxonGroupId(occ));
 
@@ -600,18 +614,17 @@ function SpeciesCard({ occ, isSelected, onSelect }: { occ: Occurrence; isSelecte
                 <span>GBIF</span>
               </a>
             )}
-            <a
-              href={aliUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="flex items-center gap-1 text-xs px-1.5 py-0.5 rounded bg-violet-100 text-violet-700 hover:bg-violet-200 transition-colors"
+            <button
+              type="button"
+              onClick={handleAliClick}
+              disabled={aliResolving}
+              className="flex items-center gap-1 text-xs px-1.5 py-0.5 rounded bg-violet-100 text-violet-700 hover:bg-violet-200 transition-colors disabled:opacity-60"
               title="Voir sur ALI Species"
-              onClick={(e) => e.stopPropagation()}
               data-testid={`link-ali-${occ.scientificName}`}
             >
-              <Sparkles className="h-3.5 w-3.5" />
+              {aliResolving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
               <span>ALI</span>
-            </a>
+            </button>
             <a
               href={inatUrl}
               target="_blank"

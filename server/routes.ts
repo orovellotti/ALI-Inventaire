@@ -4,6 +4,7 @@ import { searchGBIF, searchGBIFMultiCircle, fetchSpeciesDetails } from "./gbif";
 import { findSINPPlatforms, SINP_PLATFORMS } from "./sinp";
 import { STUDY_AREAS, PROJECT_PRESETS, TAXON_GROUPS } from "./constants";
 import { analyzePrioritySpecies } from "./llm";
+import { resolveAliTaxon } from "./ali";
 import { registerMcpEndpoint } from "./mcp";
 import type { BufferCircle, Occurrence } from "@shared/types";
 
@@ -219,6 +220,25 @@ export async function registerRoutes(
 
   app.get("/api/sinp/all", (_req: Request, res: Response) => {
     res.json({ platforms: SINP_PLATFORMS });
+  });
+
+  app.get("/api/ali/resolve", async (req: Request, res: Response) => {
+    const name = String(req.query.name || "").trim();
+    if (!name) return res.status(400).json({ error: "Paramètre 'name' requis" });
+    const hit = await resolveAliTaxon(name);
+    if (!hit) return res.json({ found: false });
+    const slug = hit.lbNom
+      .toLowerCase()
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-+|-+$/g, "");
+    res.json({
+      found: true,
+      cdNom: hit.cdNom,
+      lbNom: hit.lbNom,
+      url: `https://alispecies.io/taxon/${hit.cdNom}-${slug}`,
+    });
   });
 
   app.get("/api/presets", (_req: Request, res: Response) => {
