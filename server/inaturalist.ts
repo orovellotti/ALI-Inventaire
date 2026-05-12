@@ -1,6 +1,22 @@
 import type { Occurrence } from "@shared/types";
 
-const INAT_BASE = "https://api.inaturalist.org/v1/observations";
+const INAT_SPECIES_COUNTS = "https://api.inaturalist.org/v1/observations/species_counts";
+
+const ICONIC_MAP: Record<string, { kingdom: string; phylum?: string; class?: string }> = {
+  Aves: { kingdom: "Animalia", phylum: "Chordata", class: "Aves" },
+  Mammalia: { kingdom: "Animalia", phylum: "Chordata", class: "Mammalia" },
+  Reptilia: { kingdom: "Animalia", phylum: "Chordata", class: "Reptilia" },
+  Amphibia: { kingdom: "Animalia", phylum: "Chordata", class: "Amphibia" },
+  Actinopterygii: { kingdom: "Animalia", phylum: "Chordata", class: "Actinopterygii" },
+  Insecta: { kingdom: "Animalia", phylum: "Arthropoda", class: "Insecta" },
+  Arachnida: { kingdom: "Animalia", phylum: "Arthropoda", class: "Arachnida" },
+  Mollusca: { kingdom: "Animalia", phylum: "Mollusca" },
+  Animalia: { kingdom: "Animalia" },
+  Plantae: { kingdom: "Plantae" },
+  Fungi: { kingdom: "Fungi" },
+  Protozoa: { kingdom: "Protozoa" },
+  Chromista: { kingdom: "Chromista" },
+};
 
 function getAlertLevelFromStatus(code: string | undefined): "high" | "medium" | "low" {
   const s = code?.toUpperCase();
@@ -23,99 +39,92 @@ export interface INatRawSummary {
   species: number;
 }
 
+const PER_PAGE = 200;
+const MAX_PAGES = 5;
+
 export async function searchINaturalist(
   lat: number,
   lng: number,
   radiusMeters: number
 ): Promise<{ occurrences: Occurrence[]; summary: INatRawSummary }> {
   const radiusKm = Math.max(0.1, Math.min(radiusMeters / 1000, 100));
-
-  const params = new URLSearchParams({
-    lat: lat.toFixed(6),
-    lng: lng.toFixed(6),
-    radius: radiusKm.toFixed(3),
-    per_page: "200",
-    order_by: "observed_on",
-    order: "desc",
-    quality_grade: "research,needs_id",
-    geoprivacy: "open",
-    photos: "false",
-  });
-
-  let results: any[] = [];
-  try {
-    const response = await fetch(`${INAT_BASE}?${params.toString()}`, {
-      headers: { "User-Agent": "InventaireFlash/1.0 (https://github.com/natural-solutions/inventaire-flash)" },
-    });
-    if (!response.ok) {
-      return { occurrences: [], summary: { records: 0, species: 0 } };
-    }
-    const data = await response.json();
-    results = Array.isArray(data?.results) ? data.results : [];
-  } catch {
-    return { occurrences: [], summary: { records: 0, species: 0 } };
-  }
-
   const speciesMap = new Map<string, Occurrence>();
+  let totalRecords = 0;
 
-  for (const r of results) {
-    const taxon = r?.taxon;
-    if (!taxon) continue;
-    const scientificName: string | undefined = taxon.name;
-    if (!scientificName) continue;
-    if (taxon.rank && !["species", "subspecies", "variety", "form"].includes(taxon.rank)) continue;
+  for (let page = 1; page <= MAX_PAGES; page++) {
+    const params = new URLSearchParams({
+      lat: lat.toFixed(6),
+      lng: lng.toFixed(6),
+      radius: radiusKm.toFixed(3),
+      per_page: String(PER_PAGE),
+      page: String(page),
+      quality_grade: "research,needs_id",
+      geoprivacy: "open",
+      hrank: "species",
+    });
 
-    const coords = r?.geojson?.coordinates;
-    const decimalLongitude = Array.isArray(coords) ? Number(coords[0]) : NaN;
-    const decimalLatitude = Array.isArray(coords) ? Number(coords[1]) : NaN;
-    if (!Number.isFinite(decimalLatitude) || !Number.isFinite(decimalLongitude)) continue;
-
-    const ancestors: any[] = Array.isArray(taxon.ancestors) ? taxon.ancestors : [];
-    const findRank = (rank: string): string | undefined => {
-      const a = ancestors.find((x) => x?.rank === rank);
-      return a?.name;
-    };
-
-    const consStatus =
-      taxon?.conservation_status?.iucn_status_code ||
-      taxon?.conservation_status?.status ||
-      undefined;
-
-    const alertLevel = getAlertLevelFromStatus(consStatus);
-
-    const occ: Occurrence = {
-      key: Number(r?.id) || Date.now() + Math.random(),
-      scientificName,
-      decimalLatitude,
-      decimalLongitude,
-      vernacularName: taxon.preferred_common_name || undefined,
-      kingdom: findRank("kingdom"),
-      phylum: findRank("phylum"),
-      class: findRank("class"),
-      order: findRank("order"),
-      family: findRank("family"),
-      alertLevel,
-      imageUrl: taxon.default_photo?.medium_url || taxon.default_photo?.square_url || undefined,
-      iucnStatus: consStatus,
-      taxonKey: undefined,
-      source: "inaturalist",
-      sourceUrl: r?.uri || `https://www.inaturalist.org/observations/${r?.id}`,
-    };
-
-    const existing = speciesMap.get(scientificName);
-    if (!existing) {
-      speciesMap.set(scientificName, occ);
-    } else {
-      const priority = (lvl: string) => (lvl === "high" ? 3 : lvl === "medium" ? 2 : 1);
-      if (priority(occ.alertLevel) > priority(existing.alertLevel)) {
-        speciesMap.set(scientificName, occ);
-      }
+    let results: any[] = [];
+    let total = 0;
+    try {
+      const response = await fetch(`${INAT_SPECIES_COUNTS}?${params.toString()}`, {
+        headers: { "User-Agent": "InventaireFlash/1.0 (https://github.com/natural-solutions/inventaire-flash)" },
+      });
+      if (!response.ok) break;
+      const data = await response.json();
+      results = Array.isArray(data?.results) ? data.results : [];
+      total = Number(data?.total_results) || 0;
+    } catch {
+      break;
     }
+
+    if (results.length === 0) break;
+    totalRecords = total;
+
+    for (const r of results) {
+      const taxon = r?.taxon;
+      if (!taxon) continue;
+      const scientificName: string | undefined = taxon.name;
+      if (!scientificName) continue;
+      if (taxon.rank && !["species", "subspecies", "variety", "form"].includes(taxon.rank)) continue;
+      if (speciesMap.has(scientificName)) continue;
+
+      const iconic = taxon.iconic_taxon_name as string | undefined;
+      const mapping = (iconic && ICONIC_MAP[iconic]) || {};
+
+      const consStatus =
+        taxon?.conservation_status?.iucn_status_code ||
+        taxon?.conservation_status?.status ||
+        undefined;
+
+      const occ: Occurrence = {
+        key: Number(taxon.id) || Date.now() + Math.random(),
+        scientificName,
+        decimalLatitude: lat,
+        decimalLongitude: lng,
+        vernacularName: taxon.preferred_common_name || undefined,
+        kingdom: mapping.kingdom,
+        phylum: mapping.phylum,
+        class: mapping.class,
+        order: undefined,
+        family: undefined,
+        alertLevel: getAlertLevelFromStatus(consStatus),
+        imageUrl: taxon.default_photo?.medium_url || taxon.default_photo?.square_url || undefined,
+        iucnStatus: consStatus,
+        taxonKey: undefined,
+        source: "inaturalist",
+        sourceUrl: `https://www.inaturalist.org/taxa/${taxon.id}`,
+      };
+
+      speciesMap.set(scientificName, occ);
+    }
+
+    if (results.length < PER_PAGE) break;
+    if (page * PER_PAGE >= totalRecords) break;
   }
 
   const occurrences = Array.from(speciesMap.values());
   return {
     occurrences,
-    summary: { records: results.length, species: occurrences.length },
+    summary: { records: totalRecords, species: occurrences.length },
   };
 }
