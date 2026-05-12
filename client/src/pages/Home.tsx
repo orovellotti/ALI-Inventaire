@@ -6,7 +6,6 @@ import { AboutDialog } from "@/components/AboutDialog";
 import { ApiDialog } from "@/components/ApiDialog";
 import { DataSourcesDialog } from "@/components/DataSourcesDialog";
 import { LieuxDitsDialog } from "@/components/LieuxDitsDialog";
-import { PrioritySpeciesDialog } from "@/components/PrioritySpeciesDialog";
 import { searchGBIFMultiCircle, InventoryResult, BufferCircle, STUDY_AREAS, ProjectPreset, TAXON_GROUPS, getTaxonGroupId } from "@/lib/gbif";
 import { searchPlace, reverseGeocode } from "@/lib/geocoding";
 import { parseShapefile, ProjectPolygon } from "@/lib/shapefile";
@@ -37,7 +36,6 @@ export default function Home() {
   const [showApi, setShowApi] = useState(false);
   const [showSources, setShowSources] = useState(false);
   const [showLieuxDits, setShowLieuxDits] = useState(false);
-  const [showPriority, setShowPriority] = useState(false);
   const [currentToponym, setCurrentToponym] = useState<string>("");
   const [activePresetId, setActivePresetId] = useState("custom");
   const [activeTaxonFilters, setActiveTaxonFilters] = useState<Set<string>>(
@@ -294,18 +292,8 @@ export default function Home() {
         onToggleExcludeMarine={() => setExcludeMarine(v => !v)}
         includeINaturalist={includeINaturalist}
         onToggleIncludeINaturalist={() => setIncludeINaturalist(v => !v)}
-        onOpenPriority={() => setShowPriority(true)}
+        toponym={currentToponym}
       />
-
-      {results && (
-        <PrioritySpeciesDialog
-          open={showPriority}
-          onOpenChange={setShowPriority}
-          toponym={currentToponym || `Point ${center[0].toFixed(4)}, ${center[1].toFixed(4)}`}
-          coords={center}
-          occurrences={results.occurrences}
-        />
-      )}
 
       <AboutDialog open={showAbout} onOpenChange={setShowAbout} />
       <ApiDialog open={showApi} onOpenChange={setShowApi} />
