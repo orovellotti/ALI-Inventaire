@@ -1,5 +1,5 @@
 import { Sparkles, AlertTriangle, AlertCircle, Info, Loader2, RefreshCw } from "lucide-react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import type { Occurrence } from "@/lib/gbif";
 
 interface Props {
@@ -96,12 +96,6 @@ export function PrioritySpeciesInline({ toponym, coords, occurrences }: Props) {
       });
   };
 
-  useEffect(() => {
-    if (slim.length === 0) return;
-    if (contentKey === lastKeyRef.current) return;
-    runAnalysis();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [contentKey]);
 
   return (
     <div className="rounded-xl border border-teal-200 bg-gradient-to-br from-teal-50/60 to-emerald-50/40 p-4 space-y-3" data-testid="priority-species-inline">
@@ -119,14 +113,24 @@ export function PrioritySpeciesInline({ toponym, coords, occurrences }: Props) {
           type="button"
           onClick={() => runAnalysis(true)}
           disabled={loading || slim.length === 0}
-          className="text-[11px] flex items-center gap-1 px-2 py-1 rounded-md bg-white border border-gray-200 hover:bg-gray-50 text-gray-600 disabled:opacity-50"
-          data-testid="button-rerun-priority"
-          title="Relancer l'analyse"
+          className="text-[11px] flex items-center gap-1 px-2.5 py-1.5 rounded-md bg-teal-600 hover:bg-teal-700 text-white disabled:opacity-50 shrink-0"
+          data-testid="button-run-priority"
+          title={analysis ? "Relancer l'analyse" : "Lancer l'analyse IA"}
         >
-          <RefreshCw className={`h-3 w-3 ${loading ? "animate-spin" : ""}`} />
-          Relancer
+          {loading ? (
+            <Loader2 className="h-3 w-3 animate-spin" />
+          ) : (
+            <RefreshCw className="h-3 w-3" />
+          )}
+          {analysis ? "Relancer" : "Lancer l'analyse"}
         </button>
       </div>
+
+      {!analysis && !loading && !error && (
+        <div className="text-xs text-gray-600 bg-white/60 border border-dashed border-teal-200 rounded-lg p-3">
+          Cliquez sur <span className="font-medium">Lancer l'analyse</span> pour identifier les espèces à enjeux par IA (consomme des crédits ; ~10-30 s).
+        </div>
+      )}
 
       {loading && (
         <div className="flex items-center gap-2 py-3 px-2 text-xs text-gray-600">
