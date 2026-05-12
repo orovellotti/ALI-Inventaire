@@ -43,6 +43,7 @@ Preferred communication style: Simple, everyday language.
 | `GET` | `/api/taxon-groups` | Taxonomic groups |
 | `GET` | `/api/health` | Health check + endpoint documentation |
 | `POST` | `/api/llm/priority-species` | AI analysis of priority species (espèces à enjeux) for a toponym |
+| `ALL`  | `/mcp` | MCP server (Streamable HTTP, stateless). Tools: `inventory_simple`, `inventory_multi`, `species_details`, `geocode`, `sinp_links`, `priority_species_for_location`, `list_reference_data` |
 
 ### Data Layer
 - **ORM**: Drizzle ORM with PostgreSQL dialect
@@ -65,6 +66,8 @@ Preferred communication style: Simple, everyday language.
 │   ├── gbif.ts       # GBIF API integration (occurrences, species, IUCN, media, confidence)
 │   ├── sinp.ts       # SINP regional platform data
 │   ├── constants.ts  # Study areas, presets, taxon groups
+│   ├── llm.ts        # OpenAI priority-species analysis
+│   ├── mcp.ts        # MCP server (Streamable HTTP) exposing the API as MCP tools
 │   └── storage.ts    # Data storage abstraction
 ├── shared/           # Shared code between client and server
 │   ├── schema.ts     # Drizzle database schema and types

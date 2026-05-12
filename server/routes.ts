@@ -4,12 +4,15 @@ import { searchGBIF, searchGBIFMultiCircle, fetchSpeciesDetails } from "./gbif";
 import { findSINPPlatforms, SINP_PLATFORMS } from "./sinp";
 import { STUDY_AREAS, PROJECT_PRESETS, TAXON_GROUPS } from "./constants";
 import { analyzePrioritySpecies } from "./llm";
+import { registerMcpEndpoint } from "./mcp";
 import type { BufferCircle, Occurrence } from "@shared/types";
 
 export async function registerRoutes(
   httpServer: Server,
   app: Express
 ): Promise<Server> {
+
+  registerMcpEndpoint(app);
 
   app.post("/api/inventory", async (req: Request, res: Response) => {
     try {
@@ -306,6 +309,7 @@ export async function registerRoutes(
         { method: "GET", path: "/api/taxon-groups", description: "Groupes taxonomiques" },
         { method: "GET", path: "/api/data-sources", description: "Catalogue d'autres sources de données biodiversité (DataCatalog)" },
         { method: "POST", path: "/api/llm/priority-species", description: "Analyse IA des espèces à enjeux pour un toponyme (corps : toponym, coords, occurrences)" },
+        { method: "ALL",  path: "/mcp", description: "Serveur MCP (Model Context Protocol) — Streamable HTTP, mode stateless. Outils : inventory_simple, inventory_multi, species_details, geocode, sinp_links, priority_species_for_location, list_reference_data" },
       ]
     });
   });
