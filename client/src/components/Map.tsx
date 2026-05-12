@@ -1,5 +1,6 @@
 import { MapContainer, TileLayer, Circle, CircleMarker, GeoJSON, useMapEvents, useMap } from "react-leaflet";
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { Layers, Map as MapIcon, Satellite } from "lucide-react";
 import "leaflet/dist/leaflet.css";
 import L from "leaflet";
 import { InventoryResult, BufferCircle, STUDY_AREAS, getTaxonGroupId, isMarineSpecies } from "@/lib/gbif";
@@ -49,7 +50,24 @@ function MapEvents({ onMapClick }: { onMapClick: (lat: number, lng: number) => v
   return null;
 }
 
+type BaseLayer = "osm" | "satellite";
+
+const BASE_LAYERS: Record<BaseLayer, { url: string; attribution: string; maxZoom: number }> = {
+  osm: {
+    url: "https://tile.openstreetmap.org/{z}/{x}/{y}.png",
+    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+    maxZoom: 19,
+  },
+  satellite: {
+    url: "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
+    attribution: 'Tiles &copy; Esri &mdash; Source: Esri, Maxar, Earthstar Geographics, USDA, USGS, AeroGRID, IGN, and the GIS User Community',
+    maxZoom: 19,
+  },
+};
+
 export function Map({ center, circles, results, onMapClick, selectedSpecies, activeTaxonFilters, excludeMarine, projectPolygon }: MapProps) {
+  const [baseLayer, setBaseLayer] = useState<BaseLayer>("osm");
+  const layer = BASE_LAYERS[baseLayer];
   const sortedCircles = [...circles]
     .filter(c => c.enabled)
     .sort((a, b) => b.radius - a.radius);
@@ -72,9 +90,10 @@ export function Map({ center, circles, results, onMapClick, selectedSpecies, act
         zoomControl={false}
       >
         <TileLayer
-          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-          url="https://tile.openstreetmap.org/{z}/{x}/{y}.png"
-          maxZoom={19}
+          key={baseLayer}
+          attribution={layer.attribution}
+          url={layer.url}
+          maxZoom={layer.maxZoom}
         />
         
         <MapController center={center} projectPolygon={projectPolygon} />
@@ -143,9 +162,36 @@ export function Map({ center, circles, results, onMapClick, selectedSpecies, act
           );
         })}
       </MapContainer>
-      
+
+      <div className="absolute top-3 right-3 z-[400] flex flex-col gap-1 bg-white/95 backdrop-blur rounded-lg shadow-md border border-gray-200 p-1" data-testid="basemap-toggle">
+        <button
+          type="button"
+          onClick={() => setBaseLayer("osm")}
+          className={`flex items-center gap-1.5 text-xs px-2 py-1.5 rounded-md transition-colors ${
+            baseLayer === "osm" ? "bg-teal-600 text-white" : "text-gray-700 hover:bg-gray-100"
+          }`}
+          title="Fond OpenStreetMap"
+          data-testid="button-basemap-osm"
+        >
+          <MapIcon className="h-3.5 w-3.5" />
+          <span>Plan</span>
+        </button>
+        <button
+          type="button"
+          onClick={() => setBaseLayer("satellite")}
+          className={`flex items-center gap-1.5 text-xs px-2 py-1.5 rounded-md transition-colors ${
+            baseLayer === "satellite" ? "bg-teal-600 text-white" : "text-gray-700 hover:bg-gray-100"
+          }`}
+          title="Vue satellite (Esri World Imagery)"
+          data-testid="button-basemap-satellite"
+        >
+          <Satellite className="h-3.5 w-3.5" />
+          <span>Satellite</span>
+        </button>
+      </div>
+
       <div className="absolute bottom-1 right-1 bg-white/50 backdrop-blur px-2 py-0.5 text-[10px] text-gray-500 rounded z-[400] pointer-events-none">
-        Données GBIF | Fond OpenStreetMap
+        Données GBIF · iNat | Fond {baseLayer === "satellite" ? "Esri Imagery" : "OpenStreetMap"}
       </div>
     </div>
   );
