@@ -1,4 +1,4 @@
-# Connecter Inventaire Flash via MCP (Claude Desktop, Cursor, etc.)
+# Connecter le serveur MCP Inventaire Flash
 
 Inventaire Flash expose un serveur **MCP (Model Context Protocol)** sur :
 
@@ -6,25 +6,17 @@ Inventaire Flash expose un serveur **MCP (Model Context Protocol)** sur :
 https://VOTRE-DOMAINE.replit.app/mcp
 ```
 
-Mode : **Streamable HTTP, stateless** (pas de session).
+Mode : **Streamable HTTP, stateless** (pas de session), **sans authentification**.
 
-## Outils MCP disponibles
+---
 
-| Outil | Description |
-|---|---|
-| `inventory_simple` | Inventaire GBIF autour d'un point (lat, lng, radius) |
-| `inventory_multi` | Inventaire EIE multi-aires concentriques |
-| `species_details` | Fiche d'une espèce (UICN, vernaculaire, image) |
-| `geocode` | Recherche d'un lieu via Nominatim |
-| `sinp_links` | Plateformes SINP régionales |
-| `priority_species_for_location` | Inventaire + analyse IA des espèces à enjeux |
-| `list_reference_data` | Référentiels (presets, aires, groupes taxo, SINP) |
+## Claude Desktop
 
-## Configuration Claude Desktop
+Claude Desktop ne parle nativement que MCP via stdio. On utilise le pont officiel `mcp-remote` pour l'adapter à HTTP.
 
-Claude Desktop ne parle nativement que MCP via stdio. On utilise le pont officiel `mcp-remote` pour l'adapter à HTTP :
-
-Édite `~/Library/Application Support/Claude/claude_desktop_config.json` (macOS) ou `%APPDATA%\Claude\claude_desktop_config.json` (Windows) :
+Édite le fichier de config :
+- macOS : `~/Library/Application Support/Claude/claude_desktop_config.json`
+- Windows : `%APPDATA%\Claude\claude_desktop_config.json`
 
 ```json
 {
@@ -41,13 +33,49 @@ Claude Desktop ne parle nativement que MCP via stdio. On utilise le pont officie
 }
 ```
 
-Redémarre Claude Desktop. Les 7 outils apparaîtront dans le menu d'outils MCP.
+Redémarre Claude Desktop. Les 7 outils `inventaire-flash` apparaissent dans le menu des outils MCP.
 
-## Configuration Cursor / Continue
+---
 
-Mêmes principes : ajouter une entrée `mcpServers` avec `mcp-remote` pointant sur l'URL `/mcp`.
+## Claude.ai (web) — Custom Connectors
 
-## Test manuel
+1. Va dans **Settings → Connectors → Add custom connector**.
+2. Type : **Streamable HTTP**.
+3. URL : `https://VOTRE-DOMAINE.replit.app/mcp`
+4. Pas d'authentification.
+
+Les outils sont ensuite disponibles dans tes conversations (selon ton plan Claude).
+
+---
+
+## Cursor
+
+Édite `~/.cursor/mcp.json` ou la config projet :
+
+```json
+{
+  "mcpServers": {
+    "inventaire-flash": {
+      "url": "https://VOTRE-DOMAINE.replit.app/mcp"
+    }
+  }
+}
+```
+
+---
+
+## ChatGPT — GPT custom avec « MCP server »
+
+1. Crée un GPT personnalisé (My GPTs → Create).
+2. Onglet **Configure**, section **Actions** ou **Connectors** (selon la version d'OpenAI), ajoute un serveur MCP :
+   - Type : **MCP / Remote**
+   - URL : `https://VOTRE-DOMAINE.replit.app/mcp`
+3. Colle le contenu de `SKILL.md` dans **Instructions**.
+4. Optionnel : uploade `references/*.md` dans **Knowledge**.
+
+---
+
+## Test rapide en cURL
 
 Initialisation :
 ```bash
@@ -65,10 +93,18 @@ curl -X POST https://VOTRE-DOMAINE.replit.app/mcp \
   -d '{"jsonrpc":"2.0","id":2,"method":"tools/list","params":{}}'
 ```
 
-Appeler un outil :
+Appeler `geocode` :
 ```bash
 curl -X POST https://VOTRE-DOMAINE.replit.app/mcp \
   -H "Content-Type: application/json" \
   -H "Accept: application/json, text/event-stream" \
   -d '{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"geocode","arguments":{"q":"Saint-Chamas"}}}'
+```
+
+Appeler `inventory_simple` :
+```bash
+curl -X POST https://VOTRE-DOMAINE.replit.app/mcp \
+  -H "Content-Type: application/json" \
+  -H "Accept: application/json, text/event-stream" \
+  -d '{"jsonrpc":"2.0","id":4,"method":"tools/call","params":{"name":"inventory_simple","arguments":{"lat":43.5497,"lng":5.0341,"radius":2000}}}'
 ```
