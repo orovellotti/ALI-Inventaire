@@ -36,10 +36,15 @@ export async function analyzePrioritySpecies(
   }
   const unique = Array.from(seen.values());
 
-  const sample = unique
-    .filter((s) => s.alertLevel === "high" || s.alertLevel === "medium")
-    .slice(0, 60)
-    .concat(unique.filter((s) => s.alertLevel === "low").slice(0, 40))
+  const PRIORITY_IUCN = new Set(["CR", "EN", "VU", "NT", "DD"]);
+  const high = unique.filter((s) => s.alertLevel === "high");
+  const medium = unique.filter((s) => s.alertLevel === "medium");
+  const lowPriority = unique
+    .filter((s) => s.alertLevel === "low" && s.iucnStatus && PRIORITY_IUCN.has(s.iucnStatus));
+
+  const picked = [...high, ...medium, ...lowPriority].slice(0, 50);
+
+  const sample = picked
     .map((s) => {
       const parts = [s.scientificName];
       if (s.vernacularName) parts.push(`(${s.vernacularName})`);
@@ -73,13 +78,14 @@ Réponds en JSON strict :
 Exactement 5 espèces, triées par enjeu décroissant.`;
 
   const completion = await openai.chat.completions.create({
-    model: "gpt-5",
+    model: "gpt-5-mini",
     messages: [
       { role: "system", content: SYSTEM_PROMPT },
       { role: "user", content: userPrompt },
     ],
     response_format: { type: "json_object" },
-  });
+    reasoning_effort: "minimal",
+  } as any);
 
   const content = completion.choices[0]?.message?.content;
   if (!content) throw new Error("Réponse LLM vide");
