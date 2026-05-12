@@ -1,5 +1,6 @@
 import type { Occurrence, ConfidenceScore, BufferCircle, InventoryResult } from "@shared/types";
 import { searchINaturalist } from "./inaturalist";
+import { fetchTaxRefCdNom } from "./taxref";
 
 const CRITICAL_ISSUES = [
   "ZERO_COORDINATE",
@@ -246,13 +247,17 @@ export async function searchGBIF(lat: number, lng: number, radiusMeters: number)
       let imageUrl: string | undefined;
       let iucnStatus: string | undefined;
       let frenchName: string | undefined;
+      let cdNom: number | undefined;
 
       if (speciesKey) {
-        [imageUrl, iucnStatus, frenchName] = await Promise.all([
+        [imageUrl, iucnStatus, frenchName, cdNom] = await Promise.all([
           fetchSpeciesMedia(speciesKey),
           fetchSpeciesIucnStatus(speciesKey),
-          fetchFrenchVernacularName(speciesKey)
+          fetchFrenchVernacularName(speciesKey),
+          fetchTaxRefCdNom(record.scientificName || ""),
         ]);
+      } else {
+        cdNom = await fetchTaxRefCdNom(record.scientificName || "");
       }
 
       const alertLevel = getAlertLevelFromIucn(iucnStatus);
@@ -274,6 +279,7 @@ export async function searchGBIF(lat: number, lng: number, radiusMeters: number)
         taxonKey: speciesKey,
         source: "gbif" as const,
         sourceUrl: speciesKey ? `https://www.gbif.org/species/${speciesKey}` : undefined,
+        cdNom,
       };
     })
   );
@@ -295,6 +301,13 @@ export async function searchGBIF(lat: number, lng: number, radiusMeters: number)
 
   const mergedByName = new Map<string, Occurrence>();
   for (const occ of gbifOccurrences) mergedByName.set(occ.scientificName, occ);
+
+  const inatNeedingCdNom = inatOccurrences.filter(i => !mergedByName.has(i.scientificName));
+  const inatCdNoms = await Promise.all(
+    inatNeedingCdNom.map(i => fetchTaxRefCdNom(i.scientificName).catch(() => undefined))
+  );
+  inatNeedingCdNom.forEach((i, idx) => { i.cdNom = inatCdNoms[idx]; });
+
   for (const iocc of inatOccurrences) {
     const existing = mergedByName.get(iocc.scientificName);
     if (!existing) {
@@ -305,6 +318,7 @@ export async function searchGBIF(lat: number, lng: number, radiusMeters: number)
         imageUrl: existing.imageUrl || iocc.imageUrl,
         vernacularName: existing.vernacularName || iocc.vernacularName,
         iucnStatus: existing.iucnStatus || iocc.iucnStatus,
+        cdNom: existing.cdNom ?? iocc.cdNom,
       };
       if (!existing.iucnStatus && iocc.iucnStatus) {
         enriched.alertLevel = iocc.alertLevel;

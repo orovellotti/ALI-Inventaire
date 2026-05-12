@@ -15,6 +15,7 @@ export interface Occurrence {
   taxonKey?: number;
   source?: "gbif" | "inaturalist";
   sourceUrl?: string;
+  cdNom?: number;
 }
 
 export interface ConfidenceScore {
