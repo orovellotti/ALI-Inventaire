@@ -1,6 +1,6 @@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Sparkles, AlertTriangle, AlertCircle, Info, Loader2 } from "lucide-react";
+import { Sparkles, AlertTriangle, AlertCircle, Info, Loader2, Search, CheckCircle2 } from "lucide-react";
 import { useEffect, useState } from "react";
 import type { Occurrence } from "@/lib/gbif";
 
@@ -25,10 +25,21 @@ interface PriorityGroup {
   species: PrioritySpecies[];
 }
 
+interface ExpectedSpecies {
+  scientificName: string;
+  vernacularName?: string;
+  group: string;
+  icon: string;
+  reason: string;
+  level: "majeur" | "fort" | "modéré";
+  seenInGbif: boolean;
+}
+
 interface Analysis {
   toponym: string;
   summary: string;
   priorityGroups: PriorityGroup[];
+  expectedSpecies: ExpectedSpecies[];
   recommendations: string[];
   generatedAt: string;
 }
@@ -159,6 +170,57 @@ export function PrioritySpeciesDialog({ open, onOpenChange, toponym, coords, occ
                     </div>
                   </div>
                 ))
+              )}
+
+              {analysis.expectedSpecies && analysis.expectedSpecies.length > 0 && (
+                <div className="border border-indigo-200 bg-indigo-50/40 rounded-lg overflow-hidden">
+                  <div className="bg-indigo-50 px-3 py-2 border-b border-indigo-200 flex items-center gap-2">
+                    <Search className="h-4 w-4 text-indigo-700" />
+                    <h3 className="font-semibold text-sm text-indigo-900">
+                      Espèces à enjeux attendues sur le secteur
+                    </h3>
+                    <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-white border border-indigo-200 text-indigo-700">
+                      {analysis.expectedSpecies.length}
+                    </span>
+                  </div>
+                  <div className="px-3 py-2 text-[11px] text-indigo-800/80 border-b border-indigo-100 bg-white/40">
+                    Suggestions à <strong>rechercher prioritairement</strong> sur le terrain, basées sur la connaissance écorégionale (habitats potentiels, biogéographie). Ne remplace pas un inventaire de terrain.
+                  </div>
+                  <div className="divide-y divide-indigo-100">
+                    {analysis.expectedSpecies.map((sp, i) => {
+                      const style = LEVEL_STYLE[sp.level] || LEVEL_STYLE["modéré"];
+                      const StyleIcon = style.icon;
+                      return (
+                        <div key={i} className="p-3 bg-white/60" data-testid={`expected-species-${i}`}>
+                          <div className="flex items-start justify-between gap-3">
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <span className="text-sm">{sp.icon}</span>
+                                <span className="italic text-sm font-medium text-gray-900">
+                                  {sp.scientificName}
+                                </span>
+                                {sp.vernacularName && (
+                                  <span className="text-xs text-gray-600">({sp.vernacularName})</span>
+                                )}
+                                {sp.seenInGbif && (
+                                  <span className="inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded-full bg-green-100 text-green-700 border border-green-200">
+                                    <CheckCircle2 className="h-2.5 w-2.5" />
+                                    déjà observée
+                                  </span>
+                                )}
+                              </div>
+                              <p className="text-xs text-gray-600 mt-1 leading-relaxed">{sp.reason}</p>
+                            </div>
+                            <span className={`inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full border shrink-0 ${style.color}`}>
+                              <StyleIcon className="h-3 w-3" />
+                              {sp.level}
+                            </span>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
               )}
 
               {analysis.recommendations.length > 0 && (

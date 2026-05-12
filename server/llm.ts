@@ -19,6 +19,15 @@ export interface PrioritySpeciesAnalysis {
       level: "majeur" | "fort" | "modéré";
     }>;
   }>;
+  expectedSpecies: Array<{
+    scientificName: string;
+    vernacularName?: string;
+    group: string;
+    icon: string;
+    reason: string;
+    level: "majeur" | "fort" | "modéré";
+    seenInGbif: boolean;
+  }>;
   recommendations: string[];
   generatedAt: string;
 }
@@ -71,7 +80,15 @@ Pour chaque espèce retenue, indique :
 - le niveau d'enjeu : "majeur", "fort" ou "modéré"
 
 Regroupe par groupe taxonomique (Oiseaux, Mammifères, Reptiles, Amphibiens, Insectes, Plantes, etc.).
+
+Ensuite, propose une liste d'ESPÈCES À ENJEUX ATTENDUES sur ce secteur d'après ta connaissance écorégionale
+(habitats potentiels, biogéographie, espèces patrimoniales connues du département/région), même si elles ne sont
+PAS dans la liste GBIF ci-dessus. Ce sont des espèces à RECHERCHER prioritairement lors des inventaires de terrain.
+Limite-toi à 6-12 espèces vraiment pertinentes pour ce contexte précis (pas de catalogue générique).
+Pour chacune, indique si elle figure déjà dans la liste GBIF observée ("seenInGbif": true/false).
+
 Ajoute 2 à 4 recommandations opérationnelles courtes pour l'étude (inventaires complémentaires, périodes sensibles, mesures à anticiper).
+
 Réponds en JSON strict suivant ce schéma :
 {
   "summary": "2-3 phrases sur le contexte écologique global du site",
@@ -83,6 +100,9 @@ Réponds en JSON strict suivant ce schéma :
         {"scientificName": "...", "vernacularName": "...", "reason": "...", "level": "majeur|fort|modéré"}
       ]
     }
+  ],
+  "expectedSpecies": [
+    {"scientificName": "...", "vernacularName": "...", "group": "Oiseaux", "icon": "🦅", "reason": "habitat favorable + espèce connue du secteur", "level": "majeur|fort|modéré", "seenInGbif": false}
   ],
   "recommendations": ["...", "..."]
 }`;
@@ -101,10 +121,19 @@ Réponds en JSON strict suivant ce schéma :
 
   const parsed = JSON.parse(content);
 
+  const seenNames = new Set(uniqueSpecies.map((s) => s.scientificName.toLowerCase()));
+  const expectedSpecies = Array.isArray(parsed.expectedSpecies)
+    ? parsed.expectedSpecies.map((sp: any) => ({
+        ...sp,
+        seenInGbif: seenNames.has(String(sp.scientificName || "").toLowerCase()),
+      }))
+    : [];
+
   return {
     toponym,
     summary: parsed.summary || "",
     priorityGroups: Array.isArray(parsed.priorityGroups) ? parsed.priorityGroups : [],
+    expectedSpecies,
     recommendations: Array.isArray(parsed.recommendations) ? parsed.recommendations : [],
     generatedAt: new Date().toISOString(),
   };
