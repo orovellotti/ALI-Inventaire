@@ -16,7 +16,7 @@ export async function registerRoutes(
 
   app.post("/api/inventory", async (req: Request, res: Response) => {
     try {
-      const { circles } = req.body as { circles: BufferCircle[] };
+      const { circles, includeINaturalist } = req.body as { circles: BufferCircle[]; includeINaturalist?: boolean };
 
       if (!circles || !Array.isArray(circles) || circles.length === 0) {
         return res.status(400).json({ error: "Le champ 'circles' est requis (tableau de BufferCircle)" });
@@ -48,7 +48,7 @@ export async function registerRoutes(
         }
       }
 
-      const result = await searchGBIFMultiCircle(circles);
+      const result = await searchGBIFMultiCircle(circles, { includeINaturalist });
       res.json(result);
     } catch (error: any) {
       console.error("Inventory error:", error);
@@ -78,7 +78,8 @@ export async function registerRoutes(
         return res.status(400).json({ error: "Rayon maximum 50 km" });
       }
 
-      const result = await searchGBIF(lat, lng, radius);
+      const includeINaturalist = req.query.includeINaturalist !== "false";
+      const result = await searchGBIF(lat, lng, radius, { includeINaturalist });
       res.json(result);
     } catch (error: any) {
       console.error("Simple inventory error:", error);

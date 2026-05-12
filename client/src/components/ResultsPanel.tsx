@@ -23,9 +23,11 @@ interface ResultsPanelProps extends ResultsPanelPropsBase {
   onToggleAllTaxonFilters: (presentGroupIds?: string[]) => void;
   excludeMarine?: boolean;
   onToggleExcludeMarine?: () => void;
+  includeINaturalist?: boolean;
+  onToggleIncludeINaturalist?: () => void;
 }
 
-export function ResultsPanel({ isOpen, onClose, results, selectedSpecies, onSelectSpecies, activeTaxonFilters, onToggleTaxonFilter, onToggleAllTaxonFilters, excludeMarine, onToggleExcludeMarine, onOpenPriority }: ResultsPanelProps) {
+export function ResultsPanel({ isOpen, onClose, results, selectedSpecies, onSelectSpecies, activeTaxonFilters, onToggleTaxonFilter, onToggleAllTaxonFilters, excludeMarine, onToggleExcludeMarine, includeINaturalist, onToggleIncludeINaturalist, onOpenPriority }: ResultsPanelProps) {
   const [showMedium, setShowMedium] = useState(false);
   const [showLow, setShowLow] = useState(false);
   const [showReportPreview, setShowReportPreview] = useState(false);
@@ -297,22 +299,39 @@ Note: Cet inventaire flash repose sur les données GBIF et les statuts IUCN. Il 
                         >
                           {isAllActive ? "Tout désélectionner" : "Tout sélectionner"}
                         </button>
-                        {onToggleExcludeMarine && marineCount > 0 && (
-                          <label
-                            className="flex items-center gap-1.5 text-[11px] text-gray-700 cursor-pointer select-none"
-                            title="Masque les espèces des phyla strictement marins (Cnidaria, Echinodermata, Porifera…) et des classes marines (Chondrichthyes, Cephalopoda…)"
-                          >
-                            <input
-                              type="checkbox"
-                              checked={!!excludeMarine}
-                              onChange={onToggleExcludeMarine}
-                              className="h-3 w-3 accent-teal-600 cursor-pointer"
-                              data-testid="checkbox-exclude-marine"
-                            />
-                            <span>Exclure marines</span>
-                            <span className="text-[10px] text-gray-400">({marineCount})</span>
-                          </label>
-                        )}
+                        <div className="flex items-center gap-3">
+                          {onToggleIncludeINaturalist && (
+                            <label
+                              className="flex items-center gap-1.5 text-[11px] text-gray-700 cursor-pointer select-none"
+                              title="Interroge également l'API iNaturalist (observations validées) en plus de GBIF. La prochaine recherche prendra en compte ce choix."
+                            >
+                              <input
+                                type="checkbox"
+                                checked={!!includeINaturalist}
+                                onChange={onToggleIncludeINaturalist}
+                                className="h-3 w-3 accent-emerald-600 cursor-pointer"
+                                data-testid="checkbox-include-inaturalist"
+                              />
+                              <span>Inclure iNaturalist</span>
+                            </label>
+                          )}
+                          {onToggleExcludeMarine && marineCount > 0 && (
+                            <label
+                              className="flex items-center gap-1.5 text-[11px] text-gray-700 cursor-pointer select-none"
+                              title="Masque les espèces des phyla strictement marins (Cnidaria, Echinodermata, Porifera…) et des classes marines (Chondrichthyes, Cephalopoda…)"
+                            >
+                              <input
+                                type="checkbox"
+                                checked={!!excludeMarine}
+                                onChange={onToggleExcludeMarine}
+                                className="h-3 w-3 accent-teal-600 cursor-pointer"
+                                data-testid="checkbox-exclude-marine"
+                              />
+                              <span>Exclure marines</span>
+                              <span className="text-[10px] text-gray-400">({marineCount})</span>
+                            </label>
+                          )}
+                        </div>
                       </div>
                       <div className="flex flex-wrap gap-1.5">
                         {presentGroups.map(group => {

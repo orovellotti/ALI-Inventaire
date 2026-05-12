@@ -190,7 +190,13 @@ async function fetchFrenchVernacularName(speciesKey: number): Promise<string | u
   return undefined;
 }
 
-export async function searchGBIF(lat: number, lng: number, radiusMeters: number): Promise<InventoryResult> {
+export async function searchGBIF(
+  lat: number,
+  lng: number,
+  radiusMeters: number,
+  options: { includeINaturalist?: boolean } = {}
+): Promise<InventoryResult> {
+  const includeINaturalist = options.includeINaturalist !== false;
   const bbox = getBoundingBox(lat, lng, radiusMeters);
 
   const url = new URL("https://api.gbif.org/v1/occurrence/search");
@@ -200,10 +206,12 @@ export async function searchGBIF(lat: number, lng: number, radiusMeters: number)
   url.searchParams.set("hasGeospatialIssue", "false");
   url.searchParams.set("limit", "1000");
 
-  const inatPromise = searchINaturalist(lat, lng, radiusMeters).catch(() => ({
-    occurrences: [] as Occurrence[],
-    summary: { records: 0, species: 0 },
-  }));
+  const inatPromise = includeINaturalist
+    ? searchINaturalist(lat, lng, radiusMeters).catch(() => ({
+        occurrences: [] as Occurrence[],
+        summary: { records: 0, species: 0 },
+      }))
+    : Promise.resolve({ occurrences: [] as Occurrence[], summary: { records: 0, species: 0 } });
 
   const response = await fetch(url.toString());
   if (!response.ok) throw new Error(`GBIF API Error: ${response.status}`);
@@ -349,7 +357,10 @@ export async function searchGBIF(lat: number, lng: number, radiusMeters: number)
   };
 }
 
-export async function searchGBIFMultiCircle(circles: BufferCircle[]): Promise<InventoryResult> {
+export async function searchGBIFMultiCircle(
+  circles: BufferCircle[],
+  options: { includeINaturalist?: boolean } = {}
+): Promise<InventoryResult> {
   const enabledCircles = circles.filter(c => c.enabled);
   if (enabledCircles.length === 0) {
     throw new Error("No circles enabled");
@@ -357,13 +368,13 @@ export async function searchGBIFMultiCircle(circles: BufferCircle[]): Promise<In
 
   if (enabledCircles.length === 1) {
     const c = enabledCircles[0];
-    const result = await searchGBIF(c.center[0], c.center[1], c.radius);
+    const result = await searchGBIF(c.center[0], c.center[1], c.radius, options);
     result.circles = circles;
     return result;
   }
 
   const results = await Promise.all(
-    enabledCircles.map(c => searchGBIF(c.center[0], c.center[1], c.radius))
+    enabledCircles.map(c => searchGBIF(c.center[0], c.center[1], c.radius, options))
   );
 
   const mergedOccurrences = new Map<string, Occurrence>();

@@ -147,11 +147,14 @@ export function getIucnLabel(code: string | undefined): string {
   return labels[code || ""] || "Non évalué";
 }
 
-export async function searchGBIFMultiCircle(circles: BufferCircle[]): Promise<InventoryResult> {
+export async function searchGBIFMultiCircle(
+  circles: BufferCircle[],
+  options: { includeINaturalist?: boolean } = {}
+): Promise<InventoryResult> {
   const response = await fetch("/api/inventory", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ circles }),
+    body: JSON.stringify({ circles, includeINaturalist: options.includeINaturalist !== false }),
   });
 
   if (!response.ok) {

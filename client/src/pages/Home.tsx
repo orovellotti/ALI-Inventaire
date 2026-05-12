@@ -44,6 +44,7 @@ export default function Home() {
     () => new Set(TAXON_GROUPS.map(g => g.id))
   );
   const [excludeMarine, setExcludeMarine] = useState<boolean>(true);
+  const [includeINaturalist, setIncludeINaturalist] = useState<boolean>(true);
   const [projectPolygon, setProjectPolygon] = useState<ProjectPolygon | null>(null);
   const [isLoadingShapefile, setIsLoadingShapefile] = useState(false);
   const { toast } = useToast();
@@ -94,7 +95,7 @@ export default function Home() {
 
     setIsAnalyzing(true);
     try {
-      const data = await searchGBIFMultiCircle(circles);
+      const data = await searchGBIFMultiCircle(circles, { includeINaturalist });
       setResults(data);
       setIsPanelOpen(true);
       toast({
@@ -291,6 +292,8 @@ export default function Home() {
         onToggleAllTaxonFilters={handleToggleAllTaxonFilters}
         excludeMarine={excludeMarine}
         onToggleExcludeMarine={() => setExcludeMarine(v => !v)}
+        includeINaturalist={includeINaturalist}
+        onToggleIncludeINaturalist={() => setIncludeINaturalist(v => !v)}
         onOpenPriority={() => setShowPriority(true)}
       />
 
