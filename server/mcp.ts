@@ -227,11 +227,10 @@ function buildMcpServer(): McpServer {
   server.registerTool(
     "priority_species_for_location",
     {
-      title: "Espèces à enjeux (analyse IA)",
+      title: "Top 5 espèces à enjeux (analyse IA)",
       description:
         "Lance un inventaire GBIF autour du point puis demande à un LLM expert d'identifier " +
-        "les espèces à enjeux de conservation (UICN, protégées France, ZNIEFF, directives Habitats/Oiseaux). " +
-        "Renvoie aussi des espèces patrimoniales attendues sur le secteur (à rechercher sur le terrain).",
+        "les 5 espèces les plus sensibles pour une étude d'impact (UICN, protégées France, ZNIEFF, directives Habitats/Oiseaux).",
       inputSchema: {
         toponym: z.string().describe("Nom du lieu (utilisé dans l'analyse)"),
         lat: z.number().min(-90).max(90),
