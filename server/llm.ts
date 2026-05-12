@@ -78,14 +78,14 @@ Réponds en JSON strict :
 Exactement 5 espèces, triées par enjeu décroissant.`;
 
   const completion = await openai.chat.completions.create({
-    model: "gpt-5-mini",
+    model: "gpt-4o-mini",
     messages: [
       { role: "system", content: SYSTEM_PROMPT },
       { role: "user", content: userPrompt },
     ],
     response_format: { type: "json_object" },
-    reasoning_effort: "minimal",
-  } as any);
+    temperature: 0.3,
+  });
 
   const content = completion.choices[0]?.message?.content;
   if (!content) throw new Error("Réponse LLM vide");
