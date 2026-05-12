@@ -48,10 +48,26 @@ export function PrioritySpeciesDialog({ open, onOpenChange, toponym, coords, occ
     setError(null);
     setAnalysis(null);
 
+    const seen = new Set<string>();
+    const slim = occurrences
+      .filter(o => {
+        if (seen.has(o.scientificName)) return false;
+        seen.add(o.scientificName);
+        return true;
+      })
+      .map(o => ({
+        scientificName: o.scientificName,
+        vernacularName: o.vernacularName,
+        iucnStatus: o.iucnStatus,
+        alertLevel: o.alertLevel,
+        class: o.class,
+        kingdom: o.kingdom,
+      }));
+
     fetch("/api/llm/priority-species", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ toponym, coords, occurrences }),
+      body: JSON.stringify({ toponym, coords, occurrences: slim }),
     })
       .then(async (r) => {
         if (!r.ok) {
