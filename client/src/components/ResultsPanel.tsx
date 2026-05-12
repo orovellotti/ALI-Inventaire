@@ -255,26 +255,6 @@ Note: Cet inventaire flash repose sur les données GBIF et les statuts IUCN. Il 
               </div>
             </div>
 
-            {onOpenPriority && (
-              <button
-                type="button"
-                onClick={onOpenPriority}
-                className="w-full group flex items-center gap-3 p-3 rounded-xl border border-teal-200 bg-gradient-to-r from-teal-50 to-emerald-50 hover:from-teal-100 hover:to-emerald-100 transition-colors text-left"
-                data-testid="button-open-priority-species"
-              >
-                <div className="bg-teal-600 p-2 rounded-lg shrink-0">
-                  <Sparkles className="h-4 w-4 text-white" />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="text-sm font-semibold text-gray-900">Espèces à enjeux (IA)</div>
-                  <div className="text-xs text-gray-600">
-                    Lecture experte de l'inventaire — statuts, protections, recommandations
-                  </div>
-                </div>
-                <ChevronDown className="h-4 w-4 text-teal-600 -rotate-90 shrink-0 group-hover:translate-x-0.5 transition-transform" />
-              </button>
-            )}
-
             <div className="rounded-xl border border-gray-200 bg-gray-50/50 overflow-hidden">
               <button
                 type="button"
@@ -463,6 +443,26 @@ Note: Cet inventaire flash repose sur les données GBIF et les statuts IUCN. Il 
                 </div>
               )}
             </div>
+
+            {onOpenPriority && (
+              <button
+                type="button"
+                onClick={onOpenPriority}
+                className="w-full group flex items-center gap-3 p-3 rounded-xl border border-teal-200 bg-gradient-to-r from-teal-50 to-emerald-50 hover:from-teal-100 hover:to-emerald-100 transition-colors text-left"
+                data-testid="button-open-priority-species"
+              >
+                <div className="bg-teal-600 p-2 rounded-lg shrink-0">
+                  <Sparkles className="h-4 w-4 text-white" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="text-sm font-semibold text-gray-900">Compléter le rapport — Espèces à enjeux (IA)</div>
+                  <div className="text-xs text-gray-600">
+                    Lecture experte de l'inventaire — statuts, protections, recommandations
+                  </div>
+                </div>
+                <ChevronDown className="h-4 w-4 text-teal-600 -rotate-90 shrink-0 group-hover:translate-x-0.5 transition-transform" />
+              </button>
+            )}
 
             <SINPPanel center={results.center} />
 
