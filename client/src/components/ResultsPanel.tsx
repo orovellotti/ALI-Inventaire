@@ -761,15 +761,15 @@ function ConfidencePanel({ confidence }: { confidence: ConfidenceScore }) {
         onClick={() => setExpanded(!expanded)}
         className="w-full"
       >
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <Shield className="h-5 w-5" />
-            <span className="font-bold text-sm">Indice de Confiance</span>
+        <div className="flex items-center justify-between gap-2 min-w-0">
+          <div className="flex items-center gap-2 min-w-0 flex-shrink">
+            <Shield className="h-5 w-5 shrink-0" />
+            <span className="font-bold text-sm truncate">Indice de Confiance</span>
           </div>
-          <div className="flex items-center gap-2">
-            <span className="text-2xl font-bold">{confidence.total}</span>
-            <span className="text-sm">/100</span>
-            <span className="text-xs px-2 py-0.5 rounded-full bg-white/50 font-medium">
+          <div className="flex items-center gap-1.5 shrink-0">
+            <span className="text-xl font-bold leading-none">{confidence.total}</span>
+            <span className="text-xs leading-none">/100</span>
+            <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-white/50 font-medium whitespace-nowrap">
               {getConfidenceLabel()}
             </span>
             {expanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
