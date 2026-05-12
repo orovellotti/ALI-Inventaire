@@ -206,7 +206,7 @@ Note: Cet inventaire flash repose sur les données GBIF et les statuts IUCN. Il 
         animate={{ x: 0 }}
         exit={{ x: "100%" }}
         transition={{ type: "spring", damping: 25, stiffness: 200 }}
-        className="fixed top-0 right-0 h-full w-[420px] z-[2000] bg-white/95 backdrop-blur-xl shadow-2xl border-l border-white/20 flex flex-col"
+        className="fixed top-0 right-0 h-full w-[520px] max-w-[92vw] z-[2000] bg-white/95 backdrop-blur-xl shadow-2xl border-l border-white/20 flex flex-col"
       >
         <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-white/50">
           <div>
