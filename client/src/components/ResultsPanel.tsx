@@ -229,7 +229,7 @@ Note: Cet inventaire flash repose sur les données GBIF et iNaturalist et les st
           <div>
             <h2 className="text-xl font-bold text-gray-900 tracking-tight">Inventaire Flash</h2>
             <p className="text-xs text-muted-foreground mt-1 font-mono">
-              GBIF DATA • {filteredTotal} ESPÈCES{!isAllActive && ` (filtrées)`}
+              {includeINaturalist ? "GBIF + iNAT" : "GBIF"} • {filteredTotal} ESPÈCES{!isAllActive && ` (filtrées)`}
             </p>
           </div>
           <Button variant="ghost" size="icon" onClick={onClose} className="hover:bg-gray-100 rounded-full h-8 w-8">
