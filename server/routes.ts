@@ -140,6 +140,66 @@ export async function registerRoutes(
     }
   });
 
+  app.get("/api/geocode/reverse", async (req: Request, res: Response) => {
+    try {
+      const lat = parseFloat(req.query.lat as string);
+      const lng = parseFloat(req.query.lng as string);
+      if (isNaN(lat) || isNaN(lng)) {
+        return res.status(400).json({ error: "Paramètres 'lat' et 'lng' requis" });
+      }
+      if (lat < -90 || lat > 90 || lng < -180 || lng > 180) {
+        return res.status(400).json({ error: "Coordonnées hors limites" });
+      }
+
+      const params = new URLSearchParams({
+        lat: String(lat),
+        lon: String(lng),
+        format: "json",
+        zoom: "14",
+        addressdetails: "1",
+      });
+
+      const response = await fetch(`https://nominatim.openstreetmap.org/reverse?${params.toString()}`, {
+        headers: { "User-Agent": "InventaireFlash/1.0" },
+      });
+
+      if (!response.ok) {
+        return res.status(502).json({ error: "Erreur du service de géocodage" });
+      }
+
+      const data = await response.json();
+      if (!data || data.error) {
+        return res.status(404).json({ error: "Aucun toponyme trouvé" });
+      }
+
+      const addr = data.address || {};
+      const place =
+        addr.hamlet || addr.isolated_dwelling || addr.farm || addr.locality ||
+        addr.neighbourhood || addr.quarter || addr.suburb || addr.village ||
+        addr.town || addr.municipality || addr.city || data.name || "";
+      const commune = addr.village || addr.town || addr.municipality || addr.city || addr.hamlet || "";
+      const departement = addr.county || addr["state_district"] || "";
+      const region = addr.state || "";
+
+      const parts = [place, commune && commune !== place ? commune : null, departement, region].filter(Boolean);
+      const shortName = parts.join(", ") || data.display_name || `Point ${lat.toFixed(4)}, ${lng.toFixed(4)}`;
+
+      res.json({
+        lat,
+        lng,
+        name: place || commune || data.display_name,
+        shortName,
+        displayName: data.display_name,
+        commune,
+        departement,
+        region,
+      });
+    } catch (error: any) {
+      console.error("Reverse geocoding error:", error);
+      res.status(500).json({ error: "Erreur de reverse géocodage" });
+    }
+  });
+
   app.get("/api/sinp", (req: Request, res: Response) => {
     try {
       const lat = parseFloat(req.query.lat as string);

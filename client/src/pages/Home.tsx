@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import { Map } from "@/components/Map";
 import { SearchPanel } from "@/components/SearchPanel";
 import { ResultsPanel } from "@/components/ResultsPanel";
@@ -8,7 +8,7 @@ import { DataSourcesDialog } from "@/components/DataSourcesDialog";
 import { LieuxDitsDialog } from "@/components/LieuxDitsDialog";
 import { PrioritySpeciesDialog } from "@/components/PrioritySpeciesDialog";
 import { searchGBIFMultiCircle, InventoryResult, BufferCircle, STUDY_AREAS, ProjectPreset, TAXON_GROUPS, getTaxonGroupId } from "@/lib/gbif";
-import { searchPlace } from "@/lib/geocoding";
+import { searchPlace, reverseGeocode } from "@/lib/geocoding";
 import { parseShapefile, ProjectPolygon } from "@/lib/shapefile";
 import { useToast } from "@/hooks/use-toast";
 import { Leaf, HelpCircle, Code2, Database } from "lucide-react";
@@ -112,6 +112,7 @@ export default function Home() {
     }
   };
 
+  const reverseGeocodeRequestId = useRef(0);
   const handleMapClick = (lat: number, lng: number) => {
     if (projectPolygon) return;
     const newCenter: [number, number] = [lat, lng];
@@ -119,6 +120,11 @@ export default function Home() {
     setCircles(prev => prev.map(c => ({ ...c, center: newCenter })));
     if (isPanelOpen) setIsPanelOpen(false);
     setCurrentToponym(`Point ${lat.toFixed(4)}, ${lng.toFixed(4)}`);
+    const requestId = ++reverseGeocodeRequestId.current;
+    reverseGeocode(lat, lng).then(result => {
+      if (requestId !== reverseGeocodeRequestId.current) return;
+      if (result?.shortName) setCurrentToponym(result.shortName);
+    });
   };
 
   const handleRadiusChange = useCallback((id: string, newRadius: number) => {
