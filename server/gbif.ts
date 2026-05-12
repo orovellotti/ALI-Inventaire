@@ -34,8 +34,6 @@ function getAlertLevelFromIucn(iucnStatus: string | undefined): "high" | "medium
     case "VU": case "VULNERABLE":
     case "NT": case "NEAR_THREATENED":
       return "high";
-    case "DD": case "DATA_DEFICIENT":
-      return "medium";
     default:
       return "low";
   }

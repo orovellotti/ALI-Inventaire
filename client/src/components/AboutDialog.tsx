@@ -141,18 +141,11 @@ export function AboutDialog({ open, onOpenChange }: AboutDialogProps) {
                     <span className="text-xs text-red-600">CR (En danger critique), EN (En danger), VU (Vulnérable), NT (Quasi menacé)</span>
                   </div>
                 </div>
-                <div className="flex items-start gap-3 bg-orange-50/50 rounded-lg p-3 border border-orange-100">
-                  <div className="w-3 h-3 rounded-full bg-orange-500 mt-0.5 flex-shrink-0" />
-                  <div>
-                    <span className="font-semibold text-sm text-orange-800 block">Enjeux moyens</span>
-                    <span className="text-xs text-orange-600">DD (Données insuffisantes) - statut inconnu, attention recommandée</span>
-                  </div>
-                </div>
                 <div className="flex items-start gap-3 bg-green-50/50 rounded-lg p-3 border border-green-100">
                   <div className="w-3 h-3 rounded-full bg-green-500 mt-0.5 flex-shrink-0" />
                   <div>
                     <span className="font-semibold text-sm text-green-800 block">Enjeux faibles</span>
-                    <span className="text-xs text-green-600">LC (Préoccupation mineure), NA (Non applicable), NE (Non évalué) et autres</span>
+                    <span className="text-xs text-green-600">LC (Préoccupation mineure), DD (Données insuffisantes), NA (Non applicable), NE (Non évalué) et autres. Les espèces DD méritent une attention au cas par cas mais ne sont pas automatiquement priorisées.</span>
                   </div>
                 </div>
               </div>
