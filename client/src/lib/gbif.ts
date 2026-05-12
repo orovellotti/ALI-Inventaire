@@ -42,6 +42,45 @@ export function getTaxonGroupId(occ: Occurrence): string {
   return "autres";
 }
 
+const MARINE_PHYLA = new Set([
+  "Cnidaria",
+  "Echinodermata",
+  "Porifera",
+  "Ctenophora",
+  "Brachiopoda",
+  "Chaetognatha",
+  "Bryozoa",
+  "Hemichordata",
+  "Phoronida",
+  "Xenacoelomorpha",
+  "Placozoa",
+]);
+
+const MARINE_CLASSES = new Set([
+  "Chondrichthyes",
+  "Cephalopoda",
+  "Polyplacophora",
+  "Scaphopoda",
+  "Ascidiacea",
+  "Thaliacea",
+  "Appendicularia",
+  "Anthozoa",
+  "Hydrozoa",
+  "Scyphozoa",
+  "Cubozoa",
+  "Asteroidea",
+  "Echinoidea",
+  "Holothuroidea",
+  "Crinoidea",
+  "Ophiuroidea",
+]);
+
+export function isMarineSpecies(occ: Occurrence): boolean {
+  if (occ.phylum && MARINE_PHYLA.has(occ.phylum)) return true;
+  if (occ.class && MARINE_CLASSES.has(occ.class)) return true;
+  return false;
+}
+
 export const STUDY_AREAS = [
   { id: "immediate", label: "Aire d'étude immédiate", radius: 500, color: "#0d9488", dashArray: undefined as string | undefined },
   { id: "rapprochee", label: "Aire d'étude rapprochée", radius: 2000, color: "#2563eb", dashArray: "10, 8" },

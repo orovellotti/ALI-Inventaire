@@ -2,7 +2,7 @@ import { MapContainer, TileLayer, Circle, CircleMarker, GeoJSON, useMapEvents, u
 import { useEffect, useMemo } from "react";
 import "leaflet/dist/leaflet.css";
 import L from "leaflet";
-import { InventoryResult, BufferCircle, STUDY_AREAS, getTaxonGroupId } from "@/lib/gbif";
+import { InventoryResult, BufferCircle, STUDY_AREAS, getTaxonGroupId, isMarineSpecies } from "@/lib/gbif";
 import type { ProjectPolygon } from "@/lib/shapefile";
 
 import icon from 'leaflet/dist/images/marker-icon.png';
@@ -24,6 +24,7 @@ interface MapProps {
   onMapClick: (lat: number, lng: number) => void;
   selectedSpecies: string | null;
   activeTaxonFilters: Set<string>;
+  excludeMarine?: boolean;
   projectPolygon: ProjectPolygon | null;
 }
 
@@ -48,15 +49,18 @@ function MapEvents({ onMapClick }: { onMapClick: (lat: number, lng: number) => v
   return null;
 }
 
-export function Map({ center, circles, results, onMapClick, selectedSpecies, activeTaxonFilters, projectPolygon }: MapProps) {
+export function Map({ center, circles, results, onMapClick, selectedSpecies, activeTaxonFilters, excludeMarine, projectPolygon }: MapProps) {
   const sortedCircles = [...circles]
     .filter(c => c.enabled)
     .sort((a, b) => b.radius - a.radius);
 
   const filteredOccurrences = useMemo(() => {
     if (!results) return [];
-    return results.occurrences.filter(occ => activeTaxonFilters.has(getTaxonGroupId(occ)));
-  }, [results, activeTaxonFilters]);
+    return results.occurrences.filter(occ =>
+      activeTaxonFilters.has(getTaxonGroupId(occ)) &&
+      !(excludeMarine && isMarineSpecies(occ))
+    );
+  }, [results, activeTaxonFilters, excludeMarine]);
 
   return (
     <div id="map-container" className="h-full w-full relative z-0">
@@ -141,7 +145,7 @@ export function Map({ center, circles, results, onMapClick, selectedSpecies, act
       </MapContainer>
       
       <div className="absolute bottom-1 right-1 bg-white/50 backdrop-blur px-2 py-0.5 text-[10px] text-gray-500 rounded z-[400] pointer-events-none">
-        Données GBIF | Fond CartoDB
+        Données GBIF | Fond OpenStreetMap
       </div>
     </div>
   );

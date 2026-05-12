@@ -43,6 +43,7 @@ export default function Home() {
   const [activeTaxonFilters, setActiveTaxonFilters] = useState<Set<string>>(
     () => new Set(TAXON_GROUPS.map(g => g.id))
   );
+  const [excludeMarine, setExcludeMarine] = useState<boolean>(true);
   const [projectPolygon, setProjectPolygon] = useState<ProjectPolygon | null>(null);
   const [isLoadingShapefile, setIsLoadingShapefile] = useState(false);
   const { toast } = useToast();
@@ -250,6 +251,7 @@ export default function Home() {
         onMapClick={handleMapClick}
         selectedSpecies={selectedSpecies}
         activeTaxonFilters={activeTaxonFilters}
+        excludeMarine={excludeMarine}
         projectPolygon={projectPolygon}
       />
 
@@ -281,6 +283,8 @@ export default function Home() {
         activeTaxonFilters={activeTaxonFilters}
         onToggleTaxonFilter={handleToggleTaxonFilter}
         onToggleAllTaxonFilters={handleToggleAllTaxonFilters}
+        excludeMarine={excludeMarine}
+        onToggleExcludeMarine={() => setExcludeMarine(v => !v)}
         onOpenPriority={() => setShowPriority(true)}
       />
 

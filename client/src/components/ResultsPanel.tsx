@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { X, Download, FileText, AlertTriangle, Leaf, Info, ChevronDown, ChevronUp, ImageOff, Copy, Check, ExternalLink, BookOpen, Shield, MapPin, Tag, Calendar, Link, Flag, Layers, Filter, Table, Sparkles } from "lucide-react";
-import { InventoryResult, Occurrence, getIucnLabel, ConfidenceScore, TAXON_GROUPS, getTaxonGroupId } from "@/lib/gbif";
+import { InventoryResult, Occurrence, getIucnLabel, ConfidenceScore, TAXON_GROUPS, getTaxonGroupId, isMarineSpecies } from "@/lib/gbif";
 import { findSINPPlatforms, SINPPlatform } from "@/lib/sinp";
 import { exportCSV, exportExcel } from "@/lib/export";
 import html2canvas from "html2canvas";
@@ -21,19 +21,34 @@ interface ResultsPanelProps extends ResultsPanelPropsBase {
   activeTaxonFilters: Set<string>;
   onToggleTaxonFilter: (groupId: string) => void;
   onToggleAllTaxonFilters: (presentGroupIds?: string[]) => void;
+  excludeMarine?: boolean;
+  onToggleExcludeMarine?: () => void;
 }
 
-export function ResultsPanel({ isOpen, onClose, results, selectedSpecies, onSelectSpecies, activeTaxonFilters, onToggleTaxonFilter, onToggleAllTaxonFilters, onOpenPriority }: ResultsPanelProps) {
+export function ResultsPanel({ isOpen, onClose, results, selectedSpecies, onSelectSpecies, activeTaxonFilters, onToggleTaxonFilter, onToggleAllTaxonFilters, excludeMarine, onToggleExcludeMarine, onOpenPriority }: ResultsPanelProps) {
   const [showMedium, setShowMedium] = useState(false);
   const [showLow, setShowLow] = useState(false);
   const [showReportPreview, setShowReportPreview] = useState(false);
   const [copied, setCopied] = useState(false);
   const [showFilters, setShowFilters] = useState(true);
 
+  const marineCount = useMemo(() => {
+    if (!results) return 0;
+    const seen = new Set<string>();
+    let n = 0;
+    for (const occ of results.occurrences) {
+      if (seen.has(occ.scientificName)) continue;
+      seen.add(occ.scientificName);
+      if (isMarineSpecies(occ)) n += 1;
+    }
+    return n;
+  }, [results]);
+
   const taxonCounts = useMemo(() => {
     if (!results) return new Map<string, number>();
     const uniqueMap = new Map<string, Occurrence>();
     results.occurrences.forEach((occ) => {
+      if (excludeMarine && isMarineSpecies(occ)) return;
       const existing = uniqueMap.get(occ.scientificName);
       if (!existing || getAlertPriority(occ.alertLevel) > getAlertPriority(existing.alertLevel)) {
         uniqueMap.set(occ.scientificName, occ);
@@ -45,7 +60,7 @@ export function ResultsPanel({ isOpen, onClose, results, selectedSpecies, onSele
       counts.set(groupId, (counts.get(groupId) || 0) + 1);
     }
     return counts;
-  }, [results]);
+  }, [results, excludeMarine]);
 
   const presentGroups = useMemo(() => {
     return TAXON_GROUPS.filter(g => (taxonCounts.get(g.id) || 0) > 0);
@@ -56,6 +71,7 @@ export function ResultsPanel({ isOpen, onClose, results, selectedSpecies, onSele
     
     const uniqueMap = new Map<string, Occurrence>();
     results.occurrences.forEach((occ) => {
+      if (excludeMarine && isMarineSpecies(occ)) return;
       const existing = uniqueMap.get(occ.scientificName);
       if (!existing || getAlertPriority(occ.alertLevel) > getAlertPriority(existing.alertLevel)) {
         uniqueMap.set(occ.scientificName, occ);
@@ -93,7 +109,7 @@ export function ResultsPanel({ isOpen, onClose, results, selectedSpecies, onSele
       medium: unique.filter(o => o.alertLevel === "medium").sort(sortByEnjeu),
       low: unique.filter(o => o.alertLevel === "low").sort(sortByEnjeu),
     };
-  }, [results, activeTaxonFilters]);
+  }, [results, activeTaxonFilters, excludeMarine]);
 
   const allFilteredSpecies = useMemo(() => {
     return [...sortedSpecies.high, ...sortedSpecies.medium, ...sortedSpecies.low];
@@ -301,6 +317,22 @@ Note: Cet inventaire flash repose sur les données GBIF et les statuts IUCN. Il 
                         >
                           {isAllActive ? "Tout désélectionner" : "Tout sélectionner"}
                         </button>
+                        {onToggleExcludeMarine && marineCount > 0 && (
+                          <label
+                            className="flex items-center gap-1.5 text-[11px] text-gray-700 cursor-pointer select-none"
+                            title="Masque les espèces des phyla strictement marins (Cnidaria, Echinodermata, Porifera…) et des classes marines (Chondrichthyes, Cephalopoda…)"
+                          >
+                            <input
+                              type="checkbox"
+                              checked={!!excludeMarine}
+                              onChange={onToggleExcludeMarine}
+                              className="h-3 w-3 accent-teal-600 cursor-pointer"
+                              data-testid="checkbox-exclude-marine"
+                            />
+                            <span>Exclure marines</span>
+                            <span className="text-[10px] text-gray-400">({marineCount})</span>
+                          </label>
+                        )}
                       </div>
                       <div className="flex flex-wrap gap-1.5">
                         {presentGroups.map(group => {
