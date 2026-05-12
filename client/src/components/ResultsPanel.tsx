@@ -205,7 +205,7 @@ ${mediumList}
 ENJEUX FAIBLES (${lowCount} espèces)
 ${lowList}
 
-Note: Cet inventaire flash repose sur les données GBIF et les statuts IUCN. Il fournit une indication rapide et ne constitue pas une preuve d'absence ni un inventaire terrain.`;
+Note: Cet inventaire flash repose sur les données GBIF et iNaturalist et les statuts IUCN. Il fournit une indication rapide et ne constitue pas une preuve d'absence ni un inventaire terrain complet.`;
   }, [results, sortedSpecies, activeTaxonFilters, presentGroups, isAllActive]);
 
   const handleCopyReport = () => {
@@ -473,7 +473,7 @@ Note: Cet inventaire flash repose sur les données GBIF et les statuts IUCN. Il 
             <div className="p-4 bg-gray-50 rounded-xl text-xs text-gray-500 leading-relaxed border border-gray-100 flex gap-3">
               <Info className="h-4 w-4 shrink-0 mt-0.5 text-gray-400" />
               <p>
-                Cet inventaire flash repose sur les données GBIF et les statuts IUCN. 
+                Cet inventaire flash repose sur les données GBIF et iNaturalist et les statuts IUCN.
                 Il fournit une indication rapide et ne constitue pas une preuve d'absence ni un inventaire terrain complet.
               </p>
             </div>
