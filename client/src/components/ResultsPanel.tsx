@@ -500,6 +500,7 @@ function SpeciesCard({ occ, isSelected, onSelect }: { occ: Occurrence; isSelecte
   const [imageError, setImageError] = useState(false);
   const gbifUrl = occ.taxonKey ? `https://www.gbif.org/species/${occ.taxonKey}` : null;
   const wikiUrl = `https://fr.wikipedia.org/wiki/${encodeURIComponent(occ.scientificName.split(' ').slice(0, 2).join('_'))}`;
+  const aliUrl = `https://alispecies.io/?q=${encodeURIComponent(occ.scientificName.split(' ').slice(0, 2).join(' '))}`;
   const taxonGroup = TAXON_GROUPS.find(g => g.id === getTaxonGroupId(occ));
 
   return (
@@ -552,6 +553,18 @@ function SpeciesCard({ occ, isSelected, onSelect }: { occ: Occurrence; isSelecte
                 <span>GBIF</span>
               </a>
             )}
+            <a
+              href={aliUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center gap-1 text-xs px-1.5 py-0.5 rounded bg-violet-100 text-violet-700 hover:bg-violet-200 transition-colors"
+              title="Voir sur ALI Species"
+              onClick={(e) => e.stopPropagation()}
+              data-testid={`link-ali-${occ.scientificName}`}
+            >
+              <Sparkles className="h-3.5 w-3.5" />
+              <span>ALI</span>
+            </a>
           </div>
         </div>
         <div className="text-xs text-muted-foreground italic truncate">
