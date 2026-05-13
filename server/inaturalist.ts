@@ -62,6 +62,8 @@ export async function searchINaturalist(
       quality_grade: "research,needs_id",
       geoprivacy: "open",
       hrank: "species",
+      locale: "fr",
+      preferred_place_id: "6753",
     });
 
     let results: any[] = [];

@@ -173,19 +173,22 @@ async function fetchSpeciesIucnStatus(speciesKey: number): Promise<string | unde
 }
 
 async function fetchFrenchVernacularName(speciesKey: number): Promise<string | undefined> {
+  const isFrench = (lang?: string) => {
+    const l = (lang || "").toLowerCase();
+    return l === "fra" || l === "fr" || l === "fre" || l === "french" || l === "français";
+  };
   try {
-    const response = await fetch(`https://api.gbif.org/v1/species/${speciesKey}/vernacularNames?language=fra&limit=1`);
-    if (response.ok) {
-      const data = await response.json();
-      if (data.results?.length > 0) return data.results[0].vernacularName;
-    }
-    const fallbackResponse = await fetch(`https://api.gbif.org/v1/species/${speciesKey}/vernacularNames?limit=20`);
-    if (fallbackResponse.ok) {
-      const fallbackData = await fallbackResponse.json();
-      const frenchName = fallbackData.results?.find(
-        (v: any) => v.language === "fra" || v.language === "fr" || v.language === "fre"
-      );
-      if (frenchName) return frenchName.vernacularName;
+    let offset = 0;
+    const limit = 100;
+    for (let i = 0; i < 5; i++) {
+      const r = await fetch(`https://api.gbif.org/v1/species/${speciesKey}/vernacularNames?limit=${limit}&offset=${offset}`);
+      if (!r.ok) break;
+      const data = await r.json();
+      const results: any[] = data.results || [];
+      const french = results.find((v: any) => isFrench(v.language));
+      if (french?.vernacularName) return french.vernacularName;
+      if (data.endOfRecords || results.length < limit) break;
+      offset += limit;
     }
   } catch {}
   return undefined;
@@ -277,7 +280,7 @@ export async function searchGBIF(
         scientificName: record.scientificName || "Inconnu",
         decimalLatitude: record.decimalLatitude,
         decimalLongitude: record.decimalLongitude,
-        vernacularName: frenchName || record.vernacularName || record.species || record.genus,
+        vernacularName: frenchName || undefined,
         kingdom: record.kingdom,
         phylum: record.phylum,
         class: record.class,
