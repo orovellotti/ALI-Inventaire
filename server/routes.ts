@@ -3,7 +3,7 @@ import { createServer, type Server } from "http";
 import { searchGBIF, searchGBIFMultiCircle, fetchSpeciesDetails } from "./gbif";
 import { findSINPPlatforms, SINP_PLATFORMS } from "./sinp";
 import { STUDY_AREAS, PROJECT_PRESETS, TAXON_GROUPS } from "./constants";
-import { analyzePrioritySpecies } from "./llm";
+import { analyzePrioritySpecies, reformatReport } from "./llm";
 import { resolveAliTaxon } from "./ali";
 import { registerMcpEndpoint } from "./mcp";
 import type { BufferCircle, Occurrence } from "@shared/types";
@@ -279,6 +279,23 @@ export async function registerRoutes(
     } catch (error: any) {
       console.error("LLM priority-species error:", error);
       res.status(500).json({ error: error.message || "Erreur lors de l'analyse IA" });
+    }
+  });
+
+  app.post("/api/llm/reformat-report", async (req: Request, res: Response) => {
+    try {
+      const { report } = req.body as { report: string };
+      if (!report || typeof report !== "string") {
+        return res.status(400).json({ error: "Champ 'report' requis" });
+      }
+      if (report.length > 50000) {
+        return res.status(400).json({ error: "Rapport trop long (max 50000 caractères)" });
+      }
+      const reformatted = await reformatReport(report);
+      res.json({ reformatted });
+    } catch (error: any) {
+      console.error("LLM reformat-report error:", error);
+      res.status(500).json({ error: error.message || "Erreur lors de la reformulation IA" });
     }
   });
 

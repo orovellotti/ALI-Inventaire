@@ -120,3 +120,42 @@ Règles :
     generatedAt: new Date().toISOString(),
   };
 }
+
+export async function reformatReport(rawReport: string): Promise<string> {
+  const completion = await openai.chat.completions.create({
+    model: "gpt-4o-mini",
+    messages: [
+      {
+        role: "system",
+        content: `Tu es un écologue rédacteur de notes de pré-diagnostic environnemental. Tu rédiges en français professionnel, clair, synthétique, dans un ton neutre et factuel adapté à un bureau d'études EIE.`,
+      },
+      {
+        role: "user",
+        content: `Voici les données brutes d'un inventaire flash issu de GBIF + iNaturalist. Reformule-les en une **note de synthèse partageable** (mail, rapport interne) en français.
+
+Structure attendue :
+1. **Contexte** (1 phrase : lieu, date, périmètre, sources)
+2. **Synthèse des enjeux** (2-4 phrases narratives mentionnant les chiffres clés et les espèces les plus marquantes — citer leurs noms vernaculaires français en priorité)
+3. **Espèces à enjeux** : liste à puces concise, regroupée par niveau (Forts / Moyens), max 10 espèces les plus pertinentes par groupe
+4. **Recommandations rapides** : 2-3 points opérationnels (ex : compléter par inventaires terrain ciblés sur tel groupe taxonomique, vérifier auprès du SINP régional, attention aux périodes de reproduction…)
+5. **Limites & sources** (1-2 phrases : indication, pas inventaire terrain ; données GBIF + iNaturalist + UICN)
+
+Règles :
+- Garde le lien Google Maps et le lien de partage tels quels en bas
+- Si une analyse IA est présente dans les données, intègre ses conclusions dans la synthèse
+- N'invente aucune espèce ni statut absent des données
+- Format texte brut, lisible directement dans un mail/chat (pas de Markdown lourd, juste tirets et sauts de ligne)
+- 250-400 mots maximum
+
+Données brutes :
+─────────
+${rawReport}
+─────────`,
+      },
+    ],
+    temperature: 0.4,
+  });
+  const content = completion.choices[0]?.message?.content?.trim();
+  if (!content) throw new Error("Réponse LLM vide");
+  return content;
+}

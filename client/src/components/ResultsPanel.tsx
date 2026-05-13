@@ -31,6 +31,9 @@ export function ResultsPanel({ isOpen, onClose, results, selectedSpecies, onSele
   const [showLow, setShowLow] = useState(false);
   const [showReportPreview, setShowReportPreview] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [reformattedReport, setReformattedReport] = useState<string | null>(null);
+  const [reformatting, setReformatting] = useState(false);
+  const [reformatError, setReformatError] = useState<string | null>(null);
   const [showFilters, setShowFilters] = useState(true);
   const [aiAnalysis, setAiAnalysis] = useState<{ species: { scientificName: string; vernacularName?: string; group: string; level: string; reason: string; sources?: string[]; inInventory?: boolean }[]; generatedAt: string } | null>(null);
   const [panelWidth, setPanelWidth] = useState<number>(() => {
@@ -263,8 +266,10 @@ ${shareUrl ? `\n🔗 Reproduire cette analyse : ${shareUrl}` : ""}`;
     return `Inventaire Flash — ${place} (${sortedSpecies.high.length + sortedSpecies.medium.length} espèces sensibles)`;
   }, [results, toponym, sortedSpecies]);
 
+  const activeReportText = reformattedReport || reportText;
+
   const handleCopyReport = () => {
-    navigator.clipboard.writeText(reportText);
+    navigator.clipboard.writeText(activeReportText);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
@@ -272,7 +277,7 @@ ${shareUrl ? `\n🔗 Reproduire cette analyse : ${shareUrl}` : ""}`;
   const handleShareReport = async () => {
     if (typeof navigator !== "undefined" && (navigator as any).share) {
       try {
-        await (navigator as any).share({ title: reportSubject, text: reportText });
+        await (navigator as any).share({ title: reportSubject, text: activeReportText });
         return;
       } catch {
         // user cancelled or share failed → fall back
@@ -282,9 +287,31 @@ ${shareUrl ? `\n🔗 Reproduire cette analyse : ${shareUrl}` : ""}`;
   };
 
   const handleEmailReport = () => {
-    const body = encodeURIComponent(reportText);
+    const body = encodeURIComponent(reformattedReport || reportText);
     const subject = encodeURIComponent(reportSubject);
     window.open(`mailto:?subject=${subject}&body=${body}`, "_blank");
+  };
+
+  const handleReformatReport = async () => {
+    setReformatting(true);
+    setReformatError(null);
+    try {
+      const r = await fetch("/api/llm/reformat-report", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ report: reportText }),
+      });
+      if (!r.ok) {
+        const err = await r.json().catch(() => ({}));
+        throw new Error(err.error || `Erreur ${r.status}`);
+      }
+      const data = await r.json();
+      setReformattedReport(data.reformatted);
+    } catch (e: any) {
+      setReformatError(e.message || "Erreur reformulation IA");
+    } finally {
+      setReformatting(false);
+    }
   };
 
   if (!isOpen || !results) return null;
@@ -601,9 +628,28 @@ ${shareUrl ? `\n🔗 Reproduire cette analyse : ${shareUrl}` : ""}`;
               Rapport d'inventaire
             </DialogTitle>
           </DialogHeader>
-          <ScrollArea className="flex-1 mt-4 h-[50vh] overflow-auto">
-            <pre className="text-sm font-mono whitespace-pre-wrap bg-gray-50 p-4 rounded-lg border border-gray-200 text-gray-700">
-              {reportText}
+          {reformattedReport && (
+            <div className="mt-3 flex items-center gap-2 text-xs text-teal-700 bg-teal-50 border border-teal-200 px-3 py-1.5 rounded-md">
+              <Sparkles className="h-3.5 w-3.5" />
+              <span className="font-medium">Note de synthèse reformulée par IA</span>
+              <button
+                type="button"
+                onClick={() => setReformattedReport(null)}
+                className="ml-auto text-[11px] text-teal-700 hover:underline"
+                data-testid="button-revert-report"
+              >
+                Revenir au brut
+              </button>
+            </div>
+          )}
+          {reformatError && (
+            <div className="mt-3 text-xs text-red-700 bg-red-50 border border-red-200 px-3 py-2 rounded-md">
+              {reformatError}
+            </div>
+          )}
+          <ScrollArea className="flex-1 mt-3 h-[50vh] overflow-auto">
+            <pre className={`text-sm whitespace-pre-wrap p-4 rounded-lg border text-gray-700 ${reformattedReport ? "bg-teal-50/30 border-teal-100 font-sans leading-relaxed" : "bg-gray-50 border-gray-200 font-mono"}`}>
+              {activeReportText}
             </pre>
           </ScrollArea>
           <div className="flex flex-wrap justify-between items-center gap-2 mt-4 pt-4 border-t">
@@ -611,6 +657,18 @@ ${shareUrl ? `\n🔗 Reproduire cette analyse : ${shareUrl}` : ""}`;
               Fermer
             </Button>
             <div className="flex flex-wrap gap-2">
+              {!reformattedReport && (
+                <Button
+                  variant="outline"
+                  onClick={handleReformatReport}
+                  disabled={reformatting}
+                  className="gap-2 border-teal-300 text-teal-700 hover:bg-teal-50 hover:text-teal-800"
+                  data-testid="button-reformat-report"
+                >
+                  {reformatting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
+                  {reformatting ? "Reformulation…" : "Reformuler avec IA"}
+                </Button>
+              )}
               <Button variant="outline" onClick={handleEmailReport} className="gap-2" data-testid="button-email-report">
                 <Mail className="h-4 w-4" />
                 Email
