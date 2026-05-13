@@ -4,13 +4,12 @@ import { SearchPanel } from "@/components/SearchPanel";
 import { ResultsPanel } from "@/components/ResultsPanel";
 import { AboutDialog } from "@/components/AboutDialog";
 import { ApiDialog } from "@/components/ApiDialog";
-import { DataSourcesDialog } from "@/components/DataSourcesDialog";
 import { LieuxDitsDialog } from "@/components/LieuxDitsDialog";
 import { searchGBIFMultiCircle, InventoryResult, BufferCircle, STUDY_AREAS, ProjectPreset, TAXON_GROUPS, getTaxonGroupId } from "@/lib/gbif";
 import { searchPlace, reverseGeocode } from "@/lib/geocoding";
 import { parseShapefile, ProjectPolygon } from "@/lib/shapefile";
 import { useToast } from "@/hooks/use-toast";
-import { Leaf, HelpCircle, Bot, Database } from "lucide-react";
+import { Leaf, HelpCircle, Bot } from "lucide-react";
 
 function createDefaultCircles(center: [number, number]): BufferCircle[] {
   return STUDY_AREAS.map(area => ({
@@ -68,7 +67,6 @@ export default function Home() {
   const [selectedSpecies, setSelectedSpecies] = useState<string | null>(null);
   const [showAbout, setShowAbout] = useState(false);
   const [showApi, setShowApi] = useState(false);
-  const [showSources, setShowSources] = useState(false);
   const [showLieuxDits, setShowLieuxDits] = useState(false);
   const [currentToponym, setCurrentToponym] = useState<string>(INITIAL_PLACE.name);
   const [activePresetId, setActivePresetId] = useState("custom");
@@ -331,7 +329,6 @@ export default function Home() {
 
       <AboutDialog open={showAbout} onOpenChange={setShowAbout} />
       <ApiDialog open={showApi} onOpenChange={setShowApi} />
-      <DataSourcesDialog open={showSources} onOpenChange={setShowSources} />
       <LieuxDitsDialog
         open={showLieuxDits}
         onOpenChange={setShowLieuxDits}
@@ -378,15 +375,6 @@ export default function Home() {
           <span className="text-xs font-semibold text-gray-700">Agent IA</span>
         </button>
 
-        <button
-          type="button"
-          onClick={() => setShowSources(true)}
-          className="bg-white/80 backdrop-blur p-2 rounded-lg cursor-pointer hover:bg-white transition-colors shadow-sm"
-          aria-label="Autres sources de données"
-          data-testid="button-data-sources"
-        >
-          <Database className="h-4 w-4 text-gray-600" />
-        </button>
       </div>
 
     </div>
