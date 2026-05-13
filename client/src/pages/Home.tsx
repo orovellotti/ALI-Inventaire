@@ -10,7 +10,7 @@ import { searchGBIFMultiCircle, InventoryResult, BufferCircle, STUDY_AREAS, Proj
 import { searchPlace, reverseGeocode } from "@/lib/geocoding";
 import { parseShapefile, ProjectPolygon } from "@/lib/shapefile";
 import { useToast } from "@/hooks/use-toast";
-import { Leaf, HelpCircle, Code2, Database } from "lucide-react";
+import { Leaf, HelpCircle, Bot, Database } from "lucide-react";
 
 function createDefaultCircles(center: [number, number]): BufferCircle[] {
   return STUDY_AREAS.map(area => ({
@@ -369,11 +369,13 @@ export default function Home() {
         <button
           type="button"
           onClick={() => setShowApi(true)}
-          className="bg-white/80 backdrop-blur p-2 rounded-lg cursor-pointer hover:bg-white transition-colors shadow-sm"
-          aria-label="Documentation de l'API"
-          data-testid="button-api"
+          className="flex items-center gap-1.5 bg-white/80 backdrop-blur px-2.5 py-2 rounded-lg cursor-pointer hover:bg-white transition-colors shadow-sm"
+          aria-label="Agent IA — connecter Claude ou ChatGPT"
+          data-testid="button-agent-ia"
+          title="Agent IA — connecter Claude / ChatGPT à Inventaire Flash via MCP"
         >
-          <Code2 className="h-4 w-4 text-gray-600" />
+          <Bot className="h-4 w-4 text-teal-600" />
+          <span className="text-xs font-semibold text-gray-700">Agent IA</span>
         </button>
 
         <button
