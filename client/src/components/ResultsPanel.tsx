@@ -733,11 +733,10 @@ function SpeciesCard({ occ, isSelected, onSelect }: { occ: Occurrence; isSelecte
               target="_blank"
               rel="noopener noreferrer"
               onClick={(e) => e.stopPropagation()}
-              className="flex items-center gap-1 text-xs font-semibold px-2.5 py-1 rounded-md bg-gradient-to-r from-violet-600 to-fuchsia-600 text-white shadow-sm hover:shadow-md hover:from-violet-700 hover:to-fuchsia-700 transition-all ring-1 ring-violet-500/30"
+              className="flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded text-gray-600 hover:bg-gray-100 hover:text-gray-800 transition-colors"
               title="Rechercher sur ALI Species (référentiel français)"
               data-testid={`link-ali-${occ.scientificName}`}
             >
-              <Sparkles className="h-3.5 w-3.5" />
               <span>Plus d'infos</span>
             </a>
             <a
