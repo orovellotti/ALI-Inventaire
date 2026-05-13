@@ -64,6 +64,27 @@ export default function Home() {
   const [isSearching, setIsSearching] = useState(false);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [isPanelOpen, setIsPanelOpen] = useState(false);
+  const [panelWidth, setPanelWidth] = useState<number>(() => {
+    try {
+      const saved = Number(localStorage.getItem("resultsPanelWidth"));
+      if (Number.isFinite(saved) && saved > 0) return saved;
+    } catch {}
+    return Math.min(600, typeof window !== "undefined" ? window.innerWidth * 0.45 : 600);
+  });
+  useEffect(() => {
+    const sync = () => {
+      try {
+        const saved = Number(localStorage.getItem("resultsPanelWidth"));
+        if (Number.isFinite(saved) && saved > 0) setPanelWidth(saved);
+      } catch {}
+    };
+    window.addEventListener("if:panel-width-changed", sync);
+    window.addEventListener("storage", sync);
+    return () => {
+      window.removeEventListener("if:panel-width-changed", sync);
+      window.removeEventListener("storage", sync);
+    };
+  }, []);
   const [selectedSpecies, setSelectedSpecies] = useState<string | null>(null);
   const [showAbout, setShowAbout] = useState(false);
   const [showApi, setShowApi] = useState(false);
@@ -290,6 +311,8 @@ export default function Home() {
         activeTaxonFilters={activeTaxonFilters}
         excludeMarine={excludeMarine}
         projectPolygon={projectPolygon}
+        panelOpen={isPanelOpen}
+        panelWidth={panelWidth}
       />
 
       <SearchPanel 

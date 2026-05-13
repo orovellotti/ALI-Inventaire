@@ -27,17 +27,27 @@ interface MapProps {
   activeTaxonFilters: Set<string>;
   excludeMarine?: boolean;
   projectPolygon: ProjectPolygon | null;
+  panelOpen?: boolean;
+  panelWidth?: number;
 }
 
-function MapController({ center, projectPolygon }: { center: [number, number]; projectPolygon: ProjectPolygon | null }) {
+function MapController({ center, projectPolygon, panelOpen, panelWidth }: { center: [number, number]; projectPolygon: ProjectPolygon | null; panelOpen?: boolean; panelWidth?: number }) {
   const map = useMap();
   useEffect(() => {
+    const offsetX = panelOpen && panelWidth ? Math.round(panelWidth / 2) : 0;
     if (projectPolygon) {
-      map.fitBounds(projectPolygon.bounds, { padding: [60, 60], maxZoom: 15 });
+      map.fitBounds(projectPolygon.bounds, {
+        padding: [60, 60],
+        paddingBottomRight: [60 + (panelOpen && panelWidth ? panelWidth : 0), 60],
+        maxZoom: 15,
+      } as any);
     } else {
       map.flyTo(center, map.getZoom());
+      if (offsetX > 0) {
+        setTimeout(() => map.panBy([offsetX, 0], { animate: true }), 50);
+      }
     }
-  }, [center, projectPolygon, map]);
+  }, [center, projectPolygon, panelOpen, panelWidth, map]);
   return null;
 }
 
@@ -175,7 +185,7 @@ const OVERLAYS: Record<OverlayId, {
   },
 };
 
-export function Map({ center, circles, results, onMapClick, selectedSpecies, activeTaxonFilters, excludeMarine, projectPolygon }: MapProps) {
+export function Map({ center, circles, results, onMapClick, selectedSpecies, activeTaxonFilters, excludeMarine, projectPolygon, panelOpen, panelWidth }: MapProps) {
   const [baseLayer, setBaseLayer] = useState<BaseLayer>(() => {
     try {
       const v = localStorage.getItem("if.baseLayer");
@@ -250,7 +260,7 @@ export function Map({ center, circles, results, onMapClick, selectedSpecies, act
           );
         })}
 
-        <MapController center={center} projectPolygon={projectPolygon} />
+        <MapController center={center} projectPolygon={projectPolygon} panelOpen={panelOpen} panelWidth={panelWidth} />
         <MapEvents onMapClick={onMapClick} />
 
         {projectPolygon && (

@@ -55,7 +55,10 @@ export function ResultsPanel({ isOpen, onClose, results, selectedSpecies, onSele
       isResizingRef.current = false;
       document.body.style.cursor = "";
       document.body.style.userSelect = "";
-      try { localStorage.setItem("resultsPanelWidth", String(panelWidth)); } catch {}
+      try {
+        localStorage.setItem("resultsPanelWidth", String(panelWidth));
+        window.dispatchEvent(new CustomEvent("if:panel-width-changed"));
+      } catch {}
     }
     window.addEventListener("mousemove", onMove);
     window.addEventListener("mouseup", onUp);
@@ -329,7 +332,7 @@ ${shareUrl ? `\n🔗 Reproduire cette analyse : ${shareUrl}` : ""}`;
       >
         <div
           onMouseDown={startResize}
-          onDoubleClick={() => { setPanelWidth(600); try { localStorage.setItem("resultsPanelWidth", "600"); } catch {} }}
+          onDoubleClick={() => { setPanelWidth(600); try { localStorage.setItem("resultsPanelWidth", "600"); window.dispatchEvent(new CustomEvent("if:panel-width-changed")); } catch {} }}
           title="Glisser pour redimensionner — double-clic pour réinitialiser"
           className="absolute top-0 left-0 h-full w-1.5 -ml-0.5 cursor-ew-resize z-10 hover:bg-teal-400/40 active:bg-teal-500/60 transition-colors"
           data-testid="handle-resize-panel"
