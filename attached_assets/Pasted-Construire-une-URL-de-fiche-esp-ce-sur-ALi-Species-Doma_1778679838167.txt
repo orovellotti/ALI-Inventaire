@@ -1,0 +1,65 @@
+Construire une URL de fiche espèce sur ALi Species
+Domaine de production : https://alispecies.io
+
+Format canonique (recommandé, SEO-friendly)
+https://alispecies.io/taxon/{cd_nom}-{slug}
+
+cd_nom : identifiant entier TAXREF (ex. 61098 pour le bouquetin des Alpes)
+slug : nom scientifique passé par la fonction slugify (ci-dessous)
+Exemples :
+
+https://alispecies.io/taxon/61098-capra-ibex (Capra ibex)
+https://alispecies.io/taxon/3424-pica-pica (Pica pica, la pie)
+Format court (toujours supporté)
+https://alispecies.io/taxon/{cd_nom}
+
+Ex. https://alispecies.io/taxon/61098. Le serveur fait fonctionner les deux : seul le préfixe numérique cd_nom est lu, le suffixe slug est purement cosmétique pour SEO/lisibilité.
+
+Algorithme de slugification
+Identique côté front (artifacts/taxref-explorer/src/lib/constants.ts) :
+
+function slugify(text: string): string {
+  return text
+    .normalize("NFD")                  // décompose les accents
+    .replace(/[\u0300-\u036f]/g, "")   // retire les diacritiques
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")       // tout non-alphanumérique → "-"
+    .replace(/^-+|-+$/g, "");          // trim les "-" en bord
+}
+
+Utilise toujours le nom scientifique (lb_nom ou nom_valide), pas le nom vernaculaire — c'est ce qu'attend la convention.
+
+Utiliser le cd_ref plutôt que le cd_nom
+Si tu as un synonyme, tu peux soit :
+
+linker directement avec son cd_nom (la page redirige proprement),
+soit utiliser cd_ref (le taxon de référence) que tu obtiens via GET /api/taxons/{cdNom} dans la réponse JSON.
+Pour des liens permanents et stables, préfère cd_ref.
+
+URL de partage avec aperçu social riche (LinkedIn / Slack / X)
+Pour les crawlers qui n'exécutent pas de JS, utilise l'endpoint dédié :
+
+https://alispecies.io/share/taxon/{cd_nom}
+
+Il sert un HTML statique avec les balises Open Graph + Twitter Card complètes (titre, description, image OG du taxon) puis fait un meta-refresh vers /taxon/{cd_nom}-{slug} pour l'utilisateur humain. C'est la bonne URL à coller dans un post LinkedIn ou un message Slack.
+
+Image Open Graph d'un taxon
+https://alispecies.io/api/og/taxon/{cd_nom}.png
+
+302 vers la meilleure image Wikimedia disponible (cache 1 h, fallback /og-default.png si absent).
+
+Trouver le cd_nom quand on n'a qu'un nom
+GET https://alispecies.io/api/taxons/search?q={nom}&limit=5
+
+Renvoie une liste triée par pertinence — prends le 1er résultat (de préférence celui avec is_reference: true et rang ES).
+
+Récap pour un agent
+1. Tu as juste un nom → /api/taxons/search?q=… → récupère cd_nom (idéalement cd_ref)
+2. Lien lisible       → /taxon/{cd_nom}-{slugify(lb_nom)}
+3. Lien minimal       → /taxon/{cd_nom}
+4. Lien partage social → /share/taxon/{cd_nom}
+5. Image OG seule     → /api/og/taxon/{cd_nom}.png
+
+Tout ça est stable et CC-BY 4.0, libre d'utilisation.
+
+À noter au passage : le "session plan" T1-T5 que tu m'as renvoyé correspond à des tâches déjà terminées (endpoint /profile, cache externe, taxon_profile_summary, pages /share + /api/og, taxon_search_index) — tout est en prod et documenté dans replit.md. Si tu voulais que je relance un de ces chantiers ou que je travaille sur autre chose, dis-moi.

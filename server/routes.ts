@@ -4,6 +4,7 @@ import { searchGBIF, searchGBIFMultiCircle, fetchSpeciesDetails } from "./gbif";
 import { findSINPPlatforms, SINP_PLATFORMS } from "./sinp";
 import { STUDY_AREAS, PROJECT_PRESETS, TAXON_GROUPS } from "./constants";
 import { analyzePrioritySpecies, reformatReport } from "./llm";
+import { resolveAliUrl } from "./ali";
 import { registerMcpEndpoint } from "./mcp";
 import type { BufferCircle, Occurrence } from "@shared/types";
 
@@ -219,6 +220,13 @@ export async function registerRoutes(
 
   app.get("/api/sinp/all", (_req: Request, res: Response) => {
     res.json({ platforms: SINP_PLATFORMS });
+  });
+
+  app.get("/api/ali/redirect", async (req: Request, res: Response) => {
+    const q = String(req.query.q || "").trim();
+    if (!q) return res.redirect(302, "https://alispecies.io");
+    const url = await resolveAliUrl(q);
+    res.redirect(302, url);
   });
 
   app.get("/api/presets", (_req: Request, res: Response) => {
