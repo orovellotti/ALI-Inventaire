@@ -3,7 +3,8 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { X, Download, FileText, AlertTriangle, Leaf, Info, ChevronDown, ChevronUp, ImageOff, Copy, Check, ExternalLink, BookOpen, Shield, MapPin, Tag, Calendar, Link, Flag, Layers, Filter, Table, Sparkles, Loader2, Share2, Mail } from "lucide-react";
+import { X, Download, FileText, AlertTriangle, Leaf, Info, ChevronDown, ChevronUp, ImageOff, Copy, Check, ExternalLink, BookOpen, Shield, MapPin, Tag, Calendar, Link, Flag, Layers, Filter, Table, Sparkles, Loader2, Share2, Mail, MoreHorizontal, Settings2 } from "lucide-react";
+import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuCheckboxItem } from "@/components/ui/dropdown-menu";
 import { InventoryResult, Occurrence, getIucnLabel, ConfidenceScore, TAXON_GROUPS, getTaxonGroupId, isMarineSpecies } from "@/lib/gbif";
 import { findSINPPlatforms, SINPPlatform } from "@/lib/sinp";
 import { exportCSV, exportExcel } from "@/lib/export";
@@ -333,37 +334,66 @@ ${shareUrl ? `\n🔗 Reproduire cette analyse : ${shareUrl}` : ""}`;
           className="absolute top-0 left-0 h-full w-1.5 -ml-0.5 cursor-ew-resize z-10 hover:bg-teal-400/40 active:bg-teal-500/60 transition-colors"
           data-testid="handle-resize-panel"
         />
-        <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-white/50">
-          <div>
-            <h2 className="text-xl font-bold text-gray-900 tracking-tight">Inventaire Flash</h2>
-            <p className="text-xs text-muted-foreground mt-1 font-mono">
-              {includeINaturalist ? "GBIF + iNAT" : "GBIF"} • {filteredTotal} ESPÈCES{!isAllActive && ` (filtrées)`}
-            </p>
-          </div>
-          <Button variant="ghost" size="icon" onClick={onClose} className="hover:bg-gray-100 rounded-full h-8 w-8">
-            <X className="h-4 w-4" />
-          </Button>
-        </div>
-
-        <ScrollArea className="flex-1 p-6">
-          <div className="space-y-6">
-            <div className="grid grid-cols-2 gap-4">
-              <div className="p-4 bg-teal-50/50 rounded-xl border border-teal-100">
-                <div className="flex items-center gap-2 text-teal-700 mb-1">
-                  <Leaf className="h-4 w-4" />
-                  <span className="text-xs font-bold uppercase">Espèces</span>
-                </div>
-                <span className="text-2xl font-bold text-gray-900">{filteredTotal}</span>
-              </div>
-              <div className="p-4 bg-orange-50/50 rounded-xl border border-orange-100">
-                <div className="flex items-center gap-2 text-orange-700 mb-1">
-                  <AlertTriangle className="h-4 w-4" />
-                  <span className="text-xs font-bold uppercase">Sensibles</span>
-                </div>
-                <span className="text-2xl font-bold text-gray-900">{sortedSpecies.high.length + sortedSpecies.medium.length}</span>
+        <div className="px-5 pt-4 pb-3 border-b border-gray-100 bg-white/50">
+          <div className="flex justify-between items-start gap-2">
+            <div className="min-w-0">
+              <h2 className="text-lg font-bold text-gray-900 tracking-tight truncate">Inventaire Flash</h2>
+              <div className="flex items-center gap-3 mt-1 text-xs">
+                <span className="flex items-center gap-1 text-teal-700 font-semibold">
+                  <Leaf className="h-3.5 w-3.5" />
+                  {filteredTotal} <span className="font-normal text-gray-500">espèces</span>
+                </span>
+                <span className="flex items-center gap-1 text-orange-700 font-semibold">
+                  <AlertTriangle className="h-3.5 w-3.5" />
+                  {sortedSpecies.high.length + sortedSpecies.medium.length} <span className="font-normal text-gray-500">sensibles</span>
+                </span>
+                <span className="text-[10px] uppercase tracking-wider text-gray-400 font-mono">
+                  {includeINaturalist ? "GBIF+iNat" : "GBIF"}
+                </span>
               </div>
             </div>
+            <div className="flex items-center gap-1 shrink-0">
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="ghost" size="icon" className="hover:bg-gray-100 rounded-full h-8 w-8" data-testid="button-panel-settings" title="Sources & options" aria-label="Sources et options">
+                    <Settings2 className="h-4 w-4 text-gray-500" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-56">
+                  <DropdownMenuLabel className="text-xs">Sources de données</DropdownMenuLabel>
+                  {onToggleIncludeINaturalist && (
+                    <DropdownMenuCheckboxItem
+                      checked={!!includeINaturalist}
+                      onCheckedChange={() => onToggleIncludeINaturalist()}
+                      data-testid="checkbox-include-inaturalist"
+                    >
+                      Inclure iNaturalist
+                    </DropdownMenuCheckboxItem>
+                  )}
+                  {onToggleExcludeMarine && marineCount > 0 && (
+                    <>
+                      <DropdownMenuSeparator />
+                      <DropdownMenuLabel className="text-xs">Filtres avancés</DropdownMenuLabel>
+                      <DropdownMenuCheckboxItem
+                        checked={!!excludeMarine}
+                        onCheckedChange={() => onToggleExcludeMarine()}
+                        data-testid="checkbox-exclude-marine"
+                      >
+                        Exclure marines ({marineCount})
+                      </DropdownMenuCheckboxItem>
+                    </>
+                  )}
+                </DropdownMenuContent>
+              </DropdownMenu>
+              <Button variant="ghost" size="icon" onClick={onClose} className="hover:bg-gray-100 rounded-full h-8 w-8" data-testid="button-close-panel" aria-label="Fermer le panneau">
+                <X className="h-4 w-4" />
+              </Button>
+            </div>
+          </div>
+        </div>
 
+        <ScrollArea className="flex-1 px-5 py-4">
+          <div className="space-y-4">
             <div className="rounded-xl border border-gray-200 bg-gray-50/50 overflow-hidden">
               <button
                 type="button"
@@ -397,49 +427,14 @@ ${shareUrl ? `\n🔗 Reproduire cette analyse : ${shareUrl}` : ""}`;
                     className="overflow-hidden"
                   >
                     <div className="px-4 pb-3 space-y-2">
-                      <div className="flex justify-between items-center">
-                        <button
-                          type="button"
-                          onClick={() => onToggleAllTaxonFilters(presentGroups.map(g => g.id))}
-                          className="text-[10px] font-semibold text-teal-600 hover:text-teal-800 transition-colors uppercase tracking-wider"
-                          data-testid="button-toggle-all-taxons"
-                        >
-                          {isAllActive ? "Tout désélectionner" : "Tout sélectionner"}
-                        </button>
-                        <div className="flex items-center gap-3">
-                          {onToggleIncludeINaturalist && (
-                            <label
-                              className="flex items-center gap-1.5 text-[11px] text-gray-700 cursor-pointer select-none"
-                              title="Interroge également l'API iNaturalist (observations validées) en plus de GBIF. La prochaine recherche prendra en compte ce choix."
-                            >
-                              <input
-                                type="checkbox"
-                                checked={!!includeINaturalist}
-                                onChange={onToggleIncludeINaturalist}
-                                className="h-3 w-3 accent-emerald-600 cursor-pointer"
-                                data-testid="checkbox-include-inaturalist"
-                              />
-                              <span>Inclure iNaturalist</span>
-                            </label>
-                          )}
-                          {onToggleExcludeMarine && marineCount > 0 && (
-                            <label
-                              className="flex items-center gap-1.5 text-[11px] text-gray-700 cursor-pointer select-none"
-                              title="Masque les espèces des phyla strictement marins (Cnidaria, Echinodermata, Porifera…) et des classes marines (Chondrichthyes, Cephalopoda…)"
-                            >
-                              <input
-                                type="checkbox"
-                                checked={!!excludeMarine}
-                                onChange={onToggleExcludeMarine}
-                                className="h-3 w-3 accent-teal-600 cursor-pointer"
-                                data-testid="checkbox-exclude-marine"
-                              />
-                              <span>Exclure marines</span>
-                              <span className="text-[10px] text-gray-400">({marineCount})</span>
-                            </label>
-                          )}
-                        </div>
-                      </div>
+                      <button
+                        type="button"
+                        onClick={() => onToggleAllTaxonFilters(presentGroups.map(g => g.id))}
+                        className="text-[10px] font-semibold text-teal-600 hover:text-teal-800 transition-colors uppercase tracking-wider"
+                        data-testid="button-toggle-all-taxons"
+                      >
+                        {isAllActive ? "Tout désélectionner" : "Tout sélectionner"}
+                      </button>
                       <div className="flex flex-wrap gap-1.5">
                         {presentGroups.map(group => {
                           const count = taxonCounts.get(group.id) || 0;
@@ -579,44 +574,47 @@ ${shareUrl ? `\n🔗 Reproduire cette analyse : ${shareUrl}` : ""}`;
 
             <SINPPanel center={results.center} />
 
-            <div className="p-4 bg-gray-50 rounded-xl text-xs text-gray-500 leading-relaxed border border-gray-100 flex gap-3">
-              <Info className="h-4 w-4 shrink-0 mt-0.5 text-gray-400" />
-              <p>
-                Cet inventaire flash repose sur les données GBIF et iNaturalist et les statuts IUCN.
-                Il fournit une indication rapide et ne constitue pas une preuve d'absence ni un inventaire terrain complet.
-              </p>
-            </div>
+            <p className="px-1 text-[11px] text-gray-400 leading-snug flex gap-1.5 items-start">
+              <Info className="h-3 w-3 shrink-0 mt-0.5" />
+              Indication rapide basée sur GBIF, iNaturalist et UICN — ne remplace pas un inventaire terrain.
+            </p>
           </div>
         </ScrollArea>
 
-        <div className="p-6 border-t border-gray-100 bg-white/50 space-y-2">
+        <div className="px-5 py-3 border-t border-gray-100 bg-white/50 flex items-center gap-2">
           <Button
             onClick={() => setShowReportPreview(true)}
-            className="w-full justify-center gap-2 h-12 bg-gradient-to-r from-indigo-600 to-blue-600 hover:from-indigo-700 hover:to-blue-700 text-white text-sm font-semibold shadow-md hover:shadow-lg ring-1 ring-indigo-500/30 transition-all"
+            className="flex-1 justify-center gap-2 h-11 bg-gradient-to-r from-indigo-600 to-blue-600 hover:from-indigo-700 hover:to-blue-700 text-white text-sm font-semibold shadow-md hover:shadow-lg ring-1 ring-indigo-500/30 transition-all"
             data-testid="button-report-text"
           >
-            <FileText className="h-5 w-5" />
+            <FileText className="h-4 w-4" />
             Rapport texte
             {aiAnalysis && (
-              <span className="ml-1 inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded bg-white/20 border border-white/30">
-                <Sparkles className="h-2.5 w-2.5" /> avec IA
+              <span className="ml-0.5 inline-flex items-center gap-0.5 text-[9px] font-bold uppercase tracking-wider px-1 py-0.5 rounded bg-white/20 border border-white/30">
+                <Sparkles className="h-2.5 w-2.5" /> IA
               </span>
             )}
           </Button>
-          <div className="grid grid-cols-3 gap-2">
-            <Button onClick={handleExportExcel} variant="outline" className="w-full justify-center gap-1.5 h-9 border-gray-200 hover:bg-gray-50 text-gray-700 text-xs" data-testid="button-export-excel">
-              <Table className="h-3.5 w-3.5" />
-              Excel
-            </Button>
-            <Button onClick={handleExportCSV} variant="outline" className="w-full justify-center gap-1.5 h-9 border-gray-200 hover:bg-gray-50 text-gray-700 text-xs" data-testid="button-export-csv">
-              <FileText className="h-3.5 w-3.5" />
-              CSV
-            </Button>
-            <Button onClick={handleExportImage} variant="outline" className="w-full justify-center gap-1.5 h-9 border-gray-200 hover:bg-gray-50 text-gray-600 text-xs" data-testid="button-export-image">
-              <Download className="h-3.5 w-3.5" />
-              Carte
-            </Button>
-          </div>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" size="icon" className="h-11 w-11 border-gray-200 hover:bg-gray-50" data-testid="button-more-exports" title="Autres exports" aria-label="Autres exports">
+                <MoreHorizontal className="h-4 w-4 text-gray-600" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-48">
+              <DropdownMenuLabel className="text-xs">Exporter les données</DropdownMenuLabel>
+              <DropdownMenuItem onClick={handleExportExcel} data-testid="button-export-excel" className="gap-2 text-xs">
+                <Table className="h-3.5 w-3.5" /> Excel (.xlsx)
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={handleExportCSV} data-testid="button-export-csv" className="gap-2 text-xs">
+                <FileText className="h-3.5 w-3.5" /> CSV
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={handleExportImage} data-testid="button-export-image" className="gap-2 text-xs">
+                <Download className="h-3.5 w-3.5" /> Image de la carte
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       </motion.div>
 
