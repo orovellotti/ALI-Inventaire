@@ -127,25 +127,25 @@ export async function reformatReport(rawReport: string): Promise<string> {
     messages: [
       {
         role: "system",
-        content: `Tu es un écologue rédacteur de notes de pré-diagnostic environnemental. Tu rédiges en français professionnel, clair, synthétique, dans un ton neutre et factuel adapté à un bureau d'études EIE.`,
+        content: `Tu es un écologue rédacteur de notes de pré-diagnostic écologique. Tu rédiges en français professionnel, clair, synthétique, dans un ton neutre et factuel. Tu ne parles jamais d'« étude d'impact » ou « EIE » : il s'agit uniquement d'un pré-diagnostic rapide.`,
       },
       {
         role: "user",
-        content: `Voici les données brutes d'un inventaire flash issu de GBIF + iNaturalist. Reformule-les en une **note de synthèse partageable** (mail, rapport interne) en français.
+        content: `Voici les données brutes d'un inventaire flash. Reformule-les en une **note de synthèse partageable** (mail, rapport interne) en français.
 
 Structure attendue :
-1. **Contexte** (1 phrase : lieu, date, périmètre, sources)
-2. **Synthèse des enjeux** (2-4 phrases narratives mentionnant les chiffres clés et les espèces les plus marquantes — citer leurs noms vernaculaires français en priorité)
-3. **Espèces à enjeux** : liste à puces concise, regroupée par niveau (Forts / Moyens), max 10 espèces les plus pertinentes par groupe
-4. **Recommandations rapides** : 2-3 points opérationnels (ex : compléter par inventaires terrain ciblés sur tel groupe taxonomique, vérifier auprès du SINP régional, attention aux périodes de reproduction…)
-5. **Limites & sources** (1-2 phrases : indication, pas inventaire terrain ; données GBIF + iNaturalist + UICN)
+1. **Contexte** (1-2 phrases) : lieu, date, coordonnées, et **rappelle explicitement la taille du périmètre analysé** (ex : « rayon de 2 000 m autour du point », ou si plusieurs aires : « 3 cercles concentriques de 500 m, 2 000 m et 6 000 m »). Précise les **sources des occurrences : GBIF (Global Biodiversity Information Facility) et iNaturalist** (observations citoyennes vérifiées, grade « research »).
+2. **Synthèse des enjeux** (2-4 phrases narratives) : chiffres clés et espèces les plus marquantes — citer en priorité les noms vernaculaires français.
+3. **Espèces à enjeux** : liste à puces concise, regroupée par niveau (Forts / Moyens), max 10 espèces par groupe.
+4. **Recommandations rapides** (2-3 points opérationnels). Pour **chaque recommandation, cite le fondement factuel** qui l'a inspirée (ex : « présence de 3 espèces classées VU sur la liste rouge UICN France → … », « 12 espèces d'oiseaux dont 4 inscrites à l'Annexe I de la Directive Oiseaux 2009/147/CE → … », « score de confiance modéré (62/100) lié au faible nombre d'observations récentes → compléter par … », « ZNIEFF déterminantes signalées dans l'analyse IA → vérifier auprès du SINP régional… »). N'invente jamais de référentiel ; appuie-toi uniquement sur ce qui apparaît dans les données brutes.
+5. **Limites & sources** (1-2 phrases) : pré-diagnostic indicatif, **ne remplace pas un inventaire terrain**. Données issues de **GBIF + iNaturalist + UICN** ; statuts réglementaires cités quand l'analyse IA les a explicités.
 
-Règles :
-- Garde le lien Google Maps et le lien de partage tels quels en bas
-- Si une analyse IA est présente dans les données, intègre ses conclusions dans la synthèse
-- N'invente aucune espèce ni statut absent des données
-- Format texte brut, lisible directement dans un mail/chat (pas de Markdown lourd, juste tirets et sauts de ligne)
-- 250-400 mots maximum
+Règles strictes :
+- Garde le lien Google Maps et le lien de partage tels quels en bas.
+- Si une analyse IA est présente dans les données, intègre ses conclusions dans la synthèse ET cite ses sources (référentiels officiels listés dans le bloc « Sources »).
+- N'invente aucune espèce, aucun statut, aucun référentiel absent des données brutes.
+- Format texte brut, lisible directement dans un mail/chat (pas de Markdown lourd, juste tirets et sauts de ligne).
+- 250-400 mots maximum.
 
 Données brutes :
 ─────────
