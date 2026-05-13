@@ -420,13 +420,6 @@ Note: Cet inventaire flash repose sur les données GBIF et iNaturalist et les st
 
             <ConfidencePanel confidence={results.confidence} />
 
-            <PrioritySpeciesInline
-              toponym={toponym || `Point ${results.center[0].toFixed(4)}, ${results.center[1].toFixed(4)}`}
-              coords={results.center}
-              occurrences={allFilteredSpecies}
-              onAnalysisChange={setAiAnalysis}
-            />
-
             <div>
               <div className="flex items-center gap-2 mb-3">
                 <div className="w-3 h-3 rounded-full bg-red-500"></div>
@@ -524,6 +517,13 @@ Note: Cet inventaire flash repose sur les données GBIF et iNaturalist et les st
               )}
             </div>
 
+            <PrioritySpeciesInline
+              toponym={toponym || `Point ${results.center[0].toFixed(4)}, ${results.center[1].toFixed(4)}`}
+              coords={results.center}
+              occurrences={allFilteredSpecies}
+              onAnalysisChange={setAiAnalysis}
+            />
+
             <SINPPanel center={results.center} />
 
             <div className="p-4 bg-gray-50 rounded-xl text-xs text-gray-500 leading-relaxed border border-gray-100 flex gap-3">
@@ -537,24 +537,31 @@ Note: Cet inventaire flash repose sur les données GBIF et iNaturalist et les st
         </ScrollArea>
 
         <div className="p-6 border-t border-gray-100 bg-white/50 space-y-2">
-          <div className="grid grid-cols-2 gap-2">
-            <Button onClick={handleExportExcel} className="w-full justify-start gap-2 h-10 bg-emerald-700 hover:bg-emerald-800 text-white text-xs" data-testid="button-export-excel">
-              <Table className="h-4 w-4" />
-              Export Excel
+          <Button
+            onClick={() => setShowReportPreview(true)}
+            className="w-full justify-center gap-2 h-12 bg-gradient-to-r from-indigo-600 to-blue-600 hover:from-indigo-700 hover:to-blue-700 text-white text-sm font-semibold shadow-md hover:shadow-lg ring-1 ring-indigo-500/30 transition-all"
+            data-testid="button-report-text"
+          >
+            <FileText className="h-5 w-5" />
+            Rapport texte
+            {aiAnalysis && (
+              <span className="ml-1 inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded bg-white/20 border border-white/30">
+                <Sparkles className="h-2.5 w-2.5" /> avec IA
+              </span>
+            )}
+          </Button>
+          <div className="grid grid-cols-3 gap-2">
+            <Button onClick={handleExportExcel} variant="outline" className="w-full justify-center gap-1.5 h-9 border-gray-200 hover:bg-gray-50 text-gray-700 text-xs" data-testid="button-export-excel">
+              <Table className="h-3.5 w-3.5" />
+              Excel
             </Button>
-            <Button onClick={handleExportCSV} variant="outline" className="w-full justify-start gap-2 h-10 border-gray-200 hover:bg-gray-50 text-gray-700 text-xs" data-testid="button-export-csv">
-              <FileText className="h-4 w-4" />
-              Export CSV
+            <Button onClick={handleExportCSV} variant="outline" className="w-full justify-center gap-1.5 h-9 border-gray-200 hover:bg-gray-50 text-gray-700 text-xs" data-testid="button-export-csv">
+              <FileText className="h-3.5 w-3.5" />
+              CSV
             </Button>
-          </div>
-          <div className="grid grid-cols-2 gap-2">
-            <Button onClick={() => setShowReportPreview(true)} variant="outline" className="w-full justify-start gap-2 h-10 border-gray-200 hover:bg-gray-50 hover:text-gray-900 text-gray-600 text-xs" data-testid="button-report-text">
-              <FileText className="h-4 w-4" />
-              Rapport texte{aiAnalysis ? " ✨" : ""}
-            </Button>
-            <Button onClick={handleExportImage} variant="outline" className="w-full justify-start gap-2 h-10 border-gray-200 hover:bg-gray-50 text-gray-600 text-xs" data-testid="button-export-image">
-              <Download className="h-4 w-4" />
-              Carte JPG
+            <Button onClick={handleExportImage} variant="outline" className="w-full justify-center gap-1.5 h-9 border-gray-200 hover:bg-gray-50 text-gray-600 text-xs" data-testid="button-export-image">
+              <Download className="h-3.5 w-3.5" />
+              Carte
             </Button>
           </div>
         </div>
