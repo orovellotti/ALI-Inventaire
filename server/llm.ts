@@ -13,6 +13,8 @@ export interface PrioritySpecies {
   icon: string;
   reason: string;
   level: "majeur" | "fort" | "modéré";
+  sources: string[];
+  inInventory: boolean;
 }
 
 export interface PrioritySpeciesAnalysis {
@@ -69,13 +71,17 @@ Réponds en JSON strict :
       "vernacularName": "...",
       "group": "Oiseaux|Mammifères|Reptiles|Amphibiens|Insectes|Plantes|...",
       "icon": "🦅",
-      "reason": "1 phrase : statut UICN + protection + raison de l'enjeu local",
-      "level": "majeur|fort|modéré"
+      "reason": "1 phrase factuelle citant les référentiels (UICN France, Arrêté du 29 oct. 2009, Directive Oiseaux Annexe I, Directive Habitats Annexe II/IV, ZNIEFF déterminante…)",
+      "level": "majeur|fort|modéré",
+      "sources": ["UICN France 2016", "Arrêté du 29 oct. 2009", "Directive Oiseaux 2009/147/CE Annexe I"]
     }
   ]
 }
 
-Exactement 5 espèces, triées par enjeu décroissant.`;
+Règles :
+- Exactement 5 espèces, triées par enjeu décroissant.
+- "sources" = liste courte (1 à 4) des référentiels cités dans "reason" (ex : "UICN France", "UICN Monde", "Arrêté du 29 oct. 2009", "Arrêté du 23 avr. 2007", "Directive Oiseaux Annexe I", "Directive Habitats Annexe II", "ZNIEFF déterminante", "Liste rouge régionale").
+- N'invente jamais de source, n'utilise que les référentiels officiels français/européens.`;
 
   const completion = await openai.chat.completions.create({
     model: "gpt-4o-mini",
@@ -91,15 +97,21 @@ Exactement 5 espèces, triées par enjeu décroissant.`;
   if (!content) throw new Error("Réponse LLM vide");
 
   const parsed = JSON.parse(content);
+  const inventoryNames = new Set(unique.map((u) => u.scientificName));
   const species: PrioritySpecies[] = Array.isArray(parsed.species)
-    ? parsed.species.slice(0, 5).map((s: any) => ({
-        scientificName: String(s.scientificName || ""),
-        vernacularName: s.vernacularName ? String(s.vernacularName) : undefined,
-        group: String(s.group || "Autres"),
-        icon: String(s.icon || "🌿"),
-        reason: String(s.reason || ""),
-        level: ["majeur", "fort", "modéré"].includes(s.level) ? s.level : "modéré",
-      }))
+    ? parsed.species.slice(0, 5).map((s: any) => {
+        const scientificName = String(s.scientificName || "");
+        return {
+          scientificName,
+          vernacularName: s.vernacularName ? String(s.vernacularName) : undefined,
+          group: String(s.group || "Autres"),
+          icon: String(s.icon || "🌿"),
+          reason: String(s.reason || ""),
+          level: ["majeur", "fort", "modéré"].includes(s.level) ? s.level : "modéré",
+          sources: Array.isArray(s.sources) ? s.sources.map(String).slice(0, 5) : [],
+          inInventory: inventoryNames.has(scientificName),
+        };
+      })
     : [];
 
   return {

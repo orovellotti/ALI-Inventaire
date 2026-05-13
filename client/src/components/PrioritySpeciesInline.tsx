@@ -1,4 +1,4 @@
-import { Sparkles, AlertTriangle, AlertCircle, Info, Loader2, RefreshCw } from "lucide-react";
+import { Sparkles, AlertTriangle, AlertCircle, Info, Loader2, RefreshCw, ExternalLink, BookOpen } from "lucide-react";
 import { useMemo, useRef, useState } from "react";
 import type { Occurrence } from "@/lib/gbif";
 
@@ -15,6 +15,8 @@ interface PrioritySpecies {
   icon: string;
   reason: string;
   level: "majeur" | "fort" | "modéré";
+  sources?: string[];
+  inInventory?: boolean;
 }
 
 interface Analysis {
@@ -180,6 +182,51 @@ export function PrioritySpeciesInline({ toponym, coords, occurrences }: Props) {
                         )}
                       </div>
                       <p className="text-[11px] text-gray-600 mt-1 leading-relaxed">{sp.reason}</p>
+                      {sp.sources && sp.sources.length > 0 && (
+                        <div className="mt-1.5 flex flex-wrap gap-1">
+                          {sp.sources.map((src, j) => (
+                            <span
+                              key={j}
+                              className="inline-flex items-center gap-1 text-[9px] px-1.5 py-0.5 rounded bg-gray-100 text-gray-600 border border-gray-200"
+                              title="Référentiel cité par l'IA"
+                            >
+                              <BookOpen className="h-2 w-2" />
+                              {src}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                      <div className="mt-1.5 flex flex-wrap gap-2 text-[10px]">
+                        <a
+                          href={`https://inpn.mnhn.fr/espece/cd_nom/0?lr=fr&q=${encodeURIComponent(sp.scientificName)}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-0.5 text-teal-700 hover:underline"
+                        >
+                          INPN <ExternalLink className="h-2.5 w-2.5" />
+                        </a>
+                        <a
+                          href={`https://www.gbif.org/species/search?q=${encodeURIComponent(sp.scientificName)}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-0.5 text-teal-700 hover:underline"
+                        >
+                          GBIF <ExternalLink className="h-2.5 w-2.5" />
+                        </a>
+                        <a
+                          href={`https://www.inaturalist.org/search?q=${encodeURIComponent(sp.scientificName)}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-0.5 text-teal-700 hover:underline"
+                        >
+                          iNat <ExternalLink className="h-2.5 w-2.5" />
+                        </a>
+                        {sp.inInventory === false && (
+                          <span className="text-[9px] text-amber-700 bg-amber-50 px-1.5 py-0.5 rounded border border-amber-200">
+                            hors inventaire (suggestion IA)
+                          </span>
+                        )}
+                      </div>
                     </div>
                     <span className={`inline-flex items-center gap-1 text-[9px] px-1.5 py-0.5 rounded-full border shrink-0 ${style.color}`}>
                       <StyleIcon className="h-2.5 w-2.5" />
@@ -190,8 +237,19 @@ export function PrioritySpeciesInline({ toponym, coords, occurrences }: Props) {
               );
             })
           )}
-          <div className="text-[9px] text-gray-400 text-right">
-            Généré le {new Date(analysis.generatedAt).toLocaleString("fr-FR")}
+          <div className="mt-2 pt-2 border-t border-teal-100 text-[10px] text-gray-500 space-y-1">
+            <div className="font-semibold text-gray-600">Référentiels mobilisables :</div>
+            <div className="flex flex-wrap gap-x-3 gap-y-0.5">
+              <a href="https://uicn.fr/listes-rouges-france/" target="_blank" rel="noopener noreferrer" className="hover:text-teal-700 hover:underline">UICN France</a>
+              <a href="https://www.iucnredlist.org/" target="_blank" rel="noopener noreferrer" className="hover:text-teal-700 hover:underline">UICN Monde</a>
+              <a href="https://www.legifrance.gouv.fr/loda/id/JORFTEXT000021384277/" target="_blank" rel="noopener noreferrer" className="hover:text-teal-700 hover:underline">Arrêté 29 oct. 2009 (oiseaux)</a>
+              <a href="https://eur-lex.europa.eu/legal-content/FR/TXT/?uri=CELEX:32009L0147" target="_blank" rel="noopener noreferrer" className="hover:text-teal-700 hover:underline">Directive Oiseaux</a>
+              <a href="https://eur-lex.europa.eu/legal-content/FR/TXT/?uri=CELEX:31992L0043" target="_blank" rel="noopener noreferrer" className="hover:text-teal-700 hover:underline">Directive Habitats</a>
+              <a href="https://inpn.mnhn.fr/programme/inventaire-znieff/presentation" target="_blank" rel="noopener noreferrer" className="hover:text-teal-700 hover:underline">ZNIEFF (INPN)</a>
+            </div>
+            <div className="text-right text-[9px] text-gray-400 pt-1">
+              Généré le {new Date(analysis.generatedAt).toLocaleString("fr-FR")} · gpt-4o-mini
+            </div>
           </div>
         </div>
       )}
