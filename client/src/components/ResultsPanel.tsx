@@ -695,31 +695,7 @@ function SpeciesCard({ occ, isSelected, onSelect }: { occ: Occurrence; isSelecte
   const [imageError, setImageError] = useState(false);
   const gbifUrl = occ.taxonKey ? `https://www.gbif.org/species/${occ.taxonKey}` : null;
   const wikiUrl = `https://fr.wikipedia.org/wiki/${encodeURIComponent(occ.scientificName.split(' ').slice(0, 2).join('_'))}`;
-  const [aliResolving, setAliResolving] = useState(false);
-  const aliCacheRef = useRef<string | null>(null);
-  const aliFallback = `https://alispecies.io/?q=${encodeURIComponent(occ.scientificName.split(' ').slice(0, 2).join(' '))}`;
-
-  const handleAliClick = async (e: React.MouseEvent) => {
-    e.stopPropagation();
-    e.preventDefault();
-    if (aliCacheRef.current) {
-      window.open(aliCacheRef.current, "_blank", "noopener,noreferrer");
-      return;
-    }
-    setAliResolving(true);
-    try {
-      const name = occ.scientificName.split(' ').slice(0, 2).join(' ');
-      const r = await fetch(`/api/ali/resolve?name=${encodeURIComponent(name)}`);
-      const data = await r.json();
-      const url = data.found ? data.url : aliFallback;
-      aliCacheRef.current = url;
-      window.open(url, "_blank", "noopener,noreferrer");
-    } catch {
-      window.open(aliFallback, "_blank", "noopener,noreferrer");
-    } finally {
-      setAliResolving(false);
-    }
-  };
+  const aliUrl = `https://alispecies.io/?q=${encodeURIComponent(occ.scientificName.split(' ').slice(0, 2).join(' '))}`;
   const inatUrl = `https://www.inaturalist.org/search?q=${encodeURIComponent(occ.scientificName.split(' ').slice(0, 2).join(' '))}&source%5B%5D=taxa`;
   const taxonGroup = TAXON_GROUPS.find(g => g.id === getTaxonGroupId(occ));
 
@@ -749,17 +725,18 @@ function SpeciesCard({ occ, isSelected, onSelect }: { occ: Occurrence; isSelecte
         <div className="flex items-center gap-2">
           <span className="font-medium text-sm text-gray-900 truncate">{occ.scientificName}</span>
           <div className="flex items-center gap-1.5 flex-shrink-0">
-            <button
-              type="button"
-              onClick={handleAliClick}
-              disabled={aliResolving}
-              className="flex items-center gap-1 text-xs font-semibold px-2.5 py-1 rounded-md bg-gradient-to-r from-violet-600 to-fuchsia-600 text-white shadow-sm hover:shadow-md hover:from-violet-700 hover:to-fuchsia-700 transition-all disabled:opacity-60 ring-1 ring-violet-500/30"
-              title="Fiche ALI Species (référentiel français — recommandé)"
+            <a
+              href={aliUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={(e) => e.stopPropagation()}
+              className="flex items-center gap-1 text-xs font-semibold px-2.5 py-1 rounded-md bg-gradient-to-r from-violet-600 to-fuchsia-600 text-white shadow-sm hover:shadow-md hover:from-violet-700 hover:to-fuchsia-700 transition-all ring-1 ring-violet-500/30"
+              title="Rechercher sur ALI Species (référentiel français)"
               data-testid={`link-ali-${occ.scientificName}`}
             >
-              {aliResolving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
+              <Sparkles className="h-3.5 w-3.5" />
               <span>Plus d'infos</span>
-            </button>
+            </a>
             <a
               href={wikiUrl}
               target="_blank"
