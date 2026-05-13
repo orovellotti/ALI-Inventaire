@@ -32,6 +32,7 @@ export function ResultsPanel({ isOpen, onClose, results, selectedSpecies, onSele
   const [showReportPreview, setShowReportPreview] = useState(false);
   const [copied, setCopied] = useState(false);
   const [showFilters, setShowFilters] = useState(true);
+  const [aiAnalysis, setAiAnalysis] = useState<{ species: { scientificName: string; vernacularName?: string; group: string; level: string; reason: string; sources?: string[]; inInventory?: boolean }[]; generatedAt: string } | null>(null);
   const [panelWidth, setPanelWidth] = useState<number>(() => {
     if (typeof window === "undefined") return 600;
     const saved = Number(localStorage.getItem("resultsPanelWidth"));
@@ -238,9 +239,21 @@ ${mediumList}
 
 ENJEUX FAIBLES (${lowCount} espèces)
 ${lowList}
+${aiAnalysis && aiAnalysis.species.length > 0 ? `
 
+═══════════════════════════════════════
+ANALYSE IA — TOP 5 ESPÈCES À ENJEUX
+(générée le ${new Date(aiAnalysis.generatedAt).toLocaleString("fr-FR")} • gpt-4o-mini)
+═══════════════════════════════════════
+${aiAnalysis.species.map((sp, i) => `
+${i + 1}. ${sp.scientificName}${sp.vernacularName ? ` (${sp.vernacularName})` : ""} — ${sp.group} — Niveau : ${sp.level}${sp.inInventory === false ? " [hors inventaire — suggestion IA]" : ""}
+   ${sp.reason}${sp.sources && sp.sources.length > 0 ? `
+   Sources : ${sp.sources.join(" • ")}` : ""}`).join("\n")}
+
+⚠ Synthèse experte produite par IA — à valider par un écologue.
+` : ""}
 Note: Cet inventaire flash repose sur les données GBIF et iNaturalist et les statuts IUCN. Il fournit une indication rapide et ne constitue pas une preuve d'absence ni un inventaire terrain complet.`;
-  }, [results, sortedSpecies, activeTaxonFilters, presentGroups, isAllActive]);
+  }, [results, sortedSpecies, activeTaxonFilters, presentGroups, isAllActive, aiAnalysis]);
 
   const handleCopyReport = () => {
     navigator.clipboard.writeText(reportText);
@@ -407,6 +420,13 @@ Note: Cet inventaire flash repose sur les données GBIF et iNaturalist et les st
 
             <ConfidencePanel confidence={results.confidence} />
 
+            <PrioritySpeciesInline
+              toponym={toponym || `Point ${results.center[0].toFixed(4)}, ${results.center[1].toFixed(4)}`}
+              coords={results.center}
+              occurrences={allFilteredSpecies}
+              onAnalysisChange={setAiAnalysis}
+            />
+
             <div>
               <div className="flex items-center gap-2 mb-3">
                 <div className="w-3 h-3 rounded-full bg-red-500"></div>
@@ -504,12 +524,6 @@ Note: Cet inventaire flash repose sur les données GBIF et iNaturalist et les st
               )}
             </div>
 
-            <PrioritySpeciesInline
-              toponym={toponym || `Point ${results.center[0].toFixed(4)}, ${results.center[1].toFixed(4)}`}
-              coords={results.center}
-              occurrences={allFilteredSpecies}
-            />
-
             <SINPPanel center={results.center} />
 
             <div className="p-4 bg-gray-50 rounded-xl text-xs text-gray-500 leading-relaxed border border-gray-100 flex gap-3">
@@ -536,7 +550,7 @@ Note: Cet inventaire flash repose sur les données GBIF et iNaturalist et les st
           <div className="grid grid-cols-2 gap-2">
             <Button onClick={() => setShowReportPreview(true)} variant="outline" className="w-full justify-start gap-2 h-10 border-gray-200 hover:bg-gray-50 hover:text-gray-900 text-gray-600 text-xs" data-testid="button-report-text">
               <FileText className="h-4 w-4" />
-              Rapport texte
+              Rapport texte{aiAnalysis ? " ✨" : ""}
             </Button>
             <Button onClick={handleExportImage} variant="outline" className="w-full justify-start gap-2 h-10 border-gray-200 hover:bg-gray-50 text-gray-600 text-xs" data-testid="button-export-image">
               <Download className="h-4 w-4" />

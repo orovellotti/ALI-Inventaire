@@ -6,6 +6,7 @@ interface Props {
   toponym: string;
   coords: [number, number];
   occurrences: Occurrence[];
+  onAnalysisChange?: (a: Analysis | null) => void;
 }
 
 interface PrioritySpecies {
@@ -31,7 +32,7 @@ const LEVEL_STYLE: Record<string, { color: string; icon: typeof AlertTriangle }>
   modéré: { color: "text-amber-700 bg-amber-50 border-amber-200", icon: Info },
 };
 
-export function PrioritySpeciesInline({ toponym, coords, occurrences }: Props) {
+export function PrioritySpeciesInline({ toponym, coords, occurrences, onAnalysisChange }: Props) {
   const [analysis, setAnalysis] = useState<Analysis | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -88,6 +89,7 @@ export function PrioritySpeciesInline({ toponym, coords, occurrences }: Props) {
       .then((data: Analysis) => {
         if (myId !== requestIdRef.current) return;
         setAnalysis(data);
+        onAnalysisChange?.(data);
       })
       .catch((e) => {
         if (myId !== requestIdRef.current) return;
@@ -100,38 +102,45 @@ export function PrioritySpeciesInline({ toponym, coords, occurrences }: Props) {
 
 
   return (
-    <div className="rounded-xl border border-teal-200 bg-gradient-to-br from-teal-50/60 to-emerald-50/40 p-4 space-y-3" data-testid="priority-species-inline">
-      <div className="flex items-center justify-between gap-2">
-        <div className="flex items-center gap-2 min-w-0">
-          <div className="bg-teal-600 p-1.5 rounded-lg shrink-0">
-            <Sparkles className="h-4 w-4 text-white" />
+    <div className="rounded-xl border-2 border-teal-300 bg-gradient-to-br from-teal-50 via-emerald-50/70 to-teal-50/40 p-4 space-y-3 shadow-md ring-1 ring-teal-200/50" data-testid="priority-species-inline">
+      <div className="flex items-center justify-between gap-3">
+        <div className="flex items-center gap-2.5 min-w-0">
+          <div className="bg-gradient-to-br from-teal-500 to-emerald-600 p-2 rounded-lg shrink-0 shadow-sm">
+            <Sparkles className="h-5 w-5 text-white" />
           </div>
           <div className="min-w-0">
-            <div className="text-sm font-semibold text-gray-900 truncate">Top 5 — espèces à enjeux (IA)</div>
-            <div className="text-[11px] text-amber-700">Production IA — à valider par un écologue</div>
+            <div className="text-base font-bold text-gray-900 truncate">Analyse IA — Espèces à enjeux</div>
+            <div className="text-[11px] text-amber-700">Synthèse experte automatique • à valider par un écologue</div>
           </div>
         </div>
-        <button
-          type="button"
-          onClick={() => runAnalysis(true)}
-          disabled={loading || slim.length === 0}
-          className="text-[11px] flex items-center gap-1 px-2.5 py-1.5 rounded-md bg-teal-600 hover:bg-teal-700 text-white disabled:opacity-50 shrink-0"
-          data-testid="button-run-priority"
-          title={analysis ? "Relancer l'analyse" : "Lancer l'analyse IA"}
-        >
-          {loading ? (
-            <Loader2 className="h-3 w-3 animate-spin" />
-          ) : (
-            <RefreshCw className="h-3 w-3" />
-          )}
-          {analysis ? "Relancer" : "Lancer l'analyse"}
-        </button>
+        {analysis && (
+          <button
+            type="button"
+            onClick={() => runAnalysis(true)}
+            disabled={loading || slim.length === 0}
+            className="text-xs flex items-center gap-1 px-2.5 py-1.5 rounded-md bg-white hover:bg-gray-50 text-teal-700 border border-teal-200 disabled:opacity-50 shrink-0"
+            data-testid="button-run-priority"
+            title="Relancer l'analyse"
+          >
+            {loading ? <Loader2 className="h-3 w-3 animate-spin" /> : <RefreshCw className="h-3 w-3" />}
+            Relancer
+          </button>
+        )}
       </div>
 
       {!analysis && !loading && !error && (
-        <div className="text-xs text-gray-600 bg-white/60 border border-dashed border-teal-200 rounded-lg p-3">
-          Cliquez sur <span className="font-medium">Lancer l'analyse</span> pour identifier les espèces à enjeux par IA (consomme des crédits ; ~10-30 s).
-        </div>
+        <button
+          type="button"
+          onClick={() => runAnalysis(true)}
+          disabled={slim.length === 0}
+          data-testid="button-run-priority"
+          className="w-full group relative flex items-center justify-center gap-2 px-4 py-3 rounded-lg bg-gradient-to-r from-teal-600 to-emerald-600 text-white font-semibold text-sm shadow-md hover:shadow-lg hover:from-teal-700 hover:to-emerald-700 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          <span className="absolute inset-0 rounded-lg bg-white/30 opacity-0 group-hover:opacity-100 animate-pulse pointer-events-none" />
+          <Sparkles className="h-4 w-4" />
+          Lancer l'analyse IA des espèces à enjeux
+          <span className="text-[10px] opacity-80 ml-1">(~5 s)</span>
+        </button>
       )}
 
       {loading && (
