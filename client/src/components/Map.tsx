@@ -65,14 +65,14 @@ const BASE_LAYERS: Record<BaseLayer, {
     url: `${IGN_WMTS}&FORMAT=image/png&LAYER=GEOGRAPHICALGRIDSYSTEMS.PLANIGNV2&TILEMATRIX={z}&TILEROW={y}&TILECOL={x}`,
     attribution: '&copy; <a href="https://geoservices.ign.fr/">IGN</a> Plan IGN v2',
     maxZoom: 19,
-    label: "Plan IGN",
+    label: "Carte IGN",
     category: "clair",
   },
   carto: {
     url: "https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png",
     attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a> &copy; <a href="https://carto.com/attributions">CARTO</a>',
     maxZoom: 19,
-    label: "CARTO clair",
+    label: "Carte épurée (claire)",
     category: "clair",
   },
   osm: {
@@ -86,21 +86,21 @@ const BASE_LAYERS: Record<BaseLayer, {
     url: "https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png",
     attribution: 'Map data: &copy; <a href="https://www.openstreetmap.org/copyright">OSM</a> contributors, SRTM | Map style: &copy; <a href="https://opentopomap.org">OpenTopoMap</a> (CC-BY-SA)',
     maxZoom: 17,
-    label: "OpenTopoMap",
+    label: "Carte topographique (reliefs)",
     category: "nature",
   },
   ignortho: {
     url: `${IGN_WMTS}&FORMAT=image/jpeg&LAYER=ORTHOIMAGERY.ORTHOPHOTOS&TILEMATRIX={z}&TILEROW={y}&TILECOL={x}`,
     attribution: '&copy; <a href="https://geoservices.ign.fr/">IGN</a> Orthophotographies',
     maxZoom: 21,
-    label: "Ortho IGN",
+    label: "Photo aérienne IGN (France)",
     category: "satellite",
   },
   satellite: {
     url: "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
     attribution: 'Tiles &copy; Esri &mdash; Source: Esri, Maxar, Earthstar Geographics, USDA, USGS, AeroGRID, IGN, and the GIS User Community',
     maxZoom: 19,
-    label: "Esri World Imagery",
+    label: "Vue satellite (monde)",
     category: "satellite",
   },
 };
@@ -123,7 +123,7 @@ const OVERLAYS: Record<OverlayId, {
     url: IGN_WMS_V,
     layers: "Patrinat_SIC_France",
     label: "Natura 2000 — Sites d'intérêt communautaire (Habitats, ZSC/SIC)",
-    shortLabel: "Natura 2000 (Habitats)",
+    shortLabel: "Natura 2000 — habitats",
     attribution: "MNHN / Patrinat — IGN Géoplateforme",
     color: "#16a34a",
     group: "Espaces protégés",
@@ -132,7 +132,7 @@ const OVERLAYS: Record<OverlayId, {
     url: IGN_WMS_V,
     layers: "Patrinat_ZPS_France",
     label: "Natura 2000 — Zones de protection spéciale (Oiseaux)",
-    shortLabel: "Natura 2000 (Oiseaux)",
+    shortLabel: "Natura 2000 — oiseaux",
     attribution: "MNHN / Patrinat — IGN Géoplateforme",
     color: "#0ea5e9",
     group: "Espaces protégés",
@@ -141,7 +141,7 @@ const OVERLAYS: Record<OverlayId, {
     url: IGN_WMS_V,
     layers: "Patrinat_ZNIEFF1_France",
     label: "ZNIEFF type I (zones de fort intérêt biologique)",
-    shortLabel: "ZNIEFF I",
+    shortLabel: "Zones d'intérêt fort (ZNIEFF I)",
     attribution: "MNHN / Patrinat — IGN Géoplateforme",
     color: "#f59e0b",
     group: "Espaces protégés",
@@ -150,7 +150,7 @@ const OVERLAYS: Record<OverlayId, {
     url: IGN_WMS_V,
     layers: "Patrinat_ZNIEFF2_France",
     label: "ZNIEFF type II (grands ensembles naturels)",
-    shortLabel: "ZNIEFF II",
+    shortLabel: "Grands ensembles naturels (ZNIEFF II)",
     attribution: "MNHN / Patrinat — IGN Géoplateforme",
     color: "#fbbf24",
     group: "Espaces protégés",
@@ -159,7 +159,7 @@ const OVERLAYS: Record<OverlayId, {
     url: IGN_WMS_V,
     layers: "BDTOPO-GEOPO-HYDROGRAPHIE_WLD_WGS84G",
     label: "Hydrographie BD TOPO (cours d'eau, plans d'eau)",
-    shortLabel: "Hydrographie",
+    shortLabel: "Cours d'eau et plans d'eau",
     attribution: "IGN — BD TOPO Hydrographie",
     color: "#06b6d4",
     group: "Eau",
@@ -168,7 +168,7 @@ const OVERLAYS: Record<OverlayId, {
     url: IGN_WMS_R,
     layers: "LANDCOVER.CLC18",
     label: "Corine Land Cover 2018 (occupation du sol)",
-    shortLabel: "Corine Land Cover",
+    shortLabel: "Occupation du sol (2018)",
     attribution: "Copernicus — IGN Géoplateforme",
     color: "#a855f7",
     group: "Habitats / Sol",
@@ -338,7 +338,7 @@ export function Map({ center, circles, results, onMapClick, selectedSpecies, act
         {layerPanelOpen && (
           <div className="mt-1 w-72 bg-white/98 backdrop-blur rounded-lg shadow-xl border border-gray-200 overflow-hidden">
             <div className="px-3 pt-2.5 pb-1.5 border-b border-gray-100">
-              <p className="text-[10px] font-bold uppercase tracking-wider text-gray-500">Fond de carte</p>
+              <p className="text-[10px] font-bold uppercase tracking-wider text-gray-500">Choisir une carte de fond</p>
             </div>
             <div className="px-2 py-1.5 max-h-72 overflow-y-auto">
               {(["clair", "nature", "satellite"] as const).map(cat => {
@@ -349,7 +349,7 @@ export function Map({ center, circles, results, onMapClick, selectedSpecies, act
                   <div key={cat} className="mb-1">
                     <div className="flex items-center gap-1.5 px-2 py-1 text-[10px] font-semibold text-gray-400 uppercase tracking-wider">
                       <Icon className="h-3 w-3" />
-                      {cat === "clair" ? "Plan / clair" : cat === "nature" ? "Nature / topo" : "Satellite / aérien"}
+                      {cat === "clair" ? "Cartes lisibles" : cat === "nature" ? "Reliefs et nature" : "Photos et satellite"}
                     </div>
                     {layers.map(([id, l]) => (
                       <button
@@ -370,10 +370,11 @@ export function Map({ center, circles, results, onMapClick, selectedSpecies, act
               })}
             </div>
             <div className="px-3 pt-2.5 pb-1.5 border-t border-gray-100 bg-gray-50/50">
-              <p className="text-[10px] font-bold uppercase tracking-wider text-gray-500">Couches écologiques</p>
+              <p className="text-[10px] font-bold uppercase tracking-wider text-gray-500">Afficher des zones nature</p>
             </div>
             <div className="px-2 py-1.5 max-h-64 overflow-y-auto bg-gray-50/30">
               {(["Espaces protégés", "Eau", "Habitats / Sol"] as const).map(group => {
+                const groupLabel = group === "Espaces protégés" ? "Zones protégées" : group === "Eau" ? "Eau et rivières" : "Occupation du sol";
                 const items = (Object.entries(OVERLAYS) as [OverlayId, typeof OVERLAYS[OverlayId]][])
                   .filter(([, o]) => o.group === group);
                 const Icon = group === "Espaces protégés" ? Trees : group === "Eau" ? Droplets : Building2;
@@ -381,7 +382,7 @@ export function Map({ center, circles, results, onMapClick, selectedSpecies, act
                   <div key={group} className="mb-1">
                     <div className="flex items-center gap-1.5 px-2 py-1 text-[10px] font-semibold text-gray-400 uppercase tracking-wider">
                       <Icon className="h-3 w-3" />
-                      {group}
+                      {groupLabel}
                     </div>
                     {items.map(([id, ov]) => {
                       const isActive = activeOverlays.has(id);
