@@ -632,52 +632,49 @@ function SpeciesCard({ occ, isSelected, onSelect }: { occ: Occurrence; isSelecte
         <div className="flex items-center gap-2">
           <span className="font-medium text-sm text-gray-900 truncate">{occ.scientificName}</span>
           <div className="flex items-center gap-1.5 flex-shrink-0">
-            <a 
-              href={wikiUrl} 
-              target="_blank" 
-              rel="noopener noreferrer"
-              className="flex items-center gap-1 text-xs px-1.5 py-0.5 rounded bg-blue-100 text-blue-700 hover:bg-blue-200 transition-colors"
-              title="Voir sur Wikipédia"
-              onClick={(e) => e.stopPropagation()}
-            >
-              <BookOpen className="h-3.5 w-3.5" />
-              <span>Wiki</span>
-            </a>
-            {gbifUrl && (
-              <a 
-                href={gbifUrl} 
-                target="_blank" 
-                rel="noopener noreferrer"
-                className="flex items-center gap-1 text-xs px-1.5 py-0.5 rounded bg-teal-100 text-teal-700 hover:bg-teal-200 transition-colors"
-                title="Voir sur GBIF"
-                onClick={(e) => e.stopPropagation()}
-              >
-                <ExternalLink className="h-3.5 w-3.5" />
-                <span>GBIF</span>
-              </a>
-            )}
             <button
               type="button"
               onClick={handleAliClick}
               disabled={aliResolving}
-              className="flex items-center gap-1 text-xs px-1.5 py-0.5 rounded bg-violet-100 text-violet-700 hover:bg-violet-200 transition-colors disabled:opacity-60"
-              title="Voir sur ALI Species"
+              className="flex items-center gap-1 text-xs font-semibold px-2.5 py-1 rounded-md bg-gradient-to-r from-violet-600 to-fuchsia-600 text-white shadow-sm hover:shadow-md hover:from-violet-700 hover:to-fuchsia-700 transition-all disabled:opacity-60 ring-1 ring-violet-500/30"
+              title="Fiche ALI Species (référentiel français — recommandé)"
               data-testid={`link-ali-${occ.scientificName}`}
             >
               {aliResolving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
               <span>ALI</span>
             </button>
             <a
+              href={wikiUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center justify-center text-xs w-6 h-6 rounded text-gray-500 hover:bg-gray-100 hover:text-gray-700 transition-colors"
+              title="Voir sur Wikipédia"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <BookOpen className="h-3.5 w-3.5" />
+            </a>
+            {gbifUrl && (
+              <a
+                href={gbifUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center justify-center text-xs w-6 h-6 rounded text-gray-500 hover:bg-gray-100 hover:text-gray-700 transition-colors"
+                title="Voir sur GBIF"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <ExternalLink className="h-3.5 w-3.5" />
+              </a>
+            )}
+            <a
               href={inatUrl}
               target="_blank"
               rel="noopener noreferrer"
-              className="flex items-center gap-1 text-xs px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-700 hover:bg-emerald-200 transition-colors"
+              className="flex items-center justify-center text-xs w-6 h-6 rounded text-gray-500 hover:bg-gray-100 hover:text-gray-700 transition-colors"
               title="Voir sur iNaturalist"
               onClick={(e) => e.stopPropagation()}
               data-testid={`link-inat-${occ.scientificName}`}
             >
               <Leaf className="h-3.5 w-3.5" />
-              <span>iNat</span>
             </a>
           </div>
         </div>
