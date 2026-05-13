@@ -102,15 +102,13 @@ export function PrioritySpeciesInline({ toponym, coords, occurrences, onAnalysis
 
 
   return (
-    <div className="rounded-xl border-2 border-teal-300 bg-gradient-to-br from-teal-50 via-emerald-50/70 to-teal-50/40 p-4 space-y-3 shadow-md ring-1 ring-teal-200/50" data-testid="priority-species-inline">
-      <div className="flex items-center justify-between gap-3">
-        <div className="flex items-center gap-2.5 min-w-0">
-          <div className="bg-gradient-to-br from-teal-500 to-emerald-600 p-2 rounded-lg shrink-0 shadow-sm">
-            <Sparkles className="h-5 w-5 text-white" />
-          </div>
+    <div className="rounded-lg border border-gray-200 bg-white p-3 space-y-2.5" data-testid="priority-species-inline">
+      <div className="flex items-center justify-between gap-2">
+        <div className="flex items-center gap-2 min-w-0">
+          <Sparkles className="h-3.5 w-3.5 text-teal-600 shrink-0" />
           <div className="min-w-0">
-            <div className="text-base font-bold text-gray-900 truncate">Analyse IA — Espèces à enjeux</div>
-            <div className="text-[11px] text-amber-700">Synthèse experte automatique • à valider par un écologue</div>
+            <div className="text-xs font-semibold text-gray-700 truncate">Analyse IA — espèces à enjeux</div>
+            <div className="text-[10px] text-gray-400">À valider par un écologue</div>
           </div>
         </div>
         {analysis && (
@@ -134,12 +132,10 @@ export function PrioritySpeciesInline({ toponym, coords, occurrences, onAnalysis
           onClick={() => runAnalysis(true)}
           disabled={slim.length === 0}
           data-testid="button-run-priority"
-          className="w-full group relative flex items-center justify-center gap-2 px-4 py-3 rounded-lg bg-gradient-to-r from-teal-600 to-emerald-600 text-white font-semibold text-sm shadow-md hover:shadow-lg hover:from-teal-700 hover:to-emerald-700 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+          className="w-full flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-md bg-teal-50 hover:bg-teal-100 text-teal-700 font-medium text-xs border border-teal-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
         >
-          <span className="absolute inset-0 rounded-lg bg-white/30 opacity-0 group-hover:opacity-100 animate-pulse pointer-events-none" />
-          <Sparkles className="h-4 w-4" />
-          Lancer l'analyse IA des espèces à enjeux
-          <span className="text-[10px] opacity-80 ml-1">(~5 s)</span>
+          <Sparkles className="h-3 w-3" />
+          Lancer l'analyse IA <span className="text-[10px] opacity-70">(~5 s)</span>
         </button>
       )}
 

@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { X, Download, FileText, AlertTriangle, Leaf, Info, ChevronDown, ChevronUp, ImageOff, Copy, Check, ExternalLink, BookOpen, Shield, MapPin, Tag, Calendar, Link, Flag, Layers, Filter, Table, Sparkles, Loader2 } from "lucide-react";
+import { X, Download, FileText, AlertTriangle, Leaf, Info, ChevronDown, ChevronUp, ImageOff, Copy, Check, ExternalLink, BookOpen, Shield, MapPin, Tag, Calendar, Link, Flag, Layers, Filter, Table, Sparkles, Loader2, Share2, Mail } from "lucide-react";
 import { InventoryResult, Occurrence, getIucnLabel, ConfidenceScore, TAXON_GROUPS, getTaxonGroupId, isMarineSpecies } from "@/lib/gbif";
 import { findSINPPlatforms, SINPPlatform } from "@/lib/sinp";
 import { exportCSV, exportExcel } from "@/lib/export";
@@ -212,53 +212,79 @@ export function ResultsPanel({ isOpen, onClose, results, selectedSpecies, onSele
       .map(g => g.label)
       .join(', ');
 
-    return `INVENTAIRE FLASH
-Date: ${new Date().toLocaleDateString()}
-Centre: ${results.center[0].toFixed(5)}, ${results.center[1].toFixed(5)}
-Rayon: ${results.radius}m
-Filtres taxons: ${isAllActive ? 'Tous' : activeGroupLabels}
+    const lat = results.center[0].toFixed(5);
+    const lng = results.center[1].toFixed(5);
+    const mapsLink = `https://www.google.com/maps/@${lat},${lng},14z`;
+    const shareUrl = typeof window !== "undefined"
+      ? `${window.location.origin}/?lat=${lat}&lng=${lng}&radius=${results.radius}`
+      : "";
 
-INDICE DE CONFIANCE GBIF: ${conf.total}/100 (${confLabel})
-- Qualité géographique: ${conf.geo}%
-- Qualité taxonomique: ${conf.tax}%
-- Fraîcheur temporelle: ${conf.time}%
-- Traçabilité: ${conf.trace}%
-- Flags GBIF: ${conf.issues}%
-- Redondance: ${conf.dup}%
-${conf.message}
+    const fmtSpecies = (o: Occurrence) =>
+      `• ${o.scientificName}${o.vernacularName ? ` — ${o.vernacularName}` : ""} (${getIucnLabel(o.iucnStatus)})`;
 
-RÉSULTATS
-Total espèces dans le rapport: ${totalInReport}
-Espèces sensibles (forts + moyens): ${highCount + mediumCount}
+    const sectionList = (label: string, list: Occurrence[]) =>
+      list.length > 0 ? `${label} (${list.length})\n${list.map(fmtSpecies).join("\n")}\n` : "";
 
-ENJEUX FORTS (${highCount} espèces)
-${highList}
-
-ENJEUX MOYENS (${mediumCount} espèces)
-${mediumList}
-
-ENJEUX FAIBLES (${lowCount} espèces)
-${lowList}
-${aiAnalysis && aiAnalysis.species.length > 0 ? `
-
-═══════════════════════════════════════
-ANALYSE IA — TOP 5 ESPÈCES À ENJEUX
-(générée le ${new Date(aiAnalysis.generatedAt).toLocaleString("fr-FR")} • gpt-4o-mini)
-═══════════════════════════════════════
+    return `🌿 INVENTAIRE FLASH — Pré-diagnostic écologique
+${toponym ? `📍 ${toponym}\n` : ""}🗓 ${new Date().toLocaleDateString("fr-FR")}
+📌 ${lat}, ${lng} — rayon ${results.radius} m
+🗺 ${mapsLink}
+${!isAllActive ? `🔎 Filtres : ${activeGroupLabels}\n` : ""}
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+SYNTHÈSE
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+${totalInReport} espèces recensées (GBIF + iNaturalist)
+${highCount + mediumCount} espèces sensibles (enjeux forts ou moyens)
+Indice de confiance des données : ${conf.total}/100 — ${confLabel}
+${conf.message ? `↳ ${conf.message}\n` : ""}
+${sectionList("🔴 ENJEUX FORTS", sortedSpecies.high)}
+${sectionList("🟠 ENJEUX MOYENS", sortedSpecies.medium)}
+${sectionList("🟢 ENJEUX FAIBLES", sortedSpecies.low)}${aiAnalysis && aiAnalysis.species.length > 0 ? `
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+✨ ANALYSE IA — ESPÈCES À ENJEUX
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 ${aiAnalysis.species.map((sp, i) => `
-${i + 1}. ${sp.scientificName}${sp.vernacularName ? ` (${sp.vernacularName})` : ""} — ${sp.group} — Niveau : ${sp.level}${sp.inInventory === false ? " [hors inventaire — suggestion IA]" : ""}
+${i + 1}. ${sp.scientificName}${sp.vernacularName ? ` (${sp.vernacularName})` : ""}
+   ${sp.group} • Niveau : ${sp.level}${sp.inInventory === false ? " • hors inventaire (suggestion IA)" : ""}
    ${sp.reason}${sp.sources && sp.sources.length > 0 ? `
    Sources : ${sp.sources.join(" • ")}` : ""}`).join("\n")}
 
-⚠ Synthèse experte produite par IA — à valider par un écologue.
+⚠ Synthèse IA — à valider par un écologue.
 ` : ""}
-Note: Cet inventaire flash repose sur les données GBIF et iNaturalist et les statuts IUCN. Il fournit une indication rapide et ne constitue pas une preuve d'absence ni un inventaire terrain complet.`;
-  }, [results, sortedSpecies, activeTaxonFilters, presentGroups, isAllActive, aiAnalysis]);
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Données : GBIF • iNaturalist • UICN
+Inventaire flash — indication rapide, ne remplace pas un inventaire terrain.
+${shareUrl ? `\n🔗 Reproduire cette analyse : ${shareUrl}` : ""}`;
+  }, [results, sortedSpecies, activeTaxonFilters, presentGroups, isAllActive, aiAnalysis, toponym]);
+
+  const reportSubject = useMemo(() => {
+    if (!results) return "Inventaire Flash";
+    const place = toponym || `${results.center[0].toFixed(3)}, ${results.center[1].toFixed(3)}`;
+    return `Inventaire Flash — ${place} (${sortedSpecies.high.length + sortedSpecies.medium.length} espèces sensibles)`;
+  }, [results, toponym, sortedSpecies]);
 
   const handleCopyReport = () => {
     navigator.clipboard.writeText(reportText);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
+  };
+
+  const handleShareReport = async () => {
+    if (typeof navigator !== "undefined" && (navigator as any).share) {
+      try {
+        await (navigator as any).share({ title: reportSubject, text: reportText });
+        return;
+      } catch {
+        // user cancelled or share failed → fall back
+      }
+    }
+    handleCopyReport();
+  };
+
+  const handleEmailReport = () => {
+    const body = encodeURIComponent(reportText);
+    const subject = encodeURIComponent(reportSubject);
+    window.open(`mailto:?subject=${subject}&body=${body}`, "_blank");
   };
 
   if (!isOpen || !results) return null;
@@ -580,14 +606,28 @@ Note: Cet inventaire flash repose sur les données GBIF et iNaturalist et les st
               {reportText}
             </pre>
           </ScrollArea>
-          <div className="flex justify-end gap-2 mt-4 pt-4 border-t">
-            <Button variant="outline" onClick={() => setShowReportPreview(false)}>
+          <div className="flex flex-wrap justify-between items-center gap-2 mt-4 pt-4 border-t">
+            <Button variant="ghost" onClick={() => setShowReportPreview(false)} className="text-gray-500">
               Fermer
             </Button>
-            <Button onClick={handleCopyReport} className="gap-2">
-              {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
-              {copied ? "Copié !" : "Copier"}
-            </Button>
+            <div className="flex flex-wrap gap-2">
+              <Button variant="outline" onClick={handleEmailReport} className="gap-2" data-testid="button-email-report">
+                <Mail className="h-4 w-4" />
+                Email
+              </Button>
+              <Button variant="outline" onClick={handleCopyReport} className="gap-2" data-testid="button-copy-report">
+                {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
+                {copied ? "Copié !" : "Copier"}
+              </Button>
+              <Button
+                onClick={handleShareReport}
+                className="gap-2 bg-gradient-to-r from-indigo-600 to-blue-600 hover:from-indigo-700 hover:to-blue-700 text-white shadow-md"
+                data-testid="button-share-report"
+              >
+                <Share2 className="h-4 w-4" />
+                Partager
+              </Button>
+            </div>
           </div>
         </DialogContent>
       </Dialog>
