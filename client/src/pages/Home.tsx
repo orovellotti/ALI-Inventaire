@@ -22,10 +22,44 @@ function createDefaultCircles(center: [number, number]): BufferCircle[] {
   }));
 }
 
+const RANDOM_PLACES: { name: string; coords: [number, number] }[] = [
+  { name: "Pointe du Raz, Finistère", coords: [48.0386, -4.7361] },
+  { name: "Camargue, Bouches-du-Rhône", coords: [43.5396, 4.4697] },
+  { name: "Mont-Saint-Michel, Manche", coords: [48.6361, -1.5115] },
+  { name: "Calanques de Cassis, Bouches-du-Rhône", coords: [43.2089, 5.5394] },
+  { name: "Forêt de Brocéliande, Ille-et-Vilaine", coords: [48.0167, -2.1833] },
+  { name: "Gorges du Verdon, Alpes-de-Haute-Provence", coords: [43.7472, 6.3789] },
+  { name: "Puy de Sancy, Puy-de-Dôme", coords: [45.5278, 2.8133] },
+  { name: "Lac d'Annecy, Haute-Savoie", coords: [45.8467, 6.1681] },
+  { name: "Dune du Pilat, Gironde", coords: [44.5908, -1.2128] },
+  { name: "Massif de la Vanoise, Savoie", coords: [45.3833, 6.7833] },
+  { name: "Marais Poitevin, Vendée", coords: [46.3167, -0.7] },
+  { name: "Cirque de Gavarnie, Hautes-Pyrénées", coords: [42.7028, -0.0086] },
+  { name: "Baie de Somme, Somme", coords: [50.2167, 1.6167] },
+  { name: "Gorges de l'Ardèche, Ardèche", coords: [44.3, 4.5] },
+  { name: "Forêt de Fontainebleau, Seine-et-Marne", coords: [48.4042, 2.6981] },
+  { name: "Lac du Der, Marne", coords: [48.5667, 4.7333] },
+  { name: "Étang de Berre, Bouches-du-Rhône", coords: [43.4667, 5.1] },
+  { name: "Massif des Vosges, Vosges", coords: [48.0, 7.0] },
+  { name: "Plateau de Millevaches, Corrèze", coords: [45.6833, 2.0333] },
+  { name: "Cap Fréhel, Côtes-d'Armor", coords: [48.6839, -2.3175] },
+  { name: "Île de Porquerolles, Var", coords: [43.0089, 6.2058] },
+  { name: "Marais de l'Estuaire de la Seine, Seine-Maritime", coords: [49.4333, 0.2667] },
+  { name: "Lac de Grand-Lieu, Loire-Atlantique", coords: [47.0833, -1.6667] },
+  { name: "Plateau de l'Aubrac, Aveyron", coords: [44.6167, 3.0] },
+  { name: "Cirque de Mafate, La Réunion", coords: [-21.0667, 55.4333] },
+];
+
+function pickRandomPlace() {
+  return RANDOM_PLACES[Math.floor(Math.random() * RANDOM_PLACES.length)];
+}
+
+const INITIAL_PLACE = pickRandomPlace();
+
 export default function Home() {
-  const [center, setCenter] = useState<[number, number]>([48.8566, 2.3522]);
+  const [center, setCenter] = useState<[number, number]>(INITIAL_PLACE.coords);
   const [circles, setCircles] = useState<BufferCircle[]>(
-    createDefaultCircles([48.8566, 2.3522])
+    createDefaultCircles(INITIAL_PLACE.coords)
   );
   const [results, setResults] = useState<InventoryResult | null>(null);
   const [isSearching, setIsSearching] = useState(false);
@@ -36,7 +70,7 @@ export default function Home() {
   const [showApi, setShowApi] = useState(false);
   const [showSources, setShowSources] = useState(false);
   const [showLieuxDits, setShowLieuxDits] = useState(false);
-  const [currentToponym, setCurrentToponym] = useState<string>("");
+  const [currentToponym, setCurrentToponym] = useState<string>(INITIAL_PLACE.name);
   const [activePresetId, setActivePresetId] = useState("custom");
   const [activeTaxonFilters, setActiveTaxonFilters] = useState<Set<string>>(
     () => new Set(TAXON_GROUPS.map(g => g.id))
