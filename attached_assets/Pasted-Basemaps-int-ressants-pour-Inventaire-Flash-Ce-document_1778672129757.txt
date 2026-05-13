@@ -1,0 +1,234 @@
+Basemaps intéressants pour Inventaire Flash
+Ce document propose une sélection de fonds de carte et de couches complémentaires utiles pour une application de pré-diagnostic écologique comme Inventaire Flash.
+
+Fonds de carte recommandés
+1. Plan IGN
+Usage : fond cartographique de référence pour la France : routes, chemins, hydrographie, toponymie, bâti, forêts, limites administratives.
+
+Intérêt pour l'application : très adapté aux études environnementales en France, plus institutionnel qu'un fond OpenStreetMap classique.
+
+Exemple d'utilisation : afficher les aires d'étude immédiate, rapprochée et éloignée sur un fond clair et lisible.
+
+Lien :
+https://geoservices.ign.fr/services-web
+
+2. Orthophotographie IGN
+Usage : imagerie aérienne haute résolution sur le territoire français.
+
+Intérêt pour l'application : permet d'identifier visuellement les milieux : boisements, cultures, friches, haies, zones humides, cours d'eau, urbanisation.
+
+Exemple d'utilisation : vérifier rapidement si le point d'étude se situe dans une parcelle agricole, une zone boisée ou un espace artificialisé.
+
+Lien :
+https://geoservices.ign.fr/orthoimagery
+
+3. Esri World Imagery
+Usage : fond satellite mondial de bonne qualité.
+
+Intérêt pour l'application : bon complément à l'orthophoto IGN, notamment hors de France ou comme fallback satellite.
+
+Exemple d'utilisation : proposer un mode « Satellite » accessible partout, même lorsque les services IGN ne sont pas disponibles.
+
+Lien :
+https://services.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer
+
+4. CARTO Positron
+Usage : fond de carte clair, minimaliste et très lisible.
+
+Intérêt pour l'application : idéal pour afficher des résultats : points d'occurrence GBIF, espèces à enjeu, cercles d'étude, emprises shapefile.
+
+Exemple d'utilisation : utiliser ce fond par défaut dans la vue résultats afin de ne pas surcharger la carte.
+
+Lien :
+https://carto.com/basemaps
+
+5. CARTO Dark Matter
+Usage : fond sombre adapté aux visualisations colorées.
+
+Intérêt pour l'application : intéressant pour mettre en évidence des couches thématiques : heatmaps, densité d'occurrences, enjeux forts/faibles.
+
+Exemple d'utilisation : mode sombre pour une carte de densité des observations naturalistes.
+
+Lien :
+https://carto.com/basemaps
+
+6. OpenTopoMap
+Usage : fond topographique avec relief, courbes de niveau et éléments naturels.
+
+Intérêt pour l'application : utile pour comprendre les vallées, pentes, crêtes, continuités écologiques et contextes naturels.
+
+Exemple d'utilisation : analyser rapidement la position d'un projet par rapport au relief et aux corridors naturels.
+
+Lien :
+https://opentopomap.org/
+
+7. CyclOSM
+Usage : fond basé sur OpenStreetMap, enrichi sur les chemins, pistes cyclables, voies vertes et itinéraires.
+
+Intérêt pour l'application : utile pour préparer une prospection terrain ou identifier les accès possibles à une zone d'étude.
+
+Exemple d'utilisation : afficher les chemins ruraux, sentiers ou accès forestiers autour du périmètre d'inventaire.
+
+Lien :
+https://www.cyclosm.org/
+
+8. EOX Sentinel-2 Cloudless
+Usage : mosaïque satellite Sentinel-2 sans nuages, à l'échelle mondiale.
+
+Intérêt pour l'application : permet une lecture paysagère large : végétation, grandes cultures, massifs forestiers, zones humides, littoral.
+
+Exemple d'utilisation : compléter l'orthophoto avec une vision plus homogène et récente du contexte régional.
+
+Lien :
+https://s2maps.eu/
+
+9. Stadia Outdoors / Terrain
+Usage : fonds outdoor et terrain avec relief, hydrographie, parcs et chemins.
+
+Intérêt pour l'application : rendu esthétique et lisible pour une application orientée nature et terrain.
+
+Exemple d'utilisation : proposer un mode « Nature » plus moderne que les fonds OSM standards.
+
+Lien :
+https://stadiamaps.com/
+
+10. MapTiler Outdoor / Satellite / Terrain
+Usage : collection de fonds modernes : outdoor, satellite, terrain, streets, etc.
+
+Intérêt pour l'application : très bons rendus cartographiques, faciles à intégrer avec Leaflet ou MapLibre, mais nécessitent généralement une clé API.
+
+Exemple d'utilisation : remplacer les trois boutons actuels « Nature / Plan / Satellite » par des styles MapTiler cohérents.
+
+Lien :
+https://www.maptiler.com/maps/
+
+Couches écologiques complémentaires
+Ces couches peuvent être affichées comme overlays au-dessus d'un basemap clair ou satellite.
+
+1. Natura 2000
+Usage : visualiser les sites Natura 2000 proches de la zone d'étude.
+
+Intérêt pour l'application : élément majeur pour un pré-diagnostic écologique et réglementaire.
+
+Exemple : signaler automatiquement si l'aire éloignée intersecte un site Natura 2000.
+
+Lien :
+https://inpn.mnhn.fr/programme/natura2000/presentation/objectifs
+
+2. ZNIEFF type I et type II
+Usage : afficher les Zones Naturelles d'Intérêt Écologique, Faunistique et Floristique.
+
+Intérêt pour l'application : couche très pertinente pour contextualiser les enjeux naturalistes locaux.
+
+Exemple : indiquer dans le rapport si une ZNIEFF se trouve dans un rayon de 500 m, 2 km ou 6 km.
+
+Lien :
+https://inpn.mnhn.fr/programme/inventaire-znieff/presentation
+
+3. Aires protégées INPN
+Usage : réserves naturelles, parcs nationaux, arrêtés de protection de biotope, etc.
+
+Intérêt pour l'application : permet de compléter l'analyse réglementaire autour du point d'étude.
+
+Exemple : ajouter un panneau « Espaces protégés à proximité ».
+
+Lien :
+https://inpn.mnhn.fr/telechargement/cartes-et-information-geographique
+
+4. Corine Land Cover
+Usage : occupation du sol européenne : zones urbaines, agricoles, forestières, humides, plans d'eau.
+
+Intérêt pour l'application : donne une lecture synthétique des habitats dominants autour du projet.
+
+Exemple : calculer la proportion de forêt, culture, prairie ou tissu urbain dans l'aire d'étude rapprochée.
+
+Lien :
+https://land.copernicus.eu/en/products/corine-land-cover
+
+5. Copernicus Land Cover / High Resolution Layers
+Usage : données européennes sur les forêts, prairies, imperméabilisation, zones humides, eau, etc.
+
+Intérêt pour l'application : utile pour enrichir l'analyse paysagère et écologique.
+
+Exemple : croiser les observations GBIF avec les grands types d'occupation du sol.
+
+Lien :
+https://land.copernicus.eu/
+
+6. Zones humides
+Usage : identifier les zones humides connues ou potentielles.
+
+Intérêt pour l'application : très important pour les amphibiens, oiseaux, flore patrimoniale et contraintes réglementaires.
+
+Exemple : afficher une alerte si le point d'étude ou son aire immédiate intersecte une zone humide.
+
+Lien :
+https://www.zones-humides.org/
+
+7. Hydrographie / BD TOPAGE
+Usage : cours d'eau, plans d'eau, bassins versants et réseau hydrographique.
+
+Intérêt pour l'application : permet de contextualiser les habitats aquatiques et corridors écologiques.
+
+Exemple : montrer les ruisseaux et fossés proches du périmètre d'étude.
+
+Lien :
+https://www.sandre.eaufrance.fr/atlas/srv/fre/catalog.search#/metadata/ea2b0d45-8f2f-4c2d-b2c7-43f4b4e72f23
+
+8. Parcelles cadastrales
+Usage : limites cadastrales et parcelles.
+
+Intérêt pour l'application : utile pour situer précisément une emprise de projet ou un shapefile chargé par l'utilisateur.
+
+Exemple : afficher les parcelles concernées par l'aire immédiate.
+
+Lien :
+https://cadastre.data.gouv.fr/
+
+9. BD Forêt / données forestières IGN
+Usage : typologie forestière, peuplements, essences dominantes.
+
+Intérêt pour l'application : très utile pour qualifier les milieux boisés autour du site.
+
+Exemple : distinguer feuillus, conifères, peuplements mixtes ou landes boisées.
+
+Lien :
+https://geoservices.ign.fr/bdforet
+
+10. Relief / ombrage / MNT
+Usage : visualiser le relief, les pentes, vallées et ruptures topographiques.
+
+Intérêt pour l'application : aide à comprendre les continuités écologiques, l'exposition et les contraintes physiques du site.
+
+Exemple : ajouter une couche d'ombrage semi-transparente au-dessus du fond Plan IGN.
+
+Lien :
+https://geoservices.ign.fr/rgealti
+
+Proposition d'organisation dans l'interface
+Boutons de fonds de carte
+Plan : CARTO Positron ou Plan IGN
+Satellite : Orthophoto IGN ou Esri World Imagery
+Nature : OpenTopoMap, Stadia Outdoors ou MapTiler Outdoor
+Terrain : fond topographique + relief + chemins
+Écologie : fond clair + Natura 2000 + ZNIEFF + zones humides
+Occupation du sol : Corine Land Cover ou Copernicus Land Cover
+Exemple de combinaison efficace
+Pour une analyse écologique rapide :
+
+Fond principal : Plan IGN ou CARTO Positron
+Overlay 1 : aires d'étude concentriques
+Overlay 2 : occurrences GBIF / iNaturalist
+Overlay 3 : Natura 2000 et ZNIEFF
+Overlay 4 : zones humides et hydrographie
+Option : orthophoto IGN pour vérification visuelle
+Priorité d'intégration
+Si l'objectif est d'améliorer rapidement l'application, les ajouts les plus utiles seraient :
+
+Orthophoto IGN
+Plan IGN
+CARTO Positron comme fond clair par défaut
+Natura 2000 en overlay
+ZNIEFF type I / II en overlay
+Corine Land Cover ou Copernicus Land Cover
+Zones humides et hydrographie
