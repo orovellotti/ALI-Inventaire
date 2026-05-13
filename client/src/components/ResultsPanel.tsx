@@ -655,7 +655,7 @@ function SpeciesCard({ occ, isSelected, onSelect }: { occ: Occurrence; isSelecte
               data-testid={`link-ali-${occ.scientificName}`}
             >
               {aliResolving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
-              <span>ALI</span>
+              <span>Plus d'infos</span>
             </button>
             <a
               href={wikiUrl}
