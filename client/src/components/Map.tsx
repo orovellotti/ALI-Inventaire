@@ -1,4 +1,4 @@
-import { MapContainer, TileLayer, WMSTileLayer, Circle, CircleMarker, GeoJSON, useMapEvents, useMap } from "react-leaflet";
+import { MapContainer, TileLayer, WMSTileLayer, Circle, CircleMarker, GeoJSON, Tooltip as LeafletTooltip, useMapEvents, useMap } from "react-leaflet";
 import { useEffect, useMemo, useState } from "react";
 import { Layers, Map as MapIcon, Satellite, Mountain, ChevronDown, Trees, Droplets, Building2 } from "lucide-react";
 import "leaflet/dist/leaflet.css";
@@ -24,6 +24,7 @@ interface MapProps {
   results: InventoryResult | null;
   onMapClick: (lat: number, lng: number) => void;
   selectedSpecies: string | null;
+  onSelectSpecies?: (name: string | null) => void;
   activeTaxonFilters: Set<string>;
   excludeMarine?: boolean;
   projectPolygon: ProjectPolygon | null;
@@ -185,7 +186,7 @@ const OVERLAYS: Record<OverlayId, {
   },
 };
 
-export function Map({ center, circles, results, onMapClick, selectedSpecies, activeTaxonFilters, excludeMarine, projectPolygon, panelOpen, panelWidth }: MapProps) {
+export function Map({ center, circles, results, onMapClick, selectedSpecies, onSelectSpecies, activeTaxonFilters, excludeMarine, projectPolygon, panelOpen, panelWidth }: MapProps) {
   const [baseLayer, setBaseLayer] = useState<BaseLayer>(() => {
     try {
       const v = localStorage.getItem("if.baseLayer");
@@ -322,7 +323,28 @@ export function Map({ center, circles, results, onMapClick, selectedSpecies, act
                 fillColor: occ.alertLevel === 'high' ? '#dc2626' : (occ.alertLevel === 'medium' ? '#f59e0b' : '#22c55e'),
                 fillOpacity: isSelected ? 1 : 0.8
               }}
-            />
+              eventHandlers={{
+                click: (e) => {
+                  L.DomEvent.stopPropagation(e);
+                  if (onSelectSpecies) {
+                    onSelectSpecies(isSelected ? null : occ.scientificName);
+                  }
+                },
+              }}
+            >
+              <LeafletTooltip direction="top" offset={[0, -4]} opacity={0.95} sticky>
+                <div className="text-xs">
+                  <div className="font-semibold">{occ.vernacularName || occ.scientificName}</div>
+                  {occ.vernacularName && (
+                    <div className="italic text-gray-600">{occ.scientificName}</div>
+                  )}
+                  {occ.iucnStatus && (
+                    <div className="text-gray-500 mt-0.5">UICN : {occ.iucnStatus}</div>
+                  )}
+                  <div className="text-[10px] text-gray-400 mt-0.5">Cliquer pour voir la fiche</div>
+                </div>
+              </LeafletTooltip>
+            </CircleMarker>
           );
         })}
       </MapContainer>

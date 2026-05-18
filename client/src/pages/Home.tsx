@@ -308,6 +308,10 @@ export default function Home() {
         results={results} 
         onMapClick={handleMapClick}
         selectedSpecies={selectedSpecies}
+        onSelectSpecies={(name) => {
+          setSelectedSpecies(name);
+          if (name && !isPanelOpen) setIsPanelOpen(true);
+        }}
         activeTaxonFilters={activeTaxonFilters}
         excludeMarine={excludeMarine}
         projectPolygon={projectPolygon}
