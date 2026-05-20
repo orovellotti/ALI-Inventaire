@@ -6,3 +6,9 @@ id = "l-zOPIW6CfyunfALMj_39"
 uri = "file://downloads/inventaire-flash-skill.zip"
 type = "unspecified"
 title = "Inventaire Flash — Skill MCP (.zip)"
+
+[[outputs]]
+id = "PNOU-rzdsnFJ17lr0AGBz"
+uri = "file://UX.md"
+type = "text"
+title = "Inventaire Flash — Description UX"
