@@ -1,4 +1,5 @@
 import OpenAI from "openai";
+import { z } from "zod";
 import type { Occurrence } from "@shared/types";
 
 const openai = new OpenAI({
@@ -6,13 +7,22 @@ const openai = new OpenAI({
   apiKey: process.env.AI_INTEGRATIONS_OPENAI_API_KEY,
 });
 
+const MODEL = "gpt-4o-mini";
+const PRIORITY_TEMPERATURE = 0.3;
+const REFORMAT_TEMPERATURE = 0.4;
+const MAX_SAMPLED_SPECIES = 50;
+const MAX_RETURNED_SPECIES = 5;
+
+const PRIORITY_IUCN = new Set(["CR", "EN", "VU", "NT", "DD"]);
+const ALLOWED_LEVELS = ["majeur", "fort", "modéré"] as const;
+
 export interface PrioritySpecies {
   scientificName: string;
   vernacularName?: string;
   group: string;
   icon: string;
   reason: string;
-  level: "majeur" | "fort" | "modéré";
+  level: (typeof ALLOWED_LEVELS)[number];
   sources: string[];
   inInventory: boolean;
 }
@@ -23,30 +33,44 @@ export interface PrioritySpeciesAnalysis {
   generatedAt: string;
 }
 
-const SYSTEM_PROMPT = `Tu es un expert en écologie française et études d'impact environnemental (EIE).
+const prioritySpeciesSchema = z.object({
+  scientificName: z.string().min(1),
+  vernacularName: z.string().optional(),
+  group: z.string().optional().default("Autres"),
+  icon: z.string().optional().default("🌿"),
+  reason: z.string().optional().default(""),
+  level: z.enum(ALLOWED_LEVELS).optional().default("modéré"),
+  sources: z.array(z.string()).max(5).optional().default([]),
+});
+
+const priorityResponseSchema = z.object({
+  species: z.array(prioritySpeciesSchema).optional().default([]),
+});
+
+const PRIORITY_SYSTEM_PROMPT = `Tu es un expert en écologie française et en pré-diagnostic écologique.
 Tu connais les statuts UICN, espèces protégées en France, ZNIEFF déterminantes, directives Habitats/Oiseaux.
 Tu réponds en français, concis, opérationnel.`;
 
-export async function analyzePrioritySpecies(
-  toponym: string,
-  coords: [number, number],
-  occurrences: Occurrence[]
-): Promise<PrioritySpeciesAnalysis> {
-  const seen = new Map<string, Occurrence>();
-  for (const o of occurrences) {
-    if (!seen.has(o.scientificName)) seen.set(o.scientificName, o);
-  }
-  const unique = Array.from(seen.values());
+const REFORMAT_SYSTEM_PROMPT = `Tu es un écologue rédacteur de notes de pré-diagnostic écologique. Tu rédiges en français professionnel, clair, synthétique, dans un ton neutre et factuel. Tu ne parles jamais d'« étude d'impact » ou « EIE » : il s'agit uniquement d'un pré-diagnostic rapide.`;
 
-  const PRIORITY_IUCN = new Set(["CR", "EN", "VU", "NT", "DD"]);
+function selectRelevantSpecies(occurrences: Occurrence[]): Occurrence[] {
+  const uniqueByName = new Map<string, Occurrence>();
+  for (const o of occurrences) {
+    if (!uniqueByName.has(o.scientificName)) uniqueByName.set(o.scientificName, o);
+  }
+  const unique = Array.from(uniqueByName.values());
+
   const high = unique.filter((s) => s.alertLevel === "high");
   const medium = unique.filter((s) => s.alertLevel === "medium");
-  const lowPriority = unique
-    .filter((s) => s.alertLevel === "low" && s.iucnStatus && PRIORITY_IUCN.has(s.iucnStatus));
+  const lowPriority = unique.filter(
+    (s) => s.alertLevel === "low" && s.iucnStatus && PRIORITY_IUCN.has(s.iucnStatus),
+  );
 
-  const picked = [...high, ...medium, ...lowPriority].slice(0, 50);
+  return [...high, ...medium, ...lowPriority].slice(0, MAX_SAMPLED_SPECIES);
+}
 
-  const sample = picked
+function formatSpeciesForPrompt(species: Occurrence[]): string {
+  return species
     .map((s) => {
       const parts = [s.scientificName];
       if (s.vernacularName) parts.push(`(${s.vernacularName})`);
@@ -55,12 +79,14 @@ export async function analyzePrioritySpecies(
       return parts.join(" ");
     })
     .join("\n");
+}
 
-  const userPrompt = `Site : ${toponym} (lat ${coords[0].toFixed(4)}, lng ${coords[1].toFixed(4)})
-Inventaire GBIF (${unique.length} espèces) :
+function buildPriorityPrompt(toponym: string, coords: [number, number], sample: string, totalCount: number): string {
+  return `Site : ${toponym} (lat ${coords[0].toFixed(4)}, lng ${coords[1].toFixed(4)})
+Inventaire GBIF (${totalCount} espèces) :
 ${sample}
 
-Identifie les **5 espèces à enjeux les plus importantes** pour une étude d'impact sur ce site.
+Identifie les **5 espèces à enjeux les plus importantes** pour un pré-diagnostic écologique de ce site.
 Choisis-les en priorité parmi les espèces ci-dessus, mais tu peux ajouter une espèce attendue sur le secteur (connaissance écorégionale) si elle est plus pertinente que la donnée GBIF disponible.
 
 Réponds en JSON strict :
@@ -82,56 +108,10 @@ Règles :
 - Exactement 5 espèces, triées par enjeu décroissant.
 - "sources" = liste courte (1 à 4) des référentiels cités dans "reason" (ex : "UICN France", "UICN Monde", "Arrêté du 29 oct. 2009", "Arrêté du 23 avr. 2007", "Directive Oiseaux Annexe I", "Directive Habitats Annexe II", "ZNIEFF déterminante", "Liste rouge régionale").
 - N'invente jamais de source, n'utilise que les référentiels officiels français/européens.`;
-
-  const completion = await openai.chat.completions.create({
-    model: "gpt-4o-mini",
-    messages: [
-      { role: "system", content: SYSTEM_PROMPT },
-      { role: "user", content: userPrompt },
-    ],
-    response_format: { type: "json_object" },
-    temperature: 0.3,
-  });
-
-  const content = completion.choices[0]?.message?.content;
-  if (!content) throw new Error("Réponse LLM vide");
-
-  const parsed = JSON.parse(content);
-  const inventoryNames = new Set(unique.map((u) => u.scientificName));
-  const species: PrioritySpecies[] = Array.isArray(parsed.species)
-    ? parsed.species.slice(0, 5).map((s: any) => {
-        const scientificName = String(s.scientificName || "");
-        return {
-          scientificName,
-          vernacularName: s.vernacularName ? String(s.vernacularName) : undefined,
-          group: String(s.group || "Autres"),
-          icon: String(s.icon || "🌿"),
-          reason: String(s.reason || ""),
-          level: ["majeur", "fort", "modéré"].includes(s.level) ? s.level : "modéré",
-          sources: Array.isArray(s.sources) ? s.sources.map(String).slice(0, 5) : [],
-          inInventory: inventoryNames.has(scientificName),
-        };
-      })
-    : [];
-
-  return {
-    toponym,
-    species,
-    generatedAt: new Date().toISOString(),
-  };
 }
 
-export async function reformatReport(rawReport: string): Promise<string> {
-  const completion = await openai.chat.completions.create({
-    model: "gpt-4o-mini",
-    messages: [
-      {
-        role: "system",
-        content: `Tu es un écologue rédacteur de notes de pré-diagnostic écologique. Tu rédiges en français professionnel, clair, synthétique, dans un ton neutre et factuel. Tu ne parles jamais d'« étude d'impact » ou « EIE » : il s'agit uniquement d'un pré-diagnostic rapide.`,
-      },
-      {
-        role: "user",
-        content: `Voici les données brutes d'un inventaire flash. Reformule-les en une **note de synthèse partageable** (mail, rapport interne) en français.
+function buildReformatPrompt(rawReport: string): string {
+  return `Voici les données brutes d'un inventaire flash. Reformule-les en une **note de synthèse partageable** (mail, rapport interne) en français.
 
 Structure attendue :
 1. **Contexte** (1-2 phrases) : lieu, date, coordonnées, et **rappelle explicitement la taille du périmètre analysé** (ex : « rayon de 2 000 m autour du point », ou si plusieurs aires : « 3 cercles concentriques de 500 m, 2 000 m et 6 000 m »). Précise les **sources des occurrences : GBIF (Global Biodiversity Information Facility) et iNaturalist** (observations citoyennes vérifiées, grade « research »).
@@ -150,10 +130,83 @@ Règles strictes :
 Données brutes :
 ─────────
 ${rawReport}
-─────────`,
-      },
+─────────`;
+}
+
+function normalizePriorityResponse(rawJson: string, inventoryNames: Set<string>): PrioritySpecies[] {
+  let parsedJson: unknown;
+  try {
+    parsedJson = JSON.parse(rawJson);
+  } catch {
+    return [];
+  }
+
+  const result = priorityResponseSchema.safeParse(parsedJson);
+  const rawSpecies: unknown[] = result.success
+    ? result.data.species
+    : Array.isArray((parsedJson as any)?.species)
+      ? (parsedJson as any).species
+      : [];
+
+  const normalized: PrioritySpecies[] = [];
+  for (const raw of rawSpecies) {
+    const item = prioritySpeciesSchema.safeParse(raw);
+    if (!item.success) continue;
+    normalized.push({
+      scientificName: item.data.scientificName,
+      vernacularName: item.data.vernacularName,
+      group: item.data.group,
+      icon: item.data.icon,
+      reason: item.data.reason,
+      level: item.data.level,
+      sources: item.data.sources,
+      inInventory: inventoryNames.has(item.data.scientificName),
+    });
+    if (normalized.length >= MAX_RETURNED_SPECIES) break;
+  }
+  return normalized;
+}
+
+export async function analyzePrioritySpecies(
+  toponym: string,
+  coords: [number, number],
+  occurrences: Occurrence[],
+): Promise<PrioritySpeciesAnalysis> {
+  const picked = selectRelevantSpecies(occurrences);
+  const sample = formatSpeciesForPrompt(picked);
+  const uniqueCount = new Set(occurrences.map((o) => o.scientificName)).size;
+
+  const completion = await openai.chat.completions.create({
+    model: MODEL,
+    messages: [
+      { role: "system", content: PRIORITY_SYSTEM_PROMPT },
+      { role: "user", content: buildPriorityPrompt(toponym, coords, sample, uniqueCount) },
     ],
-    temperature: 0.4,
+    response_format: { type: "json_object" },
+    temperature: PRIORITY_TEMPERATURE,
+  });
+
+  const content = completion.choices[0]?.message?.content;
+  if (!content) throw new Error("Réponse LLM vide");
+
+  const inventoryNames = new Set(occurrences.map((o) => o.scientificName));
+  const species: PrioritySpecies[] = normalizePriorityResponse(content, inventoryNames);
+
+  return {
+    toponym,
+    species,
+    generatedAt: new Date().toISOString(),
+  };
+}
+
+export async function reformatReport(rawReport: string): Promise<string> {
+  const completion = await openai.chat.completions.create({
+    model: MODEL,
+    messages: [
+      { role: "system", content: REFORMAT_SYSTEM_PROMPT },
+      { role: "user", content: buildReformatPrompt(rawReport) },
+    ],
+    temperature: REFORMAT_TEMPERATURE,
   });
   const content = completion.choices[0]?.message?.content?.trim();
   if (!content) throw new Error("Réponse LLM vide");

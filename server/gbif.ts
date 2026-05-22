@@ -2,374 +2,256 @@ import type { Occurrence, ConfidenceScore, BufferCircle, InventoryResult } from 
 import { searchINaturalist } from "./inaturalist";
 import { fetchTaxRefCdNom } from "./taxref";
 import { applyFrenchPriorityBoost } from "./frenchPriority";
+import { calculateConfidenceScore, emptyConfidence } from "./confidence";
+import { haversineDistance } from "./lib/geo";
+import {
+  searchOccurrences,
+  fetchSpeciesMedia,
+  fetchSpeciesIucnStatus,
+  fetchFrenchVernacularName,
+} from "./services/gbifApi";
 
-const CRITICAL_ISSUES = [
-  "ZERO_COORDINATE",
-  "COORDINATE_OUT_OF_RANGE",
-  "COORDINATE_INVALID",
-  "COUNTRY_COORDINATE_MISMATCH",
-  "COORDINATE_REPROJECTION_FAILED",
-  "GEODETIC_DATUM_INVALID",
-  "PRESUMED_SWAPPED_COORDINATE",
-  "PRESUMED_NEGATED_LATITUDE",
-  "PRESUMED_NEGATED_LONGITUDE"
-];
+type AlertLevel = "high" | "medium" | "low";
 
-function getBoundingBox(lat: number, lng: number, radiusMeters: number) {
-  const latDelta = radiusMeters / 111111;
-  const lngDelta = radiusMeters / (111111 * Math.cos(lat * (Math.PI / 180)));
+const HIGH_ALERT_IUCN = new Set([
+  "EX", "EXTINCT",
+  "EW", "EXTINCT_IN_THE_WILD",
+  "RE", "REGIONALLY_EXTINCT",
+  "CR", "CRITICALLY_ENDANGERED",
+  "EN", "ENDANGERED",
+  "VU", "VULNERABLE",
+  "NT", "NEAR_THREATENED",
+]);
+
+const ALERT_PRIORITY: Record<AlertLevel, number> = { high: 3, medium: 2, low: 1 };
+
+interface SearchOptions {
+  includeINaturalist?: boolean;
+}
+
+type InatResult = Awaited<ReturnType<typeof searchINaturalist>>;
+
+const EMPTY_INAT: InatResult = {
+  occurrences: [],
+  summary: { records: 0, species: 0 },
+};
+
+function getAlertLevelFromIucn(iucnStatus: string | undefined): AlertLevel {
+  return HIGH_ALERT_IUCN.has((iucnStatus ?? "").toUpperCase()) ? "high" : "low";
+}
+
+function fetchINatSafe(lat: number, lng: number, radiusMeters: number, enabled: boolean): Promise<InatResult> {
+  if (!enabled) return Promise.resolve(EMPTY_INAT);
+  return searchINaturalist(lat, lng, radiusMeters).catch(() => EMPTY_INAT);
+}
+
+function dedupBySpecies<T extends { scientificName?: string; decimalLatitude?: number; decimalLongitude?: number }>(
+  records: T[],
+): T[] {
+  const map = new Map<string, T>();
+  for (const r of records) {
+    if (r.scientificName && r.decimalLatitude != null && r.decimalLongitude != null) {
+      if (!map.has(r.scientificName)) map.set(r.scientificName, r);
+    }
+  }
+  return Array.from(map.values());
+}
+
+async function enrichSpecies(record: any): Promise<Occurrence> {
+  const speciesKey = record.speciesKey || record.taxonKey;
+
+  const [imageUrl, iucnStatus, frenchName, cdNom] = speciesKey
+    ? await Promise.all([
+        fetchSpeciesMedia(speciesKey),
+        fetchSpeciesIucnStatus(speciesKey),
+        fetchFrenchVernacularName(speciesKey),
+        fetchTaxRefCdNom(record.scientificName ?? ""),
+      ])
+    : [undefined, undefined, undefined, await fetchTaxRefCdNom(record.scientificName ?? "")];
+
+  const baseLevel = getAlertLevelFromIucn(iucnStatus);
+  const alertLevel = applyFrenchPriorityBoost(baseLevel, record.family, record.order, record.class);
+
   return {
-    minLat: lat - latDelta,
-    maxLat: lat + latDelta,
-    minLng: lng - lngDelta,
-    maxLng: lng + lngDelta
+    key: record.key,
+    scientificName: record.scientificName || "Inconnu",
+    decimalLatitude: record.decimalLatitude,
+    decimalLongitude: record.decimalLongitude,
+    vernacularName: frenchName || undefined,
+    kingdom: record.kingdom,
+    phylum: record.phylum,
+    class: record.class,
+    order: record.order,
+    family: record.family,
+    alertLevel,
+    imageUrl,
+    iucnStatus,
+    taxonKey: speciesKey,
+    source: "gbif",
+    sourceUrl: speciesKey ? `https://www.gbif.org/species/${speciesKey}` : undefined,
+    cdNom,
   };
 }
 
-function getAlertLevelFromIucn(iucnStatus: string | undefined): "high" | "medium" | "low" {
-  const status = iucnStatus?.toUpperCase();
-  switch (status) {
-    case "EX": case "EXTINCT":
-    case "EW": case "EXTINCT_IN_THE_WILD":
-    case "RE": case "REGIONALLY_EXTINCT":
-    case "CR": case "CRITICALLY_ENDANGERED":
-    case "EN": case "ENDANGERED":
-    case "VU": case "VULNERABLE":
-    case "NT": case "NEAR_THREATENED":
-      return "high";
-    default:
-      return "low";
-  }
-}
-
-function calculateConfidenceScore(rawRecords: any[]): ConfidenceScore {
-  if (rawRecords.length === 0) {
-    return {
-      total: 0, geo: 0, tax: 0, time: 0, trace: 0, issues: 0, dup: 0,
-      interpretation: "low",
-      message: "Aucune donnée disponible",
-      rawCount: 0, filteredCount: 0, dedupCount: 0
-    };
-  }
-
-  const n = rawRecords.length;
-  const currentYear = new Date().getFullYear();
-  const uncertaintyThreshold = 300;
-
-  let geoWithUncertainty = 0, geoUnderThreshold = 0;
-  let taxSpeciesRank = 0, taxAccepted = 0;
-  let timeWithDate = 0, timeRecent = 0;
-  let traceWithId = 0, traceWithAuthor = 0;
-  let issuesClean = 0;
-
-  for (const r of rawRecords) {
-    if (r.coordinateUncertaintyInMeters !== undefined && r.coordinateUncertaintyInMeters !== null) {
-      geoWithUncertainty++;
-      if (r.coordinateUncertaintyInMeters <= uncertaintyThreshold) geoUnderThreshold++;
-    }
-
-    const rank = r.taxonRank?.toUpperCase();
-    if (rank === "SPECIES" || rank === "SUBSPECIES" || rank === "VARIETY") taxSpeciesRank++;
-    if (r.taxonomicStatus?.toUpperCase() === "ACCEPTED") taxAccepted++;
-
-    if (r.year || r.eventDate) {
-      timeWithDate++;
-      const year = r.year || new Date(r.eventDate).getFullYear();
-      if (currentYear - year <= 10) timeRecent++;
-    }
-
-    if (r.occurrenceID || r.references) traceWithId++;
-    if (r.recordedBy || r.institutionCode) traceWithAuthor++;
-
-    let recordIssues: string[] = [];
-    if (r.issues) {
-      if (Array.isArray(r.issues)) recordIssues = r.issues;
-      else if (typeof r.issues === 'string') recordIssues = r.issues.split(';').filter(Boolean);
-    }
-    if (!recordIssues.some((issue: string) => CRITICAL_ISSUES.includes(issue))) issuesClean++;
-  }
-
-  const dedupKey = new Set<string>();
-  for (const r of rawRecords) {
-    const key = `${r.speciesKey || r.scientificName}_${r.year || 'nodate'}_${Math.round((r.decimalLatitude || 0) * 1000)}_${Math.round((r.decimalLongitude || 0) * 1000)}`;
-    dedupKey.add(key);
-  }
-  const dedupCount = dedupKey.size;
-  const dupRatio = 1 - (n - dedupCount) / n;
-
-  const p = geoWithUncertainty > 0 ? geoUnderThreshold / geoWithUncertainty : 0;
-  const q = geoWithUncertainty / n;
-  const geoScore = 0.7 * p + 0.3 * q;
-
-  const a = taxSpeciesRank / n;
-  const b = taxAccepted / n;
-  const taxScore = 0.6 * a + 0.4 * b;
-
-  const r_time = timeWithDate > 0 ? timeRecent / timeWithDate : 0;
-  const m = timeWithDate / n;
-  const timeScore = 0.7 * r_time + 0.3 * m;
-
-  const t = traceWithId / n;
-  const u = traceWithAuthor / n;
-  const traceScore = 0.5 * t + 0.5 * u;
-
-  const issuesScore = issuesClean / n;
-  const dupScore = dupRatio;
-
-  const total = Math.round(
-    100 * (0.25 * geoScore + 0.20 * taxScore + 0.15 * timeScore + 0.15 * traceScore + 0.15 * issuesScore + 0.10 * dupScore)
+function filterWithinRadius<T extends { decimalLatitude: number; decimalLongitude: number }>(
+  records: T[],
+  lat: number,
+  lng: number,
+  radiusMeters: number,
+): T[] {
+  return records.filter((occ) =>
+    haversineDistance(lat, lng, occ.decimalLatitude, occ.decimalLongitude) <= radiusMeters,
   );
+}
 
-  let interpretation: "excellent" | "good" | "moderate" | "low";
-  if (total >= 80) interpretation = "excellent";
-  else if (total >= 60) interpretation = "good";
-  else if (total >= 40) interpretation = "moderate";
-  else interpretation = "low";
+async function assignCdNomsToInat(occurrences: Occurrence[], existing: Map<string, Occurrence>): Promise<void> {
+  const needing = occurrences.filter((o) => !existing.has(o.scientificName));
+  const cdNoms = await Promise.all(needing.map((o) => fetchTaxRefCdNom(o.scientificName).catch(() => undefined)));
+  needing.forEach((o, i) => {
+    o.cdNom = cdNoms[i];
+  });
+}
 
-  const issuesList: string[] = [];
-  if (geoScore < 0.5) issuesList.push(`incertitude spatiale élevée (${Math.round((1 - p) * 100)}% > ${uncertaintyThreshold}m)`);
-  if (taxScore < 0.5) issuesList.push(`qualité taxonomique faible`);
-  if (timeScore < 0.5) issuesList.push(`données anciennes (${Math.round((1 - r_time) * 100)}% > 10 ans)`);
-  if (traceScore < 0.5) issuesList.push(`traçabilité insuffisante`);
-  if (issuesScore < 0.7) issuesList.push(`${Math.round((1 - issuesScore) * 100)}% avec alertes GBIF`);
+function mergeInatWithGbif(gbifOccurrences: Occurrence[], inatOccurrences: Occurrence[]): Occurrence[] {
+  const merged = new Map<string, Occurrence>();
+  for (const occ of gbifOccurrences) merged.set(occ.scientificName, occ);
 
-  const message = issuesList.length > 0
-    ? `Points d'attention : ${issuesList.join(", ")}`
-    : "Données de bonne qualité pour étude d'impact";
+  for (const iocc of inatOccurrences) {
+    const existing = merged.get(iocc.scientificName);
+    if (!existing) {
+      merged.set(iocc.scientificName, iocc);
+      continue;
+    }
+    const enriched: Occurrence = {
+      ...existing,
+      imageUrl: existing.imageUrl || iocc.imageUrl,
+      vernacularName: existing.vernacularName || iocc.vernacularName,
+      iucnStatus: existing.iucnStatus || iocc.iucnStatus,
+      cdNom: existing.cdNom ?? iocc.cdNom,
+    };
+    if (!existing.iucnStatus && iocc.iucnStatus) {
+      enriched.alertLevel = iocc.alertLevel;
+    }
+    merged.set(iocc.scientificName, enriched);
+  }
 
+  return Array.from(merged.values());
+}
+
+function countSensitive(occurrences: Occurrence[]): number {
+  return occurrences.filter((o) => o.alertLevel === "high" || o.alertLevel === "medium").length;
+}
+
+function buildEmptyResult(
+  inat: InatResult,
+  lat: number,
+  lng: number,
+  radiusMeters: number,
+): InventoryResult {
+  const confidence = emptyConfidence();
+  if (inat.occurrences.length > 0) {
+    confidence.message = `Aucune donnée GBIF • iNaturalist : ${inat.occurrences.length} espèce(s)`;
+  }
   return {
-    total,
-    geo: Math.round(geoScore * 100),
-    tax: Math.round(taxScore * 100),
-    time: Math.round(timeScore * 100),
-    trace: Math.round(traceScore * 100),
-    issues: Math.round(issuesScore * 100),
-    dup: Math.round(dupScore * 100),
-    interpretation, message,
-    rawCount: n, filteredCount: n, dedupCount
+    occurrences: inat.occurrences,
+    stats: {
+      total: inat.occurrences.length,
+      speciesCount: inat.occurrences.length,
+      sensitiveCount: countSensitive(inat.occurrences),
+    },
+    center: [lat, lng],
+    radius: radiusMeters,
+    circles: [{ id: "main", center: [lat, lng], radius: radiusMeters, label: "Zone", enabled: true }],
+    confidence,
   };
-}
-
-async function fetchSpeciesMedia(speciesKey: number): Promise<string | undefined> {
-  try {
-    const response = await fetch(`https://api.gbif.org/v1/species/${speciesKey}/media?limit=1`);
-    if (response.ok) {
-      const data = await response.json();
-      if (data.results?.length > 0) return data.results[0].identifier;
-    }
-  } catch {}
-  return undefined;
-}
-
-async function fetchSpeciesIucnStatus(speciesKey: number): Promise<string | undefined> {
-  try {
-    const response = await fetch(`https://api.gbif.org/v1/species/${speciesKey}/iucnRedListCategory`);
-    if (response.ok) {
-      const data = await response.json();
-      return data.category;
-    }
-  } catch {}
-  return undefined;
-}
-
-async function fetchFrenchVernacularName(speciesKey: number): Promise<string | undefined> {
-  const isFrench = (lang?: string) => {
-    const l = (lang || "").toLowerCase();
-    return l === "fra" || l === "fr" || l === "fre" || l === "french" || l === "français";
-  };
-  try {
-    let offset = 0;
-    const limit = 100;
-    for (let i = 0; i < 5; i++) {
-      const r = await fetch(`https://api.gbif.org/v1/species/${speciesKey}/vernacularNames?limit=${limit}&offset=${offset}`);
-      if (!r.ok) break;
-      const data = await r.json();
-      const results: any[] = data.results || [];
-      const french = results.find((v: any) => isFrench(v.language));
-      if (french?.vernacularName) return french.vernacularName;
-      if (data.endOfRecords || results.length < limit) break;
-      offset += limit;
-    }
-  } catch {}
-  return undefined;
 }
 
 export async function searchGBIF(
   lat: number,
   lng: number,
   radiusMeters: number,
-  options: { includeINaturalist?: boolean } = {}
+  options: SearchOptions = {},
 ): Promise<InventoryResult> {
   const includeINaturalist = options.includeINaturalist !== false;
-  const bbox = getBoundingBox(lat, lng, radiusMeters);
+  const inatPromise = fetchINatSafe(lat, lng, radiusMeters, includeINaturalist);
 
-  const url = new URL("https://api.gbif.org/v1/occurrence/search");
-  url.searchParams.set("decimalLatitude", `${bbox.minLat.toFixed(4)},${bbox.maxLat.toFixed(4)}`);
-  url.searchParams.set("decimalLongitude", `${bbox.minLng.toFixed(4)},${bbox.maxLng.toFixed(4)}`);
-  url.searchParams.set("hasCoordinate", "true");
-  url.searchParams.set("hasGeospatialIssue", "false");
-  url.searchParams.set("limit", "1000");
+  const rawRecords = await searchOccurrences({ lat, lng, radiusMeters });
 
-  const inatPromise = includeINaturalist
-    ? searchINaturalist(lat, lng, radiusMeters).catch(() => ({
-        occurrences: [] as Occurrence[],
-        summary: { records: 0, species: 0 },
-      }))
-    : Promise.resolve({ occurrences: [] as Occurrence[], summary: { records: 0, species: 0 } });
-
-  const response = await fetch(url.toString());
-  if (!response.ok) throw new Error(`GBIF API Error: ${response.status}`);
-
-  const data = await response.json();
-
-  if (!data.results || data.results.length === 0) {
-    const inatOnly = await inatPromise;
-    const occurrencesOnly = inatOnly.occurrences;
-    const sensitiveOnly = occurrencesOnly.filter(o => o.alertLevel === "high" || o.alertLevel === "medium").length;
-    const conf = calculateConfidenceScore([]);
-    if (occurrencesOnly.length > 0) {
-      conf.message = `Aucune donnée GBIF • iNaturalist : ${occurrencesOnly.length} espèce(s)`;
-    }
-    return {
-      occurrences: occurrencesOnly,
-      stats: { total: occurrencesOnly.length, speciesCount: occurrencesOnly.length, sensitiveCount: sensitiveOnly },
-      center: [lat, lng],
-      radius: radiusMeters,
-      circles: [{ id: "main", center: [lat, lng], radius: radiusMeters, label: "Zone", enabled: true }],
-      confidence: conf,
-    };
+  if (rawRecords.length === 0) {
+    return buildEmptyResult(await inatPromise, lat, lng, radiusMeters);
   }
 
-  const confidence = calculateConfidenceScore(data.results);
-
-  const speciesMap = new Map<string, any>();
-  for (const record of data.results) {
-    if (record.scientificName && record.decimalLatitude && record.decimalLongitude) {
-      if (!speciesMap.has(record.scientificName)) {
-        speciesMap.set(record.scientificName, record);
-      }
-    }
-  }
-
-  const uniqueSpecies = Array.from(speciesMap.values());
-
-  const speciesWithData = await Promise.all(
-    uniqueSpecies.map(async (record) => {
-      const speciesKey = record.speciesKey || record.taxonKey;
-      let imageUrl: string | undefined;
-      let iucnStatus: string | undefined;
-      let frenchName: string | undefined;
-      let cdNom: number | undefined;
-
-      if (speciesKey) {
-        [imageUrl, iucnStatus, frenchName, cdNom] = await Promise.all([
-          fetchSpeciesMedia(speciesKey),
-          fetchSpeciesIucnStatus(speciesKey),
-          fetchFrenchVernacularName(speciesKey),
-          fetchTaxRefCdNom(record.scientificName || ""),
-        ]);
-      } else {
-        cdNom = await fetchTaxRefCdNom(record.scientificName || "");
-      }
-
-      const baseLevel = getAlertLevelFromIucn(iucnStatus);
-      const alertLevel = applyFrenchPriorityBoost(baseLevel, record.family, record.order, record.class);
-
-      return {
-        key: record.key,
-        scientificName: record.scientificName || "Inconnu",
-        decimalLatitude: record.decimalLatitude,
-        decimalLongitude: record.decimalLongitude,
-        vernacularName: frenchName || undefined,
-        kingdom: record.kingdom,
-        phylum: record.phylum,
-        class: record.class,
-        order: record.order,
-        family: record.family,
-        alertLevel,
-        imageUrl,
-        iucnStatus,
-        taxonKey: speciesKey,
-        source: "gbif" as const,
-        sourceUrl: speciesKey ? `https://www.gbif.org/species/${speciesKey}` : undefined,
-        cdNom,
-      };
-    })
-  );
-
-  const gbifOccurrences = speciesWithData.filter((occ) => {
-    const R = 6371e3;
-    const phi1 = lat * Math.PI / 180;
-    const phi2 = occ.decimalLatitude * Math.PI / 180;
-    const dPhi = (occ.decimalLatitude - lat) * Math.PI / 180;
-    const dLam = (occ.decimalLongitude - lng) * Math.PI / 180;
-    const a = Math.sin(dPhi / 2) ** 2 + Math.cos(phi1) * Math.cos(phi2) * Math.sin(dLam / 2) ** 2;
-    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-    return R * c <= radiusMeters;
-  });
+  const confidence = calculateConfidenceScore(rawRecords);
+  const uniqueRecords = dedupBySpecies(rawRecords);
+  const enriched = await Promise.all(uniqueRecords.map(enrichSpecies));
+  const gbifOccurrences = filterWithinRadius(enriched, lat, lng, radiusMeters);
 
   const inat = await inatPromise;
-  const inatOccurrences: Occurrence[] = inat.occurrences;
-  const inatSummary = inat.summary;
+  const occurrencesMap = new Map<string, Occurrence>(gbifOccurrences.map((o) => [o.scientificName, o]));
+  await assignCdNomsToInat(inat.occurrences, occurrencesMap);
+  const merged = mergeInatWithGbif(gbifOccurrences, inat.occurrences);
 
-  const mergedByName = new Map<string, Occurrence>();
-  for (const occ of gbifOccurrences) mergedByName.set(occ.scientificName, occ);
-
-  const inatNeedingCdNom = inatOccurrences.filter(i => !mergedByName.has(i.scientificName));
-  const inatCdNoms = await Promise.all(
-    inatNeedingCdNom.map(i => fetchTaxRefCdNom(i.scientificName).catch(() => undefined))
-  );
-  inatNeedingCdNom.forEach((i, idx) => { i.cdNom = inatCdNoms[idx]; });
-
-  for (const iocc of inatOccurrences) {
-    const existing = mergedByName.get(iocc.scientificName);
-    if (!existing) {
-      mergedByName.set(iocc.scientificName, iocc);
-    } else {
-      const enriched: Occurrence = {
-        ...existing,
-        imageUrl: existing.imageUrl || iocc.imageUrl,
-        vernacularName: existing.vernacularName || iocc.vernacularName,
-        iucnStatus: existing.iucnStatus || iocc.iucnStatus,
-        cdNom: existing.cdNom ?? iocc.cdNom,
-      };
-      if (!existing.iucnStatus && iocc.iucnStatus) {
-        enriched.alertLevel = iocc.alertLevel;
-      }
-      mergedByName.set(iocc.scientificName, enriched);
-    }
-  }
-
-  const occurrences = Array.from(mergedByName.values());
-  const sensitiveCount = occurrences.filter(o => o.alertLevel === "high" || o.alertLevel === "medium").length;
-
-  if (inatSummary.species > 0) {
-    const onlyInat = inatOccurrences.filter(i => !gbifOccurrences.some(g => g.scientificName === i.scientificName)).length;
-    confidence.message = `${confidence.message} • iNaturalist : +${onlyInat} espèce(s) inédite(s) sur ${inatSummary.species}`;
+  if (inat.summary.species > 0) {
+    const inedits = inat.occurrences.filter(
+      (i) => !gbifOccurrences.some((g) => g.scientificName === i.scientificName),
+    ).length;
+    confidence.message = `${confidence.message} • iNaturalist : +${inedits} espèce(s) inédite(s) sur ${inat.summary.species}`;
   }
 
   return {
-    occurrences,
+    occurrences: merged,
     stats: {
-      total: occurrences.length,
-      speciesCount: new Set(occurrences.map(o => o.scientificName)).size,
-      sensitiveCount
+      total: merged.length,
+      speciesCount: new Set(merged.map((o) => o.scientificName)).size,
+      sensitiveCount: countSensitive(merged),
     },
     center: [lat, lng],
     radius: radiusMeters,
     circles: [{ id: "main", center: [lat, lng], radius: radiusMeters, label: "Zone", enabled: true }],
-    confidence
+    confidence,
   };
+}
+
+function averageConfidences(scores: ConfidenceScore[], areaCount: number): ConfidenceScore {
+  const sum = (k: keyof ConfidenceScore) => scores.reduce((s, c) => s + (c[k] as number), 0);
+  const avg = (k: keyof ConfidenceScore) => Math.round(sum(k) / scores.length);
+  const total = avg("total");
+  return {
+    total,
+    geo: avg("geo"),
+    tax: avg("tax"),
+    time: avg("time"),
+    trace: avg("trace"),
+    issues: avg("issues"),
+    dup: avg("dup"),
+    interpretation:
+      total >= 80 ? "excellent" : total >= 60 ? "good" : total >= 40 ? "moderate" : "low",
+    message: `Moyenne sur ${areaCount} aires d'étude`,
+    rawCount: sum("rawCount"),
+    filteredCount: sum("filteredCount"),
+    dedupCount: sum("dedupCount"),
+  };
+}
+
+function mergeMultiCircleOccurrences(results: InventoryResult[]): Occurrence[] {
+  const merged = new Map<string, Occurrence>();
+  for (const result of results) {
+    for (const occ of result.occurrences) {
+      const existing = merged.get(occ.scientificName);
+      if (!existing || ALERT_PRIORITY[occ.alertLevel] > ALERT_PRIORITY[existing.alertLevel]) {
+        merged.set(occ.scientificName, occ);
+      }
+    }
+  }
+  return Array.from(merged.values());
 }
 
 export async function searchGBIFMultiCircle(
   circles: BufferCircle[],
-  options: { includeINaturalist?: boolean } = {}
+  options: SearchOptions = {},
 ): Promise<InventoryResult> {
-  const enabledCircles = circles.filter(c => c.enabled);
-  if (enabledCircles.length === 0) {
-    throw new Error("No circles enabled");
-  }
+  const enabledCircles = circles.filter((c) => c.enabled);
+  if (enabledCircles.length === 0) throw new Error("No circles enabled");
 
   if (enabledCircles.length === 1) {
     const c = enabledCircles[0];
@@ -379,62 +261,23 @@ export async function searchGBIFMultiCircle(
   }
 
   const results = await Promise.all(
-    enabledCircles.map(c => searchGBIF(c.center[0], c.center[1], c.radius, options))
+    enabledCircles.map((c) => searchGBIF(c.center[0], c.center[1], c.radius, options)),
   );
 
-  const mergedOccurrences = new Map<string, Occurrence>();
-  for (const result of results) {
-    for (const occ of result.occurrences) {
-      const existing = mergedOccurrences.get(occ.scientificName);
-      if (!existing) {
-        mergedOccurrences.set(occ.scientificName, occ);
-      } else {
-        const priority = (level: string) => level === "high" ? 3 : level === "medium" ? 2 : 1;
-        if (priority(occ.alertLevel) > priority(existing.alertLevel)) {
-          mergedOccurrences.set(occ.scientificName, occ);
-        }
-      }
-    }
-  }
-
-  const occurrences = Array.from(mergedOccurrences.values());
-  const sensitiveCount = occurrences.filter(o => o.alertLevel === "high" || o.alertLevel === "medium").length;
-
-  const totalScores = results.map(r => r.confidence);
-  const avgConfidence: ConfidenceScore = {
-    total: Math.round(totalScores.reduce((s, c) => s + c.total, 0) / totalScores.length),
-    geo: Math.round(totalScores.reduce((s, c) => s + c.geo, 0) / totalScores.length),
-    tax: Math.round(totalScores.reduce((s, c) => s + c.tax, 0) / totalScores.length),
-    time: Math.round(totalScores.reduce((s, c) => s + c.time, 0) / totalScores.length),
-    trace: Math.round(totalScores.reduce((s, c) => s + c.trace, 0) / totalScores.length),
-    issues: Math.round(totalScores.reduce((s, c) => s + c.issues, 0) / totalScores.length),
-    dup: Math.round(totalScores.reduce((s, c) => s + c.dup, 0) / totalScores.length),
-    interpretation: (() => {
-      const avg = Math.round(totalScores.reduce((s, c) => s + c.total, 0) / totalScores.length);
-      if (avg >= 80) return "excellent";
-      if (avg >= 60) return "good";
-      if (avg >= 40) return "moderate";
-      return "low";
-    })(),
-    message: `Moyenne sur ${enabledCircles.length} aires d'étude`,
-    rawCount: totalScores.reduce((s, c) => s + c.rawCount, 0),
-    filteredCount: totalScores.reduce((s, c) => s + c.filteredCount, 0),
-    dedupCount: totalScores.reduce((s, c) => s + c.dedupCount, 0),
-  };
-
-  const immediateCircle = enabledCircles.find(c => c.id === "immediate") || enabledCircles[0];
+  const occurrences = mergeMultiCircleOccurrences(results);
+  const referenceCircle = enabledCircles.find((c) => c.id === "immediate") ?? enabledCircles[0];
 
   return {
     occurrences,
     stats: {
       total: occurrences.length,
-      speciesCount: new Set(occurrences.map(o => o.scientificName)).size,
-      sensitiveCount
+      speciesCount: new Set(occurrences.map((o) => o.scientificName)).size,
+      sensitiveCount: countSensitive(occurrences),
     },
-    center: immediateCircle.center,
-    radius: immediateCircle.radius,
+    center: referenceCircle.center,
+    radius: referenceCircle.radius,
     circles,
-    confidence: avgConfidence
+    confidence: averageConfidences(results.map((r) => r.confidence), enabledCircles.length),
   };
 }
 
@@ -442,8 +285,7 @@ export async function fetchSpeciesDetails(taxonKey: number) {
   const [imageUrl, iucnStatus, vernacularName] = await Promise.all([
     fetchSpeciesMedia(taxonKey),
     fetchSpeciesIucnStatus(taxonKey),
-    fetchFrenchVernacularName(taxonKey)
+    fetchFrenchVernacularName(taxonKey),
   ]);
-
   return { taxonKey, imageUrl, iucnStatus, vernacularName };
 }
