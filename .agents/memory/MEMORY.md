@@ -1,0 +1,1 @@
+- [ALI Species API quirks](ali-species-api.md) — alispecies.io/TAXREF: camelCase search, /taxons/{cd}/statuts is the rich endpoint, dedupe per-region rows, never cache transient failures.

@@ -1,6 +1,7 @@
 import OpenAI from "openai";
 import { z } from "zod";
 import type { Occurrence } from "@shared/types";
+import { fetchSpeciesStatuses, type SpeciesStatus } from "./ali";
 
 const openai = new OpenAI({
   baseURL: process.env.AI_INTEGRATIONS_OPENAI_BASE_URL,
@@ -25,6 +26,8 @@ export interface PrioritySpecies {
   level: (typeof ALLOWED_LEVELS)[number];
   sources: string[];
   inInventory: boolean;
+  aliUrl?: string;
+  statuses?: SpeciesStatus[];
 }
 
 export interface PrioritySpeciesAnalysis {
@@ -190,13 +193,38 @@ export async function analyzePrioritySpecies(
   if (!content) throw new Error("Réponse LLM vide");
 
   const inventoryNames = new Set(occurrences.map((o) => o.scientificName));
-  const species: PrioritySpecies[] = normalizePriorityResponse(content, inventoryNames);
+  const species = normalizePriorityResponse(content, inventoryNames);
+  const enriched = await enrichWithAliStatuses(species);
 
   return {
     toponym,
-    species,
+    species: enriched,
     generatedAt: new Date().toISOString(),
   };
+}
+
+const ALI_CONCURRENCY = 3;
+
+async function enrichOne(sp: PrioritySpecies): Promise<PrioritySpecies> {
+  for (let attempt = 0; attempt < 2; attempt++) {
+    try {
+      const enrichment = await fetchSpeciesStatuses(sp.scientificName);
+      if (!enrichment) return sp;
+      return { ...sp, aliUrl: enrichment.aliUrl, statuses: enrichment.statuses };
+    } catch {
+      if (attempt === 0) await new Promise((r) => setTimeout(r, 300));
+    }
+  }
+  return sp;
+}
+
+async function enrichWithAliStatuses(species: PrioritySpecies[]): Promise<PrioritySpecies[]> {
+  const result: PrioritySpecies[] = [];
+  for (let i = 0; i < species.length; i += ALI_CONCURRENCY) {
+    const batch = species.slice(i, i + ALI_CONCURRENCY);
+    result.push(...(await Promise.all(batch.map(enrichOne))));
+  }
+  return result;
 }
 
 export async function reformatReport(rawReport: string): Promise<string> {

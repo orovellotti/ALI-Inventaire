@@ -9,6 +9,15 @@ interface Props {
   onAnalysisChange?: (a: Analysis | null) => void;
 }
 
+interface SpeciesStatus {
+  category: string;
+  value: string;
+  label: string;
+  tone: "danger" | "warn" | "info" | "neutral";
+  scope?: string;
+  docUrl?: string;
+}
+
 interface PrioritySpecies {
   scientificName: string;
   vernacularName?: string;
@@ -18,7 +27,16 @@ interface PrioritySpecies {
   level: "majeur" | "fort" | "modéré";
   sources?: string[];
   inInventory?: boolean;
+  aliUrl?: string;
+  statuses?: SpeciesStatus[];
 }
+
+const STATUS_TONE: Record<string, string> = {
+  danger: "bg-red-50 text-red-700 border-red-200",
+  warn: "bg-orange-50 text-orange-700 border-orange-200",
+  info: "bg-sky-50 text-sky-700 border-sky-200",
+  neutral: "bg-gray-50 text-gray-600 border-gray-200",
+};
 
 interface Analysis {
   toponym: string;
@@ -187,6 +205,25 @@ export function PrioritySpeciesInline({ toponym, coords, occurrences, onAnalysis
                         )}
                       </div>
                       <p className="text-[11px] text-gray-600 mt-1 leading-relaxed">{sp.reason}</p>
+                      {sp.statuses && sp.statuses.length > 0 && (
+                        <div className="mt-1.5">
+                          <div className="text-[9px] font-semibold text-gray-400 uppercase tracking-wider mb-1">
+                            Statuts réglementaires (ALI / TAXREF)
+                          </div>
+                          <div className="flex flex-wrap gap-1" data-testid={`statuses-species-${i}`}>
+                            {sp.statuses.map((st, j) => (
+                              <span
+                                key={j}
+                                className={`inline-flex items-center gap-1 text-[9px] px-1.5 py-0.5 rounded border ${STATUS_TONE[st.tone] || STATUS_TONE.neutral}`}
+                                title={`${st.label}${st.scope ? ` — ${st.scope}` : ""}`}
+                              >
+                                <span className="opacity-70">{st.category}:</span>
+                                <span className="font-semibold">{st.value}</span>
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                      )}
                       {sp.sources && sp.sources.length > 0 && (
                         <div className="mt-1.5 flex flex-wrap gap-1">
                           {sp.sources.map((src, j) => (
@@ -225,6 +262,15 @@ export function PrioritySpeciesInline({ toponym, coords, occurrences, onAnalysis
                           className="inline-flex items-center gap-0.5 text-teal-700 hover:underline"
                         >
                           iNat <ExternalLink className="h-2.5 w-2.5" />
+                        </a>
+                        <a
+                          href={sp.aliUrl || `/api/ali/redirect?q=${encodeURIComponent(sp.scientificName)}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-0.5 text-teal-700 hover:underline"
+                          title="Fiche statuts ALI / TAXREF"
+                        >
+                          ALI <ExternalLink className="h-2.5 w-2.5" />
                         </a>
                         {sp.inInventory === false && (
                           <span className="text-[9px] text-amber-700 bg-amber-50 px-1.5 py-0.5 rounded border border-amber-200">
