@@ -18,8 +18,10 @@ import {
   priorityBodySchema,
   reformatBodySchema,
   taxonKeyParamSchema,
+  zonagesQuerySchema,
 } from "./lib/validation";
 import { geocodePlace, reverseGeocode, searchLieuxDits } from "./services/nominatim";
+import { getZonages } from "./services/geoservices";
 
 const DATA_SOURCES_TTL_MS = 10 * 60 * 1000;
 let dataSourcesCache: { data: unknown; expires: number } | null = null;
@@ -31,6 +33,7 @@ const ENDPOINTS_DOC = [
   { method: "GET", path: "/api/geocode?q=", description: "Géocodage (recherche de lieu)" },
   { method: "GET", path: "/api/lieux-dits?q=", description: "Recherche de lieux-dits (avec polygone si disponible)" },
   { method: "GET", path: "/api/sinp?lat=&lng=", description: "Plateformes SINP régionales" },
+  { method: "GET", path: "/api/zonages?lat=&lng=&radius=", description: "Zonages environnementaux (ZNIEFF, Natura 2000, réserves, APB…) intersectant l'aire d'étude (IGN/PatriNat)" },
   { method: "GET", path: "/api/sinp/all", description: "Toutes les plateformes SINP" },
   { method: "GET", path: "/api/presets", description: "Presets de projets EIE" },
   { method: "GET", path: "/api/study-areas", description: "Définitions des aires d'étude" },
@@ -128,6 +131,14 @@ export async function registerRoutes(
   app.get("/api/sinp/all", (_req, res) => {
     res.json({ platforms: SINP_PLATFORMS });
   });
+
+  app.get(
+    "/api/zonages",
+    asyncHandler(async (req, res) => {
+      const { lat, lng, radius } = zonagesQuerySchema.parse(req.query);
+      res.json(await getZonages(lat, lng, radius));
+    }),
+  );
 
   app.get(
     "/api/ali/redirect",

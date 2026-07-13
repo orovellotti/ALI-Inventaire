@@ -11,6 +11,28 @@ import { exportCSV, exportExcel } from "@/lib/export";
 import { PrioritySpeciesInline } from "./PrioritySpeciesInline";
 import html2canvas from "html2canvas";
 
+interface ZonageItem {
+  category: string;
+  type: string;
+  name: string;
+  url: string | null;
+  id: string | null;
+}
+interface ZonageGroupData {
+  category: string;
+  label: string;
+  count: number;
+  zonages: ZonageItem[];
+}
+interface ZonagesData {
+  lat: number;
+  lng: number;
+  radius: number;
+  count: number;
+  groups: ZonageGroupData[];
+  errors: string[];
+}
+
 interface ResultsPanelProps {
   isOpen: boolean;
   onClose: () => void;
@@ -37,6 +59,8 @@ export function ResultsPanel({ isOpen, onClose, results, selectedSpecies, onSele
   const [reformatError, setReformatError] = useState<string | null>(null);
   const [showFilters, setShowFilters] = useState(true);
   const [aiAnalysis, setAiAnalysis] = useState<{ species: { scientificName: string; vernacularName?: string; group: string; level: string; reason: string; sources?: string[]; inInventory?: boolean }[]; generatedAt: string } | null>(null);
+  const [zonages, setZonages] = useState<ZonagesData | null>(null);
+  const [zonagesLoading, setZonagesLoading] = useState(false);
   const [panelWidth, setPanelWidth] = useState<number>(() => {
     if (typeof window === "undefined") return 600;
     const saved = Number(localStorage.getItem("resultsPanelWidth"));
@@ -67,6 +91,32 @@ export function ResultsPanel({ isOpen, onClose, results, selectedSpecies, onSele
       window.removeEventListener("mouseup", onUp);
     };
   }, [panelWidth]);
+
+  useEffect(() => {
+    if (!results) {
+      setZonages(null);
+      return;
+    }
+    const [lat, lng] = results.center;
+    const radius = results.radius;
+    let cancelled = false;
+    setZonages(null);
+    setZonagesLoading(true);
+    fetch(`/api/zonages?lat=${lat}&lng=${lng}&radius=${radius}`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => {
+        if (!cancelled) setZonages(d);
+      })
+      .catch(() => {
+        if (!cancelled) setZonages(null);
+      })
+      .finally(() => {
+        if (!cancelled) setZonagesLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [results]);
 
   const startResize = (e: React.MouseEvent) => {
     e.preventDefault();
@@ -232,6 +282,15 @@ export function ResultsPanel({ isOpen, onClose, results, selectedSpecies, onSele
     const sectionList = (label: string, list: Occurrence[]) =>
       list.length > 0 ? `${label} (${list.length})\n${list.map(fmtSpecies).join("\n")}\n` : "";
 
+    const zonagesSection = zonages && zonages.count > 0 ? `
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+🗺 ZONAGES ENVIRONNEMENTAUX (${zonages.count})
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+${zonages.groups.map(g => `${g.label} (${g.count})\n${g.zonages.map(z => `• ${z.type} — ${z.name}${z.url ? `\n  ${z.url}` : ""}`).join("\n")}`).join("\n\n")}
+
+↳ Zonages intersectant l'aire d'étude — source IGN Géoplateforme / INPN (PatriNat).
+` : "";
+
     return `🌿 INVENTAIRE FLASH — Pré-diagnostic écologique
 ${toponym ? `📍 ${toponym}\n` : ""}🗓 ${new Date().toLocaleDateString("fr-FR")}
 📌 ${lat}, ${lng} — rayon ${results.radius} m
@@ -257,12 +316,12 @@ ${i + 1}. ${sp.scientificName}${sp.vernacularName ? ` (${sp.vernacularName})` : 
    Sources : ${sp.sources.join(" • ")}` : ""}`).join("\n")}
 
 ⚠ Synthèse IA — à valider par un écologue.
-` : ""}
+` : ""}${zonagesSection}
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-Données : GBIF • iNaturalist • UICN
+Données : GBIF • iNaturalist • UICN • IGN/INPN
 Inventaire flash — indication rapide, ne remplace pas un inventaire terrain.
 ${shareUrl ? `\n🔗 Reproduire cette analyse : ${shareUrl}` : ""}`;
-  }, [results, sortedSpecies, activeTaxonFilters, presentGroups, isAllActive, aiAnalysis, toponym]);
+  }, [results, sortedSpecies, activeTaxonFilters, presentGroups, isAllActive, aiAnalysis, toponym, zonages]);
 
   const reportSubject = useMemo(() => {
     if (!results) return "Inventaire Flash";
@@ -575,6 +634,8 @@ ${shareUrl ? `\n🔗 Reproduire cette analyse : ${shareUrl}` : ""}`;
               onAnalysisChange={setAiAnalysis}
             />
 
+            <ZonagesPanel data={zonages} loading={zonagesLoading} />
+
             <SINPPanel center={results.center} />
 
             <p className="px-1 text-[11px] text-gray-400 leading-snug flex gap-1.5 items-start">
@@ -823,6 +884,107 @@ function StatusBadge({ status }: { status: string | undefined }) {
     <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${getStatusStyle()}`}>
       {label}
     </span>
+  );
+}
+
+const ZONAGE_CATEGORY_STYLES: Record<string, { border: string; bg: string; text: string; badge: string; hover: string }> = {
+  reglementaire: { border: "border-rose-200", bg: "bg-rose-50/50", text: "text-rose-700", badge: "text-rose-500 bg-rose-100", hover: "hover:text-rose-800 hover:bg-rose-50" },
+  natura2000: { border: "border-amber-200", bg: "bg-amber-50/50", text: "text-amber-700", badge: "text-amber-600 bg-amber-100", hover: "hover:text-amber-800 hover:bg-amber-50" },
+  znieff: { border: "border-emerald-200", bg: "bg-emerald-50/50", text: "text-emerald-700", badge: "text-emerald-600 bg-emerald-100", hover: "hover:text-emerald-800 hover:bg-emerald-50" },
+  autre: { border: "border-slate-200", bg: "bg-slate-50/50", text: "text-slate-700", badge: "text-slate-500 bg-slate-100", hover: "hover:text-slate-800 hover:bg-slate-50" },
+};
+
+function safeHttpUrl(raw: string | null): string | null {
+  if (!raw) return null;
+  try {
+    const u = new URL(raw, typeof window !== "undefined" ? window.location.origin : undefined);
+    return u.protocol === "http:" || u.protocol === "https:" ? u.href : null;
+  } catch {
+    return null;
+  }
+}
+
+function ZonagesPanel({ data, loading }: { data: ZonagesData | null; loading: boolean }) {
+  const [expanded, setExpanded] = useState(false);
+
+  if (loading) {
+    return (
+      <div className="rounded-xl border border-teal-200 bg-teal-50/50 p-4 flex items-center gap-2 text-sm text-teal-700">
+        <Loader2 className="h-4 w-4 animate-spin" />
+        Recherche des zonages environnementaux…
+      </div>
+    );
+  }
+
+  if (!data || data.count === 0) return null;
+
+  return (
+    <div className="rounded-xl border border-teal-200 bg-teal-50/50 p-4" data-testid="panel-zonages">
+      <button onClick={() => setExpanded(!expanded)} className="w-full" data-testid="button-toggle-zonages">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Layers className="h-4 w-4 text-teal-600" />
+            <span className="font-bold text-sm text-teal-700">Zonages environnementaux</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-teal-500 bg-teal-100 px-2 py-0.5 rounded-full" data-testid="text-zonages-count">
+              {data.count} zonage{data.count > 1 ? "s" : ""}
+            </span>
+            {expanded ? <ChevronUp className="h-4 w-4 text-teal-500" /> : <ChevronDown className="h-4 w-4 text-teal-500" />}
+          </div>
+        </div>
+      </button>
+
+      {expanded && (
+        <div className="mt-3 space-y-3">
+          <p className="text-xs text-teal-600/70">
+            Zonages officiels intersectant l'aire d'étude (rayon {data.radius} m) — source IGN Géoplateforme / INPN (PatriNat) :
+          </p>
+          {data.groups.map((group) => {
+            const s = ZONAGE_CATEGORY_STYLES[group.category] || ZONAGE_CATEGORY_STYLES.autre;
+            return (
+              <div key={group.category} className={`bg-white/70 rounded-lg p-3 border ${s.border}`}>
+                <div className="flex items-center justify-between mb-2">
+                  <span className={`text-xs font-bold ${s.text}`}>{group.label}</span>
+                  <span className={`text-[10px] px-1.5 py-0.5 rounded-full ${s.badge}`}>{group.count}</span>
+                </div>
+                <div className="space-y-1.5">
+                  {group.zonages.map((z, i) => {
+                    const href = safeHttpUrl(z.url);
+                    return href ? (
+                      <a
+                        key={`${z.id || z.name}-${i}`}
+                        href={href}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className={`flex items-start gap-2 text-xs ${s.text} ${s.hover} rounded px-2 py-1.5 transition-colors`}
+                        data-testid={`zonage-link-${group.category}-${i}`}
+                      >
+                        <ExternalLink className="h-3 w-3 flex-shrink-0 mt-0.5" />
+                        <span>
+                          <span className="font-semibold">{z.type}</span> — {z.name}
+                        </span>
+                      </a>
+                    ) : (
+                      <div
+                        key={`${z.id || z.name}-${i}`}
+                        className={`flex items-start gap-2 text-xs ${s.text} px-2 py-1.5`}
+                        data-testid={`zonage-item-${group.category}-${i}`}
+                      >
+                        <Shield className="h-3 w-3 flex-shrink-0 mt-0.5" />
+                        <span>
+                          <span className="font-semibold">{z.type}</span> — {z.name}
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
   );
 }
 

@@ -49,6 +49,12 @@ export const latLngQuerySchema = z.object({
   lng: lngSchema,
 });
 
+export const zonagesQuerySchema = z.object({
+  lat: latSchema,
+  lng: lngSchema,
+  radius: radiusSchema.default(2000),
+});
+
 export const searchQuerySchema = z.object({
   q: z.string().trim().min(1, "Paramètre 'q' requis"),
 });

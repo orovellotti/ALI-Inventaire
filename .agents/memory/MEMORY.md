@@ -1,1 +1,2 @@
 - [ALI Species API quirks](ali-species-api.md) — alispecies.io/TAXREF: camelCase search, /taxons/{cd}/statuts is the rich endpoint, dedupe per-region rows, never cache transient failures.
+- [IGN Géoplateforme WFS](ign-geoplateforme-wfs.md) — data.geopf.fr PatriNat zonages: EPSG:4326 bbox is lat,lng order; Ramsar layer is really `patrinat_ramsar:pnm` (not a bug); verify typenames via GetCapabilities.

@@ -7,6 +7,7 @@ import { searchGBIF, searchGBIFMultiCircle, fetchSpeciesDetails } from "./gbif";
 import { findSINPPlatforms, SINP_PLATFORMS } from "./sinp";
 import { STUDY_AREAS, PROJECT_PRESETS, TAXON_GROUPS } from "./constants";
 import { analyzePrioritySpecies } from "./llm";
+import { getZonages } from "./services/geoservices";
 import type { BufferCircle, Occurrence, InventoryResult } from "@shared/types";
 
 function summariseInventory(result: InventoryResult, max = 200) {
@@ -220,6 +221,34 @@ function buildMcpServer(): McpServer {
         return ok({ platforms: findSINPPlatforms(lat, lng) });
       } catch (e: any) {
         return fail(e.message || "Erreur SINP");
+      }
+    },
+  );
+
+  server.registerTool(
+    "zonages_for_location",
+    {
+      title: "Zonages environnementaux (ZNIEFF, Natura 2000…)",
+      description:
+        "Renvoie les zonages environnementaux (inventaire ZNIEFF I/II, Natura 2000 ZSC/ZPS, réserves naturelles, " +
+        "parcs, arrêtés de protection de biotope, Ramsar, etc.) qui intersectent l'aire d'étude autour d'un point GPS. " +
+        "Source : IGN Géoplateforme / PatriNat (MNHN). Chaque zonage inclut son nom et le lien vers sa fiche INPN.",
+      inputSchema: {
+        lat: z.number().min(-90).max(90).describe("Latitude WGS84"),
+        lng: z.number().min(-180).max(180).describe("Longitude WGS84"),
+        radius: z
+          .number()
+          .positive()
+          .max(50000)
+          .default(2000)
+          .describe("Rayon de recherche en mètres autour du point (défaut 2000, max 50 000)"),
+      },
+    },
+    async ({ lat, lng, radius }) => {
+      try {
+        return ok(await getZonages(lat, lng, radius ?? 2000));
+      } catch (e: any) {
+        return fail(e.message || "Erreur zonages");
       }
     },
   );
