@@ -2,6 +2,7 @@ import OpenAI from "openai";
 import { z } from "zod";
 import type { Occurrence } from "@shared/types";
 import { fetchSpeciesStatuses, type SpeciesStatus } from "./ali";
+import { getZonages } from "./services/geoservices";
 
 const openai = new OpenAI({
   baseURL: process.env.AI_INTEGRATIONS_OPENAI_BASE_URL,
@@ -13,6 +14,7 @@ const PRIORITY_TEMPERATURE = 0.3;
 const REFORMAT_TEMPERATURE = 0.4;
 const MAX_SAMPLED_SPECIES = 50;
 const MAX_RETURNED_SPECIES = 5;
+const NATURA_PROXIMITY_M = 5000;
 
 const PRIORITY_IUCN = new Set(["CR", "EN", "VU", "NT", "DD"]);
 const ALLOWED_LEVELS = ["majeur", "fort", "modéré"] as const;
@@ -30,9 +32,16 @@ export interface PrioritySpecies {
   statuses?: SpeciesStatus[];
 }
 
+export interface Natura2000Zone {
+  type: string;
+  name: string;
+  url: string | null;
+}
+
 export interface PrioritySpeciesAnalysis {
   toponym: string;
   species: PrioritySpecies[];
+  natura2000: Natura2000Zone[];
   generatedAt: string;
 }
 
@@ -84,11 +93,14 @@ function formatSpeciesForPrompt(species: Occurrence[]): string {
     .join("\n");
 }
 
-function buildPriorityPrompt(toponym: string, coords: [number, number], sample: string, totalCount: number): string {
+function buildPriorityPrompt(toponym: string, coords: [number, number], sample: string, totalCount: number, natura: Natura2000Zone[]): string {
+  const naturaBlock = natura.length > 0
+    ? `\nZones Natura 2000 à proximité (rayon ${NATURA_PROXIMITY_M / 1000} km) :\n${natura.map((z) => `- ${z.type} : ${z.name}`).join("\n")}\n`
+    : "";
   return `Site : ${toponym} (lat ${coords[0].toFixed(4)}, lng ${coords[1].toFixed(4)})
 Inventaire GBIF (${totalCount} espèces) :
 ${sample}
-
+${naturaBlock}
 Identifie les **5 espèces à enjeux les plus importantes** pour un pré-diagnostic écologique de ce site.
 Choisis-les en priorité parmi les espèces ci-dessus, mais tu peux ajouter une espèce attendue sur le secteur (connaissance écorégionale) si elle est plus pertinente que la donnée GBIF disponible.
 
@@ -110,7 +122,8 @@ Réponds en JSON strict :
 Règles :
 - Exactement 5 espèces, triées par enjeu décroissant.
 - "sources" = liste courte (1 à 4) des référentiels cités dans "reason" (ex : "UICN France", "UICN Monde", "Arrêté du 29 oct. 2009", "Arrêté du 23 avr. 2007", "Directive Oiseaux Annexe I", "Directive Habitats Annexe II", "ZNIEFF déterminante", "Liste rouge régionale").
-- N'invente jamais de source, n'utilise que les référentiels officiels français/européens.`;
+- N'invente jamais de source, n'utilise que les référentiels officiels français/européens.
+- Si des zones Natura 2000 sont listées ci-dessus, tiens-en compte : privilégie les espèces qui justifient leur désignation (Directive Habitats Annexe II/IV, Directive Oiseaux Annexe I) et, le cas échéant, mentionne le site concerné dans "reason".`;
 }
 
 function buildReformatPrompt(rawReport: string): string {
@@ -170,6 +183,17 @@ function normalizePriorityResponse(rawJson: string, inventoryNames: Set<string>)
   return normalized;
 }
 
+async function fetchNaturaZones(coords: [number, number]): Promise<Natura2000Zone[]> {
+  try {
+    const result = await getZonages(coords[0], coords[1], NATURA_PROXIMITY_M);
+    const group = result.groups.find((g) => g.category === "natura2000");
+    if (!group) return [];
+    return group.zonages.map((z) => ({ type: z.type, name: z.name, url: z.url }));
+  } catch {
+    return [];
+  }
+}
+
 export async function analyzePrioritySpecies(
   toponym: string,
   coords: [number, number],
@@ -178,12 +202,13 @@ export async function analyzePrioritySpecies(
   const picked = selectRelevantSpecies(occurrences);
   const sample = formatSpeciesForPrompt(picked);
   const uniqueCount = new Set(occurrences.map((o) => o.scientificName)).size;
+  const natura2000 = await fetchNaturaZones(coords);
 
   const completion = await openai.chat.completions.create({
     model: MODEL,
     messages: [
       { role: "system", content: PRIORITY_SYSTEM_PROMPT },
-      { role: "user", content: buildPriorityPrompt(toponym, coords, sample, uniqueCount) },
+      { role: "user", content: buildPriorityPrompt(toponym, coords, sample, uniqueCount, natura2000) },
     ],
     response_format: { type: "json_object" },
     temperature: PRIORITY_TEMPERATURE,
@@ -199,6 +224,7 @@ export async function analyzePrioritySpecies(
   return {
     toponym,
     species: enriched,
+    natura2000,
     generatedAt: new Date().toISOString(),
   };
 }
