@@ -98,7 +98,18 @@ export default function Home() {
   const [includeINaturalist, setIncludeINaturalist] = useState<boolean>(true);
   const [projectPolygon, setProjectPolygon] = useState<ProjectPolygon | null>(null);
   const [isLoadingShapefile, setIsLoadingShapefile] = useState(false);
+  const [locationKey, setLocationKey] = useState(0);
   const { toast } = useToast();
+
+  const inventoryRequestId = useRef(0);
+  const resetForNewLocation = useCallback(() => {
+    inventoryRequestId.current++;
+    setResults(null);
+    setSelectedSpecies(null);
+    setIsPanelOpen(false);
+    setIsAnalyzing(false);
+    setLocationKey(k => k + 1);
+  }, []);
 
   const handleGoToPlace = async (query: string) => {
     setIsSearching(true);
@@ -109,7 +120,7 @@ export default function Home() {
         setCenter(newCenter);
         setCircles(prev => prev.map(c => ({ ...c, center: newCenter })));
         if (projectPolygon) setProjectPolygon(null);
-        if (isPanelOpen) setIsPanelOpen(false);
+        resetForNewLocation();
         setCurrentToponym(place.display_name);
         toast({
           title: "Lieu trouvé",
@@ -144,9 +155,11 @@ export default function Home() {
       return;
     }
 
+    const requestId = ++inventoryRequestId.current;
     setIsAnalyzing(true);
     try {
       const data = await searchGBIFMultiCircle(circles, { includeINaturalist });
+      if (requestId !== inventoryRequestId.current) return;
       setResults(data);
       setIsPanelOpen(true);
       toast({
@@ -154,13 +167,14 @@ export default function Home() {
         description: `${data.stats.speciesCount} espèces trouvées dans ${enabledCount} aire${enabledCount > 1 ? 's' : ''} d'étude.`,
       });
     } catch (error) {
+      if (requestId !== inventoryRequestId.current) return;
       toast({
         title: "Erreur",
         description: "Impossible de récupérer les données GBIF.",
         variant: "destructive",
       });
     } finally {
-      setIsAnalyzing(false);
+      if (requestId === inventoryRequestId.current) setIsAnalyzing(false);
     }
   };
 
@@ -170,7 +184,7 @@ export default function Home() {
     const newCenter: [number, number] = [lat, lng];
     setCenter(newCenter);
     setCircles(prev => prev.map(c => ({ ...c, center: newCenter })));
-    if (isPanelOpen) setIsPanelOpen(false);
+    resetForNewLocation();
     setCurrentToponym(`Point ${lat.toFixed(4)}, ${lng.toFixed(4)}`);
     const requestId = ++reverseGeocodeRequestId.current;
     reverseGeocode(lat, lng).then(result => {
@@ -247,7 +261,7 @@ export default function Home() {
       const newCenter: [number, number] = polygon.centroid;
       setCenter(newCenter);
       setCircles(prev => prev.map(c => ({ ...c, center: newCenter })));
-      if (isPanelOpen) setIsPanelOpen(false);
+      resetForNewLocation();
       setCurrentToponym(polygon.name);
       toast({
         title: "Shapefile chargé",
@@ -263,33 +277,33 @@ export default function Home() {
     } finally {
       setIsLoadingShapefile(false);
     }
-  }, [isPanelOpen, toast]);
+  }, [resetForNewLocation, toast]);
 
   const handleSelectLieuDitPolygon = useCallback((polygon: ProjectPolygon) => {
     setProjectPolygon(polygon);
     const newCenter: [number, number] = polygon.centroid;
     setCenter(newCenter);
     setCircles(prev => prev.map(c => ({ ...c, center: newCenter })));
-    if (isPanelOpen) setIsPanelOpen(false);
+    resetForNewLocation();
     setCurrentToponym(polygon.name);
     toast({
       title: "Lieu-dit chargé",
       description: `Contour utilisé comme emprise — "${polygon.name}"`,
     });
-  }, [isPanelOpen, toast]);
+  }, [resetForNewLocation, toast]);
 
   const handleSelectLieuDitPoint = useCallback((lat: number, lng: number, name: string) => {
     const newCenter: [number, number] = [lat, lng];
     setCenter(newCenter);
     setCircles(prev => prev.map(c => ({ ...c, center: newCenter })));
     if (projectPolygon) setProjectPolygon(null);
-    if (isPanelOpen) setIsPanelOpen(false);
+    resetForNewLocation();
     setCurrentToponym(name);
     toast({
       title: "Lieu-dit localisé",
       description: `Aires d'étude centrées sur "${name}" (pas de contour OSM disponible)`,
     });
-  }, [isPanelOpen, projectPolygon, toast]);
+  }, [resetForNewLocation, projectPolygon, toast]);
 
   const handleShapefileClear = useCallback(() => {
     setProjectPolygon(null);
@@ -339,6 +353,7 @@ export default function Home() {
       />
 
       <ResultsPanel 
+        key={locationKey}
         isOpen={isPanelOpen} 
         onClose={() => setIsPanelOpen(false)} 
         results={results}
