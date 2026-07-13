@@ -169,3 +169,16 @@ export async function getZonages(
 
   return { lat, lng, radius, count: all.length, groups, errors };
 }
+
+export async function getNaturaZones(lat: number, lng: number, radius: number): Promise<Zonage[]> {
+  const bbox = bboxFromRadius(lat, lng, radius);
+  const naturaLayers = ZONAGE_LAYERS.filter((l) => l.category === "natura2000");
+  const perLayer = await runWithConcurrency(naturaLayers, CONCURRENCY, async (layer) => {
+    try {
+      return await fetchLayer(layer, bbox);
+    } catch {
+      return [] as Zonage[];
+    }
+  });
+  return perLayer.flat();
+}

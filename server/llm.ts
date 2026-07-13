@@ -2,7 +2,7 @@ import OpenAI from "openai";
 import { z } from "zod";
 import type { Occurrence } from "@shared/types";
 import { fetchSpeciesStatuses, type SpeciesStatus } from "./ali";
-import { getZonages } from "./services/geoservices";
+import { getNaturaZones, type Zonage } from "./services/geoservices";
 
 const openai = new OpenAI({
   baseURL: process.env.AI_INTEGRATIONS_OPENAI_BASE_URL,
@@ -15,6 +15,7 @@ const REFORMAT_TEMPERATURE = 0.4;
 const MAX_SAMPLED_SPECIES = 50;
 const MAX_RETURNED_SPECIES = 5;
 const NATURA_PROXIMITY_M = 5000;
+const NATURA_FETCH_TIMEOUT_MS = 4000;
 
 const PRIORITY_IUCN = new Set(["CR", "EN", "VU", "NT", "DD"]);
 const ALLOWED_LEVELS = ["majeur", "fort", "modéré"] as const;
@@ -185,10 +186,11 @@ function normalizePriorityResponse(rawJson: string, inventoryNames: Set<string>)
 
 async function fetchNaturaZones(coords: [number, number]): Promise<Natura2000Zone[]> {
   try {
-    const result = await getZonages(coords[0], coords[1], NATURA_PROXIMITY_M);
-    const group = result.groups.find((g) => g.category === "natura2000");
-    if (!group) return [];
-    return group.zonages.map((z) => ({ type: z.type, name: z.name, url: z.url }));
+    const zones = await Promise.race([
+      getNaturaZones(coords[0], coords[1], NATURA_PROXIMITY_M),
+      new Promise<Zonage[]>((resolve) => setTimeout(() => resolve([]), NATURA_FETCH_TIMEOUT_MS)),
+    ]);
+    return zones.map((z) => ({ type: z.type, name: z.name, url: z.url }));
   } catch {
     return [];
   }

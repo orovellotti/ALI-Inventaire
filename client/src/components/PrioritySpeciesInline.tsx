@@ -1,4 +1,4 @@
-import { Sparkles, AlertTriangle, AlertCircle, Info, Loader2, RefreshCw, ExternalLink, BookOpen } from "lucide-react";
+import { Sparkles, AlertTriangle, AlertCircle, Info, Loader2, RefreshCw, ExternalLink, BookOpen, Layers } from "lucide-react";
 import { useMemo, useRef, useState } from "react";
 import type { Occurrence } from "@/lib/gbif";
 
@@ -38,9 +38,16 @@ const STATUS_TONE: Record<string, string> = {
   neutral: "bg-gray-50 text-gray-600 border-gray-200",
 };
 
+interface Natura2000Zone {
+  type: string;
+  name: string;
+  url: string | null;
+}
+
 interface Analysis {
   toponym: string;
   species: PrioritySpecies[];
+  natura2000?: Natura2000Zone[];
   generatedAt: string;
 }
 
@@ -172,6 +179,33 @@ export function PrioritySpeciesInline({ toponym, coords, occurrences, onAnalysis
 
       {analysis && !loading && (
         <div className="space-y-2">
+          {analysis.natura2000 && analysis.natura2000.length > 0 && (
+            <div className="rounded-lg border border-amber-200 bg-amber-50/60 p-2.5" data-testid="natura2000-nearby">
+              <div className="text-[9px] font-semibold text-amber-700 uppercase tracking-wider mb-1.5 flex items-center gap-1">
+                <Layers className="h-3 w-3" /> Zones Natura 2000 à proximité ({analysis.natura2000.length})
+              </div>
+              <div className="space-y-1">
+                {analysis.natura2000.map((z, i) => {
+                  const href = z.url && /^https?:\/\//i.test(z.url) ? z.url : null;
+                  return (
+                    <div key={i} className="text-[11px] text-amber-800 leading-snug" data-testid={`natura2000-zone-${i}`}>
+                      <span className="font-semibold">{z.type}</span> — {z.name}
+                      {href && (
+                        <a
+                          href={href}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-0.5 ml-1 text-amber-700 hover:underline"
+                        >
+                          <ExternalLink className="h-2.5 w-2.5" />
+                        </a>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
           {analysis.species.length === 0 ? (
             <div className="text-xs text-gray-500 text-center py-3">
               Aucune espèce à enjeux notable identifiée.
