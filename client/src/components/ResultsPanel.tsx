@@ -762,7 +762,9 @@ function SpeciesCard({ occ, isSelected, onSelect }: { occ: Occurrence; isSelecte
   const [imageError, setImageError] = useState(false);
   const gbifUrl = occ.taxonKey ? `https://www.gbif.org/species/${occ.taxonKey}` : null;
   const wikiUrl = `https://fr.wikipedia.org/wiki/${encodeURIComponent(occ.scientificName.split(' ').slice(0, 2).join('_'))}`;
-  const aliUrl = `/api/ali/redirect?q=${encodeURIComponent(occ.scientificName.split(' ').slice(0, 2).join(' '))}`;
+  const aliUrl = occ.cdNom
+    ? `https://alispecies.io/taxon/${occ.cdNom}`
+    : `https://alispecies.io/?q=${encodeURIComponent(occ.scientificName.split(' ').slice(0, 2).join(' '))}`;
   const inatUrl = `https://www.inaturalist.org/search?q=${encodeURIComponent(occ.scientificName.split(' ').slice(0, 2).join(' '))}&source%5B%5D=taxa`;
   const taxonGroup = TAXON_GROUPS.find(g => g.id === getTaxonGroupId(occ));
 

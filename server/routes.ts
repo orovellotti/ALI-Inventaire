@@ -148,7 +148,11 @@ export async function registerRoutes(
         res.redirect(302, "https://alispecies.io");
         return;
       }
-      res.redirect(302, await resolveAliUrl(q));
+      try {
+        res.redirect(302, await resolveAliUrl(q));
+      } catch {
+        res.redirect(302, `https://alispecies.io/?q=${encodeURIComponent(q)}`);
+      }
     }),
   );
 

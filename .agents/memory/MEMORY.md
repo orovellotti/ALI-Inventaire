@@ -1,3 +1,4 @@
 - [ALI Species API quirks](ali-species-api.md) — alispecies.io/TAXREF: camelCase search, /taxons/{cd}/statuts is the rich endpoint, dedupe per-region rows, never cache transient failures.
 - [IGN Géoplateforme WFS](ign-geoplateforme-wfs.md) — data.geopf.fr PatriNat zonages: EPSG:4326 bbox is lat,lng order; Ramsar layer is really `patrinat_ramsar:pnm` (not a bug); verify typenames via GetCapabilities.
 - [Priority-species prefetch latency](priority-species-prefetch.md) — pre-LLM external fetches must be time-bounded + layer-scoped; never call full getZonages() on the AI path.
+- [ALI Species linking](ali-species-links.md) — link species via client-side https://alispecies.io/?q=; server redirect is slow (~10s) and cdNom is never populated.
