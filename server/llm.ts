@@ -232,8 +232,10 @@ export async function analyzePrioritySpecies(
   };
 }
 
-const ALI_CONCURRENCY = 3;
-const ALI_ENRICH_BUDGET_MS = 25000;
+// ALI's AI-powered /taxons/search endpoint cannot handle concurrent requests:
+// firing several at once makes them ALL time out. Enrich strictly one-at-a-time.
+const ALI_CONCURRENCY = 1;
+const ALI_ENRICH_BUDGET_MS = 40000;
 
 async function enrichOne(sp: PrioritySpecies): Promise<PrioritySpecies> {
   for (let attempt = 0; attempt < 2; attempt++) {

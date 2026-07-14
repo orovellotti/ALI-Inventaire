@@ -37,9 +37,18 @@ extra call. Formula (reverse-engineered from their JS bundle): `score = round(10
 `>=75 majeure, >=50 forte, >=25 modérée, else faible`. Replicated in `computePatrimonialite()` in
 server/ali.ts. Only feasible for priority species (needs statuts), NOT the full occurrence list.
 
-**Latency trap:** the `/api/taxons/search` endpoint (AI-powered, resolves name→cdNom) is the slow,
-flaky one — from Node it swings from ~180ms to full timeout (>15s), while `/statuts` stays fast once
-cdNom is known. ALI sends **no CORS headers**, so the browser can't call it cross-origin. Enrichment
-must therefore stay server-side; wrap the whole enrichment pass in a global time budget (~25s) via
-Promise.race so a slow search never blocks/timeouts the entire /api/llm/priority-species response —
-degrade to un-enriched species instead. TAXREF (taxref.mnhn.fr) is not a reliable fallback (returns 521).
+**Latency trap:** the `/api/taxons/search` endpoint (AI-powered, resolves name→cdNom) is the slow one
+— sequentially it takes ~1-13s per call, while `/statuts` stays fast (~180ms) once cdNom is known.
+ALI sends **no CORS headers**, so the browser can't call it cross-origin. Enrichment must stay
+server-side; wrap the whole enrichment pass in a global time budget (~40s) via Promise.race so a slow
+search never blocks/timeouts the entire /api/llm/priority-species response — degrade to un-enriched
+species instead. TAXREF (taxref.mnhn.fr) is not a reliable fallback (returns 521).
+
+**CRITICAL — search CANNOT be called concurrently.** The AI search endpoint saturates under parallel
+load: firing 5 requests at once makes ALL of them time out (verified: 5 parallel all abort even at
+45s), while the exact same 5 run sequentially all succeed in ~26s total. Enrich strictly
+one-at-a-time (`ALI_CONCURRENCY = 1` in server/llm.ts). Raising concurrency to "speed it up" does the
+opposite — it breaks enrichment entirely. Per-call timeout must cover the slow tail (`TIMEOUT_MS ≈ 20s`
+in aliApi.ts) since a single search can hit ~13s.
+**Why:** debugged a case where patrimonialité/statuts silently came back empty for every species; root
+cause was concurrent search calls all timing out, NOT the timeout value or the formula.

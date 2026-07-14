@@ -1,5 +1,5 @@
 const ALI_BASE = "https://alispecies.io";
-const TIMEOUT_MS = 12000;
+const TIMEOUT_MS = 20000;
 
 export interface AliTaxonHit {
   cdNom: number;
