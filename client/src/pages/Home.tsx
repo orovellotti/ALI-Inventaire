@@ -9,7 +9,7 @@ import { searchGBIFMultiCircle, InventoryResult, BufferCircle, STUDY_AREAS, Proj
 import { searchPlace, reverseGeocode } from "@/lib/geocoding";
 import { parseShapefile, ProjectPolygon } from "@/lib/shapefile";
 import { useToast } from "@/hooks/use-toast";
-import { Leaf, HelpCircle, Bot, ExternalLink } from "lucide-react";
+import { Leaf, HelpCircle, Bot } from "lucide-react";
 
 function createDefaultCircles(center: [number, number]): BufferCircle[] {
   return STUDY_AREAS.map(area => ({
@@ -416,19 +416,6 @@ export default function Home() {
           <Bot className="h-4 w-4 text-teal-600" />
           <span className="text-xs font-semibold text-gray-700">Agent IA</span>
         </button>
-
-        <a
-          href="https://alispecies.io"
-          target="_blank"
-          rel="noopener noreferrer"
-          className="flex items-center gap-1.5 bg-white/80 backdrop-blur px-2.5 py-2 rounded-lg cursor-pointer hover:bg-white transition-colors shadow-sm"
-          aria-label="Ouvrir ALI Species"
-          data-testid="link-ali-species"
-          title="Ouvrir ALI Species (statuts réglementaires TAXREF)"
-        >
-          <span className="text-xs font-semibold text-gray-700">ALI Species</span>
-          <ExternalLink className="h-3.5 w-3.5 text-teal-600" />
-        </a>
 
       </div>
 
