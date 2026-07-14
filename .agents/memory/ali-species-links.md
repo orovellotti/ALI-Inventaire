@@ -1,22 +1,30 @@
 ---
 name: ALI Species (alispecies.io) linking
-description: How to link species to ALI Species reliably and why the server redirect is slow
+description: How to build ALI Species species-page links reliably
 ---
 
 # ALI Species (alispecies.io) linking
 
-**Prefer a direct client-side link to `https://alispecies.io/?q=<scientificName>`** for
-per-species "open on ALI" links. That URL auto-runs the search and lands on the taxon
-results; it needs no server round-trip.
+**Best link is `https://alispecies.io/taxon/{cdNom}`.** The site is a SPA that
+canonicalizes by the *leading numeric cdNom* in the `/taxon/...` path — the slug is
+cosmetic. `/taxon/59`, `/taxon/59-euproctus-montanus`, and even a wrong slug
+`/taxon/59-euproctus-montanus-savi-1838` all render the correct fiche (client-side rewrite
+to the canonical slug). So a bare `/taxon/{cdNom}` is enough; no slug needed.
 
-**Why:** alispecies.io responds in ~9-10s to server-side Node `fetch` (though it's fast
-from plain curl), so routing species links through our `/api/ali/redirect` resolver made
-every click wait ~10s and time out → HTTP 500. The `cdNom` field on `Occurrence` is
-declared but never populated by the GBIF/iNat enrichment, so the nicer
-`/taxon/{cdNom}` deep-link cannot be built client-side.
+**Do NOT fall back to `https://alispecies.io/?q=<name>`** — that lands on the ALI
+*homepage* with a query, not a species page. That was the "ALI link doesn't work / should
+point to the species page" bug. When `cdNom` is missing, fall back to our
+`/api/ali/redirect?q=<name>` resolver instead: it runs the ALI search server-side and 302s
+to a real `/taxon/{cdNom}-...` fiche.
 
-**How to apply:** keep `/api/ali/redirect` (used by the AI priority-species section, which
-carries a precomputed `aliUrl`) but wrap the resolve in try/catch that falls back to
-`https://alispecies.io/?q=<q>` so it never returns 500. For the main species list, link
-straight to the `?q=` search URL. If `cdNom` ever gets populated, prefer
-`https://alispecies.io/taxon/{cdNom}`.
+**cdNom source & gotchas:**
+- `Occurrence.cdNom` IS populated (via `fetchTaxRefCdNom` in enrichment); when TaxRef
+  fails (it 521s intermittently) cdNom is undefined → use the redirect resolver fallback.
+- ALI search endpoint `/api/taxons/search` returns `lbNom` *with author* (e.g.
+  "Euproctus montanus (Savi, 1838)"); the *detail* endpoint `/api/taxons/{cdNom}` returns
+  `lbNom` *clean*. So slugs built from search results carry the author — harmless because
+  the SPA resolves by cdNom anyway.
+
+**How to apply:** priority-species links carry a precomputed `aliUrl` (from enrichment) and
+fall back to `/api/ali/redirect`; the occurrence list links to `/taxon/{cdNom}` when cdNom
+exists, else `/api/ali/redirect?q=<name>`. Keep the redirect route wrapped in try/catch.
