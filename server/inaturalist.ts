@@ -1,5 +1,5 @@
 import type { Occurrence } from "@shared/types";
-import { applyFrenchPriorityBoost } from "./frenchPriority";
+import { applyFrenchPriorityBoost, isFrenchPriority } from "./frenchPriority";
 
 const INAT_SPECIES_COUNTS = "https://api.inaturalist.org/v1/observations/species_counts";
 
@@ -116,6 +116,7 @@ export async function searchINaturalist(
           undefined,
           mapping.class,
         ),
+        frenchProtected: isFrenchPriority(undefined, undefined, mapping.class),
         imageUrl: taxon.default_photo?.medium_url || taxon.default_photo?.square_url || undefined,
         iucnStatus: consStatus,
         taxonKey: undefined,

@@ -858,6 +858,15 @@ function SpeciesCard({ occ, isSelected, onSelect }: { occ: Occurrence; isSelecte
               </span>
             );
           })()}
+          {occ.frenchProtected && (
+            <span
+              className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-orange-100 text-orange-700 border border-orange-200"
+              title="Espèce appartenant à un groupe protégé ou patrimonial en France (protection nationale, Directive Habitats/Oiseaux, ZNIEFF déterminante). Signalée comme enjeu même si l'UICN mondiale ne l'a pas évaluée."
+              data-testid={`badge-french-protected-${occ.scientificName}`}
+            >
+              🇫🇷 Protégé en France
+            </span>
+          )}
           {taxonGroup && (
             <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-gray-100 text-gray-600">
               {taxonGroup.icon} {taxonGroup.label}

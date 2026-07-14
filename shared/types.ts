@@ -16,6 +16,7 @@ export interface Occurrence {
   source?: "gbif" | "inaturalist";
   sourceUrl?: string;
   cdNom?: number;
+  frenchProtected?: boolean;
 }
 
 export interface ConfidenceScore {

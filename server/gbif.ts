@@ -1,7 +1,7 @@
 import type { Occurrence, ConfidenceScore, BufferCircle, InventoryResult } from "@shared/types";
 import { searchINaturalist } from "./inaturalist";
 import { fetchTaxRefCdNom } from "./taxref";
-import { applyFrenchPriorityBoost } from "./frenchPriority";
+import { applyFrenchPriorityBoost, isFrenchPriority } from "./frenchPriority";
 import { calculateConfidenceScore, emptyConfidence } from "./confidence";
 import { haversineDistance } from "./lib/geo";
 import {
@@ -71,6 +71,7 @@ async function enrichSpecies(record: any): Promise<Occurrence> {
 
   const baseLevel = getAlertLevelFromIucn(iucnStatus);
   const alertLevel = applyFrenchPriorityBoost(baseLevel, record.family, record.order, record.class);
+  const frenchProtected = isFrenchPriority(record.family, record.order, record.class);
 
   return {
     key: record.key,
@@ -90,6 +91,7 @@ async function enrichSpecies(record: any): Promise<Occurrence> {
     source: "gbif",
     sourceUrl: speciesKey ? `https://www.gbif.org/species/${speciesKey}` : undefined,
     cdNom,
+    frenchProtected,
   };
 }
 
@@ -128,6 +130,7 @@ function mergeInatWithGbif(gbifOccurrences: Occurrence[], inatOccurrences: Occur
       vernacularName: existing.vernacularName || iocc.vernacularName,
       iucnStatus: existing.iucnStatus || iocc.iucnStatus,
       cdNom: existing.cdNom ?? iocc.cdNom,
+      frenchProtected: existing.frenchProtected || iocc.frenchProtected,
     };
     if (!existing.iucnStatus && iocc.iucnStatus) {
       enriched.alertLevel = iocc.alertLevel;

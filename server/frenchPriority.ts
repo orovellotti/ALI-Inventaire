@@ -65,3 +65,19 @@ export function applyFrenchPriorityBoost(
   if (klass && PRIORITY_CLASSES.has(klass)) return current === "low" ? "medium" : current;
   return current;
 }
+
+/**
+ * Indique si l'espèce appartient à un groupe protégé / patrimonial en France
+ * (famille, ordre ou classe), indépendamment de son statut UICN mondial.
+ */
+export function isFrenchPriority(
+  family: string | undefined,
+  order: string | undefined,
+  klass: string | undefined,
+): boolean {
+  return (
+    (!!family && PRIORITY_FAMILIES.has(family)) ||
+    (!!order && PRIORITY_ORDERS.has(order)) ||
+    (!!klass && PRIORITY_CLASSES.has(klass))
+  );
+}
