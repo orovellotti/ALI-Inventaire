@@ -58,7 +58,7 @@ export function ResultsPanel({ isOpen, onClose, results, selectedSpecies, onSele
   const [reformatting, setReformatting] = useState(false);
   const [reformatError, setReformatError] = useState<string | null>(null);
   const [showFilters, setShowFilters] = useState(true);
-  const [aiAnalysis, setAiAnalysis] = useState<{ species: { scientificName: string; vernacularName?: string; group: string; level: string; reason: string; sources?: string[]; inInventory?: boolean }[]; natura2000?: { type: string; name: string; url: string | null }[]; generatedAt: string } | null>(null);
+  const [aiAnalysis, setAiAnalysis] = useState<{ species: { scientificName: string; vernacularName?: string; group: string; level: string; reason: string; sources?: string[]; inInventory?: boolean }[]; natura2000?: { type: string; name: string; url: string | null; code?: string | null; species?: string[] }[]; generatedAt: string } | null>(null);
   const [zonages, setZonages] = useState<ZonagesData | null>(null);
   const [zonagesLoading, setZonagesLoading] = useState(false);
   const [panelWidth, setPanelWidth] = useState<number>(() => {
@@ -316,7 +316,7 @@ ${i + 1}. ${sp.scientificName}${sp.vernacularName ? ` (${sp.vernacularName})` : 
    Sources : ${sp.sources.join(" • ")}` : ""}`).join("\n")}
 ${aiAnalysis.natura2000 && aiAnalysis.natura2000.length > 0 ? `
 🇪🇺 Zones Natura 2000 à proximité (${aiAnalysis.natura2000.length})
-${aiAnalysis.natura2000.map(z => `• ${z.type} — ${z.name}${z.url ? `\n  ${z.url}` : ""}`).join("\n")}
+${aiAnalysis.natura2000.map(z => `• ${z.type} — ${z.name}${z.url ? `\n  ${z.url}` : ""}${z.species && z.species.length > 0 ? `\n  Espèces désignatrices : ${z.species.join(", ")}` : ""}`).join("\n")}
 ` : ""}
 ⚠ Synthèse IA — à valider par un écologue.
 ` : ""}${zonagesSection}

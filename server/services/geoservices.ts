@@ -49,6 +49,7 @@ export interface Zonage {
   name: string;
   url: string | null;
   id: string | null;
+  code: string | null;
 }
 
 export interface ZonageGroup {
@@ -108,10 +109,15 @@ async function fetchLayer(layer: LayerDef, bbox: string): Promise<Zonage[]> {
       if (!name) continue;
       const url = p.url_fiche ? String(p.url_fiche) : null;
       const id = p.id_local != null ? String(p.id_local) : null;
+      let code: string | null = p.id_mnhn != null ? String(p.id_mnhn) : null;
+      if (!code && url) {
+        const m = url.match(/(FR\d{7,})/i);
+        if (m) code = m[1].toUpperCase();
+      }
       const dedupeKey = (url || name).toLowerCase();
       if (seen.has(dedupeKey)) continue;
       seen.add(dedupeKey);
-      zonages.push({ category: layer.category, type: layer.type, name, url, id });
+      zonages.push({ category: layer.category, type: layer.type, name, url, id, code });
     }
     return zonages;
   } finally {

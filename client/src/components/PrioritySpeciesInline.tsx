@@ -50,6 +50,8 @@ interface Natura2000Zone {
   type: string;
   name: string;
   url: string | null;
+  code?: string | null;
+  species?: string[];
 }
 
 interface Analysis {
@@ -207,6 +209,12 @@ export function PrioritySpeciesInline({ toponym, coords, occurrences, onAnalysis
                         >
                           <ExternalLink className="h-2.5 w-2.5" />
                         </a>
+                      )}
+                      {z.species && z.species.length > 0 && (
+                        <div className="mt-0.5 text-[10px] text-amber-700/90 leading-snug" data-testid={`natura2000-species-${i}`}>
+                          <span className="font-medium">Espèces désignatrices :</span>{" "}
+                          <span className="italic">{z.species.join(", ")}</span>
+                        </div>
                       )}
                     </div>
                   );

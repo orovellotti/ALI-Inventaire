@@ -3,6 +3,7 @@ import { z } from "zod";
 import type { Occurrence } from "@shared/types";
 import { fetchSpeciesStatuses, type SpeciesStatus, type Patrimonialite } from "./ali";
 import { getNaturaZones, type Zonage } from "./services/geoservices";
+import { getSpeciesForSite } from "./services/natura2000Species";
 
 const openai = new OpenAI({
   baseURL: process.env.AI_INTEGRATIONS_OPENAI_BASE_URL,
@@ -16,6 +17,10 @@ const MAX_SAMPLED_SPECIES = 50;
 const MAX_RETURNED_SPECIES = 5;
 const NATURA_PROXIMITY_M = 5000;
 const NATURA_FETCH_TIMEOUT_MS = 4000;
+const NATURA_SPECIES_CONCURRENCY = 4;
+const NATURA_SPECIES_BUDGET_MS = 12000;
+const MAX_NATURA_SITES_IN_PROMPT = 12;
+const MAX_SPECIES_PER_SITE_IN_PROMPT = 25;
 
 const PRIORITY_IUCN = new Set(["CR", "EN", "VU", "NT", "DD"]);
 const ALLOWED_LEVELS = ["majeur", "fort", "modéré"] as const;
@@ -38,6 +43,8 @@ export interface Natura2000Zone {
   type: string;
   name: string;
   url: string | null;
+  code: string | null;
+  species: string[];
 }
 
 export interface PrioritySpeciesAnalysis {
@@ -97,7 +104,15 @@ function formatSpeciesForPrompt(species: Occurrence[]): string {
 
 function buildPriorityPrompt(toponym: string, coords: [number, number], sample: string, totalCount: number, natura: Natura2000Zone[]): string {
   const naturaBlock = natura.length > 0
-    ? `\nZones Natura 2000 à proximité (rayon ${NATURA_PROXIMITY_M / 1000} km) :\n${natura.map((z) => `- ${z.type} : ${z.name}`).join("\n")}\n`
+    ? `\nZones Natura 2000 à proximité (rayon ${NATURA_PROXIMITY_M / 1000} km) avec leurs espèces désignatrices (Formulaire Standard de Données) :\n${natura
+        .slice(0, MAX_NATURA_SITES_IN_PROMPT)
+        .map((z) => {
+          const shown = z.species.slice(0, MAX_SPECIES_PER_SITE_IN_PROMPT);
+          const extra = z.species.length > shown.length ? ` (+${z.species.length - shown.length} autres)` : "";
+          const sp = shown.length > 0 ? `\n  Espèces désignatrices : ${shown.join(", ")}${extra}` : "";
+          return `- ${z.type} : ${z.name}${sp}`;
+        })
+        .join("\n")}\nPriorise les espèces désignatrices de ces sites Natura 2000 si elles sont pertinentes pour le secteur.\n`
     : "";
   return `Site : ${toponym} (lat ${coords[0].toFixed(4)}, lng ${coords[1].toFixed(4)})
 Inventaire GBIF (${totalCount} espèces) :
@@ -191,7 +206,32 @@ async function fetchNaturaZones(coords: [number, number]): Promise<Natura2000Zon
       getNaturaZones(coords[0], coords[1], NATURA_PROXIMITY_M),
       new Promise<Zonage[]>((resolve) => setTimeout(() => resolve([]), NATURA_FETCH_TIMEOUT_MS)),
     ]);
-    return zones.map((z) => ({ type: z.type, name: z.name, url: z.url }));
+    const deadline = Date.now() + NATURA_SPECIES_BUDGET_MS;
+    const result: Natura2000Zone[] = zones.map((z) => ({
+      type: z.type,
+      name: z.name,
+      url: z.url,
+      code: z.code,
+      species: [] as string[],
+    }));
+
+    let index = 0;
+    const worker = async (): Promise<void> => {
+      while (index < zones.length) {
+        const current = index++;
+        const z = zones[current];
+        if (!z.code || Date.now() >= deadline) continue;
+        try {
+          result[current].species = (await getSpeciesForSite(z.code)).map((s) => s.name);
+        } catch {
+          result[current].species = [];
+        }
+      }
+    };
+    await Promise.all(
+      Array.from({ length: Math.min(NATURA_SPECIES_CONCURRENCY, zones.length) }, () => worker()),
+    );
+    return result;
   } catch {
     return [];
   }

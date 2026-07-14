@@ -2,3 +2,4 @@
 - [IGN Géoplateforme WFS](ign-geoplateforme-wfs.md) — data.geopf.fr PatriNat zonages: EPSG:4326 bbox is lat,lng order; Ramsar layer is really `patrinat_ramsar:pnm` (not a bug); verify typenames via GetCapabilities.
 - [Priority-species prefetch latency](priority-species-prefetch.md) — pre-LLM external fetches must be time-bounded + layer-scoped; never call full getZonages() on the AI path.
 - [ALI Species linking](ali-species-links.md) — link species via client-side https://alispecies.io/?q=; server redirect is slow (~10s) and cdNom is never populated.
+- [Natura 2000 designating species](natura2000-species-api.md) — fetch FSD species per site via EEA ArcGIS by SITECODE (id_mnhn from IGN WFS).
