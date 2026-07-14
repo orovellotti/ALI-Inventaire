@@ -29,3 +29,17 @@ priority species ("espèces à enjeux") with regulatory statuses.
 = 10 outbound calls), cache ONLY successful fetches. Caching transient network/timeout failures
 (null hit / empty array) poisons the cache for the whole TTL and produces intermittent missing
 enrichment. Let errors propagate, limit concurrency (~3), and retry once.
+
+**Patrimonialité score (the real ALI one):** ALI computes it purely from the `/statuts` rows, no
+extra call. Formula (reverse-engineered from their JS bundle): `score = round(100 * (0.5*ecologique
++ 0.3*reglementaire + 0.2*territorial))`. ecologique = worst red-list severity normalized; reglementaire
+= protection/directives presence; territorial = ZNIEFF déterminante / PNA presence. Levels:
+`>=75 majeure, >=50 forte, >=25 modérée, else faible`. Replicated in `computePatrimonialite()` in
+server/ali.ts. Only feasible for priority species (needs statuts), NOT the full occurrence list.
+
+**Latency trap:** the `/api/taxons/search` endpoint (AI-powered, resolves name→cdNom) is the slow,
+flaky one — from Node it swings from ~180ms to full timeout (>15s), while `/statuts` stays fast once
+cdNom is known. ALI sends **no CORS headers**, so the browser can't call it cross-origin. Enrichment
+must therefore stay server-side; wrap the whole enrichment pass in a global time budget (~25s) via
+Promise.race so a slow search never blocks/timeouts the entire /api/llm/priority-species response —
+degrade to un-enriched species instead. TAXREF (taxref.mnhn.fr) is not a reliable fallback (returns 521).

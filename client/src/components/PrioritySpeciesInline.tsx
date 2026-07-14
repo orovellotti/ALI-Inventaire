@@ -29,7 +29,15 @@ interface PrioritySpecies {
   inInventory?: boolean;
   aliUrl?: string;
   statuses?: SpeciesStatus[];
+  patrimonialite?: { score: number; level: "majeure" | "forte" | "modérée" | "faible" };
 }
+
+const PATRIMONIALITE_STYLE: Record<string, string> = {
+  majeure: "bg-red-100 text-red-700 border-red-200",
+  forte: "bg-orange-100 text-orange-700 border-orange-200",
+  modérée: "bg-yellow-100 text-yellow-700 border-yellow-200",
+  faible: "bg-green-100 text-green-700 border-green-200",
+};
 
 const STATUS_TONE: Record<string, string> = {
   danger: "bg-red-50 text-red-700 border-red-200",
@@ -238,6 +246,17 @@ export function PrioritySpeciesInline({ toponym, coords, occurrences, onAnalysis
                           </span>
                         )}
                       </div>
+                      {sp.patrimonialite && (
+                        <div className="mt-1">
+                          <span
+                            className={`inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full border ${PATRIMONIALITE_STYLE[sp.patrimonialite.level] || PATRIMONIALITE_STYLE.faible}`}
+                            title="Score de patrimonialité ALI Species (0,5 × écologique + 0,3 × réglementaire + 0,2 × territorial)"
+                            data-testid={`patrimonialite-species-${i}`}
+                          >
+                            Patrimonialité {sp.patrimonialite.level} · {sp.patrimonialite.score}/100
+                          </span>
+                        </div>
+                      )}
                       <p className="text-[11px] text-gray-600 mt-1 leading-relaxed">{sp.reason}</p>
                       {sp.statuses && sp.statuses.length > 0 && (
                         <div className="mt-1.5">

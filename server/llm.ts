@@ -1,7 +1,7 @@
 import OpenAI from "openai";
 import { z } from "zod";
 import type { Occurrence } from "@shared/types";
-import { fetchSpeciesStatuses, type SpeciesStatus } from "./ali";
+import { fetchSpeciesStatuses, type SpeciesStatus, type Patrimonialite } from "./ali";
 import { getNaturaZones, type Zonage } from "./services/geoservices";
 
 const openai = new OpenAI({
@@ -31,6 +31,7 @@ export interface PrioritySpecies {
   inInventory: boolean;
   aliUrl?: string;
   statuses?: SpeciesStatus[];
+  patrimonialite?: Patrimonialite;
 }
 
 export interface Natura2000Zone {
@@ -232,13 +233,14 @@ export async function analyzePrioritySpecies(
 }
 
 const ALI_CONCURRENCY = 3;
+const ALI_ENRICH_BUDGET_MS = 25000;
 
 async function enrichOne(sp: PrioritySpecies): Promise<PrioritySpecies> {
   for (let attempt = 0; attempt < 2; attempt++) {
     try {
       const enrichment = await fetchSpeciesStatuses(sp.scientificName);
       if (!enrichment) return sp;
-      return { ...sp, aliUrl: enrichment.aliUrl, statuses: enrichment.statuses };
+      return { ...sp, aliUrl: enrichment.aliUrl, statuses: enrichment.statuses, patrimonialite: enrichment.patrimonialite };
     } catch {
       if (attempt === 0) await new Promise((r) => setTimeout(r, 300));
     }
@@ -246,13 +248,22 @@ async function enrichOne(sp: PrioritySpecies): Promise<PrioritySpecies> {
   return sp;
 }
 
-async function enrichWithAliStatuses(species: PrioritySpecies[]): Promise<PrioritySpecies[]> {
+async function enrichAllBatches(species: PrioritySpecies[]): Promise<PrioritySpecies[]> {
   const result: PrioritySpecies[] = [];
   for (let i = 0; i < species.length; i += ALI_CONCURRENCY) {
     const batch = species.slice(i, i + ALI_CONCURRENCY);
     result.push(...(await Promise.all(batch.map(enrichOne))));
   }
   return result;
+}
+
+async function enrichWithAliStatuses(species: PrioritySpecies[]): Promise<PrioritySpecies[]> {
+  return Promise.race([
+    enrichAllBatches(species),
+    new Promise<PrioritySpecies[]>((resolve) =>
+      setTimeout(() => resolve(species), ALI_ENRICH_BUDGET_MS),
+    ),
+  ]);
 }
 
 export async function reformatReport(rawReport: string): Promise<string> {
