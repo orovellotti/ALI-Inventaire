@@ -5,7 +5,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { X, Download, FileText, AlertTriangle, Leaf, Info, ChevronDown, ChevronUp, ImageOff, Copy, Check, ExternalLink, BookOpen, Shield, MapPin, Tag, Calendar, Link, Flag, Layers, Filter, Table, Sparkles, Loader2, Share2, Mail, MoreHorizontal, Settings2 } from "lucide-react";
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuCheckboxItem } from "@/components/ui/dropdown-menu";
-import { InventoryResult, Occurrence, getIucnLabel, ConfidenceScore, TAXON_GROUPS, getTaxonGroupId, isMarineSpecies } from "@/lib/gbif";
+import { InventoryResult, Occurrence, getIucnLabel, getPatrimonialite, ConfidenceScore, TAXON_GROUPS, getTaxonGroupId, isMarineSpecies } from "@/lib/gbif";
 import { findSINPPlatforms, SINPPlatform } from "@/lib/sinp";
 import { exportCSV, exportExcel } from "@/lib/export";
 import { PrioritySpeciesInline } from "./PrioritySpeciesInline";
@@ -844,6 +844,18 @@ function SpeciesCard({ occ, isSelected, onSelect }: { occ: Occurrence; isSelecte
         </div>
         <div className="mt-1.5 flex flex-wrap gap-1">
           <StatusBadge status={occ.iucnStatus} />
+          {(() => {
+            const patri = getPatrimonialite(occ.iucnStatus, occ.alertLevel);
+            return (
+              <span
+                className={`text-[10px] font-medium px-2 py-0.5 rounded-full border ${patri.color}`}
+                title="Score de patrimonialité (fondé sur le statut UICN et la priorité française)"
+                data-testid={`badge-patrimonialite-${occ.scientificName}`}
+              >
+                Patrimonialité : {patri.label}
+              </span>
+            );
+          })()}
           {taxonGroup && (
             <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-gray-100 text-gray-600">
               {taxonGroup.icon} {taxonGroup.label}

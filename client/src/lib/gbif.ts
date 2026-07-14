@@ -147,6 +147,45 @@ export function getIucnLabel(code: string | undefined): string {
   return labels[code || ""] || "Non évalué";
 }
 
+export interface PatrimonialiteScore {
+  level: number;
+  label: string;
+  color: string;
+}
+
+export function getPatrimonialite(
+  iucnStatus: string | undefined,
+  alertLevel: "high" | "medium" | "low",
+): PatrimonialiteScore {
+  const s = iucnStatus?.toUpperCase();
+  let level: number;
+  switch (s) {
+    case "EX": case "EXTINCT":
+    case "EW": case "EXTINCT_IN_THE_WILD":
+    case "RE": case "REGIONALLY_EXTINCT":
+    case "CR": case "CRITICALLY_ENDANGERED":
+      level = 5; break;
+    case "EN": case "ENDANGERED":
+      level = 4; break;
+    case "VU": case "VULNERABLE":
+      level = 3; break;
+    case "NT": case "NEAR_THREATENED":
+      level = 2; break;
+    default:
+      level = 1;
+  }
+  if (alertLevel === "medium" && level < 2) level = 2;
+
+  const meta: Record<number, { label: string; color: string }> = {
+    5: { label: "Majeure", color: "bg-red-100 text-red-700 border-red-200" },
+    4: { label: "Forte", color: "bg-orange-100 text-orange-700 border-orange-200" },
+    3: { label: "Modérée", color: "bg-amber-100 text-amber-700 border-amber-200" },
+    2: { label: "Faible", color: "bg-sky-100 text-sky-700 border-sky-200" },
+    1: { label: "Très faible", color: "bg-gray-100 text-gray-500 border-gray-200" },
+  };
+  return { level, ...meta[level] };
+}
+
 export async function searchGBIFMultiCircle(
   circles: BufferCircle[],
   options: { includeINaturalist?: boolean } = {}
