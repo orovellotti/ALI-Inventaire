@@ -46,6 +46,16 @@ const EVIDENCE_STYLE: Record<EvidenceClass, { color: string; short: string }> = 
   E: { color: "bg-gray-100 text-gray-600 border-gray-300", short: "E" },
 };
 
+const EVIDENCE_GROUP_LABEL: Record<EvidenceClass, string> = {
+  A: "Avéré localement",
+  B: "Avéré à l'échelle du site",
+  C: "Très probable localement",
+  D: "Potentielle",
+  E: "Peu pertinente localement",
+};
+
+const EVIDENCE_GROUP_ORDER: EvidenceClass[] = ["A", "B", "C", "D", "E"];
+
 function scoreColor(score: number): string {
   if (score >= 85) return "bg-red-100 text-red-700 border-red-300";
   if (score >= 70) return "bg-orange-100 text-orange-700 border-orange-300";
@@ -259,7 +269,24 @@ export function PrioritySpeciesInline({ toponym, coords, occurrences, onAnalysis
               Aucune espèce à enjeux notable identifiée.
             </div>
           ) : (
-            analysis.species.map((sp, i) => {
+            EVIDENCE_GROUP_ORDER.filter((cls) =>
+              analysis.species.some((sp) => (sp.evidenceClass ?? "D") === cls),
+            ).map((cls) => (
+              <div key={cls} className="space-y-2" data-testid={`evidence-group-${cls}`}>
+                <div className="flex items-center gap-1.5 pt-1">
+                  <span
+                    className={`inline-flex items-center justify-center h-4 w-4 text-[9px] font-bold rounded-full border ${EVIDENCE_STYLE[cls].color}`}
+                  >
+                    {cls}
+                  </span>
+                  <span className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider">
+                    {EVIDENCE_GROUP_LABEL[cls]}
+                  </span>
+                </div>
+                {analysis.species
+                  .map((sp, i) => ({ sp, i }))
+                  .filter(({ sp }) => (sp.evidenceClass ?? "D") === cls)
+                  .map(({ sp, i }) => {
               const style = LEVEL_STYLE[sp.level] || LEVEL_STYLE["modéré"];
               const StyleIcon = style.icon;
               return (
@@ -397,7 +424,9 @@ export function PrioritySpeciesInline({ toponym, coords, occurrences, onAnalysis
                   </div>
                 </div>
               );
-            })
+                  })}
+              </div>
+            ))
           )}
           <div className="mt-2 pt-2 border-t border-teal-100 text-[10px] text-gray-500 space-y-1">
             <div className="font-semibold text-gray-600">Référentiels mobilisables :</div>

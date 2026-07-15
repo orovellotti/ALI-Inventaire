@@ -309,11 +309,20 @@ ${sectionList("🟢 ENJEUX FAIBLES", sortedSpecies.low)}${aiAnalysis && aiAnalys
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 ✨ ANALYSE IA — ESPÈCES À ENJEUX
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-${aiAnalysis.species.map((sp, i) => `
-${i + 1}. ${sp.scientificName}${sp.vernacularName ? ` (${sp.vernacularName})` : ""}
-   ${sp.group}${sp.evidenceClass ? ` • Preuve ${sp.evidenceClass}${sp.evidenceLabel ? ` (${sp.evidenceLabel})` : ""}` : ""}${typeof sp.score === "number" ? ` • Enjeu ${sp.score}/100${sp.scoreLabel ? ` (${sp.scoreLabel})` : ""}` : ` • Niveau : ${sp.level}`}${sp.inInventory === false ? " • hors inventaire (suggestion IA)" : ""}
+${(["A", "B", "C", "D", "E"] as const)
+  .map((cls) => {
+    const label: Record<string, string> = { A: "Avéré localement", B: "Avéré à l'échelle du site", C: "Très probable localement", D: "Potentielle", E: "Peu pertinente localement" };
+    const group = aiAnalysis.species.filter((sp) => (sp.evidenceClass ?? "D") === cls);
+    if (group.length === 0) return "";
+    return `\n[${cls}] ${label[cls]}\n${group
+      .map((sp) => `• ${sp.scientificName}${sp.vernacularName ? ` (${sp.vernacularName})` : ""}
+   ${sp.group}${typeof sp.score === "number" ? ` • Enjeu ${sp.score}/100${sp.scoreLabel ? ` (${sp.scoreLabel})` : ""}` : ` • Niveau : ${sp.level}`}${sp.inInventory === false ? " • hors inventaire (suggestion IA)" : ""}
    ${sp.reason}${sp.sources && sp.sources.length > 0 ? `
-   Sources : ${sp.sources.join(" • ")}` : ""}`).join("\n")}
+   Sources : ${sp.sources.join(" • ")}` : ""}`)
+      .join("\n")}`;
+  })
+  .filter(Boolean)
+  .join("\n")}
 ${aiAnalysis.natura2000 && aiAnalysis.natura2000.length > 0 ? `
 🇪🇺 Zones Natura 2000 à proximité (${aiAnalysis.natura2000.length})
 ${aiAnalysis.natura2000.map(z => { const desig = (z.species ?? []).filter(s => s.designating).map(s => s.name); return `• ${z.type} — ${z.name}${z.url ? `\n  ${z.url}` : ""}${desig.length > 0 ? `\n  Espèces désignatrices : ${desig.join(", ")}` : ""}`; }).join("\n")}

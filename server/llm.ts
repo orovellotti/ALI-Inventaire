@@ -37,6 +37,21 @@ const EVIDENCE_LABELS: Record<EvidenceClass, string> = {
 // statut 0,35 · importance site 0,28 · occurrence 0,22 · qualité 0,15
 const SCORE_WEIGHTS = { statut: 0.35, importanceSite: 0.28, occurrence: 0.22, qualite: 0.15 };
 
+// Observation ≤ ce rayon depuis le centre de l'aire = "avéré localement" (A) ;
+// au-delà (bord de l'aire d'étude) = "à proximité" → classe C pour une espèce du site.
+const EVIDENCE_LOCAL_RADIUS_M = 2000;
+
+function haversineM(aLat: number, aLng: number, bLat: number, bLng: number): number {
+  const R = 6371000;
+  const toRad = (d: number) => (d * Math.PI) / 180;
+  const dLat = toRad(bLat - aLat);
+  const dLng = toRad(bLng - aLng);
+  const s =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(toRad(aLat)) * Math.cos(toRad(bLat)) * Math.sin(dLng / 2) ** 2;
+  return 2 * R * Math.asin(Math.min(1, Math.sqrt(s)));
+}
+
 interface DesignatingInfo {
   designating: boolean;
   grade: NaturaGrade;
@@ -86,17 +101,29 @@ function classifyAndScore(
   sp: PrioritySpecies,
   inventoryNorm: Set<string>,
   designatingMap: Map<string, DesignatingInfo>,
+  obsNearestM: Map<string, number>,
 ): PrioritySpecies {
   const norm = normalizeName(sp.scientificName);
-  const observedLocally = inventoryNorm.has(norm) || sp.inInventory;
+  const inInventory = inventoryNorm.has(norm) || sp.inInventory;
+  const nearestM = obsNearestM.get(norm);
+  const hasDistance = nearestM !== undefined;
+  // Observation sans coordonnées connues : on la considère "dans l'aire" (elle
+  // provient de l'inventaire) → cœur d'aire par défaut.
+  const observedInCore = inInventory && (!hasDistance || nearestM! <= EVIDENCE_LOCAL_RADIUS_M);
+  const observedAtProximity = inInventory && hasDistance && nearestM! > EVIDENCE_LOCAL_RADIUS_M;
   const site = designatingMap.get(norm);
 
-  // Classe C ("très probable localement" = espèce du site + habitat favorable dans
-  // l'emprise) réservée à la Phase 2 : elle exige des données d'habitat non disponibles
-  // ici. En Phase 1 on n'émet donc que A / B / D / E.
+  // Attribution du niveau de preuve A–E (booléens mutuellement exclusifs) :
+  //  A  observation locale dans l'aire d'étude proche (≤ EVIDENCE_LOCAL_RADIUS_M, ou sans coord.)
+  //  C  espèce du site observée seulement à proximité (bord de l'aire) → très probable
+  //  B  espèce désignatrice Natura 2000 (grade significatif) non observée → avérée au site
+  //  E  espèce du site au grade FSD non significatif "D", non observée → peu pertinente
+  //  D  espèce du site sans observation locale, ou suggestion écorégionale → potentielle
   let evidenceClass: EvidenceClass;
-  if (observedLocally) {
+  if (observedInCore) {
     evidenceClass = "A";
+  } else if (observedAtProximity) {
+    evidenceClass = site ? "C" : "A";
   } else if (site?.designating) {
     evidenceClass = "B";
   } else if (site && !site.designating) {
@@ -114,8 +141,8 @@ function classifyAndScore(
       ? 55
       : 40;
   const importanceSite = site ? gradeImportanceScore(site.grade, site.designating) : 0;
-  const occurrenceScore = observedLocally ? 100 : 0;
-  const qualiteScore = observedLocally ? 60 : 30;
+  const occurrenceScore = observedInCore ? 100 : observedAtProximity ? 70 : 0;
+  const qualiteScore = inInventory ? 60 : 30;
 
   const score = Math.round(
     SCORE_WEIGHTS.statut * statutScore +
@@ -396,6 +423,14 @@ export async function analyzePrioritySpecies(
   const enriched = await enrichWithAliStatuses(species);
 
   const inventoryNorm = new Set(occurrences.map((o) => normalizeName(o.scientificName)));
+  const obsNearestM = new Map<string, number>();
+  for (const o of occurrences) {
+    if (typeof o.decimalLatitude !== "number" || typeof o.decimalLongitude !== "number") continue;
+    const key = normalizeName(o.scientificName);
+    const d = haversineM(coords[0], coords[1], o.decimalLatitude, o.decimalLongitude);
+    const prev = obsNearestM.get(key);
+    if (prev === undefined || d < prev) obsNearestM.set(key, d);
+  }
   const designatingMap = new Map<string, DesignatingInfo>();
   for (const zone of natura2000) {
     for (const s of zone.species) {
@@ -414,7 +449,7 @@ export async function analyzePrioritySpecies(
   }
 
   const classified = enriched
-    .map((sp) => classifyAndScore(sp, inventoryNorm, designatingMap))
+    .map((sp) => classifyAndScore(sp, inventoryNorm, designatingMap, obsNearestM))
     .sort((a, b) => {
       const diff = EVIDENCE_ORDER[a.evidenceClass] - EVIDENCE_ORDER[b.evidenceClass];
       if (diff !== 0) return diff;
