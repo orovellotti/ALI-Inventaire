@@ -8,7 +8,7 @@ description: How to fetch designating species per Natura 2000 site by SITECODE, 
 To list the species that justify a Natura 2000 site (FSD / "espèces désignatrices"), use the EEA public ArcGIS REST service — NOT DiscoData (its SQL schema is opaque/403s on catalog endpoints, table names are version-tagged and undiscoverable).
 
 - Endpoint: `https://bio.discomap.eea.europa.eu/arcgis/rest/services/ProtectedSites/Natura2000Species/MapServer/0/query`
-- Query: `where=SITECODE='FR9400597'&outFields=SpeciesNameClean,CONTAINSSPECIES_SPECIESNAME,CONTAINSSPECIES_SENSITIVE&returnGeometry=false&f=json`
+- Query: `where=SITECODE='FR9400597'&outFields=SpeciesNameClean,CONTAINSSPECIES_SPECIESNAME,CONTAINSSPECIES_SENSITIVE,CONTAINSSPECIES_MOTIVATION&returnGeometry=false&f=json`
 - `SpeciesNameClean` is the clean binomial; `CONTAINSSPECIES_SPECIESNAME` is the raw fallback. `CONTAINSSPECIES_SENSITIVE=='1'` means data-sensitive.
 - `CONTAINSSPECIES_MOTIVATION` encodes annex + population grade, e.g. `"II,C"`, `"IV,C"`, or bare `"D"`. Parse the single-letter A–D token as the **grade**; grade `D` = population non-significative (species merely present, NOT designating). Grade A/B/C (or annex present, no grade) = significant designating species. Population/conservation/isolation columns are NULL in this dataset — motivation is the only importance signal.
 - Layer 0 = Species; table 3 = "List of Species". Whole-Europe coverage.

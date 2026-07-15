@@ -113,22 +113,29 @@ export function PrioritySpeciesInline({ toponym, coords, occurrences, onAnalysis
   const requestIdRef = useRef(0);
 
   const slim = useMemo(() => {
-    const seen = new Set<string>();
-    return occurrences
-      .filter(o => {
-        if (seen.has(o.scientificName)) return false;
-        seen.add(o.scientificName);
-        return true;
-      })
-      .map(o => ({
-        scientificName: o.scientificName,
-        vernacularName: o.vernacularName,
-        iucnStatus: o.iucnStatus,
-        alertLevel: o.alertLevel,
-        class: o.class,
-        kingdom: o.kingdom,
-      }));
-  }, [occurrences]);
+    const d2 = (o: Occurrence) =>
+      typeof o.decimalLatitude === "number" && typeof o.decimalLongitude === "number"
+        ? (o.decimalLatitude - coords[0]) ** 2 + (o.decimalLongitude - coords[1]) ** 2
+        : Infinity;
+    // Une seule entrée par espèce, en gardant l'occurrence la plus proche du
+    // centre pour que le serveur distingue correctement preuve locale (A) et
+    // proximité (C).
+    const nearest = new Map<string, Occurrence>();
+    for (const o of occurrences) {
+      const prev = nearest.get(o.scientificName);
+      if (!prev || d2(o) < d2(prev)) nearest.set(o.scientificName, o);
+    }
+    return Array.from(nearest.values()).map(o => ({
+      scientificName: o.scientificName,
+      vernacularName: o.vernacularName,
+      iucnStatus: o.iucnStatus,
+      alertLevel: o.alertLevel,
+      class: o.class,
+      kingdom: o.kingdom,
+      decimalLatitude: o.decimalLatitude,
+      decimalLongitude: o.decimalLongitude,
+    }));
+  }, [occurrences, coords]);
 
   const contentKey = useMemo(() => {
     const sig = slim
