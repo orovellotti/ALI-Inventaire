@@ -18,6 +18,8 @@ interface SpeciesStatus {
   docUrl?: string;
 }
 
+type EvidenceClass = "A" | "B" | "C" | "D" | "E";
+
 interface PrioritySpecies {
   scientificName: string;
   vernacularName?: string;
@@ -30,6 +32,26 @@ interface PrioritySpecies {
   aliUrl?: string;
   statuses?: SpeciesStatus[];
   patrimonialite?: { score: number; level: "majeure" | "forte" | "modérée" | "faible" };
+  evidenceClass?: EvidenceClass;
+  evidenceLabel?: string;
+  score?: number;
+  scoreLabel?: string;
+}
+
+const EVIDENCE_STYLE: Record<EvidenceClass, { color: string; short: string }> = {
+  A: { color: "bg-emerald-100 text-emerald-800 border-emerald-300", short: "A" },
+  B: { color: "bg-teal-100 text-teal-800 border-teal-300", short: "B" },
+  C: { color: "bg-sky-100 text-sky-800 border-sky-300", short: "C" },
+  D: { color: "bg-amber-100 text-amber-800 border-amber-300", short: "D" },
+  E: { color: "bg-gray-100 text-gray-600 border-gray-300", short: "E" },
+};
+
+function scoreColor(score: number): string {
+  if (score >= 85) return "bg-red-100 text-red-700 border-red-300";
+  if (score >= 70) return "bg-orange-100 text-orange-700 border-orange-300";
+  if (score >= 50) return "bg-amber-100 text-amber-700 border-amber-300";
+  if (score >= 30) return "bg-yellow-50 text-yellow-700 border-yellow-200";
+  return "bg-gray-50 text-gray-500 border-gray-200";
 }
 
 const PATRIMONIALITE_STYLE: Record<string, string> = {
@@ -46,12 +68,18 @@ const STATUS_TONE: Record<string, string> = {
   neutral: "bg-gray-50 text-gray-600 border-gray-200",
 };
 
+interface NaturaZoneSpecies {
+  name: string;
+  designating: boolean;
+  grade?: string | null;
+}
+
 interface Natura2000Zone {
   type: string;
   name: string;
   url: string | null;
   code?: string | null;
-  species?: string[];
+  species?: NaturaZoneSpecies[];
 }
 
 interface Analysis {
@@ -210,12 +238,16 @@ export function PrioritySpeciesInline({ toponym, coords, occurrences, onAnalysis
                           <ExternalLink className="h-2.5 w-2.5" />
                         </a>
                       )}
-                      {z.species && z.species.length > 0 && (
-                        <div className="mt-0.5 text-[10px] text-amber-700/90 leading-snug" data-testid={`natura2000-species-${i}`}>
-                          <span className="font-medium">Espèces désignatrices :</span>{" "}
-                          <span className="italic">{z.species.join(", ")}</span>
-                        </div>
-                      )}
+                      {(() => {
+                        const desig = (z.species ?? []).filter((s) => s.designating).map((s) => s.name);
+                        if (desig.length === 0) return null;
+                        return (
+                          <div className="mt-0.5 text-[10px] text-amber-700/90 leading-snug" data-testid={`natura2000-species-${i}`}>
+                            <span className="font-medium">Espèces désignatrices :</span>{" "}
+                            <span className="italic">{desig.join(", ")}</span>
+                          </div>
+                        );
+                      })()}
                     </div>
                   );
                 })}
@@ -243,6 +275,24 @@ export function PrioritySpeciesInline({ toponym, coords, occurrences, onAnalysis
                         <span className="text-[9px] font-semibold text-gray-400 uppercase tracking-wider">
                           #{i + 1} · {sp.group}
                         </span>
+                        {sp.evidenceClass && (
+                          <span
+                            className={`inline-flex items-center gap-1 text-[9px] font-semibold px-1.5 py-0.5 rounded-full border ${EVIDENCE_STYLE[sp.evidenceClass].color}`}
+                            title="Niveau de preuve (indépendant de l'importance)"
+                            data-testid={`evidence-species-${i}`}
+                          >
+                            Preuve {EVIDENCE_STYLE[sp.evidenceClass].short} · {sp.evidenceLabel}
+                          </span>
+                        )}
+                        {typeof sp.score === "number" && (
+                          <span
+                            className={`inline-flex items-center gap-1 text-[9px] font-semibold px-1.5 py-0.5 rounded-full border ${scoreColor(sp.score)}`}
+                            title="Score d'enjeu 0–100 (statut, importance du site, occurrence, qualité)"
+                            data-testid={`score-species-${i}`}
+                          >
+                            Enjeu {sp.score}/100{sp.scoreLabel ? ` · ${sp.scoreLabel}` : ""}
+                          </span>
+                        )}
                       </div>
                       <div className="mt-0.5 flex items-baseline gap-2 flex-wrap">
                         <span className="italic text-sm font-medium text-gray-900">

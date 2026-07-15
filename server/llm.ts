@@ -3,7 +3,7 @@ import { z } from "zod";
 import type { Occurrence } from "@shared/types";
 import { fetchSpeciesStatuses, type SpeciesStatus, type Patrimonialite } from "./ali";
 import { getNaturaZones, type Zonage } from "./services/geoservices";
-import { getSpeciesForSite } from "./services/natura2000Species";
+import { getSpeciesForSite, type NaturaGrade } from "./services/natura2000Species";
 
 const openai = new OpenAI({
   baseURL: process.env.AI_INTEGRATIONS_OPENAI_BASE_URL,
@@ -25,6 +25,118 @@ const MAX_SPECIES_PER_SITE_IN_PROMPT = 25;
 const PRIORITY_IUCN = new Set(["CR", "EN", "VU", "NT", "DD"]);
 const ALLOWED_LEVELS = ["majeur", "fort", "modéré"] as const;
 
+const EVIDENCE_LABELS: Record<EvidenceClass, string> = {
+  A: "Avéré localement",
+  B: "Avéré à l'échelle du site",
+  C: "Très probable localement",
+  D: "Potentielle",
+  E: "Peu pertinente localement",
+};
+
+// Phase 1 : pas de donnée d'habitat → poids "habitat" (15 %) redistribué.
+// statut 0,35 · importance site 0,28 · occurrence 0,22 · qualité 0,15
+const SCORE_WEIGHTS = { statut: 0.35, importanceSite: 0.28, occurrence: 0.22, qualite: 0.15 };
+
+interface DesignatingInfo {
+  designating: boolean;
+  grade: NaturaGrade;
+}
+
+function normalizeName(name: string): string {
+  return name
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .split(/\s+/)
+    .slice(0, 2)
+    .join(" ")
+    .trim();
+}
+
+function gradeRank(grade: NaturaGrade): number {
+  switch (grade) {
+    case "A": return 4;
+    case "B": return 3;
+    case "C": return 2;
+    case null: return 1.5;
+    case "D": return 1;
+    default: return 0;
+  }
+}
+
+function gradeImportanceScore(grade: NaturaGrade, designating: boolean): number {
+  if (!designating) return grade === "D" ? 25 : 0;
+  switch (grade) {
+    case "A": return 100;
+    case "B": return 80;
+    case "C": return 60;
+    default: return 55;
+  }
+}
+
+function scoreLabelFor(score: number): string {
+  if (score >= 85) return "majeur";
+  if (score >= 70) return "fort";
+  if (score >= 50) return "modéré";
+  if (score >= 30) return "à vérifier";
+  return "faible";
+}
+
+function classifyAndScore(
+  sp: PrioritySpecies,
+  inventoryNorm: Set<string>,
+  designatingMap: Map<string, DesignatingInfo>,
+): PrioritySpecies {
+  const norm = normalizeName(sp.scientificName);
+  const observedLocally = inventoryNorm.has(norm) || sp.inInventory;
+  const site = designatingMap.get(norm);
+
+  // Classe C ("très probable localement" = espèce du site + habitat favorable dans
+  // l'emprise) réservée à la Phase 2 : elle exige des données d'habitat non disponibles
+  // ici. En Phase 1 on n'émet donc que A / B / D / E.
+  let evidenceClass: EvidenceClass;
+  if (observedLocally) {
+    evidenceClass = "A";
+  } else if (site?.designating) {
+    evidenceClass = "B";
+  } else if (site && !site.designating) {
+    evidenceClass = "E";
+  } else {
+    evidenceClass = "D";
+  }
+
+  const hasReglementaire = (sp.statuses ?? []).some(
+    (s) => s.tone === "danger" || s.tone === "warn",
+  );
+  const statutScore = sp.patrimonialite
+    ? sp.patrimonialite.score
+    : hasReglementaire
+      ? 55
+      : 40;
+  const importanceSite = site ? gradeImportanceScore(site.grade, site.designating) : 0;
+  const occurrenceScore = observedLocally ? 100 : 0;
+  const qualiteScore = observedLocally ? 60 : 30;
+
+  const score = Math.round(
+    SCORE_WEIGHTS.statut * statutScore +
+      SCORE_WEIGHTS.importanceSite * importanceSite +
+      SCORE_WEIGHTS.occurrence * occurrenceScore +
+      SCORE_WEIGHTS.qualite * qualiteScore,
+  );
+
+  return {
+    ...sp,
+    evidenceClass,
+    evidenceLabel: EVIDENCE_LABELS[evidenceClass],
+    score,
+    scoreLabel: scoreLabelFor(score),
+  };
+}
+
+const EVIDENCE_ORDER: Record<EvidenceClass, number> = { A: 0, B: 1, C: 2, D: 3, E: 4 };
+
+export type EvidenceClass = "A" | "B" | "C" | "D" | "E";
+
 export interface PrioritySpecies {
   scientificName: string;
   vernacularName?: string;
@@ -37,6 +149,16 @@ export interface PrioritySpecies {
   aliUrl?: string;
   statuses?: SpeciesStatus[];
   patrimonialite?: Patrimonialite;
+  evidenceClass: EvidenceClass;
+  evidenceLabel: string;
+  score: number;
+  scoreLabel: string;
+}
+
+export interface NaturaZoneSpecies {
+  name: string;
+  designating: boolean;
+  grade: NaturaGrade;
 }
 
 export interface Natura2000Zone {
@@ -44,7 +166,7 @@ export interface Natura2000Zone {
   name: string;
   url: string | null;
   code: string | null;
-  species: string[];
+  species: NaturaZoneSpecies[];
 }
 
 export interface PrioritySpeciesAnalysis {
@@ -107,12 +229,13 @@ function buildPriorityPrompt(toponym: string, coords: [number, number], sample: 
     ? `\nZones Natura 2000 à proximité (rayon ${NATURA_PROXIMITY_M / 1000} km) avec leurs espèces désignatrices (Formulaire Standard de Données) :\n${natura
         .slice(0, MAX_NATURA_SITES_IN_PROMPT)
         .map((z) => {
-          const shown = z.species.slice(0, MAX_SPECIES_PER_SITE_IN_PROMPT);
-          const extra = z.species.length > shown.length ? ` (+${z.species.length - shown.length} autres)` : "";
+          const designating = z.species.filter((s) => s.designating);
+          const shown = designating.slice(0, MAX_SPECIES_PER_SITE_IN_PROMPT).map((s) => s.name);
+          const extra = designating.length > shown.length ? ` (+${designating.length - shown.length} autres)` : "";
           const sp = shown.length > 0 ? `\n  Espèces désignatrices : ${shown.join(", ")}${extra}` : "";
           return `- ${z.type} : ${z.name}${sp}`;
         })
-        .join("\n")}\nPriorise les espèces désignatrices de ces sites Natura 2000 si elles sont pertinentes pour le secteur.\n`
+        .join("\n")}\nCes espèces désignatrices justifient la désignation des sites : tu peux en retenir même si elles n'apparaissent pas dans l'inventaire GBIF ci-dessus (elles seront classées comme avérées à l'échelle du site).\n`
     : "";
   return `Site : ${toponym} (lat ${coords[0].toFixed(4)}, lng ${coords[1].toFixed(4)})
 Inventaire GBIF (${totalCount} espèces) :
@@ -194,6 +317,10 @@ function normalizePriorityResponse(rawJson: string, inventoryNames: Set<string>)
       level: item.data.level,
       sources: item.data.sources,
       inInventory: inventoryNames.has(item.data.scientificName),
+      evidenceClass: "D",
+      evidenceLabel: EVIDENCE_LABELS.D,
+      score: 0,
+      scoreLabel: "",
     });
     if (normalized.length >= MAX_RETURNED_SPECIES) break;
   }
@@ -212,7 +339,7 @@ async function fetchNaturaZones(coords: [number, number]): Promise<Natura2000Zon
       name: z.name,
       url: z.url,
       code: z.code,
-      species: [] as string[],
+      species: [] as NaturaZoneSpecies[],
     }));
 
     let index = 0;
@@ -222,7 +349,11 @@ async function fetchNaturaZones(coords: [number, number]): Promise<Natura2000Zon
         const z = zones[current];
         if (!z.code || Date.now() >= deadline) continue;
         try {
-          result[current].species = (await getSpeciesForSite(z.code)).map((s) => s.name);
+          result[current].species = (await getSpeciesForSite(z.code)).map((s) => ({
+            name: s.name,
+            designating: s.designating,
+            grade: s.grade,
+          }));
         } catch {
           result[current].species = [];
         }
@@ -264,9 +395,35 @@ export async function analyzePrioritySpecies(
   const species = normalizePriorityResponse(content, inventoryNames);
   const enriched = await enrichWithAliStatuses(species);
 
+  const inventoryNorm = new Set(occurrences.map((o) => normalizeName(o.scientificName)));
+  const designatingMap = new Map<string, DesignatingInfo>();
+  for (const zone of natura2000) {
+    for (const s of zone.species) {
+      const key = normalizeName(s.name);
+      const existing = designatingMap.get(key);
+      // Consolider sur le meilleur grade et retenir "désignatrice" si un seul site l'atteste.
+      if (!existing || gradeRank(s.grade) > gradeRank(existing.grade)) {
+        designatingMap.set(key, {
+          designating: s.designating || (existing?.designating ?? false),
+          grade: s.grade,
+        });
+      } else if (s.designating && !existing.designating) {
+        existing.designating = true;
+      }
+    }
+  }
+
+  const classified = enriched
+    .map((sp) => classifyAndScore(sp, inventoryNorm, designatingMap))
+    .sort((a, b) => {
+      const diff = EVIDENCE_ORDER[a.evidenceClass] - EVIDENCE_ORDER[b.evidenceClass];
+      if (diff !== 0) return diff;
+      return b.score - a.score;
+    });
+
   return {
     toponym,
-    species: enriched,
+    species: classified,
     natura2000,
     generatedAt: new Date().toISOString(),
   };

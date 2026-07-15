@@ -58,7 +58,7 @@ export function ResultsPanel({ isOpen, onClose, results, selectedSpecies, onSele
   const [reformatting, setReformatting] = useState(false);
   const [reformatError, setReformatError] = useState<string | null>(null);
   const [showFilters, setShowFilters] = useState(true);
-  const [aiAnalysis, setAiAnalysis] = useState<{ species: { scientificName: string; vernacularName?: string; group: string; level: string; reason: string; sources?: string[]; inInventory?: boolean }[]; natura2000?: { type: string; name: string; url: string | null; code?: string | null; species?: string[] }[]; generatedAt: string } | null>(null);
+  const [aiAnalysis, setAiAnalysis] = useState<{ species: { scientificName: string; vernacularName?: string; group: string; level: string; reason: string; sources?: string[]; inInventory?: boolean; evidenceClass?: string; evidenceLabel?: string; score?: number; scoreLabel?: string }[]; natura2000?: { type: string; name: string; url: string | null; code?: string | null; species?: { name: string; designating: boolean; grade?: string | null }[] }[]; generatedAt: string } | null>(null);
   const [zonages, setZonages] = useState<ZonagesData | null>(null);
   const [zonagesLoading, setZonagesLoading] = useState(false);
   const [panelWidth, setPanelWidth] = useState<number>(() => {
@@ -311,12 +311,12 @@ ${sectionList("🟢 ENJEUX FAIBLES", sortedSpecies.low)}${aiAnalysis && aiAnalys
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 ${aiAnalysis.species.map((sp, i) => `
 ${i + 1}. ${sp.scientificName}${sp.vernacularName ? ` (${sp.vernacularName})` : ""}
-   ${sp.group} • Niveau : ${sp.level}${sp.inInventory === false ? " • hors inventaire (suggestion IA)" : ""}
+   ${sp.group}${sp.evidenceClass ? ` • Preuve ${sp.evidenceClass}${sp.evidenceLabel ? ` (${sp.evidenceLabel})` : ""}` : ""}${typeof sp.score === "number" ? ` • Enjeu ${sp.score}/100${sp.scoreLabel ? ` (${sp.scoreLabel})` : ""}` : ` • Niveau : ${sp.level}`}${sp.inInventory === false ? " • hors inventaire (suggestion IA)" : ""}
    ${sp.reason}${sp.sources && sp.sources.length > 0 ? `
    Sources : ${sp.sources.join(" • ")}` : ""}`).join("\n")}
 ${aiAnalysis.natura2000 && aiAnalysis.natura2000.length > 0 ? `
 🇪🇺 Zones Natura 2000 à proximité (${aiAnalysis.natura2000.length})
-${aiAnalysis.natura2000.map(z => `• ${z.type} — ${z.name}${z.url ? `\n  ${z.url}` : ""}${z.species && z.species.length > 0 ? `\n  Espèces désignatrices : ${z.species.join(", ")}` : ""}`).join("\n")}
+${aiAnalysis.natura2000.map(z => { const desig = (z.species ?? []).filter(s => s.designating).map(s => s.name); return `• ${z.type} — ${z.name}${z.url ? `\n  ${z.url}` : ""}${desig.length > 0 ? `\n  Espèces désignatrices : ${desig.join(", ")}` : ""}`; }).join("\n")}
 ` : ""}
 ⚠ Synthèse IA — à valider par un écologue.
 ` : ""}${zonagesSection}
