@@ -15,6 +15,7 @@ const PRIORITY_TEMPERATURE = 0.3;
 const REFORMAT_TEMPERATURE = 0.4;
 const MAX_SAMPLED_SPECIES = 50;
 const MAX_RETURNED_SPECIES = 5;
+const MAX_FINAL_SPECIES = 10;
 const NATURA_PROXIMITY_M = 5000;
 const NATURA_FETCH_TIMEOUT_MS = 4000;
 const NATURA_SPECIES_CONCURRENCY = 4;
@@ -53,6 +54,7 @@ function haversineM(aLat: number, aLng: number, bLat: number, bLng: number): num
 }
 
 interface DesignatingInfo {
+  name: string;
   designating: boolean;
   grade: NaturaGrade;
 }
@@ -239,6 +241,64 @@ function selectRelevantSpecies(occurrences: Occurrence[]): Occurrence[] {
   return [...high, ...medium, ...lowPriority].slice(0, MAX_SAMPLED_SPECIES);
 }
 
+// Correspondance classe taxonomique → groupe/icône, pour synthétiser une entrée
+// lorsque l'IA n'a pas produit de narration pour cette espèce.
+const CLASS_GROUP: Record<string, { group: string; icon: string }> = {
+  Aves: { group: "Oiseaux", icon: "🦅" },
+  Mammalia: { group: "Mammifères", icon: "🦔" },
+  Reptilia: { group: "Reptiles", icon: "🦎" },
+  Amphibia: { group: "Amphibiens", icon: "🐸" },
+  Actinopterygii: { group: "Poissons", icon: "🐟" },
+  Insecta: { group: "Insectes", icon: "🦋" },
+  Arachnida: { group: "Arachnides", icon: "🕷️" },
+  Mollusca: { group: "Mollusques", icon: "🐚" },
+  Magnoliopsida: { group: "Plantes", icon: "🌿" },
+  Liliopsida: { group: "Plantes", icon: "🌿" },
+};
+
+function groupForClass(cls?: string): { group: string; icon: string } {
+  return (cls && CLASS_GROUP[cls]) || { group: "Autres", icon: "🌿" };
+}
+
+const EMPTY_EVIDENCE = {
+  evidenceClass: "D" as EvidenceClass,
+  evidenceLabel: EVIDENCE_LABELS.D,
+  score: 0,
+  scoreLabel: "",
+};
+
+// Entrée déterministe pour une espèce observée dans l'inventaire, non narrée par l'IA.
+function baseFromOccurrence(o: Occurrence): PrioritySpecies {
+  const g = groupForClass(o.class);
+  const iucn = o.iucnStatus ? `, statut UICN ${o.iucnStatus}` : "";
+  return {
+    scientificName: o.scientificName,
+    vernacularName: o.vernacularName,
+    group: g.group,
+    icon: g.icon,
+    reason: `Espèce observée dans l'aire d'étude${iucn}.`,
+    level: o.alertLevel === "high" ? "majeur" : o.alertLevel === "medium" ? "fort" : "modéré",
+    sources: o.iucnStatus ? ["UICN"] : [],
+    inInventory: true,
+    ...EMPTY_EVIDENCE,
+  };
+}
+
+// Entrée déterministe pour une espèce désignatrice d'un site Natura 2000 proche,
+// non observée localement et non narrée par l'IA.
+function baseFromNatura(name: string, grade: NaturaGrade): PrioritySpecies {
+  return {
+    scientificName: name,
+    group: "Autres",
+    icon: "🌿",
+    reason: `Espèce désignatrice d'un site Natura 2000 à proximité${grade ? ` (grade ${grade})` : ""}.`,
+    level: "fort",
+    sources: ["Natura 2000 (FSD)"],
+    inInventory: false,
+    ...EMPTY_EVIDENCE,
+  };
+}
+
 function formatSpeciesForPrompt(species: Occurrence[]): string {
   return species
     .map((s) => {
@@ -419,8 +479,7 @@ export async function analyzePrioritySpecies(
   if (!content) throw new Error("Réponse LLM vide");
 
   const inventoryNames = new Set(occurrences.map((o) => o.scientificName));
-  const species = normalizePriorityResponse(content, inventoryNames);
-  const enriched = await enrichWithAliStatuses(species);
+  const llmSpecies = normalizePriorityResponse(content, inventoryNames);
 
   const inventoryNorm = new Set(occurrences.map((o) => normalizeName(o.scientificName)));
   const obsNearestM = new Map<string, number>();
@@ -439,6 +498,7 @@ export async function analyzePrioritySpecies(
       // Consolider sur le meilleur grade et retenir "désignatrice" si un seul site l'atteste.
       if (!existing || gradeRank(s.grade) > gradeRank(existing.grade)) {
         designatingMap.set(key, {
+          name: existing?.name ?? s.name,
           designating: s.designating || (existing?.designating ?? false),
           grade: s.grade,
         });
@@ -448,13 +508,40 @@ export async function analyzePrioritySpecies(
     }
   }
 
+  // Union déterministe des espèces à enjeux, indépendante des aléas de l'IA :
+  //  1. narration IA (prioritaire, garde le texte explicatif) ;
+  //  2. espèces observées à enjeux issues de l'inventaire (GBIF/iNaturalist) ;
+  //  3. espèces désignatrices des sites Natura 2000 proches.
+  // Dédoublonnage par nom normalisé ; la première source rencontrée l'emporte.
+  const bySpecies = new Map<string, PrioritySpecies>();
+  for (const sp of llmSpecies) bySpecies.set(normalizeName(sp.scientificName), sp);
+  for (const o of selectRelevantSpecies(occurrences)) {
+    const key = normalizeName(o.scientificName);
+    if (!bySpecies.has(key)) bySpecies.set(key, baseFromOccurrence(o));
+  }
+  for (const [key, info] of Array.from(designatingMap.entries())) {
+    if (info.designating && !bySpecies.has(key)) {
+      bySpecies.set(key, baseFromNatura(info.name, info.grade));
+    }
+  }
+
+  const byEvidenceThenScore = (a: PrioritySpecies, b: PrioritySpecies) => {
+    const diff = EVIDENCE_ORDER[a.evidenceClass] - EVIDENCE_ORDER[b.evidenceClass];
+    if (diff !== 0) return diff;
+    return b.score - a.score;
+  };
+
+  // Classer d'abord sans les statuts ALI pour hiérarchiser, puis n'enrichir
+  // (appels ALI coûteux, séquentiels) que les MAX_FINAL_SPECIES retenues.
+  const ranked = Array.from(bySpecies.values())
+    .map((sp) => classifyAndScore(sp, inventoryNorm, designatingMap, obsNearestM))
+    .sort(byEvidenceThenScore)
+    .slice(0, MAX_FINAL_SPECIES);
+
+  const enriched = await enrichWithAliStatuses(ranked);
   const classified = enriched
     .map((sp) => classifyAndScore(sp, inventoryNorm, designatingMap, obsNearestM))
-    .sort((a, b) => {
-      const diff = EVIDENCE_ORDER[a.evidenceClass] - EVIDENCE_ORDER[b.evidenceClass];
-      if (diff !== 0) return diff;
-      return b.score - a.score;
-    });
+    .sort(byEvidenceThenScore);
 
   return {
     toponym,
