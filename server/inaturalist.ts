@@ -122,6 +122,7 @@ export async function searchINaturalist(
         taxonKey: undefined,
         source: "inaturalist",
         sourceUrl: `https://www.inaturalist.org/taxa/${taxon.id}`,
+        observationCount: Number(r.count) || undefined,
       };
 
       speciesMap.set(scientificName, occ);

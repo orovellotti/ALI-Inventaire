@@ -134,6 +134,9 @@ export function PrioritySpeciesInline({ toponym, coords, occurrences, onAnalysis
       kingdom: o.kingdom,
       decimalLatitude: o.decimalLatitude,
       decimalLongitude: o.decimalLongitude,
+      source: o.source,
+      observationCount: o.observationCount,
+      lastObservationYear: o.lastObservationYear,
     }));
   }, [occurrences, coords]);
 

@@ -45,6 +45,35 @@ function fetchINatSafe(lat: number, lng: number, radiusMeters: number, enabled: 
   return searchINaturalist(lat, lng, radiusMeters).catch(() => EMPTY_INAT);
 }
 
+interface SpeciesObsStats {
+  count: number;
+  lastYear?: number;
+}
+
+// Agrège, avant dédoublonnage, le nombre d'observations et l'année la plus
+// récente par nom scientifique, pour alimenter la composante « qualité » du score.
+function computeSpeciesObsStats(rawRecords: any[]): Map<string, SpeciesObsStats> {
+  const stats = new Map<string, SpeciesObsStats>();
+  for (const r of rawRecords) {
+    const name: string | undefined = r.scientificName;
+    if (!name) continue;
+    const year: number | undefined =
+      typeof r.year === "number"
+        ? r.year
+        : r.eventDate
+          ? new Date(r.eventDate).getFullYear() || undefined
+          : undefined;
+    const existing = stats.get(name);
+    if (!existing) {
+      stats.set(name, { count: 1, lastYear: year });
+    } else {
+      existing.count++;
+      if (year && (!existing.lastYear || year > existing.lastYear)) existing.lastYear = year;
+    }
+  }
+  return stats;
+}
+
 function dedupBySpecies<T extends { scientificName?: string; decimalLatitude?: number; decimalLongitude?: number }>(
   records: T[],
 ): T[] {
@@ -185,8 +214,16 @@ export async function searchGBIF(
   }
 
   const confidence = calculateConfidenceScore(rawRecords);
+  const obsStats = computeSpeciesObsStats(rawRecords);
   const uniqueRecords = dedupBySpecies(rawRecords);
   const enriched = await Promise.all(uniqueRecords.map(enrichSpecies));
+  for (const o of enriched) {
+    const st = obsStats.get(o.scientificName);
+    if (st) {
+      o.observationCount = st.count;
+      o.lastObservationYear = st.lastYear;
+    }
+  }
   const gbifOccurrences = filterWithinRadius(enriched, lat, lng, radiusMeters);
 
   const inat = await inatPromise;

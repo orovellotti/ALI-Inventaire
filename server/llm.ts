@@ -99,11 +99,44 @@ function scoreLabelFor(score: number): string {
   return "faible";
 }
 
+interface ObsQuality {
+  count: number;
+  lastYear?: number;
+  source?: "gbif" | "inaturalist";
+}
+
+// Qualité de la donnée d'occurrence (0–100), fondée sur des données réelles :
+//  - abondance (nombre d'observations agrégées) ;
+//  - récence (année d'observation la plus récente) ;
+//  - source (GBIF agrégé légèrement priorisé sur iNaturalist citoyen).
+// Espèce non observée localement (suggestion IA / site) : forfait bas.
+function qualiteScoreFor(inInventory: boolean, obs?: ObsQuality): number {
+  if (!inInventory) return 30;
+  let score = 30; // socle « observée localement »
+
+  const count = obs?.count ?? 1;
+  score += (Math.min(count, 20) / 20) * 40; // jusqu'à +40 selon l'abondance
+
+  const year = obs?.lastYear;
+  if (year) {
+    const yearsAgo = new Date().getFullYear() - year;
+    const recency = Math.max(0, 1 - yearsAgo / 15); // 0 au-delà de 15 ans
+    score += recency * 30; // jusqu'à +30 pour une donnée récente
+  } else {
+    score += 10; // date inconnue : contribution modeste
+  }
+
+  if (obs?.source === "inaturalist") score -= 5; // science participative
+
+  return Math.max(0, Math.min(100, Math.round(score)));
+}
+
 function classifyAndScore(
   sp: PrioritySpecies,
   inventoryNorm: Set<string>,
   designatingMap: Map<string, DesignatingInfo>,
   obsNearestM: Map<string, number>,
+  obsQuality: Map<string, ObsQuality>,
 ): PrioritySpecies {
   const norm = normalizeName(sp.scientificName);
   const inInventory = inventoryNorm.has(norm) || sp.inInventory;
@@ -144,7 +177,7 @@ function classifyAndScore(
       : 40;
   const importanceSite = site ? gradeImportanceScore(site.grade, site.designating) : 0;
   const occurrenceScore = observedInCore ? 100 : observedAtProximity ? 70 : 0;
-  const qualiteScore = inInventory ? 60 : 30;
+  const qualiteScore = qualiteScoreFor(inInventory, obsQuality.get(norm));
 
   const score = Math.round(
     SCORE_WEIGHTS.statut * statutScore +
@@ -490,6 +523,21 @@ export async function analyzePrioritySpecies(
     const prev = obsNearestM.get(key);
     if (prev === undefined || d < prev) obsNearestM.set(key, d);
   }
+  const obsQuality = new Map<string, ObsQuality>();
+  for (const o of occurrences) {
+    const key = normalizeName(o.scientificName);
+    const count = typeof o.observationCount === "number" ? o.observationCount : 1;
+    const lastYear = typeof o.lastObservationYear === "number" ? o.lastObservationYear : undefined;
+    const existing = obsQuality.get(key);
+    if (!existing) {
+      obsQuality.set(key, { count, lastYear, source: o.source });
+    } else {
+      existing.count += count;
+      if (lastYear && (!existing.lastYear || lastYear > existing.lastYear)) existing.lastYear = lastYear;
+      // Priorise GBIF comme source si au moins une occurrence en provient.
+      if (o.source === "gbif") existing.source = "gbif";
+    }
+  }
   const designatingMap = new Map<string, DesignatingInfo>();
   for (const zone of natura2000) {
     for (const s of zone.species) {
@@ -534,13 +582,13 @@ export async function analyzePrioritySpecies(
   // Classer d'abord sans les statuts ALI pour hiérarchiser, puis n'enrichir
   // (appels ALI coûteux, séquentiels) que les MAX_FINAL_SPECIES retenues.
   const ranked = Array.from(bySpecies.values())
-    .map((sp) => classifyAndScore(sp, inventoryNorm, designatingMap, obsNearestM))
+    .map((sp) => classifyAndScore(sp, inventoryNorm, designatingMap, obsNearestM, obsQuality))
     .sort(byEvidenceThenScore)
     .slice(0, MAX_FINAL_SPECIES);
 
   const enriched = await enrichWithAliStatuses(ranked);
   const classified = enriched
-    .map((sp) => classifyAndScore(sp, inventoryNorm, designatingMap, obsNearestM))
+    .map((sp) => classifyAndScore(sp, inventoryNorm, designatingMap, obsNearestM, obsQuality))
     .sort(byEvidenceThenScore);
 
   return {

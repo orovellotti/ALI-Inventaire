@@ -17,6 +17,8 @@ export interface Occurrence {
   sourceUrl?: string;
   cdNom?: number;
   frenchProtected?: boolean;
+  observationCount?: number;
+  lastObservationYear?: number;
 }
 
 export interface ConfidenceScore {
