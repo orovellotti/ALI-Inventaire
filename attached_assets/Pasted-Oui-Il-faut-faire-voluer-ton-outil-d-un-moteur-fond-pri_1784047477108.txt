@@ -1,0 +1,428 @@
+Oui. Il faut faire évoluer ton outil d’un moteur fondé principalement sur les **occurrences observées** vers un moteur combinant :
+
+1. les **enjeux officiellement documentés pour le zonage** ;
+2. les **observations locales récentes et fiables** ;
+3. les **enjeux potentiels**, déduits des habitats et de l’écologie des espèces.
+
+L’idée importante est de ne pas considérer toutes les espèces d’un site Natura 2000 comme « présentes exactement sur la parcelle ». Elles doivent plutôt devenir des **espèces à enjeu documenté à l’échelle du site**, avec un niveau de confiance dépendant de la localisation, des habitats et des observations disponibles.
+
+## Arbre de décision proposé
+
+```text
+ENTRÉE
+- Géométrie du projet ou point + rayon
+- Type de projet
+- Date de référence
+- Sources GBIF / iNaturalist / SINP éventuelles
+        |
+        v
+1. Le projet intersecte-t-il un zonage biodiversité ?
+        |
+        +-- Non ---------------------------------------------+
+        |                                                    |
+        |   Requête occurrences GBIF / iNaturalist           |
+        |   + statuts réglementaires                          |
+        |   + habitats présents                               |
+        |   + modèles de potentialité                         |
+        |                                                    |
+        |   Résultat : enjeux observés ou potentiels          |
+        |                                                    |
+        +-- Oui                                               |
+             |
+             v
+2. Quel type de zonage ?
+             |
+             +-- Natura 2000
+             |
+             +-- Parc national / réserve naturelle
+             |
+             +-- PNR
+             |
+             +-- ZNIEFF / APPB / ENS / autre
+             |
+             v
+3. Existe-t-il une liste officielle d'espèces ou d'habitats
+   associée précisément au zonage ?
+             |
+             +-- Oui
+             |     |
+             |     v
+             |   Récupérer :
+             |   - espèces désignatrices
+             |   - espèces d'intérêt communautaire
+             |   - oiseaux justifiant la ZPS
+             |   - habitats d'intérêt communautaire
+             |   - statut sur le site
+             |   - population, conservation, isolement
+             |   - pressions et menaces
+             |
+             +-- Non
+                   |
+                   v
+                 Chercher successivement :
+                 - plan de gestion
+                 - DOCOB
+                 - charte du parc
+                 - atlas de biodiversité
+                 - observatoire territorial
+                 - SINP régional
+                 - données du gestionnaire
+             |
+             v
+4. L'espèce officielle est-elle compatible avec les habitats
+   réellement présents dans la zone du projet ?
+             |
+             +-- Oui --> enjeu local potentiel fort
+             |
+             +-- Incertain --> enjeu à vérifier
+             |
+             +-- Non --> enjeu du site mais faible pertinence locale
+             |
+             v
+5. Existe-t-il une observation locale récente ?
+             |
+             +-- Oui, précise et validée
+             |       --> enjeu avéré localement
+             |
+             +-- Oui, mais ancienne ou peu précise
+             |       --> enjeu probable
+             |
+             +-- Non
+                     --> enjeu potentiel fondé sur le site et l'habitat
+             |
+             v
+6. Calcul du score final d'enjeu
+             |
+             v
+SORTIE
+- Enjeux avérés
+- Enjeux très probables
+- Enjeux potentiels
+- Enjeux du zonage non pertinents localement
+- Lacunes de connaissance / inventaires recommandés
+```
+
+## Hiérarchie des niveaux de preuve
+
+Je te conseille de ne plus utiliser un simple booléen « espèce présente / absente », mais une qualification en cinq classes.
+
+| Classe                            | Interprétation                                                                   |
+| --------------------------------- | -------------------------------------------------------------------------------- |
+| **A — Avéré localement**          | Observation validée dans ou très près de l’emprise                               |
+| **B — Avéré à l’échelle du site** | Espèce mentionnée dans le formulaire Natura 2000, le DOCOB ou le plan de gestion |
+| **C — Très probable localement**  | Espèce du site et habitat favorable présent dans l’emprise                       |
+| **D — Potentielle**               | Habitat favorable ou aire biogéographique compatible, sans preuve locale         |
+| **E — Non pertinente localement** | Espèce du grand site, mais habitat absent ou secteur manifestement incompatible  |
+
+Cela évite deux erreurs opposées :
+
+* rater une espèce parce qu’elle n’est pas dans GBIF ou iNaturalist ;
+* affirmer qu’une espèce Natura 2000 est présente sur une parcelle alors qu’elle est connue à 20 kilomètres, dans une autre partie du site.
+
+## Cas Natura 2000
+
+Pour chaque site intersecté, ton utilitaire doit récupérer au minimum :
+
+```json
+{
+  "site_code": "FR9301602",
+  "site_name": "Calanques et îles marseillaises",
+  "site_type": "ZSC",
+  "overlap_area_m2": 15430,
+  "overlap_ratio_project": 0.82,
+  "species": [],
+  "habitats": [],
+  "pressures": [],
+  "management_documents": []
+}
+```
+
+Les formulaires standard Natura 2000 contiennent notamment les espèces et habitats ayant motivé la désignation, ainsi que des informations d’évaluation sur leur population et leur conservation. Ces informations sont beaucoup plus structurantes que de simples observations opportunistes, mais elles restent généralement valables à l’échelle du site Natura 2000 et non automatiquement à celle de chaque parcelle. ([Wikipedia][1])
+
+Pour les espèces, conserve des champs comme :
+
+```json
+{
+  "taxon_id": "CD_NOM ou taxon européen",
+  "scientific_name": "Rhinolophus ferrumequinum",
+  "source": "Natura 2000 SDF",
+  "source_site_code": "FR9301602",
+  "designation_role": "Annex II species",
+  "population_category": "C",
+  "conservation": "B",
+  "isolation": "C",
+  "global_assessment": "B",
+  "local_observation_count": 3,
+  "nearest_observation_m": 850,
+  "habitat_suitability": 0.91,
+  "evidence_class": "C",
+  "issue_score": 84
+}
+```
+
+## Calcul du score
+
+Une première formule simple pourrait être :
+
+```text
+Score final =
+  30 % statut réglementaire et patrimonial
++ 25 % importance officielle dans le zonage
++ 20 % preuve d'occurrence locale
++ 15 % compatibilité habitat
++ 10 % récence et qualité des données
+```
+
+Exemple de détail :
+
+```text
+Statut patrimonial                    0 à 100
+Importance dans le site Natura 2000  0 à 100
+Occurrence locale                    0 à 100
+Compatibilité habitat                0 à 100
+Qualité / récence                     0 à 100
+```
+
+Puis :
+
+```text
+score = 0.30 * statut
+      + 0.25 * importance_site
+      + 0.20 * occurrence
+      + 0.15 * habitat
+      + 0.10 * qualite
+```
+
+### Proposition de classement
+
+```text
+85–100 : enjeu majeur avéré
+70–84  : enjeu fort
+50–69  : enjeu modéré ou probable
+30–49  : enjeu potentiel à vérifier
+0–29   : faible pertinence locale
+```
+
+Je te conseille cependant de conserver séparément le **score** et le **niveau de preuve**. Une espèce extrêmement protégée sans observation locale peut avoir un enjeu fort, mais rester classée « potentielle ».
+
+## Règles spéciales pour Natura 2000
+
+Une espèce remonte fortement lorsqu’au moins deux conditions sont réunies :
+
+```text
+- espèce ayant justifié la désignation du site ;
+- habitat favorable intersectant l'emprise ;
+- occurrence validée dans l'emprise ou dans la zone fonctionnelle ;
+- mesure du DOCOB concernant cette espèce ou son habitat ;
+- pression du projet correspondant à une sensibilité connue de l'espèce.
+```
+
+Tu peux aussi faire varier le score selon la position du projet :
+
+```text
+Projet dans le site Natura 2000             coefficient 1,00
+Projet à moins de 500 m                     coefficient 0,85
+Projet entre 500 m et 2 km                  coefficient 0,65
+Projet dans une zone fonctionnelle reliée   coefficient adapté
+Projet éloigné et sans continuité           coefficient 0,20
+```
+
+Mais les distances doivent varier selon les groupes :
+
+* quelques centaines de mètres pour certaines plantes ;
+* plusieurs kilomètres pour les chiroptères ;
+* bassin versant pour les poissons et espèces aquatiques ;
+* aire d’alimentation ou corridor pour les oiseaux ;
+* continuité marine plutôt que distance euclidienne pour les espèces marines.
+
+Il faut donc utiliser une **distance écologique**, et pas uniquement un buffer géométrique.
+
+## Cas des PNR
+
+Le PNR est plus compliqué. Contrairement à Natura 2000, il n’existe pas nécessairement une liste nationale homogène d’espèces « ayant justifié le parc ».
+
+Ton connecteur doit chercher, dans l’ordre :
+
+```text
+1. Observatoire de biodiversité du PNR
+2. Charte du parc et rapport environnemental
+3. Plan ou stratégie biodiversité
+4. Atlas de biodiversité
+5. Listes d'espèces patrimoniales ou espèces à responsabilité
+6. Documents Natura 2000 gérés par le PNR
+7. Plateforme SINP régionale
+8. GeoNature ou portail open data du parc
+9. Rapports d'études et plans de gestion
+```
+
+Pour un PNR, je distinguerais les espèces en trois catégories :
+
+```text
+- espèces à responsabilité du parc ;
+- espèces emblématiques ou prioritaires de la charte ;
+- espèces simplement observées sur le territoire.
+```
+
+Une espèce emblématique mentionnée dans une brochure de communication ne doit pas avoir le même poids qu’une espèce identifiée comme prioritaire dans la charte ou un plan de gestion.
+
+## Architecture technique recommandée
+
+```text
+Geometry Resolver
+        |
+        v
+Protected Areas Intersection Service
+        |
+        +-- Natura 2000 connector
+        +-- INPN / espaces protégés connector
+        +-- PNR document connector
+        +-- SINP regional connectors
+        |
+        v
+Site Knowledge Normalizer
+        |
+        v
+Taxonomic Resolver
+TAXREF / GBIF Backbone / EUNIS
+        |
+        v
+Occurrence Aggregator
+GBIF + iNaturalist + SINP + GeoNature
+        |
+        v
+Habitat Compatibility Engine
+        |
+        v
+Evidence and Issue Scoring Engine
+        |
+        v
+Map + structured report
+```
+
+Le composant central est le **Site Knowledge Normalizer**. Il transforme des données très hétérogènes en relations communes :
+
+```text
+SITE --has_designation_species--> SPECIES
+SITE --has_priority_species--> SPECIES
+SITE --contains_habitat--> HABITAT
+SPECIES --depends_on--> HABITAT
+SPECIES --sensitive_to--> PRESSURE
+PROJECT --generates--> PRESSURE
+PROJECT --intersects--> SITE
+PROJECT_AREA --contains--> HABITAT
+OBSERVATION --documents--> SPECIES
+```
+
+C’est typiquement un cas où ton graphe de connaissances peut devenir beaucoup plus puissant qu’une simple jointure spatiale.
+
+## Logique complète en pseudo-code
+
+```python
+def evaluate_biodiversity_issues(project_geometry, project_type):
+    zones = intersect_biodiversity_zones(project_geometry)
+
+    official_species = []
+    official_habitats = []
+
+    for zone in zones:
+        if zone.type == "NATURA_2000":
+            site_data = get_natura2000_standard_data(zone.code)
+            official_species.extend(site_data.designation_species)
+            official_habitats.extend(site_data.habitats)
+
+        elif zone.type in ["NATIONAL_PARK", "RESERVE"]:
+            site_data = get_management_plan_data(zone.id)
+            official_species.extend(site_data.priority_species)
+            official_habitats.extend(site_data.priority_habitats)
+
+        elif zone.type == "PNR":
+            site_data = collect_pnr_sources(zone.id)
+            official_species.extend(site_data.responsibility_species)
+            official_habitats.extend(site_data.priority_habitats)
+
+    occurrences = collect_occurrences(
+        project_geometry,
+        sources=["SINP", "GBIF", "INATURALIST"]
+    )
+
+    local_habitats = identify_local_habitats(project_geometry)
+
+    taxa = merge_and_resolve_taxa(
+        official_species,
+        occurrences
+    )
+
+    results = []
+
+    for taxon in taxa:
+        official_relevance = assess_site_relevance(taxon, zones)
+        observation_evidence = assess_occurrences(taxon, occurrences)
+        habitat_suitability = assess_habitat_compatibility(
+            taxon,
+            local_habitats
+        )
+        pressure_sensitivity = assess_project_sensitivity(
+            taxon,
+            project_type
+        )
+
+        evidence_class = classify_evidence(
+            official_relevance,
+            observation_evidence,
+            habitat_suitability
+        )
+
+        issue_score = calculate_issue_score(
+            taxon_status=taxon.status_score,
+            official_relevance=official_relevance,
+            observation_evidence=observation_evidence,
+            habitat_suitability=habitat_suitability,
+            pressure_sensitivity=pressure_sensitivity
+        )
+
+        results.append({
+            "taxon": taxon,
+            "score": issue_score,
+            "evidence_class": evidence_class,
+            "reasons": generate_explanation()
+        })
+
+    return rank_results(results)
+```
+
+## Ce que l’utilisateur final doit voir
+
+Pour chaque espèce, l’outil devrait expliquer pourquoi elle remonte :
+
+> **Minioptère de Schreibers — enjeu fort, présence locale probable**
+> Espèce ayant contribué à la désignation du site Natura 2000 FRXXXXXXX.
+> Habitat de chasse favorable présent sur 62 % de l’emprise.
+> Deux observations validées à moins de 1,8 km depuis 2021.
+> Le projet est susceptible d’affecter les corridors nocturnes et les zones d’alimentation.
+
+Ou :
+
+> **Sabot de Vénus — enjeu du site, faible pertinence sur l’emprise**
+> Espèce inscrite dans le formulaire Natura 2000, mais les habitats forestiers calcicoles associés ne sont pas présents dans la zone étudiée. Aucune observation locale connue.
+
+C’est cette justification qui permettra d’éviter un effet « boîte noire ».
+
+## Ma recommandation centrale
+
+Ne remplace pas GBIF et iNaturalist par les données Natura 2000. Utilise plutôt cette hiérarchie :
+
+```text
+Documents officiels du site
+        +
+Données naturalistes validées
+        +
+Occurrences opportunistes
+        +
+Compatibilité écologique
+        +
+Pressions du projet
+```
+
+Le résultat devient alors une **cartographie des enjeux fondée sur des faisceaux de preuves**, et non une simple carte de points d’occurrence. Natura 2000 apporte la responsabilité et la valeur patrimoniale du territoire ; les occurrences apportent la preuve spatiale ; les habitats apportent la plausibilité écologique.
+
+[1]: https://de.wikipedia.org/wiki/Standarddatenbogen?utm_source=chatgpt.com "Standarddatenbogen"
