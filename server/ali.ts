@@ -108,6 +108,12 @@ const IUCN_SEVERITY: Record<string, number> = {
 
 const THREATENED_CODES = ["EX", "EW", "RE", "CR", "EN", "VU", "NT"];
 
+// Codes de liste rouge sans signal de conservation : « non évalué » (NE) et
+// « non applicable » (NA/NApp). Les afficher est trompeur — surtout pour une
+// espèce à enjeux (protégée, Directive, ZNIEFF déterminante) — car ils laissent
+// croire à une absence d'enjeu alors qu'ils signifient seulement « pas d'analyse ».
+const NON_INFORMATIVE_REDLIST = new Set(["NE", "NA", "NApp"]);
+
 function iucnTone(code: string): StatusTone {
   if (["EX", "EW", "RE", "CR", "EN"].includes(code)) return "danger";
   if (code === "VU" || code === "NT") return "warn";
@@ -212,7 +218,9 @@ function normalizeStatuses(raws: RawAliStatus[]): SpeciesStatus[] {
   for (const raw of raws) {
     const type = raw.cdTypeStatut ?? "";
     if (type in RED_LIST_CATEGORIES) {
-      if (type === "LRR" && !isThreatened(raw.codeStatut ?? "")) continue;
+      const code = raw.codeStatut ?? "";
+      if (NON_INFORMATIVE_REDLIST.has(code)) continue;
+      if (type === "LRR" && !isThreatened(code)) continue;
       const list = redListByType.get(type) ?? [];
       list.push(raw);
       redListByType.set(type, list);
