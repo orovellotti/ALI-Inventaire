@@ -16,9 +16,7 @@ const openai = new OpenAI({
   apiKey: process.env.AI_INTEGRATIONS_OPENAI_API_KEY,
 });
 
-const MODEL = "gpt-4o-mini";
-const PRIORITY_TEMPERATURE = 0.3;
-const REFORMAT_TEMPERATURE = 0.4;
+const MODEL = "gpt-5-mini";
 const MAX_SAMPLED_SPECIES = 50;
 const MAX_RETURNED_SPECIES = 5;
 const MAX_FINAL_SPECIES = 10;
@@ -574,7 +572,6 @@ export async function analyzePrioritySpecies(
       { role: "user", content: buildPriorityPrompt(toponym, coords, sample, uniqueCount, natura2000) },
     ],
     response_format: { type: "json_object" },
-    temperature: PRIORITY_TEMPERATURE,
   });
 
   const content = completion.choices[0]?.message?.content;
@@ -745,7 +742,6 @@ export async function reformatReport(rawReport: string): Promise<string> {
       { role: "system", content: REFORMAT_SYSTEM_PROMPT },
       { role: "user", content: buildReformatPrompt(rawReport) },
     ],
-    temperature: REFORMAT_TEMPERATURE,
   });
   const content = completion.choices[0]?.message?.content?.trim();
   if (!content) throw new Error("Réponse LLM vide");

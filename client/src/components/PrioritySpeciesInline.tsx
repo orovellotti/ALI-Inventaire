@@ -527,7 +527,7 @@ export function PrioritySpeciesInline({ toponym, coords, occurrences, onAnalysis
               <a href="https://inpn.mnhn.fr/programme/inventaire-znieff/presentation" target="_blank" rel="noopener noreferrer" className="hover:text-teal-700 hover:underline">ZNIEFF (INPN)</a>
             </div>
             <div className="text-right text-[9px] text-gray-400 pt-1">
-              Généré le {new Date(analysis.generatedAt).toLocaleString("fr-FR")} · gpt-4o-mini
+              Généré le {new Date(analysis.generatedAt).toLocaleString("fr-FR")} · gpt-5-mini
             </div>
           </div>
         </div>
