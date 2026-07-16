@@ -205,7 +205,8 @@ function classifyAndScore(
       : 40;
   const importanceSite = site ? gradeImportanceScore(site.grade, site.designating) : 0;
   const occurrenceScore = observedInCore ? 100 : observedAtProximity ? 70 : 0;
-  const qualiteScore = qualiteScoreFor(inInventory, obsQuality.get(norm));
+  const obs = obsQuality.get(norm);
+  const qualiteScore = qualiteScoreFor(inInventory, obs);
 
   const score = Math.round(
     SCORE_WEIGHTS.statut * statutScore +
@@ -221,6 +222,10 @@ function classifyAndScore(
     evidenceLabel: EVIDENCE_LABELS[evidenceClass],
     score,
     scoreLabel: scoreLabelFor(score),
+    qualiteScore,
+    observationCount: inInventory ? obs?.count : undefined,
+    lastObservationYear: obs?.lastYear,
+    source: obs?.source,
   };
 }
 
@@ -247,6 +252,10 @@ export interface PrioritySpecies {
   evidenceLabel: string;
   score: number;
   scoreLabel: string;
+  qualiteScore?: number;
+  observationCount?: number;
+  lastObservationYear?: number;
+  source?: "gbif" | "inaturalist";
 }
 
 export interface NaturaZoneSpecies {

@@ -36,7 +36,16 @@ interface PrioritySpecies {
   evidenceLabel?: string;
   score?: number;
   scoreLabel?: string;
+  qualiteScore?: number;
+  observationCount?: number;
+  lastObservationYear?: number;
+  source?: "gbif" | "inaturalist";
 }
+
+const SOURCE_LABEL: Record<string, string> = {
+  gbif: "GBIF",
+  inaturalist: "iNaturalist",
+};
 
 const EVIDENCE_STYLE: Record<EvidenceClass, { color: string; short: string }> = {
   A: { color: "bg-emerald-100 text-emerald-800 border-emerald-300", short: "A" },
@@ -326,7 +335,21 @@ export function PrioritySpeciesInline({ toponym, coords, occurrences, onAnalysis
                         {typeof sp.score === "number" && (
                           <span
                             className={`inline-flex items-center gap-1 text-[9px] font-semibold px-1.5 py-0.5 rounded-full border ${scoreColor(sp.score)}`}
-                            title="Score d'enjeu 0–100 (statut, importance du site, occurrence, qualité)"
+                            title={[
+                              "Score d'enjeu 0–100 (statut, importance du site, occurrence, qualité)",
+                              typeof sp.qualiteScore === "number"
+                                ? `Qualité de la donnée : ${sp.qualiteScore}/100` +
+                                  (typeof sp.observationCount === "number"
+                                    ? ` — ${sp.observationCount} observation${sp.observationCount > 1 ? "s" : ""}`
+                                    : "") +
+                                  (typeof sp.lastObservationYear === "number"
+                                    ? `, dernière en ${sp.lastObservationYear}`
+                                    : "") +
+                                  (sp.source ? `, source ${SOURCE_LABEL[sp.source] || sp.source}` : "")
+                                : "",
+                            ]
+                              .filter(Boolean)
+                              .join("\n")}
                             data-testid={`score-species-${i}`}
                           >
                             Enjeu {sp.score}/100{sp.scoreLabel ? ` · ${sp.scoreLabel}` : ""}
@@ -355,6 +378,32 @@ export function PrioritySpeciesInline({ toponym, coords, occurrences, onAnalysis
                         </div>
                       )}
                       <p className="text-[11px] text-gray-600 mt-1 leading-relaxed">{sp.reason}</p>
+                      {sp.inInventory !== false && typeof sp.observationCount === "number" && (
+                        <div
+                          className="mt-1 flex flex-wrap items-center gap-1.5 text-[10px] text-gray-500"
+                          data-testid={`freshness-species-${i}`}
+                          title="Fraîcheur de la donnée derrière le score de qualité"
+                        >
+                          <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-gray-100 border border-gray-200">
+                            {sp.observationCount} observation{sp.observationCount > 1 ? "s" : ""}
+                          </span>
+                          {typeof sp.lastObservationYear === "number" && (
+                            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-gray-100 border border-gray-200">
+                              dernière en {sp.lastObservationYear}
+                            </span>
+                          )}
+                          {sp.source && (
+                            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-gray-100 border border-gray-200">
+                              source {SOURCE_LABEL[sp.source] || sp.source}
+                            </span>
+                          )}
+                          {typeof sp.qualiteScore === "number" && (
+                            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-gray-100 border border-gray-200">
+                              qualité {sp.qualiteScore}/100
+                            </span>
+                          )}
+                        </div>
+                      )}
                       {sp.statuses && sp.statuses.length > 0 && (
                         <div className="mt-1.5">
                           <div className="text-[9px] font-semibold text-gray-400 uppercase tracking-wider mb-1">
