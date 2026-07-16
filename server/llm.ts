@@ -4,6 +4,12 @@ import type { Occurrence } from "@shared/types";
 import { fetchSpeciesStatuses, type SpeciesStatus, type Patrimonialite } from "./ali";
 import { getNaturaZones, type Zonage } from "./services/geoservices";
 import { getSpeciesForSite, type NaturaGrade } from "./services/natura2000Species";
+import { getSiteHabitatInfo, type SiteHabitat } from "./services/natura2000Habitats";
+import {
+  computeSiteMetrics,
+  habitatCompatScore,
+  type HabitatMetrics,
+} from "./services/habitatCompat";
 
 const openai = new OpenAI({
   baseURL: process.env.AI_INTEGRATIONS_OPENAI_BASE_URL,
@@ -34,9 +40,21 @@ const EVIDENCE_LABELS: Record<EvidenceClass, string> = {
   E: "Peu pertinente localement",
 };
 
-// Phase 1 : pas de donnée d'habitat → poids "habitat" (15 %) redistribué.
-// statut 0,35 · importance site 0,28 · occurrence 0,22 · qualité 0,15
-const SCORE_WEIGHTS = { statut: 0.35, importanceSite: 0.28, occurrence: 0.22, qualite: 0.15 };
+// Phase 2 : le poids "habitat" (15 %) est réintroduit (compatibilité d'habitat
+// emprise/site + distance écologique par groupe).
+// statut 0,30 · importance site 0,25 · occurrence 0,20 · habitat 0,15 · qualité 0,10
+const SCORE_WEIGHTS = {
+  statut: 0.3,
+  importanceSite: 0.25,
+  occurrence: 0.2,
+  habitat: 0.15,
+  qualite: 0.1,
+};
+
+// Compatibilité d'habitat (0–100) au-delà de laquelle une espèce désignatrice
+// non observée localement est jugée "très probable localement" (classe C)
+// plutôt que seulement "avérée à l'échelle du site" (classe B).
+const HABITAT_C_THRESHOLD = 50;
 
 // Observation ≤ ce rayon depuis le centre de l'aire = "avéré localement" (A) ;
 // au-delà (bord de l'aire d'étude) = "à proximité" → classe C pour une espèce du site.
@@ -137,6 +155,7 @@ function classifyAndScore(
   designatingMap: Map<string, DesignatingInfo>,
   obsNearestM: Map<string, number>,
   obsQuality: Map<string, ObsQuality>,
+  habitatMap: Map<string, { metrics: HabitatMetrics | null; fallbackDistanceM: number }>,
 ): PrioritySpecies {
   const norm = normalizeName(sp.scientificName);
   const inInventory = inventoryNorm.has(norm) || sp.inInventory;
@@ -148,10 +167,19 @@ function classifyAndScore(
   const observedAtProximity = inInventory && hasDistance && nearestM! > EVIDENCE_LOCAL_RADIUS_M;
   const site = designatingMap.get(norm);
 
+  // Compatibilité d'habitat (0–100) : l'habitat désigné du site se recoupe-t-il
+  // avec l'emprise pour ce groupe taxonomique ? (Phase 2)
+  const habitat = habitatMap.get(norm);
+  const habitatScore = habitat
+    ? habitatCompatScore(sp.group, habitat.metrics, habitat.fallbackDistanceM)
+    : 0;
+  const habitatFavorable = habitatScore >= HABITAT_C_THRESHOLD;
+
   // Attribution du niveau de preuve A–E (booléens mutuellement exclusifs) :
   //  A  observation locale dans l'aire d'étude proche (≤ EVIDENCE_LOCAL_RADIUS_M, ou sans coord.)
-  //  C  espèce du site observée seulement à proximité (bord de l'aire) → très probable
-  //  B  espèce désignatrice Natura 2000 (grade significatif) non observée → avérée au site
+  //  C  espèce du site très probable localement : observée à proximité (bord de
+  //     l'aire) OU habitat désigné favorable dans l'emprise (Phase 2)
+  //  B  espèce désignatrice Natura 2000 (grade significatif) sans habitat favorable → avérée au site
   //  E  espèce du site au grade FSD non significatif "D", non observée → peu pertinente
   //  D  espèce du site sans observation locale, ou suggestion écorégionale → potentielle
   let evidenceClass: EvidenceClass;
@@ -160,7 +188,7 @@ function classifyAndScore(
   } else if (observedAtProximity) {
     evidenceClass = site ? "C" : "A";
   } else if (site?.designating) {
-    evidenceClass = "B";
+    evidenceClass = habitatFavorable ? "C" : "B";
   } else if (site && !site.designating) {
     evidenceClass = "E";
   } else {
@@ -183,6 +211,7 @@ function classifyAndScore(
     SCORE_WEIGHTS.statut * statutScore +
       SCORE_WEIGHTS.importanceSite * importanceSite +
       SCORE_WEIGHTS.occurrence * occurrenceScore +
+      SCORE_WEIGHTS.habitat * habitatScore +
       SCORE_WEIGHTS.qualite * qualiteScore,
   );
 
@@ -195,7 +224,10 @@ function classifyAndScore(
   };
 }
 
-const EVIDENCE_ORDER: Record<EvidenceClass, number> = { A: 0, B: 1, C: 2, D: 3, E: 4 };
+// Ordre de pertinence locale : A (observé) puis C (habitat favorable dans
+// l'emprise, très probable localement) avant B (avéré au site mais simple
+// mention d'un grand site distant), puis D, E.
+const EVIDENCE_ORDER: Record<EvidenceClass, number> = { A: 0, C: 1, B: 2, D: 3, E: 4 };
 
 export type EvidenceClass = "A" | "B" | "C" | "D" | "E";
 
@@ -229,6 +261,10 @@ export interface Natura2000Zone {
   url: string | null;
   code: string | null;
   species: NaturaZoneSpecies[];
+  // Phase 2 — compatibilité d'habitat emprise/site.
+  overlapRatio: number | null;
+  distanceM: number | null;
+  habitats: SiteHabitat[];
 }
 
 export interface PrioritySpeciesAnalysis {
@@ -447,7 +483,10 @@ function normalizePriorityResponse(rawJson: string, inventoryNames: Set<string>)
   return normalized;
 }
 
-async function fetchNaturaZones(coords: [number, number]): Promise<Natura2000Zone[]> {
+async function fetchNaturaZones(
+  coords: [number, number],
+  empriseRadiusM: number,
+): Promise<Natura2000Zone[]> {
   try {
     const zones = await Promise.race([
       getNaturaZones(coords[0], coords[1], NATURA_PROXIMITY_M),
@@ -460,6 +499,9 @@ async function fetchNaturaZones(coords: [number, number]): Promise<Natura2000Zon
       url: z.url,
       code: z.code,
       species: [] as NaturaZoneSpecies[],
+      overlapRatio: null,
+      distanceM: null,
+      habitats: [] as SiteHabitat[],
     }));
 
     let index = 0;
@@ -468,14 +510,32 @@ async function fetchNaturaZones(coords: [number, number]): Promise<Natura2000Zon
         const current = index++;
         const z = zones[current];
         if (!z.code || Date.now() >= deadline) continue;
-        try {
-          result[current].species = (await getSpeciesForSite(z.code)).map((s) => ({
-            name: s.name,
-            designating: s.designating,
-            grade: s.grade,
-          }));
-        } catch {
-          result[current].species = [];
+        // Espèces désignatrices + habitats/polygone du site en parallèle.
+        const [speciesRes, habitatRes] = await Promise.allSettled([
+          getSpeciesForSite(z.code),
+          getSiteHabitatInfo(z.code),
+        ]);
+        result[current].species =
+          speciesRes.status === "fulfilled"
+            ? speciesRes.value.map((s) => ({
+                name: s.name,
+                designating: s.designating,
+                grade: s.grade,
+              }))
+            : [];
+        if (habitatRes.status === "fulfilled" && habitatRes.value) {
+          const info = habitatRes.value;
+          result[current].habitats = info.habitats;
+          const metrics = computeSiteMetrics(
+            coords[0],
+            coords[1],
+            empriseRadiusM,
+            info.geometry,
+          );
+          if (metrics) {
+            result[current].overlapRatio = metrics.overlapRatio;
+            result[current].distanceM = metrics.distanceM;
+          }
         }
       }
     };
@@ -496,7 +556,7 @@ export async function analyzePrioritySpecies(
   const picked = selectRelevantSpecies(occurrences);
   const sample = formatSpeciesForPrompt(picked);
   const uniqueCount = new Set(occurrences.map((o) => o.scientificName)).size;
-  const natura2000 = await fetchNaturaZones(coords);
+  const natura2000 = await fetchNaturaZones(coords, EVIDENCE_LOCAL_RADIUS_M);
 
   const completion = await openai.chat.completions.create({
     model: MODEL,
@@ -556,6 +616,40 @@ export async function analyzePrioritySpecies(
     }
   }
 
+  // Compatibilité d'habitat par espèce (Phase 2) : pour chaque espèce du site,
+  // retenir la meilleure métrique géométrique parmi ses sites (polygone du site
+  // vs emprise). Les sites sans polygone (ex. ZPS oiseaux) alimentent un repli
+  // fondé sur la proximité connue (les sites sont fetchés à ≤ NATURA_PROXIMITY_M).
+  const FALLBACK_SITE_DISTANCE_M = NATURA_PROXIMITY_M / 2;
+  const habitatMap = new Map<
+    string,
+    { metrics: HabitatMetrics | null; fallbackDistanceM: number }
+  >();
+  for (const zone of natura2000) {
+    const metrics: HabitatMetrics | null =
+      zone.overlapRatio !== null && zone.distanceM !== null
+        ? { overlapRatio: zone.overlapRatio, distanceM: zone.distanceM }
+        : null;
+    const zoneDistance = metrics ? metrics.distanceM : FALLBACK_SITE_DISTANCE_M;
+    for (const s of zone.species) {
+      const key = normalizeName(s.name);
+      const existing = habitatMap.get(key);
+      // Préférer un site avec polygone, puis la distance la plus faible.
+      const existingDistance = existing
+        ? existing.metrics
+          ? existing.metrics.distanceM
+          : existing.fallbackDistanceM
+        : Infinity;
+      const better =
+        !existing ||
+        (metrics && !existing.metrics) ||
+        (!!metrics === !!existing.metrics && zoneDistance < existingDistance);
+      if (better) {
+        habitatMap.set(key, { metrics, fallbackDistanceM: FALLBACK_SITE_DISTANCE_M });
+      }
+    }
+  }
+
   // Union déterministe des espèces à enjeux, indépendante des aléas de l'IA :
   //  1. narration IA (prioritaire, garde le texte explicatif) ;
   //  2. espèces observées à enjeux issues de l'inventaire (GBIF/iNaturalist) ;
@@ -582,13 +676,13 @@ export async function analyzePrioritySpecies(
   // Classer d'abord sans les statuts ALI pour hiérarchiser, puis n'enrichir
   // (appels ALI coûteux, séquentiels) que les MAX_FINAL_SPECIES retenues.
   const ranked = Array.from(bySpecies.values())
-    .map((sp) => classifyAndScore(sp, inventoryNorm, designatingMap, obsNearestM, obsQuality))
+    .map((sp) => classifyAndScore(sp, inventoryNorm, designatingMap, obsNearestM, obsQuality, habitatMap))
     .sort(byEvidenceThenScore)
     .slice(0, MAX_FINAL_SPECIES);
 
   const enriched = await enrichWithAliStatuses(ranked);
   const classified = enriched
-    .map((sp) => classifyAndScore(sp, inventoryNorm, designatingMap, obsNearestM, obsQuality))
+    .map((sp) => classifyAndScore(sp, inventoryNorm, designatingMap, obsNearestM, obsQuality, habitatMap))
     .sort(byEvidenceThenScore);
 
   return {

@@ -309,7 +309,7 @@ ${sectionList("🟢 ENJEUX FAIBLES", sortedSpecies.low)}${aiAnalysis && aiAnalys
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 ✨ ANALYSE IA — ESPÈCES À ENJEUX
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-${(["A", "B", "C", "D", "E"] as const)
+${(["A", "C", "B", "D", "E"] as const)
   .map((cls) => {
     const label: Record<string, string> = { A: "Avéré localement", B: "Avéré à l'échelle du site", C: "Très probable localement", D: "Potentielle", E: "Peu pertinente localement" };
     const group = aiAnalysis.species.filter((sp) => (sp.evidenceClass ?? "D") === cls);

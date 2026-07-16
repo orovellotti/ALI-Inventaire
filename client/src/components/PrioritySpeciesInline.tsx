@@ -54,7 +54,9 @@ const EVIDENCE_GROUP_LABEL: Record<EvidenceClass, string> = {
   E: "Peu pertinente localement",
 };
 
-const EVIDENCE_GROUP_ORDER: EvidenceClass[] = ["A", "B", "C", "D", "E"];
+// C (très probable localement, habitat favorable dans l'emprise) avant B
+// (avéré à l'échelle du site) pour privilégier la pertinence locale.
+const EVIDENCE_GROUP_ORDER: EvidenceClass[] = ["A", "C", "B", "D", "E"];
 
 function scoreColor(score: number): string {
   if (score >= 85) return "bg-red-100 text-red-700 border-red-300";
