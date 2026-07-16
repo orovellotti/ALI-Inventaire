@@ -4,7 +4,7 @@ import type { Occurrence } from "@shared/types";
 import { fetchSpeciesStatuses, type SpeciesStatus, type Patrimonialite } from "./ali";
 import { getNaturaZones, type Zonage } from "./services/geoservices";
 import { getSpeciesForSite, type NaturaGrade } from "./services/natura2000Species";
-import { getSiteHabitatInfo, type SiteHabitat } from "./services/natura2000Habitats";
+import { getSiteHabitatInfo, type SiteHabitat, type SiteGeometry } from "./services/natura2000Habitats";
 import {
   computeSiteMetrics,
   habitatCompatScore,
@@ -530,19 +530,24 @@ async function fetchNaturaZones(
                 grade: s.grade,
               }))
             : [];
+        let geometry: SiteGeometry | null = null;
         if (habitatRes.status === "fulfilled" && habitatRes.value) {
           const info = habitatRes.value;
           result[current].habitats = info.habitats;
-          const metrics = computeSiteMetrics(
-            coords[0],
-            coords[1],
-            empriseRadiusM,
-            info.geometry,
-          );
-          if (metrics) {
-            result[current].overlapRatio = metrics.overlapRatio;
-            result[current].distanceM = metrics.distanceM;
-          }
+          geometry = info.geometry;
+        }
+        // Repli sur la géométrie WFS (ex. ZPS : absentes de la couche EEA
+        // Natura2000Sites, mais fournies par patrinat_zps du WFS IGN).
+        if (!geometry && z.geometry) geometry = z.geometry;
+        const metrics = computeSiteMetrics(
+          coords[0],
+          coords[1],
+          empriseRadiusM,
+          geometry,
+        );
+        if (metrics) {
+          result[current].overlapRatio = metrics.overlapRatio;
+          result[current].distanceM = metrics.distanceM;
         }
       }
     };

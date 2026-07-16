@@ -1,4 +1,5 @@
 import { badGateway } from "../lib/httpError";
+import type { SiteGeometry } from "./natura2000Habitats";
 
 const WFS_BASE = "https://data.geopf.fr/wfs/ows";
 const PER_LAYER_TIMEOUT_MS = 9000;
@@ -50,6 +51,7 @@ export interface Zonage {
   url: string | null;
   id: string | null;
   code: string | null;
+  geometry?: SiteGeometry | null;
 }
 
 export interface ZonageGroup {
@@ -78,7 +80,58 @@ function bboxFromRadius(lat: number, lng: number, radiusM: number): string {
   return `${minLat},${minLng},${maxLat},${maxLng},urn:ogc:def:crs:EPSG::4326`;
 }
 
-async function fetchLayer(layer: LayerDef, bbox: string): Promise<Zonage[]> {
+const EARTH_R = 6371000;
+function haversineM(aLat: number, aLng: number, bLat: number, bLng: number): number {
+  const toRad = (d: number) => (d * Math.PI) / 180;
+  const dLat = toRad(bLat - aLat);
+  const dLng = toRad(bLng - aLng);
+  const s =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(toRad(aLat)) * Math.cos(toRad(bLat)) * Math.sin(dLng / 2) ** 2;
+  return 2 * EARTH_R * Math.asin(Math.min(1, Math.sqrt(s)));
+}
+
+// Aplati une géométrie GeoJSON (Polygon/MultiPolygon) en une liste d'anneaux.
+function collectRings(geom: any): number[][][] {
+  if (!geom) return [];
+  const coords = geom.coordinates;
+  if (!Array.isArray(coords)) return [];
+  if (geom.type === "Polygon") return coords as number[][][];
+  if (geom.type === "MultiPolygon") {
+    const rings: number[][][] = [];
+    for (const poly of coords) {
+      if (Array.isArray(poly)) for (const ring of poly) rings.push(ring);
+    }
+    return rings;
+  }
+  return [];
+}
+
+// Normalise les anneaux WFS en [lng, lat] (ordre attendu par habitatCompat).
+// L'ordre des axes GeoJSON du WFS Géoplateforme dépend du CRS ; on le déduit en
+// choisissant l'interprétation qui place le polygone le plus près du centre.
+function normalizeRings(
+  rings: number[][][],
+  centerLat: number,
+  centerLng: number,
+): SiteGeometry | null {
+  const first = rings[0]?.[0];
+  if (!Array.isArray(first) || first.length < 2) return null;
+  const [a, b] = first;
+  const distLngLat = haversineM(centerLat, centerLng, b, a); // [lng=a, lat=b]
+  const distLatLng = haversineM(centerLat, centerLng, a, b); // [lat=a, lng=b]
+  const swap = distLatLng < distLngLat; // anneaux en [lat, lng] → à inverser
+  const out = rings.map((ring) =>
+    ring.map((pt) => (swap ? [pt[1], pt[0]] : [pt[0], pt[1]])),
+  );
+  return { rings: out, areaKm2: null };
+}
+
+async function fetchLayer(
+  layer: LayerDef,
+  bbox: string,
+  center?: { lat: number; lng: number },
+): Promise<Zonage[]> {
   const params = new URLSearchParams({
     SERVICE: "WFS",
     VERSION: "2.0.0",
@@ -89,6 +142,7 @@ async function fetchLayer(layer: LayerDef, bbox: string): Promise<Zonage[]> {
     COUNT: "50",
     BBOX: bbox,
   });
+  const wantGeometry = !!center;
 
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), PER_LAYER_TIMEOUT_MS);
@@ -117,7 +171,11 @@ async function fetchLayer(layer: LayerDef, bbox: string): Promise<Zonage[]> {
       const dedupeKey = (url || name).toLowerCase();
       if (seen.has(dedupeKey)) continue;
       seen.add(dedupeKey);
-      zonages.push({ category: layer.category, type: layer.type, name, url, id, code });
+      const geometry =
+        wantGeometry && center
+          ? normalizeRings(collectRings(f?.geometry), center.lat, center.lng)
+          : null;
+      zonages.push({ category: layer.category, type: layer.type, name, url, id, code, geometry });
     }
     return zonages;
   } finally {
@@ -181,7 +239,7 @@ export async function getNaturaZones(lat: number, lng: number, radius: number): 
   const naturaLayers = ZONAGE_LAYERS.filter((l) => l.category === "natura2000");
   const perLayer = await runWithConcurrency(naturaLayers, CONCURRENCY, async (layer) => {
     try {
-      return await fetchLayer(layer, bbox);
+      return await fetchLayer(layer, bbox, { lat, lng });
     } catch {
       return [] as Zonage[];
     }

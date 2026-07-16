@@ -10,7 +10,9 @@ Two EEA ArcGIS layers complement `Natura2000Species` (used for designating speci
 - **Habitats** — `ProtectedSites/Natura2000Habitats/MapServer/0/query`, geometry = Point (site centroid, not the habitat polygon). Useful fields: `HABITATCODE`, `DESCRIPTION`, `CONTAINSHABITAT_PERCENTAGE_COVER` (often null), `CONTAINSHABITAT_RELSURFACE`. Query by `SITECODE='FRxxxxxxx'`.
 - **Sites** — `ProtectedSites/Natura2000Sites/MapServer/0/query`, geometry = **Polygon**. Fields: `SITECODE`, `SITENAME`, `Area_km2`. Request `returnGeometry=true&outSR=4326` → rings are `[lng, lat]` in EPSG:4326.
 
-**Important:** the Sites layer is "Habitats Directive Sites (pSCI, SCI or SAC)" only — it does **NOT** contain ZPS (Birds Directive) sites. So bird (ZPS) sites return no polygon; habitat-compat must fall back to a proximity-only estimate for those.
+**Important:** the Sites layer is "Habitats Directive Sites (pSCI, SCI or SAC)" only — it does **NOT** contain ZPS (Birds Directive) sites. So EEA returns no polygon for ZPS. **Fix:** ZPS polygons come instead from the IGN WFS `patrinat_zps:zps` layer — `getNaturaZones()` requests geometry (pass a `center` to `fetchLayer`) and `fetchNaturaZones()` falls back to that WFS polygon when EEA has none, so birds get a real emprise/site overlap. Only sites with no polygon anywhere still use the proximity-only estimate.
+
+**WFS axis order gotcha:** geopf.fr WFS with `OUTPUTFORMAT=application/json` returns GeoJSON in standard `[lng, lat]` order even though the BBOX uses `urn:ogc:def:crs:EPSG::4326` (lat,lng). Don't assume — `normalizeRings` in geoservices.ts auto-detects order by picking the interpretation whose first vertex is closest to the query center (robust incl. overseas).
 
 **Why:** Phase 2 of the evidence engine — distinguish a species really expected in the study footprint (habitat overlaps the emprise → class C "très probable localement") from a mere mention of a large distant site (class B). See `server/services/natura2000Habitats.ts` + `habitatCompat.ts`.
 
