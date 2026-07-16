@@ -2,6 +2,7 @@ import type { Occurrence } from "@shared/types";
 import { applyFrenchPriorityBoost, isFrenchPriority } from "./frenchPriority";
 
 const INAT_SPECIES_COUNTS = "https://api.inaturalist.org/v1/observations/species_counts";
+const INAT_OBSERVATIONS = "https://api.inaturalist.org/v1/observations";
 
 const ICONIC_MAP: Record<string, { kingdom: string; phylum?: string; class?: string }> = {
   Aves: { kingdom: "Animalia", phylum: "Chordata", class: "Aves" },
@@ -133,8 +134,81 @@ export async function searchINaturalist(
   }
 
   const occurrences = Array.from(speciesMap.values());
+
+  await enrichLastObservationYears(occurrences, lat, lng, radiusKm);
+
   return {
     occurrences,
     summary: { records: totalRecords, species: occurrences.length },
   };
+}
+
+// Le endpoint species_counts ne renvoie pas de date par espèce. On interroge donc
+// le endpoint observations trié par date décroissante pour attribuer à chaque
+// taxon l'année de son observation la plus récente, afin que le score de qualité
+// ne pénalise pas systématiquement les espèces issues d'iNaturalist.
+async function enrichLastObservationYears(
+  occurrences: Occurrence[],
+  lat: number,
+  lng: number,
+  radiusKm: number,
+): Promise<void> {
+  if (occurrences.length === 0) return;
+
+  const byTaxonId = new Map<number, Occurrence>();
+  for (const o of occurrences) {
+    if (typeof o.key === "number") byTaxonId.set(o.key, o);
+  }
+  if (byTaxonId.size === 0) return;
+
+  const remaining = new Set(byTaxonId.keys());
+
+  for (let page = 1; page <= MAX_PAGES && remaining.size > 0; page++) {
+    const params = new URLSearchParams({
+      lat: lat.toFixed(6),
+      lng: lng.toFixed(6),
+      radius: radiusKm.toFixed(3),
+      per_page: String(PER_PAGE),
+      page: String(page),
+      quality_grade: "research,needs_id",
+      geoprivacy: "open",
+      hrank: "species",
+      order_by: "observed_on",
+      order: "desc",
+      // On limite la charge utile aux champs strictement nécessaires.
+      only_id: "false",
+    });
+
+    let results: any[] = [];
+    try {
+      const response = await fetch(`${INAT_OBSERVATIONS}?${params.toString()}`, {
+        headers: { "User-Agent": "InventaireFlash/1.0 (https://github.com/natural-solutions/inventaire-flash)" },
+      });
+      if (!response.ok) break;
+      const data = await response.json();
+      results = Array.isArray(data?.results) ? data.results : [];
+    } catch {
+      break;
+    }
+
+    if (results.length === 0) break;
+
+    for (const r of results) {
+      const taxonId = Number(r?.taxon?.id);
+      if (!Number.isFinite(taxonId) || !remaining.has(taxonId)) continue;
+      const year =
+        Number(r?.observed_on_details?.year) ||
+        (typeof r?.observed_on === "string" ? Number(r.observed_on.slice(0, 4)) : NaN);
+      if (!Number.isFinite(year) || year <= 0) continue;
+      const occ = byTaxonId.get(taxonId);
+      // Résultats triés par date décroissante : la première occurrence rencontrée
+      // pour un taxon est la plus récente.
+      if (occ && occ.lastObservationYear === undefined) {
+        occ.lastObservationYear = year;
+        remaining.delete(taxonId);
+      }
+    }
+
+    if (results.length < PER_PAGE) break;
+  }
 }
