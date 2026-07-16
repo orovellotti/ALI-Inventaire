@@ -143,6 +143,40 @@ export async function searchINaturalist(
   };
 }
 
+// Cache de courte durée des années de dernière observation par zone. Comme les
+// dates par taxon évoluent lentement, on évite de réinterroger le endpoint
+// observations lorsqu'un même secteur est ré-inventorié. La clé arrondit
+// lat/lng/rayon pour regrouper les requêtes proches.
+const OBS_YEAR_CACHE_TTL_MS = 10 * 60 * 1000;
+const OBS_YEAR_CACHE_MAX_ENTRIES = 200;
+const obsYearCache = new Map<string, { years: Map<number, number>; expires: number }>();
+
+function obsYearCacheKey(lat: number, lng: number, radiusKm: number): string {
+  return `${lat.toFixed(2)}:${lng.toFixed(2)}:${radiusKm.toFixed(1)}`;
+}
+
+function getCachedObsYears(key: string): Map<number, number> | undefined {
+  const entry = obsYearCache.get(key);
+  if (!entry) return undefined;
+  if (entry.expires < Date.now()) {
+    obsYearCache.delete(key);
+    return undefined;
+  }
+  // On rafraîchit la position LRU en réinsérant l'entrée.
+  obsYearCache.delete(key);
+  obsYearCache.set(key, entry);
+  return entry.years;
+}
+
+function setCachedObsYears(key: string, years: Map<number, number>): void {
+  obsYearCache.set(key, { years, expires: Date.now() + OBS_YEAR_CACHE_TTL_MS });
+  while (obsYearCache.size > OBS_YEAR_CACHE_MAX_ENTRIES) {
+    const oldest = obsYearCache.keys().next().value;
+    if (oldest === undefined) break;
+    obsYearCache.delete(oldest);
+  }
+}
+
 // Le endpoint species_counts ne renvoie pas de date par espèce. On interroge donc
 // le endpoint observations trié par date décroissante pour attribuer à chaque
 // taxon l'année de son observation la plus récente, afin que le score de qualité
@@ -161,7 +195,26 @@ async function enrichLastObservationYears(
   }
   if (byTaxonId.size === 0) return;
 
-  const remaining = new Set(byTaxonId.keys());
+  const cacheKey = obsYearCacheKey(lat, lng, radiusKm);
+  const cached = getCachedObsYears(cacheKey);
+  const years: Map<number, number> = cached ? new Map(cached) : new Map();
+
+  // Applique d'abord les années déjà connues en cache.
+  if (cached) {
+    byTaxonId.forEach((occ, taxonId) => {
+      const year = cached.get(taxonId);
+      if (year !== undefined && occ.lastObservationYear === undefined) {
+        occ.lastObservationYear = year;
+      }
+    });
+  }
+
+  const remaining = new Set(
+    Array.from(byTaxonId.keys()).filter((id) => byTaxonId.get(id)!.lastObservationYear === undefined),
+  );
+
+  // Tout est déjà résolu par le cache : aucun appel réseau nécessaire.
+  if (remaining.size === 0) return;
 
   for (let page = 1; page <= MAX_PAGES && remaining.size > 0; page++) {
     const params = new URLSearchParams({
@@ -205,10 +258,14 @@ async function enrichLastObservationYears(
       // pour un taxon est la plus récente.
       if (occ && occ.lastObservationYear === undefined) {
         occ.lastObservationYear = year;
+        years.set(taxonId, year);
         remaining.delete(taxonId);
       }
     }
 
     if (results.length < PER_PAGE) break;
   }
+
+  // Mémorise les années résolues (cache + nouvelles) pour les ré-inventaires.
+  setCachedObsYears(cacheKey, years);
 }
