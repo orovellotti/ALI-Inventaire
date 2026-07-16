@@ -58,7 +58,7 @@ export function ResultsPanel({ isOpen, onClose, results, selectedSpecies, onSele
   const [reformatting, setReformatting] = useState(false);
   const [reformatError, setReformatError] = useState<string | null>(null);
   const [showFilters, setShowFilters] = useState(true);
-  const [aiAnalysis, setAiAnalysis] = useState<{ species: { scientificName: string; vernacularName?: string; group: string; level: string; reason: string; sources?: string[]; inInventory?: boolean; evidenceClass?: string; evidenceLabel?: string; score?: number; scoreLabel?: string }[]; natura2000?: { type: string; name: string; url: string | null; code?: string | null; species?: { name: string; designating: boolean; grade?: string | null }[] }[]; generatedAt: string } | null>(null);
+  const [aiAnalysis, setAiAnalysis] = useState<{ species: { scientificName: string; vernacularName?: string; group: string; level: string; reason: string; sources?: string[]; inInventory?: boolean; evidenceClass?: string; evidenceLabel?: string; score?: number; scoreLabel?: string }[]; natura2000?: { type: string; name: string; url: string | null; code?: string | null; species?: { name: string; designating: boolean; grade?: string | null }[]; habitats?: { code: string; description: string; cover: number | null }[] }[]; generatedAt: string } | null>(null);
   const [zonages, setZonages] = useState<ZonagesData | null>(null);
   const [zonagesLoading, setZonagesLoading] = useState(false);
   const [panelWidth, setPanelWidth] = useState<number>(() => {
@@ -325,7 +325,7 @@ ${(["A", "C", "B", "D", "E"] as const)
   .join("\n")}
 ${aiAnalysis.natura2000 && aiAnalysis.natura2000.length > 0 ? `
 🇪🇺 Zones Natura 2000 à proximité (${aiAnalysis.natura2000.length})
-${aiAnalysis.natura2000.map(z => { const desig = (z.species ?? []).filter(s => s.designating).map(s => s.name); return `• ${z.type} — ${z.name}${z.url ? `\n  ${z.url}` : ""}${desig.length > 0 ? `\n  Espèces désignatrices : ${desig.join(", ")}` : ""}`; }).join("\n")}
+${aiAnalysis.natura2000.map(z => { const desig = (z.species ?? []).filter(s => s.designating).map(s => s.name); const hab = (z.habitats ?? []).slice(0, 5).map(h => `    - ${h.code}${h.description ? ` — ${h.description}` : ""}${h.cover != null ? ` (${h.cover.toFixed(h.cover < 10 ? 1 : 0)} %)` : ""}`); return `• ${z.type} — ${z.name}${z.url ? `\n  ${z.url}` : ""}${desig.length > 0 ? `\n  Espèces désignatrices : ${desig.join(", ")}` : ""}${hab.length > 0 ? `\n  Habitats d'intérêt communautaire :\n${hab.join("\n")}` : ""}`; }).join("\n")}
 ` : ""}
 ⚠ Synthèse IA — à valider par un écologue.
 ` : ""}${zonagesSection}

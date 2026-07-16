@@ -95,12 +95,19 @@ interface NaturaZoneSpecies {
   grade?: string | null;
 }
 
+interface SiteHabitat {
+  code: string;
+  description: string;
+  cover: number | null;
+}
+
 interface Natura2000Zone {
   type: string;
   name: string;
   url: string | null;
   code?: string | null;
   species?: NaturaZoneSpecies[];
+  habitats?: SiteHabitat[];
 }
 
 interface Analysis {
@@ -276,6 +283,26 @@ export function PrioritySpeciesInline({ toponym, coords, occurrences, onAnalysis
                           <div className="mt-0.5 text-[10px] text-amber-700/90 leading-snug" data-testid={`natura2000-species-${i}`}>
                             <span className="font-medium">Espèces désignatrices :</span>{" "}
                             <span className="italic">{desig.join(", ")}</span>
+                          </div>
+                        );
+                      })()}
+                      {(() => {
+                        const habitats = (z.habitats ?? []).slice(0, 5);
+                        if (habitats.length === 0) return null;
+                        return (
+                          <div className="mt-0.5 text-[10px] text-amber-700/90 leading-snug" data-testid={`natura2000-habitats-${i}`}>
+                            <span className="font-medium">Habitats d'intérêt communautaire :</span>
+                            <ul className="mt-0.5 space-y-0.5">
+                              {habitats.map((h, hi) => (
+                                <li key={hi} data-testid={`natura2000-habitat-${i}-${hi}`}>
+                                  <span className="font-medium">{h.code}</span>
+                                  {h.description ? ` — ${h.description}` : ""}
+                                  {h.cover != null ? (
+                                    <span className="text-amber-600"> ({h.cover.toFixed(h.cover < 10 ? 1 : 0)} %)</span>
+                                  ) : null}
+                                </li>
+                              ))}
+                            </ul>
                           </div>
                         );
                       })()}
