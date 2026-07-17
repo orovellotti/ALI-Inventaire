@@ -4,3 +4,4 @@
 - [ALI Species linking](ali-species-links.md) — link species via client-side https://alispecies.io/?q=; server redirect is slow (~10s) and cdNom is never populated.
 - [Natura 2000 designating species](natura2000-species-api.md) — fetch FSD species per site via EEA ArcGIS by SITECODE (id_mnhn from IGN WFS).
 - [Natura 2000 habitats & polygons](natura2000-habitats-api.md) — EEA Habitats + Sites layers (Sites=Habitats Directive polygons only, no ZPS); habitat-compat drives class C; evidence order A,C,B,D,E.
+- [Priority-species ranking](priority-species-ranking.md) — espèces-à-enjeux top-N reserves slots for Natura 2000 class C/B species or they get evicted by observed (A) species.

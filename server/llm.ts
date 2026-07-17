@@ -20,6 +20,9 @@ const MODEL = "gpt-5-mini";
 const MAX_SAMPLED_SPECIES = 50;
 const MAX_RETURNED_SPECIES = 5;
 const MAX_FINAL_SPECIES = 10;
+// Places réservées, dans le top final, aux espèces Natura 2000 « très probables
+// localement » (classe C) ou « avérées à l'échelle du site » (classe B).
+const NATURA_RESERVED_SLOTS = 4;
 const NATURA_PROXIMITY_M = 5000;
 const NATURA_FETCH_TIMEOUT_MS = 4000;
 const NATURA_SPECIES_CONCURRENCY = 4;
@@ -686,10 +689,22 @@ export async function analyzePrioritySpecies(
 
   // Classer d'abord sans les statuts ALI pour hiérarchiser, puis n'enrichir
   // (appels ALI coûteux, séquentiels) que les MAX_FINAL_SPECIES retenues.
-  const ranked = Array.from(bySpecies.values())
+  const rankedAll = Array.from(bySpecies.values())
     .map((sp) => classifyAndScore(sp, inventoryNorm, designatingMap, obsNearestM, obsQuality, habitatMap))
-    .sort(byEvidenceThenScore)
-    .slice(0, MAX_FINAL_SPECIES);
+    .sort(byEvidenceThenScore);
+  // Réserver quelques places aux espèces Natura 2000 « très probables localement »
+  // (classe C) ou « avérées à l'échelle du site » (classe B). Sinon, dès que l'aire
+  // compte déjà MAX_FINAL_SPECIES espèces observées (classe A), ces espèces sont
+  // systématiquement évincées du top et l'apport des sites Natura 2000 reste invisible.
+  const siteProbable = rankedAll.filter(
+    (sp) => sp.evidenceClass === "C" || sp.evidenceClass === "B",
+  );
+  const reserved = siteProbable.slice(0, NATURA_RESERVED_SLOTS);
+  const reservedKeys = new Set(reserved.map((sp) => normalizeName(sp.scientificName)));
+  const filler = rankedAll
+    .filter((sp) => !reservedKeys.has(normalizeName(sp.scientificName)))
+    .slice(0, Math.max(0, MAX_FINAL_SPECIES - reserved.length));
+  const ranked = [...filler, ...reserved].sort(byEvidenceThenScore);
 
   const enriched = await enrichWithAliStatuses(ranked);
   const classified = enriched
