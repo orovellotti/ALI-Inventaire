@@ -941,7 +941,7 @@ function safeHttpUrl(raw: string | null): string | null {
 }
 
 function ZonagesPanel({ data, loading }: { data: ZonagesData | null; loading: boolean }) {
-  const [expanded, setExpanded] = useState(false);
+  const [expanded, setExpanded] = useState(true);
 
   if (loading) {
     return (
