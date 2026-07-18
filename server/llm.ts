@@ -34,8 +34,8 @@ const PRIORITY_IUCN = new Set(["CR", "EN", "VU", "NT", "DD"]);
 const ALLOWED_LEVELS = ["majeur", "fort", "modéré"] as const;
 
 const EVIDENCE_LABELS: Record<EvidenceClass, string> = {
-  A: "Avéré localement",
-  B: "Avéré à l'échelle du site",
+  A: "Espèce observée",
+  B: "Avérée à l'échelle du site",
   C: "Très probable localement",
   D: "Potentielle",
   E: "Peu pertinente localement",

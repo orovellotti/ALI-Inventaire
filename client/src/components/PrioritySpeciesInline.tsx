@@ -56,11 +56,19 @@ const EVIDENCE_STYLE: Record<EvidenceClass, { color: string; short: string }> = 
 };
 
 const EVIDENCE_GROUP_LABEL: Record<EvidenceClass, string> = {
-  A: "Avéré localement",
-  B: "Avéré à l'échelle du site",
+  A: "Espèce observée",
+  B: "Avérée à l'échelle du site",
   C: "Très probable localement",
   D: "Potentielle",
   E: "Peu pertinente localement",
+};
+
+const EVIDENCE_GROUP_DESC: Record<EvidenceClass, string> = {
+  A: "Observée dans votre zone d'étude (données GBIF / iNaturalist).",
+  B: "Ayant justifié la désignation d'un site Natura 2000 proche.",
+  C: "Espèce Natura 2000 dont l'habitat est favorable dans votre emprise.",
+  D: "Possible d'après le contexte, sans preuve locale directe.",
+  E: "Faible pertinence à l'échelle de votre zone d'étude.",
 };
 
 // C (très probable localement, habitat favorable dans l'emprise) avant B
@@ -321,15 +329,20 @@ export function PrioritySpeciesInline({ toponym, coords, occurrences, onAnalysis
               analysis.species.some((sp) => (sp.evidenceClass ?? "D") === cls),
             ).map((cls) => (
               <div key={cls} className="space-y-2" data-testid={`evidence-group-${cls}`}>
-                <div className="flex items-center gap-1.5 pt-1">
-                  <span
-                    className={`inline-flex items-center justify-center h-4 w-4 text-[9px] font-bold rounded-full border ${EVIDENCE_STYLE[cls].color}`}
-                  >
-                    {cls}
-                  </span>
-                  <span className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider">
-                    {EVIDENCE_GROUP_LABEL[cls]}
-                  </span>
+                <div className="pt-1">
+                  <div className="flex items-center gap-1.5">
+                    <span
+                      className={`inline-flex items-center justify-center h-4 w-4 text-[9px] font-bold rounded-full border ${EVIDENCE_STYLE[cls].color}`}
+                    >
+                      {cls}
+                    </span>
+                    <span className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider">
+                      {EVIDENCE_GROUP_LABEL[cls]}
+                    </span>
+                  </div>
+                  <p className="text-[10px] text-gray-400 leading-snug mt-0.5 ml-[22px]">
+                    {EVIDENCE_GROUP_DESC[cls]}
+                  </p>
                 </div>
                 {analysis.species
                   .map((sp, i) => ({ sp, i }))

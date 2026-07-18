@@ -311,7 +311,7 @@ ${sectionList("🟢 ENJEUX FAIBLES", sortedSpecies.low)}${aiAnalysis && aiAnalys
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 ${(["A", "C", "B", "D", "E"] as const)
   .map((cls) => {
-    const label: Record<string, string> = { A: "Avéré localement", B: "Avéré à l'échelle du site", C: "Très probable localement", D: "Potentielle", E: "Peu pertinente localement" };
+    const label: Record<string, string> = { A: "Espèce observée", B: "Avérée à l'échelle du site", C: "Très probable localement", D: "Potentielle", E: "Peu pertinente localement" };
     const group = aiAnalysis.species.filter((sp) => (sp.evidenceClass ?? "D") === cls);
     if (group.length === 0) return "";
     return `\n[${cls}] ${label[cls]}\n${group

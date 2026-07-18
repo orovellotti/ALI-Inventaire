@@ -24,3 +24,15 @@ of pulling Natura 2000 data. A pure evidence-then-score top-N hides them.
 **How to apply:** if you touch the final ranking/slicing, keep the reservation
 or the Natura 2000 species disappear again whenever an area is observation-rich.
 Reserved species must be part of the slice sent to ALI enrichment.
+
+## Libellés de classe de preuve — 3 emplacements à synchroniser
+
+Evidence-class labels (A "Espèce observée", B "Avérée à l'échelle du site",
+C "Très probable localement", D "Potentielle", E "Peu pertinente localement")
+are duplicated in THREE places and must be edited together:
+- `server/llm.ts` → `EVIDENCE_LABELS` (per-species `evidenceLabel`)
+- `client/src/components/PrioritySpeciesInline.tsx` → `EVIDENCE_GROUP_LABEL` (+ `EVIDENCE_GROUP_DESC`)
+- `client/src/components/ResultsPanel.tsx` → inline `label` map in the copyable/exported report
+
+**Why:** no shared source; a change in one place silently desyncs the UI panel,
+the exported report, and the per-species badge.
