@@ -18,3 +18,5 @@ To list the species that justify a Natura 2000 site (FSD / "espèces désignatri
 **Why:** user (ecologist) wanted designating species to refine the enjeux in the AI priority-species analysis.
 
 **How to apply:** validate the code (`/^[A-Z]{2}\d{6,}$/i`) before interpolating into the `where` clause (regex is the injection guard). Cache only non-empty responses. When fanning out over many nearby sites, use a bounded worker pool + overall time budget — a location can return 5+ Natura sites and unbounded `Promise.all` stalls `/api/llm/priority-species`.
+
+**INPN fiche pages are NOT scrapeable:** `inpn.mnhn.fr/site/natura2000/<code>` and `/zone/znieff/<id>` are client-rendered SPA shells (only an empty `#root` + one script in the static HTML). The species lists load from a protected INPN API (`odata-inpn.mnhn.fr`, returns 401). So there is no server-side way to extract ZNIEFF "espèces déterminantes" — only Natura 2000 designating species (via EEA above) are obtainable. For ZNIEFF, fall back to a fiche link or to real GBIF/iNat observations inside the zone polygon.

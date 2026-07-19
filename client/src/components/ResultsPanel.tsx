@@ -17,6 +17,12 @@ interface ZonageItem {
   name: string;
   url: string | null;
   id: string | null;
+  code?: string | null;
+}
+interface NaturaSpeciesItem {
+  name: string;
+  grade: "A" | "B" | "C" | "D" | null;
+  sensitive: boolean;
 }
 interface ZonageGroupData {
   category: string;
@@ -987,30 +993,34 @@ function ZonagesPanel({ data, loading }: { data: ZonagesData | null; loading: bo
                 <div className="space-y-1.5">
                   {group.zonages.map((z, i) => {
                     const href = safeHttpUrl(z.url);
-                    return href ? (
-                      <a
-                        key={`${z.id || z.name}-${i}`}
-                        href={href}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className={`flex items-start gap-2 text-xs ${s.text} ${s.hover} rounded px-2 py-1.5 transition-colors`}
-                        data-testid={`zonage-link-${group.category}-${i}`}
-                      >
-                        <ExternalLink className="h-3 w-3 flex-shrink-0 mt-0.5" />
-                        <span>
-                          <span className="font-semibold">{z.type}</span> — {z.name}
-                        </span>
-                      </a>
-                    ) : (
-                      <div
-                        key={`${z.id || z.name}-${i}`}
-                        className={`flex items-start gap-2 text-xs ${s.text} px-2 py-1.5`}
-                        data-testid={`zonage-item-${group.category}-${i}`}
-                      >
-                        <Shield className="h-3 w-3 flex-shrink-0 mt-0.5" />
-                        <span>
-                          <span className="font-semibold">{z.type}</span> — {z.name}
-                        </span>
+                    const showSpecies = group.category === "natura2000" && !!z.code;
+                    return (
+                      <div key={`${z.id || z.code || z.name}-${i}`}>
+                        {href ? (
+                          <a
+                            href={href}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className={`flex items-start gap-2 text-xs ${s.text} ${s.hover} rounded px-2 py-1.5 transition-colors`}
+                            data-testid={`zonage-link-${group.category}-${i}`}
+                          >
+                            <ExternalLink className="h-3 w-3 flex-shrink-0 mt-0.5" />
+                            <span>
+                              <span className="font-semibold">{z.type}</span> — {z.name}
+                            </span>
+                          </a>
+                        ) : (
+                          <div
+                            className={`flex items-start gap-2 text-xs ${s.text} px-2 py-1.5`}
+                            data-testid={`zonage-item-${group.category}-${i}`}
+                          >
+                            <Shield className="h-3 w-3 flex-shrink-0 mt-0.5" />
+                            <span>
+                              <span className="font-semibold">{z.type}</span> — {z.name}
+                            </span>
+                          </div>
+                        )}
+                        {showSpecies && <NaturaSpeciesList code={z.code!} index={i} />}
                       </div>
                     );
                   })}
@@ -1018,6 +1028,81 @@ function ZonagesPanel({ data, loading }: { data: ZonagesData | null; loading: bo
               </div>
             );
           })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+const GRADE_STYLES: Record<string, { badge: string; label: string }> = {
+  A: { badge: "bg-red-100 text-red-700", label: "Population majeure (grade A)" },
+  B: { badge: "bg-orange-100 text-orange-700", label: "Population importante (grade B)" },
+  C: { badge: "bg-amber-100 text-amber-700", label: "Population significative (grade C)" },
+  D: { badge: "bg-gray-100 text-gray-500", label: "Présence non significative (grade D)" },
+};
+
+function NaturaSpeciesList({ code, index }: { code: string; index: number }) {
+  const [expanded, setExpanded] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [loaded, setLoaded] = useState(false);
+  const [species, setSpecies] = useState<NaturaSpeciesItem[]>([]);
+  const [error, setError] = useState(false);
+
+  const toggle = () => {
+    const next = !expanded;
+    setExpanded(next);
+    if (next && !loaded && !loading) {
+      setLoading(true);
+      setError(false);
+      fetch(`/api/natura-species?code=${encodeURIComponent(code)}`)
+        .then((r) => (r.ok ? r.json() : Promise.reject()))
+        .then((d) => {
+          setSpecies(Array.isArray(d.species) ? d.species : []);
+          setLoaded(true);
+        })
+        .catch(() => setError(true))
+        .finally(() => setLoading(false));
+    }
+  };
+
+  return (
+    <div className="ml-5 mt-0.5 mb-1">
+      <button
+        onClick={toggle}
+        className="flex items-center gap-1 text-[11px] text-emerald-700 hover:text-emerald-900 transition-colors"
+        data-testid={`button-natura-species-${index}`}
+      >
+        {expanded ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
+        Espèces désignatrices (grade A/B/C/D)
+      </button>
+      {expanded && (
+        <div className="mt-1 pl-4 border-l border-emerald-200" data-testid={`list-natura-species-${index}`}>
+          {loading && (
+            <div className="flex items-center gap-1.5 text-[11px] text-emerald-600 py-1">
+              <Loader2 className="h-3 w-3 animate-spin" /> Chargement des espèces…
+            </div>
+          )}
+          {error && <p className="text-[11px] text-red-500 py-1">Espèces indisponibles pour ce site.</p>}
+          {loaded && !error && species.length === 0 && (
+            <p className="text-[11px] text-gray-400 py-1">Aucune espèce désignatrice (grade A/B/C/D) référencée.</p>
+          )}
+          {loaded && species.length > 0 && (
+            <ul className="space-y-0.5 py-1">
+              {species.map((sp, si) => {
+                const g = sp.grade ? GRADE_STYLES[sp.grade] : null;
+                return (
+                  <li key={`${sp.name}-${si}`} className="flex items-center gap-1.5 text-[11px] text-gray-700" data-testid={`natura-species-${index}-${si}`}>
+                    {g && (
+                      <span className={`text-[9px] font-bold px-1 py-0.5 rounded ${g.badge}`} title={g.label}>
+                        {sp.grade}
+                      </span>
+                    )}
+                    <span className="italic">{sp.name}</span>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
         </div>
       )}
     </div>

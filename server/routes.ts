@@ -22,6 +22,7 @@ import {
 } from "./lib/validation";
 import { geocodePlace, reverseGeocode, searchLieuxDits } from "./services/nominatim";
 import { getZonages } from "./services/geoservices";
+import { getSpeciesForSite } from "./services/natura2000Species";
 
 const DATA_SOURCES_TTL_MS = 10 * 60 * 1000;
 let dataSourcesCache: { data: unknown; expires: number } | null = null;
@@ -34,6 +35,7 @@ const ENDPOINTS_DOC = [
   { method: "GET", path: "/api/lieux-dits?q=", description: "Recherche de lieux-dits (avec polygone si disponible)" },
   { method: "GET", path: "/api/sinp?lat=&lng=", description: "Plateformes SINP régionales" },
   { method: "GET", path: "/api/zonages?lat=&lng=&radius=", description: "Zonages environnementaux (ZNIEFF, Natura 2000, réserves, APB…) intersectant l'aire d'étude (IGN/PatriNat)" },
+  { method: "GET", path: "/api/natura-species?code=", description: "Espèces désignatrices (grade A/B/C/D) d'un site Natura 2000 (source EEA)" },
   { method: "GET", path: "/api/sinp/all", description: "Toutes les plateformes SINP" },
   { method: "GET", path: "/api/presets", description: "Presets de projets EIE" },
   { method: "GET", path: "/api/study-areas", description: "Définitions des aires d'étude" },
@@ -137,6 +139,19 @@ export async function registerRoutes(
     asyncHandler(async (req, res) => {
       const { lat, lng, radius } = zonagesQuerySchema.parse(req.query);
       res.json(await getZonages(lat, lng, radius));
+    }),
+  );
+
+  app.get(
+    "/api/natura-species",
+    asyncHandler(async (req, res) => {
+      const code = String(req.query.code || "").trim();
+      const all = await getSpeciesForSite(code);
+      const rank: Record<string, number> = { A: 4, B: 3, C: 2, D: 1 };
+      const species = all
+        .filter((s) => s.grade && rank[s.grade])
+        .sort((a, b) => (rank[b.grade!] ?? 0) - (rank[a.grade!] ?? 0) || a.name.localeCompare(b.name));
+      res.json({ code, count: species.length, species });
     }),
   );
 
