@@ -12,3 +12,9 @@ id = "PNOU-rzdsnFJ17lr0AGBz"
 uri = "file://UX.md"
 type = "text"
 title = "Inventaire Flash — Description UX"
+
+[[outputs]]
+id = "GkWMM0byIOS2_cXBMa9Kh"
+uri = "file://exports/Natura2000_especes_designatrices_end2024.csv"
+type = "table"
+title = "Natura 2000 — espèces désignatrices (Europe + France, fin 2024)"
