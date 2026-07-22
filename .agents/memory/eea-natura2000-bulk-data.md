@@ -17,4 +17,8 @@ Both the CSV package and the `.mdb` contain only 10 SDF tables: BIOREGION, DESIG
 
 **Directive + annex per species** must come from EUNIS: `[EUNIS].[latest].[Species_Legal_Status]` on Discodata (`https://discodata.eea.europa.eu/sql?query=...&p=N&nrOfHits=1000`, paginate). Its `code_2000` == the SDF `SPECIESCODE`; filter `dc_index_reference_title` to `92/43/EEC` (Habitats) and the wild-birds directives (`79/409/EEC` + `2009/147/EC`), parse the annex roman numeral from `dc_index_title` with `Annex\s+([IVX]+)`. Caveat: migratory birds (art. 4.2) are NOT annex-listed, so ~15k bird rows have no EUNIS match — infer Birds Directive from the `A####` code prefix. ~5k habitats-group "important species" (fish/reptiles/plants) legitimately have no directive (SDF section 3.2, non-annex) — leave blank.
 
+## Seeding CSV into Postgres via a transaction — readline gotcha
+
+When bulk-loading a big CSV into Postgres inside a single `db.transaction`, create the `readline`/`createReadStream` **inside** the transaction callback, right before the `for await` loop. If you create the stream before `await`ing the transaction BEGIN/DELETE, readline goes into flowing mode and emits (and drops) the earliest lines — including the header row — during that await. Symptom: fewer lines read than the file has and 0 rows matched (header lost → column-index map empty), and since the DELETE already committed, the table ends up **empty**. Keep stream creation adjacent to consumption.
+
 **mdbtools** isn't preinstalled; `nix-env -iA nixpkgs.mdbtools` builds it but doesn't add it to PATH — call the binary directly from `/nix/store/*mdbtools-1.0.1/bin/mdb-tables`.

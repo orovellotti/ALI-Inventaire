@@ -1,5 +1,12 @@
-import { type User, type InsertUser } from "@shared/schema";
+import {
+  type User,
+  type InsertUser,
+  type Natura2000Species,
+  natura2000Species,
+} from "@shared/schema";
 import { randomUUID } from "crypto";
+import { inArray } from "drizzle-orm";
+import { db } from "./db";
 
 // modify the interface with any CRUD methods
 // you might need
@@ -8,6 +15,7 @@ export interface IStorage {
   getUser(id: string): Promise<User | undefined>;
   getUserByUsername(username: string): Promise<User | undefined>;
   createUser(user: InsertUser): Promise<User>;
+  getNaturaSpeciesForSites(siteCodes: string[]): Promise<Natura2000Species[]>;
 }
 
 export class MemStorage implements IStorage {
@@ -32,6 +40,14 @@ export class MemStorage implements IStorage {
     const user: User = { ...insertUser, id };
     this.users.set(id, user);
     return user;
+  }
+
+  async getNaturaSpeciesForSites(siteCodes: string[]): Promise<Natura2000Species[]> {
+    if (siteCodes.length === 0) return [];
+    return db
+      .select()
+      .from(natura2000Species)
+      .where(inArray(natura2000Species.siteCode, siteCodes));
   }
 }
 

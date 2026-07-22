@@ -21,8 +21,9 @@ import {
   zonagesQuerySchema,
 } from "./lib/validation";
 import { geocodePlace, reverseGeocode, searchLieuxDits } from "./services/nominatim";
-import { getZonages } from "./services/geoservices";
+import { getZonages, getNaturaZones } from "./services/geoservices";
 import { getSpeciesForSite } from "./services/natura2000Species";
+import { storage } from "./storage";
 
 const DATA_SOURCES_TTL_MS = 10 * 60 * 1000;
 let dataSourcesCache: { data: unknown; expires: number } | null = null;
@@ -35,7 +36,8 @@ const ENDPOINTS_DOC = [
   { method: "GET", path: "/api/lieux-dits?q=", description: "Recherche de lieux-dits (avec polygone si disponible)" },
   { method: "GET", path: "/api/sinp?lat=&lng=", description: "Plateformes SINP régionales" },
   { method: "GET", path: "/api/zonages?lat=&lng=&radius=", description: "Zonages environnementaux (ZNIEFF, Natura 2000, réserves, APB…) intersectant l'aire d'étude (IGN/PatriNat)" },
-  { method: "GET", path: "/api/natura-species?code=", description: "Espèces désignatrices (grade A/B/C/D) d'un site Natura 2000 (source EEA)" },
+  { method: "GET", path: "/api/natura-species?code=", description: "Espèces désignatrices (grade A/B/C/D) d'un site Natura 2000 (source EEA, live)" },
+  { method: "GET", path: "/api/natura2000/expected?lat=&lng=&radius=", description: "Espèces désignatrices Natura 2000 attendues autour d'un point (base locale, France)" },
   { method: "GET", path: "/api/sinp/all", description: "Toutes les plateformes SINP" },
   { method: "GET", path: "/api/presets", description: "Presets de projets EIE" },
   { method: "GET", path: "/api/study-areas", description: "Définitions des aires d'étude" },
@@ -152,6 +154,56 @@ export async function registerRoutes(
         .filter((s) => s.grade && rank[s.grade])
         .sort((a, b) => (rank[b.grade!] ?? 0) - (rank[a.grade!] ?? 0) || a.name.localeCompare(b.name));
       res.json({ code, count: species.length, species });
+    }),
+  );
+
+  app.get(
+    "/api/natura2000/expected",
+    asyncHandler(async (req, res) => {
+      const { lat, lng, radius } = zonagesQuerySchema.parse(req.query);
+      const zones = await getNaturaZones(lat, lng, radius);
+      const codes = Array.from(
+        new Set(
+          zones
+            .map((z) => (z.code || "").trim().toUpperCase())
+            .filter((c) => /^FR\d{7,}$/.test(c)),
+        ),
+      );
+      const rows = await storage.getNaturaSpeciesForSites(codes);
+      // Regrouper par espèce (une espèce peut désigner plusieurs sites proches)
+      const byName = new Map<
+        string,
+        {
+          scientificName: string;
+          speciesGroup: string;
+          directive: string;
+          annexes: string;
+          sites: { code: string; name: string }[];
+        }
+      >();
+      for (const r of rows) {
+        const key = r.scientificName.toLowerCase();
+        let entry = byName.get(key);
+        if (!entry) {
+          entry = {
+            scientificName: r.scientificName,
+            speciesGroup: r.speciesGroup,
+            directive: r.directive,
+            annexes: r.annexes,
+            sites: [],
+          };
+          byName.set(key, entry);
+        }
+        if (!entry.sites.some((s) => s.code === r.siteCode)) {
+          entry.sites.push({ code: r.siteCode, name: r.siteName });
+        }
+        if (!entry.directive && r.directive) entry.directive = r.directive;
+        if (!entry.annexes && r.annexes) entry.annexes = r.annexes;
+      }
+      const species = Array.from(byName.values()).sort((a, b) =>
+        a.scientificName.localeCompare(b.scientificName),
+      );
+      res.json({ siteCount: codes.length, count: species.length, species });
     }),
   );
 

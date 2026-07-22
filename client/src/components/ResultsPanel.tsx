@@ -165,6 +165,16 @@ export function ResultsPanel({ isOpen, onClose, results, selectedSpecies, onSele
     return TAXON_GROUPS.filter(g => (taxonCounts.get(g.id) || 0) > 0);
   }, [taxonCounts]);
 
+  const observedNames = useMemo(() => {
+    const set = new Set<string>();
+    if (results) {
+      for (const occ of results.occurrences) {
+        set.add(occ.scientificName.trim().toLowerCase());
+      }
+    }
+    return set;
+  }, [results]);
+
   const sortedSpecies = useMemo(() => {
     if (!results) return { high: [], medium: [], low: [] };
     
@@ -645,6 +655,12 @@ ${shareUrl ? `\n🔗 Reproduire cette analyse : ${shareUrl}` : ""}`;
               )}
             </div>
 
+            <Natura2000ExpectedPanel
+              center={results.center}
+              radius={results.radius}
+              observedNames={observedNames}
+            />
+
             <PrioritySpeciesInline
               toponym={toponym || `Point ${results.center[0].toFixed(4)}, ${results.center[1].toFixed(4)}`}
               coords={results.center}
@@ -1102,6 +1118,156 @@ function NaturaSpeciesList({ code, index }: { code: string; index: number }) {
                 );
               })}
             </ul>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+interface ExpectedSpeciesItem {
+  scientificName: string;
+  speciesGroup: string;
+  directive: string;
+  annexes: string;
+  sites: { code: string; name: string }[];
+}
+
+const SPECIES_GROUP_FR: Record<string, string> = {
+  Birds: "Oiseaux",
+  Mammals: "Mammifères",
+  Amphibians: "Amphibiens",
+  Reptiles: "Reptiles",
+  Fish: "Poissons",
+  Invertebrates: "Invertébrés",
+  Plants: "Plantes",
+};
+
+function Natura2000ExpectedPanel({
+  center,
+  radius,
+  observedNames,
+}: {
+  center: [number, number];
+  radius: number;
+  observedNames: Set<string>;
+}) {
+  const [expanded, setExpanded] = useState(true);
+  const [loading, setLoading] = useState(false);
+  const [loaded, setLoaded] = useState(false);
+  const [species, setSpecies] = useState<ExpectedSpeciesItem[]>([]);
+  const [siteCount, setSiteCount] = useState(0);
+  const [error, setError] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    setLoaded(false);
+    setSpecies([]);
+    setError(false);
+    setLoading(true);
+    fetch(`/api/natura2000/expected?lat=${center[0]}&lng=${center[1]}&radius=${radius}`)
+      .then((r) => (r.ok ? r.json() : Promise.reject()))
+      .then((d) => {
+        if (cancelled) return;
+        setSpecies(Array.isArray(d.species) ? d.species : []);
+        setSiteCount(Number(d.siteCount) || 0);
+        setLoaded(true);
+      })
+      .catch(() => {
+        if (!cancelled) setError(true);
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [center[0], center[1], radius]);
+
+  const notObserved = species.filter(
+    (s) => !observedNames.has(s.scientificName.trim().toLowerCase()),
+  );
+
+  if (loaded && !error && species.length === 0) return null;
+
+  return (
+    <div className="rounded-xl border border-emerald-200 bg-emerald-50/50 p-4">
+      <button
+        onClick={() => setExpanded(!expanded)}
+        className="w-full"
+        data-testid="button-natura-expected-toggle"
+      >
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Shield className="h-4 w-4 text-emerald-600" />
+            <span className="font-bold text-sm text-emerald-700 text-left">
+              Espèces Natura 2000 attendues
+            </span>
+          </div>
+          <div className="flex items-center gap-2">
+            {loading && <Loader2 className="h-3.5 w-3.5 animate-spin text-emerald-600" />}
+            {loaded && (
+              <span className="text-[11px] font-semibold text-emerald-700 bg-emerald-100 rounded-full px-2 py-0.5">
+                {notObserved.length} non observée{notObserved.length > 1 ? "s" : ""}
+              </span>
+            )}
+            {expanded ? (
+              <ChevronUp className="h-4 w-4 text-emerald-500" />
+            ) : (
+              <ChevronDown className="h-4 w-4 text-emerald-500" />
+            )}
+          </div>
+        </div>
+      </button>
+
+      {expanded && (
+        <div className="mt-3">
+          {error && (
+            <p className="text-[11px] text-red-500">Espèces attendues indisponibles.</p>
+          )}
+          {loaded && !error && (
+            <>
+              <p className="text-[11px] text-gray-500 mb-2 leading-snug">
+                Espèces désignatrices des {siteCount} site{siteCount > 1 ? "s" : ""} Natura 2000 proche
+                {siteCount > 1 ? "s" : ""} (base EEA, France). Les espèces « non observées » ne figurent
+                pas dans les résultats GBIF/iNaturalist mais sont attendues localement.
+              </p>
+              <ul className="space-y-1" data-testid="list-natura-expected">
+                {species.map((sp, i) => {
+                  const observed = observedNames.has(sp.scientificName.trim().toLowerCase());
+                  return (
+                    <li
+                      key={`${sp.scientificName}-${i}`}
+                      className="flex items-start gap-2 text-[11px] text-gray-700 bg-white/60 rounded px-2 py-1.5"
+                      data-testid={`natura-expected-${i}`}
+                    >
+                      <span
+                        className={`text-[9px] font-bold px-1 py-0.5 rounded shrink-0 mt-0.5 ${
+                          observed
+                            ? "bg-gray-100 text-gray-500"
+                            : "bg-emerald-100 text-emerald-700"
+                        }`}
+                        title={observed ? "Déjà observée dans l'inventaire" : "Attendue, non observée dans GBIF"}
+                      >
+                        {observed ? "observée" : "attendue"}
+                      </span>
+                      <span className="flex-1">
+                        <span className="italic font-medium">{sp.scientificName}</span>
+                        {sp.speciesGroup && (
+                          <span className="text-gray-400">
+                            {" "}
+                            · {SPECIES_GROUP_FR[sp.speciesGroup] ?? sp.speciesGroup}
+                          </span>
+                        )}
+                        {sp.annexes && (
+                          <span className="block text-[10px] text-emerald-600">{sp.annexes}</span>
+                        )}
+                      </span>
+                    </li>
+                  );
+                })}
+              </ul>
+            </>
           )}
         </div>
       )}
