@@ -1,0 +1,509 @@
+Refonds complètement le panneau latéral de l’application « Inventaire Flash » pour le transformer en un véritable tableau de bord d’aide à la décision biodiversité, destiné aux bureaux d’études, écologues et chefs de projet.
+
+L’objectif est de ne plus afficher uniquement une longue liste d’espèces, mais de permettre à l’utilisateur de comprendre immédiatement :
+
+1. le niveau de risque biodiversité du projet ;
+2. les principaux enjeux écologiques ;
+3. les espèces et habitats responsables de ces enjeux ;
+4. les inventaires terrain à prévoir ;
+5. les prochaines actions recommandées.
+
+## 1. Structure générale du panneau
+
+Créer un panneau latéral organisé en cinq onglets :
+
+* Synthèse
+* Enjeux
+* Espèces
+* Zonages
+* Agent IA
+
+Le panneau doit rester lisible sur desktop et mobile, avec une largeur confortable, un scroll fluide et des sections repliables.
+
+Éviter l’accumulation de blocs trop longs. Utiliser des cartes synthétiques, des accordéons, des filtres et des indicateurs visuels.
+
+---
+
+## 2. Onglet « Synthèse »
+
+Afficher en haut :
+
+### Inventaire Flash
+
+* 546 espèces détectées
+* 31 espèces sensibles
+* 7 zonages environnementaux
+* Sources : GBIF, iNaturalist, ALI Species, SINP
+
+Ajouter deux indicateurs distincts :
+
+### Indice de confiance des données
+
+Afficher :
+
+88 / 100
+Excellent
+
+Avec une courte explication :
+
+« Score calculé selon le nombre de sources, la récence des observations, leur précision géographique et leur validation. »
+
+### Niveau de risque biodiversité
+
+Créer un indicateur séparé :
+
+73 / 100
+Risque élevé
+
+Le score doit être affiché sous forme de jauge ou de cercle coloré.
+
+Ajouter les principaux facteurs explicatifs :
+
+* 4 espèces à patrimonialité forte ou majeure
+* 7 zonages environnementaux
+* présence possible d’habitats littoraux sensibles
+* observations récentes à proximité
+* sensibilité marine et terrestre
+
+Ajouter une carte « Synthèse automatique » contenant un texte court :
+
+« Le secteur présente une richesse biologique élevée, avec des enjeux principalement liés aux habitats littoraux méditerranéens, à la flore patrimoniale et à plusieurs espèces marines. Des inventaires complémentaires sont recommandés avant toute intervention. »
+
+Ajouter trois boutons principaux :
+
+* Analyser les enjeux
+* Préparer les inventaires
+* Générer une note écologique
+
+---
+
+## 3. Onglet « Enjeux »
+
+Afficher les enjeux sous forme de cartes hiérarchisées.
+
+Créer quatre niveaux :
+
+* Critique
+* Fort
+* Modéré
+* Faible
+
+Chaque carte d’enjeu doit contenir :
+
+* le nom de l’enjeu ;
+* le groupe taxonomique ;
+* le niveau de patrimonialité ;
+* le statut réglementaire ;
+* la distance au projet ;
+* la date de la dernière observation ;
+* le niveau de confiance ;
+* la justification du classement ;
+* une action recommandée.
+
+Exemple :
+
+### Astragale de Marseille
+
+Astragalus tragacantha
+
+* Groupe : flore
+* Patrimonialité : forte
+* Protection : à vérifier
+* Distance au projet : 240 m
+* Dernière observation : avril 2025
+* Confiance : élevée
+* Habitat associé : pelouses et rocailles littorales
+
+Justification :
+
+« Espèce patrimoniale caractéristique du littoral méditerranéen, potentiellement sensible à la destruction ou à l’altération de son habitat. »
+
+Action recommandée :
+
+« Prévoir un inventaire botanique entre mars et juin et vérifier l’intersection avec les habitats favorables. »
+
+Ajouter les boutons :
+
+* Voir sur la carte
+* Ouvrir dans ALI Species
+* Voir les occurrences
+* Voir les habitats
+* Ajouter à l’analyse IA
+
+---
+
+## 4. Onglet « Espèces »
+
+Conserver les groupes taxonomiques, mais les rendre plus lisibles.
+
+Afficher en haut des filtres sous forme de chips :
+
+* Toutes
+* Protégées
+* Menacées
+* Patrimoniales
+* Récentes
+* À confirmer
+* Marine
+* Terrestre
+
+Ajouter un champ de recherche :
+
+« Rechercher une espèce »
+
+Afficher les groupes taxonomiques sous forme de cartes compactes :
+
+* Oiseaux : 29
+* Reptiles : 3
+* Poissons : 25
+* Insectes : 105
+* Arachnides : 8
+* Mollusques : 26
+* Plantes : 306
+* Champignons : 12
+* Autres : 32
+
+Pour chaque groupe, afficher également :
+
+* nombre d’espèces sensibles ;
+* nombre d’espèces protégées ;
+* nombre d’espèces à enjeu fort ;
+* période d’inventaire recommandée.
+
+Exemple :
+
+### Flore
+
+306 espèces
+5 sensibles
+2 enjeux forts
+Période recommandée : mars à juin
+
+Dans la liste des espèces, éviter de répéter deux fois le nom scientifique.
+
+Afficher :
+
+### Harle huppé
+
+Mergus serrator
+
+* Oiseaux
+* Patrimonialité majeure
+* Statut : non évalué
+* Dernière observation : janvier 2026
+* Source : GBIF
+* Confiance : moyenne
+
+Ajouter une icône d’information expliquant les valeurs manquantes ou les statuts « non évalués ».
+
+---
+
+## 5. Fiche détaillée d’une espèce
+
+Au clic sur une espèce, ouvrir un panneau détaillé ou une modale.
+
+Afficher :
+
+* nom vernaculaire ;
+* nom scientifique ;
+* photo ;
+* groupe taxonomique ;
+* statuts UICN ;
+* statuts de protection ;
+* patrimonialité ;
+* habitat principal ;
+* période d’activité ou de floraison ;
+* distance au projet ;
+* nombre d’occurrences ;
+* date de la dernière observation ;
+* sources utilisées ;
+* qualité des données ;
+* carte des observations ;
+* saisonnalité des données.
+
+Ajouter une section :
+
+### Pourquoi cette espèce est-elle un enjeu ?
+
+Afficher une explication générée à partir des données disponibles.
+
+Ajouter une section :
+
+### Recommandations
+
+Exemples :
+
+* vérifier la présence terrain ;
+* éviter la période de reproduction ;
+* cartographier les habitats favorables ;
+* consulter un spécialiste ;
+* rechercher les mesures ERC applicables.
+
+---
+
+## 6. Onglet « Zonages »
+
+Afficher les zonages environnementaux sous forme de liste hiérarchisée :
+
+* Natura 2000
+* ZNIEFF
+* Parc national
+* Parc naturel régional
+* Réserve naturelle
+* Arrêté de protection
+* Trame verte et bleue
+* Aire marine protégée
+* Autres zonages
+
+Pour chaque zonage, afficher :
+
+* nom ;
+* type ;
+* distance au projet ;
+* intersection directe ou proximité ;
+* niveau de sensibilité ;
+* lien vers la source officielle.
+
+Ajouter un résumé :
+
+« Le projet intersecte 2 zonages et se situe à moins de 1 km de 3 autres zonages. »
+
+Ajouter les actions :
+
+* afficher sur la carte ;
+* masquer la couche ;
+* consulter la fiche ;
+* intégrer à l’analyse.
+
+---
+
+## 7. Onglet « Agent IA »
+
+Transformer le bouton actuel « Lancer l’analyse IA » en véritable assistant conversationnel.
+
+Afficher des suggestions de questions :
+
+* Quels sont les principaux enjeux du site ?
+* Quelles espèces nécessitent un inventaire terrain ?
+* Quels inventaires faut-il prévoir ?
+* Quelles sont les périodes les plus favorables ?
+* Quels risques réglementaires sont identifiés ?
+* Quelles mesures ERC pourraient être proposées ?
+* Génère une synthèse pour une étude d’impact.
+* Génère un tableau des espèces sensibles.
+
+L’agent doit répondre en utilisant :
+
+* les occurrences ;
+* les espèces ;
+* les habitats ;
+* les zonages ;
+* les statuts réglementaires ;
+* les périodes biologiques ;
+* la qualité des données.
+
+Afficher clairement :
+
+« Analyse indicative à valider par un écologue. »
+
+Permettre d’ajouter une réponse au rapport.
+
+---
+
+## 8. Ajouter une section « Inventaires recommandés »
+
+Créer une carte spécifique avec un calendrier écologique.
+
+Exemple :
+
+### Inventaires recommandés
+
+Flore patrimoniale
+Mars à juin
+Priorité élevée
+
+Oiseaux nicheurs
+Avril à juillet
+Priorité moyenne
+
+Reptiles
+Avril à septembre
+Priorité moyenne
+
+Milieu marin
+Mai à octobre
+Priorité élevée
+
+Afficher les inventaires dans une frise mensuelle de janvier à décembre.
+
+Ajouter un bouton :
+
+« Générer le plan d’inventaire »
+
+---
+
+## 9. Ajouter une section « Qualité des données »
+
+Créer un panneau expliquant l’indice de confiance.
+
+Afficher :
+
+* nombre total d’occurrences ;
+* pourcentage d’observations récentes ;
+* pourcentage d’observations avec coordonnées précises ;
+* nombre d’observations validées ;
+* nombre de sources ;
+* dernière mise à jour.
+
+Exemple :
+
+* 2 480 occurrences analysées
+* 64 % postérieures à 2020
+* 81 % géolocalisées précisément
+* 37 % validées par un expert
+* 4 sources mobilisées
+
+Ajouter des alertes :
+
+« Certaines espèces ne disposent que de données anciennes. »
+
+« Les données opportunistes ne permettent pas de confirmer l’absence d’une espèce. »
+
+---
+
+## 10. Rapport
+
+Conserver la fonction « Rapport texte », mais la rendre plus visible.
+
+Créer un bouton principal :
+
+« Générer la note écologique »
+
+Le rapport doit contenir :
+
+1. contexte du projet ;
+2. sources analysées ;
+3. qualité des données ;
+4. espèces recensées ;
+5. espèces sensibles ;
+6. habitats potentiels ;
+7. zonages environnementaux ;
+8. enjeux écologiques ;
+9. inventaires recommandés ;
+10. limites de l’analyse ;
+11. recommandations ;
+12. annexes avec tableaux.
+
+Prévoir les exports :
+
+* Word
+* PDF
+* Excel
+* JSON
+* GeoJSON
+
+---
+
+## 11. Design UI
+
+Conserver une identité visuelle sobre, scientifique et professionnelle.
+
+Utiliser :
+
+* fond blanc ou gris très clair ;
+* cartes avec bordures fines ;
+* ombres légères ;
+* coins arrondis modérés ;
+* typographie lisible ;
+* icônes discrètes ;
+* espacements généreux.
+
+Couleurs recommandées :
+
+* vert : données fiables ou enjeux faibles ;
+* orange : vigilance ;
+* rouge : enjeux forts ;
+* bleu : données et informations ;
+* gris : information indisponible.
+
+Ne pas utiliser uniquement la couleur pour représenter un niveau de risque. Toujours afficher un label texte et une icône.
+
+Réduire fortement les répétitions de texte.
+
+Éviter que chaque espèce occupe trop de hauteur.
+
+Utiliser une vue compacte par défaut et une vue détaillée au clic.
+
+---
+
+## 12. Responsive
+
+Sur desktop :
+
+* carte à gauche ;
+* panneau de synthèse à droite ;
+* panneau redimensionnable.
+
+Sur tablette :
+
+* panneau repliable ;
+* onglets horizontaux scrollables.
+
+Sur mobile :
+
+* carte plein écran ;
+* panneau sous forme de bottom sheet ;
+* synthèse visible en premier ;
+* boutons principaux accessibles avec le pouce.
+
+---
+
+## 13. Données et architecture
+
+Créer des composants réutilisables :
+
+* SummaryCard
+* RiskScore
+* ConfidenceScore
+* SpeciesCard
+* SpeciesDetail
+* TaxonomicGroupCard
+* EnvironmentalZoneCard
+* SurveyCalendar
+* AIAnalysisPanel
+* DataQualityPanel
+* ReportGenerator
+
+Prévoir un modèle de données permettant de distinguer :
+
+* occurrence observée ;
+* présence potentielle ;
+* donnée validée ;
+* donnée ancienne ;
+* donnée sensible ;
+* statut réglementaire ;
+* patrimonialité ;
+* niveau de confiance ;
+* niveau de risque.
+
+Ne jamais confondre :
+
+* absence de donnée ;
+* absence d’espèce ;
+* présence probable ;
+* présence confirmée.
+
+---
+
+## 14. Résultat attendu
+
+Le nouveau panneau doit permettre à un utilisateur de répondre en moins de 30 secondes aux questions suivantes :
+
+* Le site présente-t-il un risque biodiversité ?
+* Quels sont les trois principaux enjeux ?
+* Quelles espèces expliquent ces enjeux ?
+* Quelles données sont fiables ou incertaines ?
+* Quels inventaires faut-il programmer ?
+* Quelle est la prochaine action recommandée ?
+
+Le produit doit donner l’impression d’un copilote écologique professionnel, et non d’un simple catalogue d’occurrences.

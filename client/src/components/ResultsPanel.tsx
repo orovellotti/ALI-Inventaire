@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { X, Download, FileText, AlertTriangle, Leaf, Info, ChevronDown, ChevronUp, ImageOff, Copy, Check, ExternalLink, BookOpen, Shield, MapPin, Tag, Calendar, Link, Flag, Layers, Filter, Table, Sparkles, Loader2, Share2, Mail, MoreHorizontal, Settings2 } from "lucide-react";
+import { X, Download, FileText, AlertTriangle, AlertCircle, Leaf, Info, ChevronDown, ChevronUp, ImageOff, Copy, Check, ExternalLink, BookOpen, Shield, ShieldAlert, MapPin, Tag, Calendar, Link, Flag, Layers, Filter, Table, Sparkles, Loader2, Share2, Mail, MoreHorizontal, Settings2, Search, Activity, ListChecks, Bot, ClipboardList, LayoutGrid, ChevronRight, Gauge } from "lucide-react";
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuCheckboxItem } from "@/components/ui/dropdown-menu";
 import { InventoryResult, Occurrence, getIucnLabel, getPatrimonialite, ConfidenceScore, TAXON_GROUPS, getTaxonGroupId, isMarineSpecies } from "@/lib/gbif";
 import { findSINPPlatforms, SINPPlatform } from "@/lib/sinp";
@@ -39,6 +39,52 @@ interface ZonagesData {
   errors: string[];
 }
 
+type TabKey = "synthese" | "enjeux" | "especes" | "zonages" | "agent";
+
+const CURRENT_YEAR = new Date().getFullYear();
+
+const GROUP_SEASON: Record<string, string> = {
+  oiseaux: "avril à juillet",
+  mammiferes: "toute l'année",
+  reptiles: "avril à septembre",
+  amphibiens: "février à mai",
+  poissons: "mai à octobre",
+  insectes: "mai à août",
+  arachnides: "mai à septembre",
+  mollusques: "mai à octobre",
+  plantes: "mars à juin",
+  champignons: "septembre à novembre",
+  autres: "à préciser",
+};
+
+const GROUP_ACTION: Record<string, string> = {
+  oiseaux: "Prévoir un inventaire avifaune en période de nidification (avril à juillet).",
+  mammiferes: "Rechercher les indices de présence et poser des pièges photographiques.",
+  reptiles: "Prospecter les reptiles au printemps et en été (avril à septembre).",
+  amphibiens: "Inventorier les amphibiens en période de reproduction (février à mai).",
+  poissons: "Prospecter les milieux aquatiques (mai à octobre).",
+  insectes: "Réaliser un inventaire entomologique en période d'activité (mai à août).",
+  arachnides: "Prospection ciblée en période d'activité (mai à septembre).",
+  mollusques: "Prospecter les milieux humides et aquatiques (mai à octobre).",
+  plantes: "Prévoir un inventaire botanique en période de floraison (mars à juin).",
+  champignons: "Prospection mycologique à l'automne (septembre à novembre).",
+  autres: "Vérifier la présence sur le terrain par un écologue.",
+};
+
+function recommendedAction(groupId: string): string {
+  return GROUP_ACTION[groupId] || GROUP_ACTION.autres;
+}
+
+function isThreatened(iucn: string | undefined): boolean {
+  const s = iucn?.toUpperCase();
+  return ["CR", "CRITICALLY_ENDANGERED", "EN", "ENDANGERED", "VU", "VULNERABLE"].includes(s || "");
+}
+
+function isNotEvaluated(iucn: string | undefined): boolean {
+  const s = iucn?.toUpperCase();
+  return !s || ["NE", "NOT_EVALUATED", "NA", "NOT_APPLICABLE"].includes(s);
+}
+
 interface ResultsPanelProps {
   isOpen: boolean;
   onClose: () => void;
@@ -56,8 +102,10 @@ interface ResultsPanelProps {
 }
 
 export function ResultsPanel({ isOpen, onClose, results, selectedSpecies, onSelectSpecies, activeTaxonFilters, onToggleTaxonFilter, onToggleAllTaxonFilters, excludeMarine, onToggleExcludeMarine, includeINaturalist, onToggleIncludeINaturalist, toponym }: ResultsPanelProps) {
-  const [showMedium, setShowMedium] = useState(false);
-  const [showLow, setShowLow] = useState(false);
+  const [activeTab, setActiveTab] = useState<TabKey>("synthese");
+  const [speciesQuery, setSpeciesQuery] = useState("");
+  const [attrFilters, setAttrFilters] = useState<Set<string>>(new Set());
+  const [openEnjeux, setOpenEnjeux] = useState<Set<string>>(new Set(["critique", "fort"]));
   const [showReportPreview, setShowReportPreview] = useState(false);
   const [copied, setCopied] = useState(false);
   const [reformattedReport, setReformattedReport] = useState<string | null>(null);
@@ -97,6 +145,10 @@ export function ResultsPanel({ isOpen, onClose, results, selectedSpecies, onSele
       window.removeEventListener("mouseup", onUp);
     };
   }, [panelWidth]);
+
+  useEffect(() => {
+    setAiAnalysis(null);
+  }, [results]);
 
   useEffect(() => {
     if (!results) {
@@ -154,11 +206,33 @@ export function ResultsPanel({ isOpen, onClose, results, selectedSpecies, onSele
       }
     });
     const counts = new Map<string, number>();
-    for (const occ of uniqueMap.values()) {
+    for (const occ of Array.from(uniqueMap.values())) {
       const groupId = getTaxonGroupId(occ);
       counts.set(groupId, (counts.get(groupId) || 0) + 1);
     }
     return counts;
+  }, [results, excludeMarine]);
+
+  const groupStats = useMemo(() => {
+    const m = new Map<string, { total: number; sensitive: number; protected: number }>();
+    if (!results) return m;
+    const uniqueMap = new Map<string, Occurrence>();
+    results.occurrences.forEach((occ) => {
+      if (excludeMarine && isMarineSpecies(occ)) return;
+      const existing = uniqueMap.get(occ.scientificName);
+      if (!existing || getAlertPriority(occ.alertLevel) > getAlertPriority(existing.alertLevel)) {
+        uniqueMap.set(occ.scientificName, occ);
+      }
+    });
+    for (const occ of Array.from(uniqueMap.values())) {
+      const g = getTaxonGroupId(occ);
+      const s = m.get(g) || { total: 0, sensitive: 0, protected: 0 };
+      s.total += 1;
+      if (occ.alertLevel === "high" || occ.alertLevel === "medium") s.sensitive += 1;
+      if (occ.frenchProtected) s.protected += 1;
+      m.set(g, s);
+    }
+    return m;
   }, [results, excludeMarine]);
 
   const presentGroups = useMemo(() => {
@@ -176,8 +250,8 @@ export function ResultsPanel({ isOpen, onClose, results, selectedSpecies, onSele
   }, [results]);
 
   const sortedSpecies = useMemo(() => {
-    if (!results) return { high: [], medium: [], low: [] };
-    
+    if (!results) return { high: [] as Occurrence[], medium: [] as Occurrence[], low: [] as Occurrence[] };
+
     const uniqueMap = new Map<string, Occurrence>();
     results.occurrences.forEach((occ) => {
       if (excludeMarine && isMarineSpecies(occ)) return;
@@ -187,7 +261,7 @@ export function ResultsPanel({ isOpen, onClose, results, selectedSpecies, onSele
       }
     });
 
-    const unique = Array.from(uniqueMap.values()).filter(occ => 
+    const unique = Array.from(uniqueMap.values()).filter(occ =>
       activeTaxonFilters.has(getTaxonGroupId(occ))
     );
 
@@ -224,6 +298,96 @@ export function ResultsPanel({ isOpen, onClose, results, selectedSpecies, onSele
     return [...sortedSpecies.high, ...sortedSpecies.medium, ...sortedSpecies.low];
   }, [sortedSpecies]);
 
+  const enjeuxBuckets = useMemo(() => {
+    const critique: Occurrence[] = [];
+    const fort: Occurrence[] = [];
+    for (const o of sortedSpecies.high) {
+      if (getPatrimonialite(o.iucnStatus, o.alertLevel).level >= 4) critique.push(o);
+      else fort.push(o);
+    }
+    return { critique, fort, modere: sortedSpecies.medium, faible: sortedSpecies.low };
+  }, [sortedSpecies]);
+
+  const especesList = useMemo(() => {
+    const q = speciesQuery.trim().toLowerCase();
+    return allFilteredSpecies.filter((o) => {
+      if (attrFilters.has("protegees") && !o.frenchProtected) return false;
+      if (attrFilters.has("menacees") && !isThreatened(o.iucnStatus)) return false;
+      if (attrFilters.has("patrimoniales") && getPatrimonialite(o.iucnStatus, o.alertLevel).level < 4) return false;
+      if (attrFilters.has("recentes") && !(o.lastObservationYear && o.lastObservationYear >= CURRENT_YEAR - 5)) return false;
+      if (attrFilters.has("marine") && !isMarineSpecies(o)) return false;
+      if (attrFilters.has("terrestre") && isMarineSpecies(o)) return false;
+      if (q && !`${o.scientificName} ${o.vernacularName || ""}`.toLowerCase().includes(q)) return false;
+      return true;
+    });
+  }, [allFilteredSpecies, attrFilters, speciesQuery]);
+
+  const riskScore = useMemo(() => {
+    const hi = sortedSpecies.high.length;
+    const med = sortedSpecies.medium.length;
+    const zc = zonages?.count || 0;
+    const hasMarine = marineCount > 0;
+    const hasTerrestrial = (results?.stats.speciesCount || 0) - marineCount > 0;
+
+    let recent = 0;
+    let tot = 0;
+    if (results) {
+      const seen = new Set<string>();
+      for (const occ of results.occurrences) {
+        if (seen.has(occ.scientificName)) continue;
+        seen.add(occ.scientificName);
+        tot += 1;
+        if (occ.lastObservationYear && occ.lastObservationYear >= CURRENT_YEAR - 5) recent += 1;
+      }
+    }
+    const recentRatio = tot > 0 ? recent / tot : 0;
+    const aiForts = aiAnalysis ? aiAnalysis.species.filter((s) => s.level === "majeur" || s.level === "fort").length : 0;
+
+    const raw =
+      Math.min(40, hi * 8) +
+      Math.min(15, med * 2) +
+      Math.min(24, zc * 4) +
+      (hasMarine && hasTerrestrial ? 8 : 0) +
+      Math.round(recentRatio * 8) +
+      Math.min(10, aiForts * 5);
+    const score = Math.min(100, raw);
+
+    let label: string;
+    let tone: "critical" | "high" | "moderate" | "low";
+    if (score >= 75) { label = "Risque très élevé"; tone = "critical"; }
+    else if (score >= 55) { label = "Risque élevé"; tone = "high"; }
+    else if (score >= 35) { label = "Risque modéré"; tone = "moderate"; }
+    else if (score >= 15) { label = "Risque faible"; tone = "low"; }
+    else { label = "Risque très faible"; tone = "low"; }
+
+    const factors: string[] = [];
+    if (hi > 0) factors.push(`${hi} espèce${hi > 1 ? "s" : ""} à enjeu fort`);
+    if (aiForts > 0) factors.push(`${aiForts} espèce${aiForts > 1 ? "s" : ""} à patrimonialité forte ou majeure (IA)`);
+    if (zc > 0) factors.push(`${zc} zonage${zc > 1 ? "s" : ""} environnemental${zc > 1 ? "aux" : ""}`);
+    if (hasMarine && hasTerrestrial) factors.push("Sensibilité marine et terrestre");
+    if (recentRatio >= 0.4) factors.push("Observations récentes à proximité");
+    if (factors.length === 0) factors.push("Peu de signaux d'enjeu détectés localement");
+
+    return { score, label, tone, factors };
+  }, [sortedSpecies, zonages, marineCount, results, aiAnalysis]);
+
+  const autoSummary = useMemo(() => {
+    if (!results) return "";
+    const sp = results.stats.speciesCount;
+    const sens = results.stats.sensitiveCount;
+    const zc = zonages?.count || 0;
+    const parts = [`Le secteur recense ${sp} espèce${sp > 1 ? "s" : ""}, dont ${sens} sensible${sens > 1 ? "s" : ""}`];
+    if (zc > 0) parts.push(`et intersecte ${zc} zonage${zc > 1 ? "s" : ""} environnemental${zc > 1 ? "aux" : ""}`);
+    let text = parts.join(" ") + ".";
+    text += ` Le niveau de risque biodiversité est estimé « ${riskScore.label} ».`;
+    if (riskScore.tone === "critical" || riskScore.tone === "high") {
+      text += " Des inventaires complémentaires sont recommandés avant toute intervention.";
+    } else {
+      text += " Une vérification de terrain reste conseillée pour confirmer ce pré-diagnostic.";
+    }
+    return text;
+  }, [results, zonages, riskScore]);
+
   const filteredTotal = allFilteredSpecies.length;
   const allGroupCount = presentGroups.length;
   const activeFilterCount = presentGroups.filter(g => activeTaxonFilters.has(g.id)).length;
@@ -256,28 +420,16 @@ export function ResultsPanel({ isOpen, onClose, results, selectedSpecies, onSele
 
   const reportText = useMemo(() => {
     if (!results) return "";
-    
+
     const highCount = sortedSpecies.high.length;
     const mediumCount = sortedSpecies.medium.length;
     const lowCount = sortedSpecies.low.length;
     const totalInReport = highCount + mediumCount + lowCount;
-    
-    const highList = sortedSpecies.high.length > 0 
-      ? sortedSpecies.high.map(o => `- ${o.scientificName} (${o.vernacularName || 'N/A'}) - ${getIucnLabel(o.iucnStatus)}`).join('\n')
-      : 'Aucune';
-    
-    const mediumList = sortedSpecies.medium.length > 0
-      ? sortedSpecies.medium.map(o => `- ${o.scientificName} (${o.vernacularName || 'N/A'}) - ${getIucnLabel(o.iucnStatus)}`).join('\n')
-      : 'Aucune';
-    
-    const lowList = sortedSpecies.low.length > 0
-      ? sortedSpecies.low.map(o => `- ${o.scientificName} (${o.vernacularName || 'N/A'}) - ${getIucnLabel(o.iucnStatus)}`).join('\n')
-      : 'Aucune';
 
     const conf = results.confidence;
-    const confLabel = conf.interpretation === "excellent" ? "Excellent" 
+    const confLabel = conf.interpretation === "excellent" ? "Excellent"
       : conf.interpretation === "good" ? "Bon"
-      : conf.interpretation === "moderate" ? "Modéré" 
+      : conf.interpretation === "moderate" ? "Modéré"
       : "Faible";
 
     const activeGroupLabels = presentGroups
@@ -318,6 +470,7 @@ SYNTHÈSE
 ${totalInReport} espèces recensées (GBIF + iNaturalist)
 ${highCount + mediumCount} espèces sensibles (enjeux forts ou moyens)
 Indice de confiance des données : ${conf.total}/100 — ${confLabel}
+Niveau de risque biodiversité : ${riskScore.score}/100 — ${riskScore.label}
 ${conf.message ? `↳ ${conf.message}\n` : ""}
 ${sectionList("🔴 ENJEUX FORTS", sortedSpecies.high)}
 ${sectionList("🟠 ENJEUX MOYENS", sortedSpecies.medium)}
@@ -349,7 +502,7 @@ ${aiAnalysis.natura2000.map(z => { const desig = (z.species ?? []).filter(s => s
 Données : GBIF • iNaturalist • UICN • IGN/INPN
 Inventaire flash — indication rapide, ne remplace pas un inventaire terrain.
 ${shareUrl ? `\n🔗 Reproduire cette analyse : ${shareUrl}` : ""}`;
-  }, [results, sortedSpecies, activeTaxonFilters, presentGroups, isAllActive, aiAnalysis, toponym, zonages]);
+  }, [results, sortedSpecies, activeTaxonFilters, presentGroups, isAllActive, aiAnalysis, toponym, zonages, riskScore]);
 
   const reportSubject = useMemo(() => {
     if (!results) return "Inventaire Flash";
@@ -405,7 +558,42 @@ ${shareUrl ? `\n🔗 Reproduire cette analyse : ${shareUrl}` : ""}`;
     }
   };
 
+  const toggleAttr = (key: string) => {
+    setAttrFilters((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  };
+
+  const toggleEnjeu = (key: string) => {
+    setOpenEnjeux((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  };
+
   if (!isOpen || !results) return null;
+
+  const sourcesLabel = `GBIF${includeINaturalist ? " · iNaturalist" : ""} · UICN · ALI/TAXREF · IGN/INPN`;
+
+  const tabs: { key: TabKey; label: string; icon: typeof Activity; badge?: number }[] = [
+    { key: "synthese", label: "Synthèse", icon: Activity },
+    { key: "enjeux", label: "Enjeux", icon: ShieldAlert, badge: sortedSpecies.high.length + sortedSpecies.medium.length },
+    { key: "especes", label: "Espèces", icon: Leaf, badge: filteredTotal },
+    { key: "zonages", label: "Zonages", icon: Layers, badge: zonages?.count || 0 },
+    { key: "agent", label: "Agent IA", icon: Bot },
+  ];
+
+  const enjeuxSections: { key: string; label: string; tone: string; items: Occurrence[]; defaultTip: string }[] = [
+    { key: "critique", label: "Critique", tone: "bg-red-50 border-red-200 text-red-700", items: enjeuxBuckets.critique, defaultTip: "Patrimonialité forte ou majeure" },
+    { key: "fort", label: "Fort", tone: "bg-orange-50 border-orange-200 text-orange-700", items: enjeuxBuckets.fort, defaultTip: "Enjeu fort" },
+    { key: "modere", label: "Modéré", tone: "bg-amber-50 border-amber-200 text-amber-700", items: enjeuxBuckets.modere, defaultTip: "Enjeu moyen" },
+    { key: "faible", label: "Faible", tone: "bg-green-50 border-green-200 text-green-700", items: enjeuxBuckets.faible, defaultTip: "Enjeu faible" },
+  ];
 
   return (
     <AnimatePresence>
@@ -414,14 +602,14 @@ ${shareUrl ? `\n🔗 Reproduire cette analyse : ${shareUrl}` : ""}`;
         animate={{ x: 0 }}
         exit={{ x: "100%" }}
         transition={{ type: "spring", damping: 25, stiffness: 200 }}
-        className="fixed top-0 right-0 h-full max-w-[95vw] z-[2000] bg-white/95 backdrop-blur-xl shadow-2xl border-l border-white/20 flex flex-col"
-        style={{ width: panelWidth }}
+        className="fixed right-0 z-[2000] bg-white/95 backdrop-blur-xl shadow-2xl border-white/20 flex flex-col inset-x-0 bottom-0 h-[80vh] rounded-t-2xl border-t md:inset-x-auto md:top-0 md:bottom-auto md:h-full md:max-w-[95vw] md:rounded-none md:border-t-0 md:border-l"
+        style={typeof window !== "undefined" && window.innerWidth >= 768 ? { width: panelWidth } : undefined}
       >
         <div
           onMouseDown={startResize}
           onDoubleClick={() => { setPanelWidth(600); try { localStorage.setItem("resultsPanelWidth", "600"); window.dispatchEvent(new CustomEvent("if:panel-width-changed")); } catch {} }}
           title="Glisser pour redimensionner — double-clic pour réinitialiser"
-          className="absolute top-0 left-0 h-full w-1.5 -ml-0.5 cursor-ew-resize z-10 hover:bg-teal-400/40 active:bg-teal-500/60 transition-colors"
+          className="hidden md:block absolute top-0 left-0 h-full w-1.5 -ml-0.5 cursor-ew-resize z-10 hover:bg-teal-400/40 active:bg-teal-500/60 transition-colors"
           data-testid="handle-resize-panel"
         />
         <div className="px-5 pt-4 pb-3 border-b border-gray-100 bg-white/50">
@@ -482,8 +670,182 @@ ${shareUrl ? `\n🔗 Reproduire cette analyse : ${shareUrl}` : ""}`;
           </div>
         </div>
 
+        <div className="flex gap-1 px-3 pt-2 pb-1 border-b border-gray-100 bg-white/40 overflow-x-auto">
+          {tabs.map((t) => {
+            const Icon = t.icon;
+            const active = activeTab === t.key;
+            return (
+              <button
+                key={t.key}
+                type="button"
+                onClick={() => setActiveTab(t.key)}
+                className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold whitespace-nowrap transition-colors ${
+                  active ? "bg-teal-100 text-teal-800 ring-1 ring-teal-300" : "text-gray-500 hover:bg-gray-100"
+                }`}
+                data-testid={`tab-${t.key}`}
+              >
+                <Icon className="h-3.5 w-3.5" />
+                {t.label}
+                {typeof t.badge === "number" && t.badge > 0 && (
+                  <span className={`text-[10px] px-1.5 py-0.5 rounded-full ${active ? "bg-white/70 text-teal-700" : "bg-gray-200 text-gray-500"}`}>
+                    {t.badge}
+                  </span>
+                )}
+              </button>
+            );
+          })}
+        </div>
+
         <ScrollArea className="flex-1 px-5 py-4">
-          <div className="space-y-4">
+          {/* SYNTHÈSE */}
+          <div className={activeTab === "synthese" ? "space-y-4" : "hidden"} data-testid="panel-synthese">
+            <div className="rounded-xl border border-gray-200 bg-white p-4">
+              <div className="grid grid-cols-3 gap-3 text-center">
+                <div>
+                  <div className="text-2xl font-bold text-gray-900" data-testid="text-species-detected">{results.stats.speciesCount}</div>
+                  <div className="text-[11px] text-gray-500 leading-tight">espèces détectées</div>
+                </div>
+                <div>
+                  <div className="text-2xl font-bold text-orange-600" data-testid="text-species-sensitive">{results.stats.sensitiveCount}</div>
+                  <div className="text-[11px] text-gray-500 leading-tight">espèces sensibles</div>
+                </div>
+                <div>
+                  <div className="text-2xl font-bold text-teal-600" data-testid="text-zonages-total">{zonages?.count ?? "—"}</div>
+                  <div className="text-[11px] text-gray-500 leading-tight">zonages</div>
+                </div>
+              </div>
+              <div className="mt-3 pt-3 border-t border-gray-100 text-[11px] text-gray-400 text-center">
+                Sources : {sourcesLabel}
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 gap-3">
+              <ConfidencePanel confidence={results.confidence} />
+              <RiskScoreCard score={riskScore.score} label={riskScore.label} tone={riskScore.tone} factors={riskScore.factors} />
+            </div>
+
+            <div className="rounded-xl border border-blue-200 bg-blue-50/50 p-4">
+              <div className="flex items-center gap-2 mb-2">
+                <Sparkles className="h-4 w-4 text-blue-600" />
+                <span className="font-bold text-sm text-blue-700">Synthèse automatique</span>
+              </div>
+              <p className="text-xs text-gray-700 leading-relaxed" data-testid="text-auto-summary">{autoSummary}</p>
+            </div>
+
+            <div className="grid grid-cols-1 gap-2">
+              <Button onClick={() => setActiveTab("enjeux")} variant="outline" className="justify-start gap-2 h-11 border-gray-200" data-testid="button-analyze-enjeux">
+                <ShieldAlert className="h-4 w-4 text-orange-600" /> Analyser les enjeux
+              </Button>
+              <Button onClick={() => setActiveTab("agent")} variant="outline" className="justify-start gap-2 h-11 border-gray-200" data-testid="button-prepare-surveys">
+                <ClipboardList className="h-4 w-4 text-teal-600" /> Préparer les inventaires
+              </Button>
+              <Button onClick={() => setShowReportPreview(true)} className="justify-start gap-2 h-11 bg-gradient-to-r from-indigo-600 to-blue-600 hover:from-indigo-700 hover:to-blue-700 text-white" data-testid="button-generate-note">
+                <FileText className="h-4 w-4" /> Générer une note écologique
+              </Button>
+            </div>
+          </div>
+
+          {/* ENJEUX */}
+          <div className={activeTab === "enjeux" ? "space-y-4" : "hidden"} data-testid="panel-enjeux">
+            <div className="rounded-lg border border-blue-200 bg-blue-50/50 p-3 text-xs text-blue-700 flex items-start justify-between gap-2">
+              <span className="flex items-start gap-2">
+                <Sparkles className="h-3.5 w-3.5 shrink-0 mt-0.5" />
+                Pour une analyse détaillée des espèces à enjeux, ouvrez l'onglet « Agent IA ».
+              </span>
+              <button
+                type="button"
+                onClick={() => setActiveTab("agent")}
+                className="shrink-0 font-semibold underline hover:text-blue-900"
+                data-testid="button-goto-agent"
+              >
+                Agent IA
+              </button>
+            </div>
+
+            {enjeuxSections.map((section) => {
+              if (section.items.length === 0) return null;
+              const open = openEnjeux.has(section.key);
+              return (
+                <div key={section.key} className={`rounded-xl border ${section.tone.split(" ").filter(c => c.startsWith("border")).join(" ")} overflow-hidden`}>
+                  <button
+                    type="button"
+                    onClick={() => toggleEnjeu(section.key)}
+                    className={`w-full flex items-center justify-between px-4 py-3 ${section.tone}`}
+                    data-testid={`button-enjeu-${section.key}`}
+                  >
+                    <div className="flex items-center gap-2">
+                      <ShieldAlert className="h-4 w-4" />
+                      <span className="font-bold text-sm uppercase tracking-wide">Enjeu {section.label} ({section.items.length})</span>
+                    </div>
+                    {open ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                  </button>
+                  {open && (
+                    <div className="p-3 space-y-3 bg-white/60">
+                      {section.items.map((occ, idx) => (
+                        <div key={`${section.key}-${occ.scientificName}-${idx}`}>
+                          <SpeciesCard
+                            occ={occ}
+                            isSelected={selectedSpecies === occ.scientificName}
+                            onSelect={() => onSelectSpecies(selectedSpecies === occ.scientificName ? null : occ.scientificName)}
+                          />
+                          <div className="mt-1 ml-1 flex items-start gap-1.5 text-[11px] text-gray-600" data-testid={`action-${occ.scientificName}`}>
+                            <ClipboardList className="h-3 w-3 shrink-0 mt-0.5 text-teal-600" />
+                            <span><span className="font-semibold">Action recommandée :</span> {recommendedAction(getTaxonGroupId(occ))}</span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+
+            {sortedSpecies.high.length + sortedSpecies.medium.length + sortedSpecies.low.length === 0 && (
+              <p className="text-sm text-gray-400 italic">Aucune espèce à enjeu détectée avec les filtres actuels.</p>
+            )}
+          </div>
+
+          {/* ESPÈCES */}
+          <div className={activeTab === "especes" ? "space-y-4" : "hidden"} data-testid="panel-especes">
+            <div className="flex flex-wrap gap-1.5" data-testid="species-attr-filters">
+              {[
+                { key: "all", label: "Toutes" },
+                { key: "protegees", label: "Protégées" },
+                { key: "menacees", label: "Menacées" },
+                { key: "patrimoniales", label: "Patrimoniales" },
+                { key: "recentes", label: "Récentes" },
+                { key: "marine", label: "Marine" },
+                { key: "terrestre", label: "Terrestre" },
+              ].map((chip) => {
+                const active = chip.key === "all" ? attrFilters.size === 0 : attrFilters.has(chip.key);
+                return (
+                  <button
+                    key={chip.key}
+                    type="button"
+                    onClick={() => chip.key === "all" ? setAttrFilters(new Set()) : toggleAttr(chip.key)}
+                    className={`px-2.5 py-1 rounded-lg text-xs font-medium transition-all ${
+                      active ? "bg-teal-100 text-teal-800 ring-1 ring-teal-300" : "bg-white text-gray-500 ring-1 ring-gray-200 hover:bg-gray-50"
+                    }`}
+                    data-testid={`chip-${chip.key}`}
+                  >
+                    {chip.label}
+                  </button>
+                );
+              })}
+            </div>
+
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+              <input
+                type="text"
+                value={speciesQuery}
+                onChange={(e) => setSpeciesQuery(e.target.value)}
+                placeholder="Rechercher une espèce"
+                className="w-full pl-9 pr-3 py-2 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-teal-300"
+                data-testid="input-species-search"
+              />
+            </div>
+
             <div className="rounded-xl border border-gray-200 bg-gray-50/50 overflow-hidden">
               <button
                 type="button"
@@ -501,182 +863,111 @@ ${shareUrl ? `\n🔗 Reproduire cette analyse : ${shareUrl}` : ""}`;
                       {activeFilterCount}/{allGroupCount}
                     </span>
                   )}
-                  {showFilters
-                    ? <ChevronUp className="h-4 w-4 text-gray-400" />
-                    : <ChevronDown className="h-4 w-4 text-gray-400" />
-                  }
+                  {showFilters ? <ChevronUp className="h-4 w-4 text-gray-400" /> : <ChevronDown className="h-4 w-4 text-gray-400" />}
                 </div>
               </button>
 
-              <AnimatePresence>
-                {showFilters && (
-                  <motion.div
-                    initial={{ opacity: 0, height: 0 }}
-                    animate={{ opacity: 1, height: "auto" }}
-                    exit={{ opacity: 0, height: 0 }}
-                    className="overflow-hidden"
+              {showFilters && (
+                <div className="px-4 pb-3 space-y-2">
+                  <button
+                    type="button"
+                    onClick={() => onToggleAllTaxonFilters(presentGroups.map(g => g.id))}
+                    className="text-[10px] font-semibold text-teal-600 hover:text-teal-800 transition-colors uppercase tracking-wider"
+                    data-testid="button-toggle-all-taxons"
                   >
-                    <div className="px-4 pb-3 space-y-2">
-                      <button
-                        type="button"
-                        onClick={() => onToggleAllTaxonFilters(presentGroups.map(g => g.id))}
-                        className="text-[10px] font-semibold text-teal-600 hover:text-teal-800 transition-colors uppercase tracking-wider"
-                        data-testid="button-toggle-all-taxons"
-                      >
-                        {isAllActive ? "Tout désélectionner" : "Tout sélectionner"}
-                      </button>
-                      <div className="flex flex-wrap gap-1.5">
-                        {presentGroups.map(group => {
-                          const count = taxonCounts.get(group.id) || 0;
-                          const isActive = activeTaxonFilters.has(group.id);
-                          return (
-                            <button
-                              key={group.id}
-                              type="button"
-                              onClick={() => onToggleTaxonFilter(group.id)}
-                              className={`flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-medium transition-all ${
-                                isActive
-                                  ? 'bg-teal-100 text-teal-800 ring-1 ring-teal-300 shadow-sm'
-                                  : 'bg-white text-gray-400 ring-1 ring-gray-200 hover:bg-gray-50'
-                              }`}
-                              data-testid={`taxon-filter-${group.id}`}
-                            >
-                              <span>{group.icon}</span>
-                              <span>{group.label}</span>
-                              <span className={`text-[10px] ml-0.5 ${isActive ? 'text-teal-600' : 'text-gray-300'}`}>
-                                {count}
-                              </span>
-                            </button>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  </motion.div>
-                )}
-              </AnimatePresence>
+                    {isAllActive ? "Tout désélectionner" : "Tout sélectionner"}
+                  </button>
+                  <div className="grid grid-cols-2 gap-2" data-testid="group-cards">
+                    {presentGroups.map(group => {
+                      const count = taxonCounts.get(group.id) || 0;
+                      const stats = groupStats.get(group.id);
+                      const isActive = activeTaxonFilters.has(group.id);
+                      return (
+                        <button
+                          key={group.id}
+                          type="button"
+                          onClick={() => onToggleTaxonFilter(group.id)}
+                          className={`text-left p-2.5 rounded-lg border transition-all ${
+                            isActive ? "bg-white border-teal-300 ring-1 ring-teal-200" : "bg-white/60 border-gray-200 opacity-60 hover:opacity-100"
+                          }`}
+                          data-testid={`taxon-filter-${group.id}`}
+                        >
+                          <div className="flex items-center justify-between">
+                            <span className="text-xs font-bold text-gray-800 flex items-center gap-1">
+                              <span>{group.icon}</span> {group.label}
+                            </span>
+                            <span className="text-sm font-bold text-teal-700">{count}</span>
+                          </div>
+                          {stats && (
+                            <div className="mt-1 text-[10px] text-gray-500 leading-tight">
+                              {stats.sensitive} sensible{stats.sensitive > 1 ? "s" : ""} · {stats.protected} protégée{stats.protected > 1 ? "s" : ""}
+                            </div>
+                          )}
+                          <div className="mt-0.5 text-[10px] text-gray-400 leading-tight">Période : {GROUP_SEASON[group.id] || "à préciser"}</div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
             </div>
 
-            <ConfidencePanel confidence={results.confidence} />
-
-            <div>
-              <div className="flex items-center gap-2 mb-3">
-                <div className="w-3 h-3 rounded-full bg-red-500"></div>
-                <h3 className="text-sm font-bold text-red-700 uppercase tracking-wide">
-                  Enjeux Forts ({sortedSpecies.high.length})
-                </h3>
+            <div className="space-y-1.5" data-testid="species-list-compact">
+              <div className="flex items-center justify-between text-xs text-gray-500 px-1">
+                <span>{especesList.length} espèce{especesList.length > 1 ? "s" : ""}</span>
               </div>
-              {sortedSpecies.high.length > 0 ? (
-                <div className="space-y-2 bg-red-50/50 rounded-xl p-3 border border-red-100">
-                  {sortedSpecies.high.map((occ, idx) => (
-                    <SpeciesCard 
-                      key={`high-${occ.scientificName}-${idx}`} 
-                      occ={occ} 
-                      isSelected={selectedSpecies === occ.scientificName}
-                      onSelect={() => onSelectSpecies(selectedSpecies === occ.scientificName ? null : occ.scientificName)}
-                    />
-                  ))}
-                </div>
+              {especesList.length === 0 ? (
+                <p className="text-sm text-gray-400 italic px-1 py-4 text-center">Aucune espèce ne correspond aux filtres.</p>
               ) : (
-                <p className="text-sm text-gray-400 italic pl-5">Aucune espèce à enjeu fort détectée</p>
+                especesList.map((occ, idx) => (
+                  <CompactSpeciesRow
+                    key={`${occ.scientificName}-${idx}`}
+                    occ={occ}
+                    isSelected={selectedSpecies === occ.scientificName}
+                    onSelect={() => onSelectSpecies(selectedSpecies === occ.scientificName ? null : occ.scientificName)}
+                  />
+                ))
               )}
             </div>
+          </div>
 
-            <div>
-              <button 
-                onClick={() => setShowMedium(!showMedium)}
-                className="flex items-center justify-between w-full group cursor-pointer"
-              >
-                <div className="flex items-center gap-2">
-                  <div className="w-3 h-3 rounded-full bg-orange-500"></div>
-                  <h3 className="text-sm font-bold text-orange-700 uppercase tracking-wide">
-                    Enjeux Moyens ({sortedSpecies.medium.length})
-                  </h3>
-                </div>
-                {showMedium ? (
-                  <ChevronUp className="h-4 w-4 text-orange-500" />
-                ) : (
-                  <ChevronDown className="h-4 w-4 text-orange-500" />
-                )}
-              </button>
-              {showMedium && (
-                <div className="mt-3">
-                  {sortedSpecies.medium.length > 0 ? (
-                    <div className="space-y-2 bg-orange-50/50 rounded-xl p-3 border border-orange-100">
-                      {sortedSpecies.medium.map((occ, idx) => (
-                        <SpeciesCard 
-                          key={`medium-${occ.scientificName}-${idx}`} 
-                          occ={occ}
-                          isSelected={selectedSpecies === occ.scientificName}
-                          onSelect={() => onSelectSpecies(selectedSpecies === occ.scientificName ? null : occ.scientificName)}
-                        />
-                      ))}
-                    </div>
-                  ) : (
-                    <p className="text-sm text-gray-400 italic pl-5">Aucune espèce à enjeu moyen détectée</p>
-                  )}
-                </div>
-              )}
-            </div>
-
-            <div>
-              <button 
-                onClick={() => setShowLow(!showLow)}
-                className="flex items-center justify-between w-full group cursor-pointer"
-              >
-                <div className="flex items-center gap-2">
-                  <div className="w-3 h-3 rounded-full bg-green-500"></div>
-                  <h3 className="text-sm font-bold text-green-700 uppercase tracking-wide">
-                    Enjeux Faibles ({sortedSpecies.low.length})
-                  </h3>
-                </div>
-                {showLow ? (
-                  <ChevronUp className="h-4 w-4 text-green-500" />
-                ) : (
-                  <ChevronDown className="h-4 w-4 text-green-500" />
-                )}
-              </button>
-              {showLow && (
-                <div className="mt-3">
-                  {sortedSpecies.low.length > 0 ? (
-                    <div className="space-y-2 bg-green-50/50 rounded-xl p-3 border border-green-100">
-                      {sortedSpecies.low.map((occ, idx) => (
-                        <SpeciesCard 
-                          key={`low-${occ.scientificName}-${idx}`} 
-                          occ={occ}
-                          isSelected={selectedSpecies === occ.scientificName}
-                          onSelect={() => onSelectSpecies(selectedSpecies === occ.scientificName ? null : occ.scientificName)}
-                        />
-                      ))}
-                    </div>
-                  ) : (
-                    <p className="text-sm text-gray-400 italic pl-5">Aucune espèce à enjeu faible détectée</p>
-                  )}
-                </div>
-              )}
-            </div>
-
+          {/* ZONAGES */}
+          <div className={activeTab === "zonages" ? "space-y-4" : "hidden"} data-testid="panel-zonages-tab">
+            {zonages && zonages.count > 0 && (
+              <div className="rounded-xl border border-gray-200 bg-gray-50/60 p-3 text-xs text-gray-600 leading-relaxed" data-testid="text-zonages-summary">
+                {zonages.count} zonage{zonages.count > 1 ? "s" : ""} environnemental{zonages.count > 1 ? "aux" : ""} recensé{zonages.count > 1 ? "s" : ""} dans l'aire d'étude (rayon {zonages.radius} m), répartis en {zonages.groups.filter(g => g.count > 0).length} catégorie{zonages.groups.filter(g => g.count > 0).length > 1 ? "s" : ""}.
+              </div>
+            )}
+            <ZonagesPanel data={zonages} loading={zonagesLoading} />
             <Natura2000ExpectedPanel
               center={results.center}
               radius={results.radius}
               observedNames={observedNames}
             />
+            <SINPPanel center={results.center} />
+            {!zonagesLoading && (!zonages || zonages.count === 0) && (
+              <p className="text-sm text-gray-400 italic">Aucun zonage environnemental recensé dans l'aire d'étude.</p>
+            )}
+          </div>
 
+          {/* AGENT IA */}
+          <div className={activeTab === "agent" ? "space-y-4" : "hidden"} data-testid="panel-agent">
+            <div className="rounded-lg border border-teal-200 bg-teal-50/50 p-3 text-xs text-teal-700 flex items-start gap-2">
+              <Info className="h-3.5 w-3.5 shrink-0 mt-0.5" />
+              Analyse indicative à valider par un écologue.
+            </div>
             <PrioritySpeciesInline
               toponym={toponym || `Point ${results.center[0].toFixed(4)}, ${results.center[1].toFixed(4)}`}
               coords={results.center}
               occurrences={allFilteredSpecies}
               onAnalysisChange={setAiAnalysis}
             />
-
-            <ZonagesPanel data={zonages} loading={zonagesLoading} />
-
-            <SINPPanel center={results.center} />
-
-            <p className="px-1 text-[11px] text-gray-400 leading-snug flex gap-1.5 items-start">
-              <Info className="h-3 w-3 shrink-0 mt-0.5" />
-              Indication rapide basée sur GBIF, iNaturalist et UICN — ne remplace pas un inventaire terrain.
-            </p>
           </div>
+
+          <p className="mt-4 px-1 text-[11px] text-gray-400 leading-snug flex gap-1.5 items-start">
+            <Info className="h-3 w-3 shrink-0 mt-0.5" />
+            Indication rapide basée sur GBIF, iNaturalist et UICN — ne remplace pas un inventaire terrain.
+          </p>
         </ScrollArea>
 
         <div className="px-5 py-3 border-t border-gray-100 bg-white/50 flex items-center gap-2">
@@ -686,7 +977,7 @@ ${shareUrl ? `\n🔗 Reproduire cette analyse : ${shareUrl}` : ""}`;
             data-testid="button-report-text"
           >
             <FileText className="h-4 w-4" />
-            Rapport texte
+            Note écologique
             {aiAnalysis && (
               <span className="ml-0.5 inline-flex items-center gap-0.5 text-[9px] font-bold uppercase tracking-wider px-1 py-0.5 rounded bg-white/20 border border-white/30">
                 <Sparkles className="h-2.5 w-2.5" /> IA
@@ -721,7 +1012,7 @@ ${shareUrl ? `\n🔗 Reproduire cette analyse : ${shareUrl}` : ""}`;
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <FileText className="h-5 w-5" />
-              Rapport d'inventaire
+              Note écologique
             </DialogTitle>
           </DialogHeader>
           {reformattedReport && (
@@ -786,6 +1077,95 @@ ${shareUrl ? `\n🔗 Reproduire cette analyse : ${shareUrl}` : ""}`;
         </DialogContent>
       </Dialog>
     </AnimatePresence>
+  );
+}
+
+const RISK_TONE: Record<string, { ring: string; text: string; bg: string; border: string; Icon: typeof ShieldAlert; badge: string }> = {
+  critical: { ring: "#dc2626", text: "text-red-700", bg: "bg-red-50", border: "border-red-200", Icon: ShieldAlert, badge: "bg-red-100 text-red-700" },
+  high: { ring: "#ea580c", text: "text-orange-700", bg: "bg-orange-50", border: "border-orange-200", Icon: AlertTriangle, badge: "bg-orange-100 text-orange-700" },
+  moderate: { ring: "#d97706", text: "text-amber-700", bg: "bg-amber-50", border: "border-amber-200", Icon: AlertCircle, badge: "bg-amber-100 text-amber-700" },
+  low: { ring: "#16a34a", text: "text-green-700", bg: "bg-green-50", border: "border-green-200", Icon: Shield, badge: "bg-green-100 text-green-700" },
+};
+
+function RiskScoreCard({ score, label, tone, factors }: { score: number; label: string; tone: string; factors: string[] }) {
+  const s = RISK_TONE[tone] || RISK_TONE.low;
+  const Icon = s.Icon;
+  const r = 30;
+  const circ = 2 * Math.PI * r;
+  const offset = circ * (1 - score / 100);
+  return (
+    <div className={`rounded-xl border p-4 ${s.bg} ${s.border}`} data-testid="panel-risk-score">
+      <div className="flex items-center gap-2 mb-3">
+        <Gauge className={`h-5 w-5 ${s.text}`} />
+        <span className={`font-bold text-sm ${s.text}`}>Niveau de risque biodiversité</span>
+      </div>
+      <div className="flex items-center gap-4">
+        <div className="relative shrink-0" style={{ width: 76, height: 76 }}>
+          <svg width="76" height="76" viewBox="0 0 76 76" className="-rotate-90">
+            <circle cx="38" cy="38" r={r} fill="none" stroke="#e5e7eb" strokeWidth="7" />
+            <circle cx="38" cy="38" r={r} fill="none" stroke={s.ring} strokeWidth="7" strokeLinecap="round" strokeDasharray={circ} strokeDashoffset={offset} />
+          </svg>
+          <div className="absolute inset-0 flex flex-col items-center justify-center">
+            <span className={`text-lg font-bold ${s.text}`} data-testid="text-risk-value">{score}</span>
+            <span className="text-[9px] text-gray-400 -mt-0.5">/100</span>
+          </div>
+        </div>
+        <div className="min-w-0">
+          <span className={`inline-flex items-center gap-1 text-xs font-bold px-2 py-1 rounded-full ${s.badge}`} data-testid="text-risk-label">
+            <Icon className="h-3.5 w-3.5" /> {label}
+          </span>
+          <p className="text-[10px] text-gray-500 mt-1.5 leading-snug">
+            Estimé selon les espèces à enjeux, les zonages, la patrimonialité et la récence des données.
+          </p>
+        </div>
+      </div>
+      {factors.length > 0 && (
+        <ul className="mt-3 space-y-1" data-testid="list-risk-factors">
+          {factors.map((f, i) => (
+            <li key={i} className="flex items-start gap-1.5 text-[11px] text-gray-600">
+              <span className="mt-1 h-1.5 w-1.5 rounded-full shrink-0" style={{ backgroundColor: s.ring }} />
+              {f}
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
+function CompactSpeciesRow({ occ, isSelected, onSelect }: { occ: Occurrence; isSelected: boolean; onSelect: () => void }) {
+  const patri = getPatrimonialite(occ.iucnStatus, occ.alertLevel);
+  const group = TAXON_GROUPS.find((g) => g.id === getTaxonGroupId(occ));
+  const hasVern = !!occ.vernacularName;
+  const notEval = isNotEvaluated(occ.iucnStatus);
+  return (
+    <button
+      type="button"
+      onClick={onSelect}
+      className={`w-full text-left flex items-center gap-2 px-3 py-2 rounded-lg border transition-all ${
+        isSelected ? "bg-teal-50 border-teal-300 ring-1 ring-teal-300" : "bg-white border-gray-100 hover:bg-gray-50"
+      }`}
+      data-testid={`species-row-${occ.scientificName}`}
+    >
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center gap-1.5">
+          <span className="text-sm font-medium text-gray-900 truncate">{hasVern ? occ.vernacularName : occ.scientificName}</span>
+          {notEval && (
+            <Info className="h-3 w-3 text-gray-400 shrink-0" aria-label="Statut non évalué" />
+          )}
+        </div>
+        {hasVern && <div className="text-[11px] text-gray-500 italic truncate">{occ.scientificName}</div>}
+        <div className="mt-1 flex flex-wrap items-center gap-1">
+          {group && <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-gray-100 text-gray-600">{group.icon} {group.label}</span>}
+          <span className={`text-[9px] px-1.5 py-0.5 rounded-full border ${patri.color}`}>Patri. {patri.label}</span>
+          <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-gray-50 text-gray-500 border border-gray-200">{getIucnLabel(occ.iucnStatus)}</span>
+          {occ.lastObservationYear && <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-gray-50 text-gray-500 border border-gray-200">{occ.lastObservationYear}</span>}
+          {occ.source && <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-gray-50 text-gray-400 border border-gray-200">{occ.source === "inaturalist" ? "iNat" : "GBIF"}</span>}
+          {occ.frenchProtected && <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-orange-100 text-orange-700 border border-orange-200">🇫🇷 Protégé</span>}
+        </div>
+      </div>
+      <ChevronRight className="h-4 w-4 text-gray-300 shrink-0" />
+    </button>
   );
 }
 
