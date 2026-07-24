@@ -36,3 +36,21 @@ are duplicated in THREE places and must be edited together:
 
 **Why:** no shared source; a change in one place silently desyncs the UI panel,
 the exported report, and the per-species badge.
+
+## Badge « niveau » (majeur/fort/modéré) = dérivé du score déterministe
+
+The main enjeu badge shown in `PrioritySpeciesInline` (`sp.level`) must be
+derived from the deterministic 0–100 score via `levelFromScore` inside
+`classifyAndScore` (`server/llm.ts`) — NOT from the LLM's subjective `level` nor
+from `baseFromOccurrence`'s `alertLevel` mapping.
+
+**Why:** the LLM freely labelled common, non-threatened observed species (e.g.
+Gobemouche noir / *Ficedula hypoleuca*, LC) as "fort", contradicting their real
+computed enjeu (~40, "à vérifier"). Every French bird is nationally protected,
+so the ALI protection flag alone inflates perceived enjeu; only the weighted
+score (statut·0.3 · site·0.25 · occurrence·0.2 · habitat·0.15 · qualité·0.1)
+reflects true priority.
+
+**How to apply:** keep `level` overridden by `levelFromScore(score)` after
+scoring. Thresholds mirror `scoreLabelFor`: ≥85 majeur, ≥70 fort, else modéré.
+If you reintroduce trust in the AI's raw level, common species regress to "fort".

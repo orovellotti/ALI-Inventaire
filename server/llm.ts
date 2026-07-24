@@ -110,6 +110,15 @@ function gradeImportanceScore(grade: NaturaGrade, designating: boolean): number 
   }
 }
 
+// Niveau d'enjeu (badge principal) aligné sur le score déterministe, afin qu'une
+// espèce commune non menacée (ex : Gobemouche noir, LC) ne soit jamais affichée
+// « fort » sur la seule appréciation subjective de l'IA.
+function levelFromScore(score: number): (typeof ALLOWED_LEVELS)[number] {
+  if (score >= 85) return "majeur";
+  if (score >= 70) return "fort";
+  return "modéré";
+}
+
 function scoreLabelFor(score: number): string {
   if (score >= 85) return "majeur";
   if (score >= 70) return "fort";
@@ -221,6 +230,7 @@ function classifyAndScore(
     ...sp,
     evidenceClass,
     evidenceLabel: EVIDENCE_LABELS[evidenceClass],
+    level: levelFromScore(score),
     score,
     scoreLabel: scoreLabelFor(score),
     qualiteScore,
