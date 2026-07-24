@@ -299,13 +299,26 @@ export function ResultsPanel({ isOpen, onClose, results, selectedSpecies, onSele
   }, [sortedSpecies]);
 
   const enjeuxBuckets = useMemo(() => {
+    // Les espèces exotiques envahissantes (EEE) n'ont aucune valeur
+    // patrimoniale de conservation : on les sort des buckets d'enjeu et on les
+    // regroupe à part (préoccupation de gestion, pas de patrimonialité).
+    const eee: Occurrence[] = [];
     const critique: Occurrence[] = [];
     const fort: Occurrence[] = [];
     for (const o of sortedSpecies.high) {
-      if (getPatrimonialite(o.iucnStatus, o.alertLevel, o.isInvasive).level >= 4) critique.push(o);
+      if (o.isInvasive) eee.push(o);
+      else if (getPatrimonialite(o.iucnStatus, o.alertLevel, o.isInvasive).level >= 4) critique.push(o);
       else fort.push(o);
     }
-    return { critique, fort, modere: sortedSpecies.medium, faible: sortedSpecies.low };
+    const modere = sortedSpecies.medium.filter((o) => {
+      if (o.isInvasive) { eee.push(o); return false; }
+      return true;
+    });
+    const faible = sortedSpecies.low.filter((o) => {
+      if (o.isInvasive) { eee.push(o); return false; }
+      return true;
+    });
+    return { critique, fort, modere, faible, eee };
   }, [sortedSpecies]);
 
   const especesList = useMemo(() => {
@@ -594,6 +607,7 @@ ${shareUrl ? `\n🔗 Reproduire cette analyse : ${shareUrl}` : ""}`;
     { key: "fort", label: "Fort", tone: "bg-orange-50 border-orange-200 text-orange-700", items: enjeuxBuckets.fort, defaultTip: "Enjeu fort" },
     { key: "modere", label: "Modéré", tone: "bg-amber-50 border-amber-200 text-amber-700", items: enjeuxBuckets.modere, defaultTip: "Enjeu moyen" },
     { key: "faible", label: "Faible", tone: "bg-green-50 border-green-200 text-green-700", items: enjeuxBuckets.faible, defaultTip: "Enjeu faible" },
+    { key: "eee", label: "Exotique envahissante (EEE)", tone: "bg-fuchsia-50 border-fuchsia-200 text-fuchsia-700", items: enjeuxBuckets.eee, defaultTip: "Espèce exotique envahissante : enjeu de gestion, sans valeur patrimoniale" },
   ];
 
   return (
@@ -779,7 +793,7 @@ ${shareUrl ? `\n🔗 Reproduire cette analyse : ${shareUrl}` : ""}`;
                   >
                     <div className="flex items-center gap-2">
                       <ShieldAlert className="h-4 w-4" />
-                      <span className="font-bold text-sm uppercase tracking-wide">Enjeu {section.label} ({section.items.length})</span>
+                      <span className="font-bold text-sm uppercase tracking-wide">{section.key === "eee" ? section.label : `Enjeu ${section.label}`} ({section.items.length})</span>
                     </div>
                     {open ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
                   </button>
@@ -794,7 +808,7 @@ ${shareUrl ? `\n🔗 Reproduire cette analyse : ${shareUrl}` : ""}`;
                           />
                           <div className="mt-1 ml-1 flex items-start gap-1.5 text-[11px] text-gray-600" data-testid={`action-${occ.scientificName}`}>
                             <ClipboardList className="h-3 w-3 shrink-0 mt-0.5 text-teal-600" />
-                            <span><span className="font-semibold">Action recommandée :</span> {recommendedAction(getTaxonGroupId(occ))}</span>
+                            <span><span className="font-semibold">Action recommandée :</span> {occ.isInvasive ? "Espèce exotique envahissante : prévoir une gestion/limitation, sans valeur patrimoniale de conservation." : recommendedAction(getTaxonGroupId(occ))}</span>
                           </div>
                         </div>
                       ))}

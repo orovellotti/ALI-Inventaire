@@ -28,3 +28,11 @@ management concern, not a patrimonial enjeu).
 it on `isInvasiveExotic` / the `isInvasive` flag. Never let the numeric enjeu
 score drive EEE display. To cover a missing species, add its genus or binomial
 to server/invasive.ts (both paths pick it up).
+
+## Third path: inventory "Enjeu" buckets (ResultsPanel)
+The inventory list groups occurrences into Critique/Fort/Modéré/Faible buckets by
+`alertLevel` + patrimonialité. EEE (`occ.isInvasive`) are now pulled out of ALL
+those buckets into a dedicated fuchsia **"Exotique envahissante (EEE)"** section
+with a management-oriented "Action recommandée". Bucketing by alertLevel alone
+put invasives in "Fort" even though patrimonialité=0 — always gate on
+`occ.isInvasive` when classifying occurrences by enjeu.
