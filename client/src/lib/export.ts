@@ -1,5 +1,5 @@
 import * as XLSX from "xlsx";
-import { Occurrence, InventoryResult, getIucnLabel, getTaxonGroupId, TAXON_GROUPS, ConfidenceScore } from "./gbif";
+import { Occurrence, InventoryResult, getIucnLabel, IUCN_SOURCE_LABEL, getTaxonGroupId, TAXON_GROUPS, ConfidenceScore } from "./gbif";
 
 interface ExportOptions {
   results: InventoryResult;
@@ -25,7 +25,9 @@ function buildSpeciesRows(species: Occurrence[]) {
     "Nom vernaculaire": occ.vernacularName || "",
     "Niveau d'enjeu": getEnjeuLabel(occ.alertLevel),
     "Statut UICN": getIucnLabel(occ.iucnStatus),
+    "Territoire / source du statut": occ.iucnStatus ? IUCN_SOURCE_LABEL : "Non renseigné (GBIF)",
     "Code UICN": occ.iucnStatus || "",
+    "Noms sources fusionnés": (occ.sourceNames && occ.sourceNames.length > 1) ? occ.sourceNames.join(" | ") : "",
     "Groupe taxonomique": getTaxonGroupLabel(occ),
     "Règne": occ.kingdom || "",
     "Classe": occ.class || "",

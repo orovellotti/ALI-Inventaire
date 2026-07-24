@@ -130,6 +130,11 @@ export const PROJECT_PRESETS: ProjectPreset[] = [
   },
 ];
 
+// Territoire/source de l'évaluation UICN telle que fournie par GBIF : il s'agit
+// de la Liste rouge mondiale. À expliciter systématiquement (une espèce « NT »
+// mondiale n'a pas le même sens qu'une « NT » régionale).
+export const IUCN_SOURCE_LABEL = "Liste rouge mondiale (UICN)";
+
 export function getIucnLabel(code: string | undefined): string {
   const labels: Record<string, string> = {
     "EX": "Éteint", "EXTINCT": "Éteint",
@@ -145,6 +150,17 @@ export function getIucnLabel(code: string | undefined): string {
     "NE": "Non évalué", "NOT_EVALUATED": "Non évalué"
   };
   return labels[code || ""] || "Non évalué";
+}
+
+// Renvoie le statut avec son territoire/source, toujours. Distingue « statut non
+// renseigné » (aucune donnée GBIF) de « non évalué » (évalué comme NE par l'UICN).
+export function getIucnFullLabel(code: string | undefined): string {
+  const c = (code || "").toUpperCase();
+  if (!c) return "Statut UICN non renseigné (source GBIF)";
+  if (c === "NE" || c === "NOT_EVALUATED") return `Non évalué — ${IUCN_SOURCE_LABEL}`;
+  if (c === "DD" || c === "DATA_DEFICIENT") return `Données insuffisantes — ${IUCN_SOURCE_LABEL}`;
+  if (c === "NA" || c === "NOT_APPLICABLE") return `Non applicable — ${IUCN_SOURCE_LABEL}`;
+  return `${getIucnLabel(code)} — ${IUCN_SOURCE_LABEL}`;
 }
 
 export interface PatrimonialiteScore {

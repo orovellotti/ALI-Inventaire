@@ -176,6 +176,88 @@ function countSensitive(occurrences: Occurrence[]): number {
   return occurrences.filter((o) => o.alertLevel === "high" || o.alertLevel === "medium").length;
 }
 
+// Normalise un nom scientifique en retirant l'auteur (parenthèses, patronyme,
+// année), pour rapprocher « Haliotis tuberculata Linnaeus, 1758 » et
+// « Haliotis tuberculata ». Utilisé uniquement en repli quand TAXREF n'a pas
+// fourni de cdRef.
+function normalizeName(name: string): string {
+  const cleaned = name.replace(/\(.*?\)/g, " ").trim();
+  const tokens = cleaned.split(/\s+/);
+  const kept: string[] = [];
+  for (let i = 0; i < tokens.length; i++) {
+    const t = tokens[i];
+    if (i === 0) {
+      kept.push(t);
+      continue;
+    }
+    if (/^[a-zà-ÿ.\-]+$/.test(t)) kept.push(t);
+    else break;
+  }
+  return kept.join(" ").toLowerCase();
+}
+
+interface ConsolidationResult {
+  consolidated: Occurrence[];
+  rawNameCount: number;
+  duplicatesRemoved: number;
+}
+
+// Consolide les occurrences par taxon accepté (cdRef TAXREF), avec repli sur le
+// nom normalisé. Fusionne les doublons « avec / sans auteur » et agrège les noms
+// sources dans sourceNames[].
+function consolidateByCdRef(occurrences: Occurrence[]): ConsolidationResult {
+  const rawNameCount = new Set(occurrences.map((o) => o.scientificName)).size;
+  const byKey = new Map<string, Occurrence>();
+  // Rapproche les variantes d'un même taxon même quand l'une porte un cdRef et
+  // l'autre non (échec/timeout TAXREF sur une source) : le nom normalisé fait le
+  // pont entre la clé « cd: » et la clé « nm: ».
+  const nameToKey = new Map<string, string>();
+
+  for (const occ of occurrences) {
+    const normName = normalizeName(occ.scientificName);
+    const cdKey = occ.cdNom != null ? `cd:${occ.cdNom}` : undefined;
+    const key = byKey.has(cdKey ?? "")
+      ? (cdKey as string)
+      : nameToKey.get(normName) ?? cdKey ?? `nm:${normName}`;
+
+    const existing = byKey.get(key);
+    if (!existing) {
+      const seed: Occurrence = {
+        ...occ,
+        sourceNames: occ.sourceNames ? [...occ.sourceNames] : [occ.scientificName],
+      };
+      byKey.set(key, seed);
+      nameToKey.set(normName, key);
+      continue;
+    }
+    nameToKey.set(normName, key);
+    existing.sourceNames = Array.from(
+      new Set([...(existing.sourceNames ?? []), ...(occ.sourceNames ?? [occ.scientificName])]),
+    );
+    existing.imageUrl = existing.imageUrl || occ.imageUrl;
+    existing.vernacularName = existing.vernacularName || occ.vernacularName;
+    existing.iucnStatus = existing.iucnStatus || occ.iucnStatus;
+    existing.cdNom = existing.cdNom ?? occ.cdNom;
+    existing.frenchProtected = existing.frenchProtected || occ.frenchProtected;
+    existing.isInvasive = existing.isInvasive || occ.isInvasive;
+    if (ALERT_PRIORITY[occ.alertLevel] > ALERT_PRIORITY[existing.alertLevel]) {
+      existing.alertLevel = occ.alertLevel;
+    }
+    if (occ.observationCount) {
+      existing.observationCount = (existing.observationCount ?? 0) + occ.observationCount;
+    }
+    if (
+      occ.lastObservationYear &&
+      (!existing.lastObservationYear || occ.lastObservationYear > existing.lastObservationYear)
+    ) {
+      existing.lastObservationYear = occ.lastObservationYear;
+    }
+  }
+
+  const consolidated = Array.from(byKey.values());
+  return { consolidated, rawNameCount, duplicatesRemoved: rawNameCount - consolidated.length };
+}
+
 function buildEmptyResult(
   inat: InatResult,
   lat: number,
@@ -186,12 +268,15 @@ function buildEmptyResult(
   if (inat.occurrences.length > 0) {
     confidence.message = `Aucune donnée GBIF • iNaturalist : ${inat.occurrences.length} espèce(s)`;
   }
+  const { consolidated, rawNameCount, duplicatesRemoved } = consolidateByCdRef(inat.occurrences);
   return {
-    occurrences: inat.occurrences,
+    occurrences: consolidated,
     stats: {
-      total: inat.occurrences.length,
-      speciesCount: inat.occurrences.length,
-      sensitiveCount: countSensitive(inat.occurrences),
+      total: consolidated.length,
+      speciesCount: consolidated.length,
+      sensitiveCount: countSensitive(consolidated),
+      rawNameCount,
+      duplicatesRemoved,
     },
     center: [lat, lng],
     radius: radiusMeters,
@@ -240,12 +325,16 @@ export async function searchGBIF(
     confidence.message = `${confidence.message} • iNaturalist : +${inedits} espèce(s) inédite(s) sur ${inat.summary.species}`;
   }
 
+  const { consolidated, rawNameCount, duplicatesRemoved } = consolidateByCdRef(merged);
+
   return {
-    occurrences: merged,
+    occurrences: consolidated,
     stats: {
-      total: merged.length,
-      speciesCount: new Set(merged.map((o) => o.scientificName)).size,
-      sensitiveCount: countSensitive(merged),
+      total: consolidated.length,
+      speciesCount: consolidated.length,
+      sensitiveCount: countSensitive(consolidated),
+      rawNameCount,
+      duplicatesRemoved,
     },
     center: [lat, lng],
     radius: radiusMeters,
@@ -306,15 +395,18 @@ export async function searchGBIFMultiCircle(
     enabledCircles.map((c) => searchGBIF(c.center[0], c.center[1], c.radius, options)),
   );
 
-  const occurrences = mergeMultiCircleOccurrences(results);
+  const merged = mergeMultiCircleOccurrences(results);
   const referenceCircle = enabledCircles.find((c) => c.id === "immediate") ?? enabledCircles[0];
+  const { consolidated, rawNameCount, duplicatesRemoved } = consolidateByCdRef(merged);
 
   return {
-    occurrences,
+    occurrences: consolidated,
     stats: {
-      total: occurrences.length,
-      speciesCount: new Set(occurrences.map((o) => o.scientificName)).size,
-      sensitiveCount: countSensitive(occurrences),
+      total: consolidated.length,
+      speciesCount: consolidated.length,
+      sensitiveCount: countSensitive(consolidated),
+      rawNameCount,
+      duplicatesRemoved,
     },
     center: referenceCircle.center,
     radius: referenceCircle.radius,

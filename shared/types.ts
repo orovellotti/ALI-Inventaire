@@ -20,6 +20,7 @@ export interface Occurrence {
   isInvasive?: boolean;
   observationCount?: number;
   lastObservationYear?: number;
+  sourceNames?: string[];
 }
 
 export interface ConfidenceScore {
@@ -71,6 +72,8 @@ export interface InventoryResult {
     total: number;
     speciesCount: number;
     sensitiveCount: number;
+    rawNameCount?: number;
+    duplicatesRemoved?: number;
   };
   center: [number, number];
   radius: number;

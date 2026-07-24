@@ -5,7 +5,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { X, Download, FileText, AlertTriangle, AlertCircle, Leaf, Info, ChevronDown, ChevronUp, ImageOff, Copy, Check, ExternalLink, BookOpen, Shield, ShieldAlert, MapPin, Tag, Calendar, Link, Flag, Layers, Filter, Table, Sparkles, Loader2, Share2, Mail, MoreHorizontal, Settings2, Search, Activity, ListChecks, Bot, ClipboardList, LayoutGrid, ChevronRight, Gauge } from "lucide-react";
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuCheckboxItem } from "@/components/ui/dropdown-menu";
-import { InventoryResult, Occurrence, getIucnLabel, getPatrimonialite, ConfidenceScore, TAXON_GROUPS, getTaxonGroupId, isMarineSpecies } from "@/lib/gbif";
+import { InventoryResult, Occurrence, getIucnLabel, getIucnFullLabel, getPatrimonialite, ConfidenceScore, TAXON_GROUPS, getTaxonGroupId, isMarineSpecies } from "@/lib/gbif";
 import { findSINPPlatforms, SINPPlatform } from "@/lib/sinp";
 import { exportCSV, exportExcel } from "@/lib/export";
 import { PrioritySpeciesInline } from "./PrioritySpeciesInline";
@@ -354,11 +354,10 @@ export function ResultsPanel({ isOpen, onClose, results, selectedSpecies, onSele
 
     let label: string;
     let tone: "critical" | "high" | "moderate" | "low";
-    if (score >= 75) { label = "Risque très élevé"; tone = "critical"; }
-    else if (score >= 55) { label = "Risque élevé"; tone = "high"; }
-    else if (score >= 35) { label = "Risque modéré"; tone = "moderate"; }
-    else if (score >= 15) { label = "Risque faible"; tone = "low"; }
-    else { label = "Risque très faible"; tone = "low"; }
+    if (score >= 75) { label = "Très élevé"; tone = "critical"; }
+    else if (score >= 55) { label = "Élevé"; tone = "high"; }
+    else if (score >= 35) { label = "Modéré"; tone = "moderate"; }
+    else { label = "Faible"; tone = "low"; }
 
     const factors: string[] = [];
     if (hi > 0) factors.push(`${hi} espèce${hi > 1 ? "s" : ""} à enjeu fort`);
@@ -379,7 +378,8 @@ export function ResultsPanel({ isOpen, onClose, results, selectedSpecies, onSele
     const parts = [`Le secteur recense ${sp} espèce${sp > 1 ? "s" : ""}, dont ${sens} sensible${sens > 1 ? "s" : ""}`];
     if (zc > 0) parts.push(`et intersecte ${zc} zonage${zc > 1 ? "s" : ""} environnemental${zc > 1 ? "aux" : ""}`);
     let text = parts.join(" ") + ".";
-    text += ` Le niveau de risque biodiversité est estimé « ${riskScore.label} ».`;
+    text += ` Le potentiel d'enjeux écologiques est estimé « ${riskScore.label} ».`;
+    text += " Le risque biodiversité proprement dit ne pourra être calculé qu'en croisant ces enjeux avec les caractéristiques et les pressions d'un projet.";
     if (riskScore.tone === "critical" || riskScore.tone === "high") {
       text += " Des inventaires complémentaires sont recommandés avant toute intervention.";
     } else {
@@ -445,7 +445,7 @@ export function ResultsPanel({ isOpen, onClose, results, selectedSpecies, onSele
       : "";
 
     const fmtSpecies = (o: Occurrence) =>
-      `• ${o.scientificName}${o.vernacularName ? ` — ${o.vernacularName}` : ""} (${getIucnLabel(o.iucnStatus)})`;
+      `• ${o.scientificName}${o.vernacularName ? ` — ${o.vernacularName}` : ""} (${getIucnFullLabel(o.iucnStatus)})`;
 
     const sectionList = (label: string, list: Occurrence[]) =>
       list.length > 0 ? `${label} (${list.length})\n${list.map(fmtSpecies).join("\n")}\n` : "";
@@ -467,10 +467,11 @@ ${!isAllActive ? `🔎 Filtres : ${activeGroupLabels}\n` : ""}
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 SYNTHÈSE
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-${totalInReport} espèces recensées (GBIF + iNaturalist)
+${results.stats.rawNameCount != null ? `${results.stats.rawNameCount} noms taxonomiques collectés — ${results.stats.speciesCount} taxons valides après consolidation${results.stats.duplicatesRemoved ? ` (${results.stats.duplicatesRemoved} doublon${results.stats.duplicatesRemoved > 1 ? "s" : ""} fusionné${results.stats.duplicatesRemoved > 1 ? "s" : ""})` : ""}` : `${totalInReport} taxons recensés (GBIF + iNaturalist)`}
 ${highCount + mediumCount} espèces sensibles (enjeux forts ou moyens)
 Indice de confiance des données : ${conf.total}/100 — ${confLabel}
-Niveau de risque biodiversité : ${riskScore.score}/100 — ${riskScore.label}
+Potentiel d'enjeux écologiques : ${riskScore.label}
+↳ Le risque biodiversité ne peut être calculé qu'en croisant ces enjeux avec les caractéristiques et les pressions d'un projet.
 ${conf.message ? `↳ ${conf.message}\n` : ""}
 ${sectionList("🔴 ENJEUX FORTS", sortedSpecies.high)}
 ${sectionList("🟠 ENJEUX MOYENS", sortedSpecies.medium)}
@@ -703,7 +704,10 @@ ${shareUrl ? `\n🔗 Reproduire cette analyse : ${shareUrl}` : ""}`;
               <div className="grid grid-cols-3 gap-3 text-center">
                 <div>
                   <div className="text-2xl font-bold text-gray-900" data-testid="text-species-detected">{results.stats.speciesCount}</div>
-                  <div className="text-[11px] text-gray-500 leading-tight">espèces détectées</div>
+                  <div className="text-[11px] text-gray-500 leading-tight">taxons valides</div>
+                  {results.stats.rawNameCount != null && results.stats.rawNameCount !== results.stats.speciesCount && (
+                    <div className="text-[9px] text-gray-400 leading-tight mt-0.5" data-testid="text-raw-names">sur {results.stats.rawNameCount} noms collectés</div>
+                  )}
                 </div>
                 <div>
                   <div className="text-2xl font-bold text-orange-600" data-testid="text-species-sensitive">{results.stats.sensitiveCount}</div>
@@ -1097,7 +1101,7 @@ function RiskScoreCard({ score, label, tone, factors }: { score: number; label: 
     <div className={`rounded-xl border p-4 ${s.bg} ${s.border}`} data-testid="panel-risk-score">
       <div className="flex items-center gap-2 mb-3">
         <Gauge className={`h-5 w-5 ${s.text}`} />
-        <span className={`font-bold text-sm ${s.text}`}>Niveau de risque biodiversité</span>
+        <span className={`font-bold text-sm ${s.text}`}>Potentiel d'enjeux écologiques</span>
       </div>
       <div className="flex items-center gap-4">
         <div className="relative shrink-0" style={{ width: 76, height: 76 }}>
@@ -1105,9 +1109,8 @@ function RiskScoreCard({ score, label, tone, factors }: { score: number; label: 
             <circle cx="38" cy="38" r={r} fill="none" stroke="#e5e7eb" strokeWidth="7" />
             <circle cx="38" cy="38" r={r} fill="none" stroke={s.ring} strokeWidth="7" strokeLinecap="round" strokeDasharray={circ} strokeDashoffset={offset} />
           </svg>
-          <div className="absolute inset-0 flex flex-col items-center justify-center">
-            <span className={`text-lg font-bold ${s.text}`} data-testid="text-risk-value">{score}</span>
-            <span className="text-[9px] text-gray-400 -mt-0.5">/100</span>
+          <div className="absolute inset-0 flex items-center justify-center">
+            <Icon className={`h-6 w-6 ${s.text}`} />
           </div>
         </div>
         <div className="min-w-0">
@@ -1119,6 +1122,9 @@ function RiskScoreCard({ score, label, tone, factors }: { score: number; label: 
           </p>
         </div>
       </div>
+      <p className="mt-3 text-[10px] text-gray-500 leading-snug border-t border-gray-200/60 pt-2" data-testid="text-risk-disclaimer">
+        Le risque biodiversité ne peut être calculé qu'en croisant les enjeux écologiques avec les caractéristiques et les pressions du projet.
+      </p>
       {factors.length > 0 && (
         <ul className="mt-3 space-y-1" data-testid="list-risk-factors">
           {factors.map((f, i) => (
@@ -1158,7 +1164,7 @@ function CompactSpeciesRow({ occ, isSelected, onSelect }: { occ: Occurrence; isS
         <div className="mt-1 flex flex-wrap items-center gap-1">
           {group && <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-gray-100 text-gray-600">{group.icon} {group.label}</span>}
           <span className={`text-[9px] px-1.5 py-0.5 rounded-full border ${patri.color}`}>Patri. {patri.label}</span>
-          <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-gray-50 text-gray-500 border border-gray-200">{getIucnLabel(occ.iucnStatus)}</span>
+          <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-gray-50 text-gray-500 border border-gray-200" title={getIucnFullLabel(occ.iucnStatus)}>{getIucnLabel(occ.iucnStatus)}{occ.iucnStatus ? " · mondiale" : ""}</span>
           {occ.lastObservationYear && <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-gray-50 text-gray-500 border border-gray-200">{occ.lastObservationYear}</span>}
           {occ.source && <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-gray-50 text-gray-400 border border-gray-200">{occ.source === "inaturalist" ? "iNat" : "GBIF"}</span>}
           {occ.frenchProtected && <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-orange-100 text-orange-700 border border-orange-200">🇫🇷 Protégé</span>}
@@ -1321,8 +1327,11 @@ function StatusBadge({ status }: { status: string | undefined }) {
   };
 
   return (
-    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${getStatusStyle()}`}>
-      {label}
+    <span
+      className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${getStatusStyle()}`}
+      title={getIucnFullLabel(status)}
+    >
+      {label}{status ? " · mondiale" : ""}
     </span>
   );
 }

@@ -6,3 +6,4 @@
 - [Natura 2000 habitats & polygons](natura2000-habitats-api.md) — EEA Habitats + Sites layers (Sites=Habitats Directive polygons only, no ZPS); habitat-compat drives class C; evidence order A,C,B,D,E.
 - [Priority-species ranking](priority-species-ranking.md) — espèces-à-enjeux top-N reserves slots for Natura 2000 class C/B species or they get evicted by observed (A) species.
 - [EEA Natura 2000 bulk data + directive source](eea-natura2000-bulk-data.md) — download tabular DB via SDI Nextcloud WebDAV; no DIRECTIVESPECIES table exists, use EUNIS Species_Legal_Status for directive/annex.
+- [Taxon consolidation by cdRef](taxon-consolidation.md) — dedup occurrences to valid taxa via TAXREF cdRef+normalized-name bridge (noms bruts vs taxons valides); IUCN always territory-tagged; risk→potentiel d'enjeux.
