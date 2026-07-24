@@ -2,6 +2,7 @@ import type { Occurrence, ConfidenceScore, BufferCircle, InventoryResult } from 
 import { searchINaturalist } from "./inaturalist";
 import { fetchTaxRefCdNom } from "./taxref";
 import { applyFrenchPriorityBoost, isFrenchPriority } from "./frenchPriority";
+import { isInvasiveExotic } from "./invasive";
 import { calculateConfidenceScore, emptyConfidence } from "./confidence";
 import { haversineDistance } from "./lib/geo";
 import {
@@ -121,6 +122,7 @@ async function enrichSpecies(record: any): Promise<Occurrence> {
     sourceUrl: speciesKey ? `https://www.gbif.org/species/${speciesKey}` : undefined,
     cdNom,
     frenchProtected,
+    isInvasive: isInvasiveExotic(record.scientificName),
   };
 }
 

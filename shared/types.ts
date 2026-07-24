@@ -17,6 +17,7 @@ export interface Occurrence {
   sourceUrl?: string;
   cdNom?: number;
   frenchProtected?: boolean;
+  isInvasive?: boolean;
   observationCount?: number;
   lastObservationYear?: number;
 }

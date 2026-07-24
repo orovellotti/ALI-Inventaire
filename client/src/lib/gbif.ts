@@ -156,7 +156,15 @@ export interface PatrimonialiteScore {
 export function getPatrimonialite(
   iucnStatus: string | undefined,
   alertLevel: "high" | "medium" | "low",
+  isInvasive?: boolean,
 ): PatrimonialiteScore {
+  if (isInvasive) {
+    return {
+      level: 0,
+      label: "Exotique envahissante",
+      color: "bg-fuchsia-100 text-fuchsia-700 border-fuchsia-200",
+    };
+  }
   const s = iucnStatus?.toUpperCase();
   let level: number;
   switch (s) {

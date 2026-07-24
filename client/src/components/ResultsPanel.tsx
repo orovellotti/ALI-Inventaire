@@ -302,7 +302,7 @@ export function ResultsPanel({ isOpen, onClose, results, selectedSpecies, onSele
     const critique: Occurrence[] = [];
     const fort: Occurrence[] = [];
     for (const o of sortedSpecies.high) {
-      if (getPatrimonialite(o.iucnStatus, o.alertLevel).level >= 4) critique.push(o);
+      if (getPatrimonialite(o.iucnStatus, o.alertLevel, o.isInvasive).level >= 4) critique.push(o);
       else fort.push(o);
     }
     return { critique, fort, modere: sortedSpecies.medium, faible: sortedSpecies.low };
@@ -313,7 +313,7 @@ export function ResultsPanel({ isOpen, onClose, results, selectedSpecies, onSele
     return allFilteredSpecies.filter((o) => {
       if (attrFilters.has("protegees") && !o.frenchProtected) return false;
       if (attrFilters.has("menacees") && !isThreatened(o.iucnStatus)) return false;
-      if (attrFilters.has("patrimoniales") && getPatrimonialite(o.iucnStatus, o.alertLevel).level < 4) return false;
+      if (attrFilters.has("patrimoniales") && getPatrimonialite(o.iucnStatus, o.alertLevel, o.isInvasive).level < 4) return false;
       if (attrFilters.has("recentes") && !(o.lastObservationYear && o.lastObservationYear >= CURRENT_YEAR - 5)) return false;
       if (attrFilters.has("marine") && !isMarineSpecies(o)) return false;
       if (attrFilters.has("terrestre") && isMarineSpecies(o)) return false;
@@ -1134,7 +1134,7 @@ function RiskScoreCard({ score, label, tone, factors }: { score: number; label: 
 }
 
 function CompactSpeciesRow({ occ, isSelected, onSelect }: { occ: Occurrence; isSelected: boolean; onSelect: () => void }) {
-  const patri = getPatrimonialite(occ.iucnStatus, occ.alertLevel);
+  const patri = getPatrimonialite(occ.iucnStatus, occ.alertLevel, occ.isInvasive);
   const group = TAXON_GROUPS.find((g) => g.id === getTaxonGroupId(occ));
   const hasVern = !!occ.vernacularName;
   const notEval = isNotEvaluated(occ.iucnStatus);
@@ -1258,14 +1258,16 @@ function SpeciesCard({ occ, isSelected, onSelect }: { occ: Occurrence; isSelecte
         <div className="mt-1.5 flex flex-wrap gap-1">
           <StatusBadge status={occ.iucnStatus} />
           {(() => {
-            const patri = getPatrimonialite(occ.iucnStatus, occ.alertLevel);
+            const patri = getPatrimonialite(occ.iucnStatus, occ.alertLevel, occ.isInvasive);
             return (
               <span
                 className={`text-[10px] font-medium px-2 py-0.5 rounded-full border ${patri.color}`}
-                title="Score de patrimonialité (fondé sur le statut UICN et la priorité française)"
+                title={occ.isInvasive
+                  ? "Espèce exotique envahissante (EEE) : sans valeur patrimoniale de conservation, à signaler comme pression sur les milieux."
+                  : "Score de patrimonialité (fondé sur le statut UICN et la priorité française)"}
                 data-testid={`badge-patrimonialite-${occ.scientificName}`}
               >
-                Patrimonialité : {patri.label}
+                {occ.isInvasive ? patri.label : `Patrimonialité : ${patri.label}`}
               </span>
             );
           })()}
