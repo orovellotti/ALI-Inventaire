@@ -40,6 +40,7 @@ interface PrioritySpecies {
   observationCount?: number;
   lastObservationYear?: number;
   source?: "gbif" | "inaturalist";
+  isInvasive?: boolean;
 }
 
 const SOURCE_LABEL: Record<string, string> = {
@@ -372,7 +373,15 @@ export function PrioritySpeciesInline({ toponym, coords, occurrences, onAnalysis
                             Preuve {EVIDENCE_STYLE[sp.evidenceClass].short} · {sp.evidenceLabel}
                           </span>
                         )}
-                        {typeof sp.score === "number" && (
+                        {sp.isInvasive ? (
+                          <span
+                            className="inline-flex items-center gap-1 text-[9px] font-semibold px-1.5 py-0.5 rounded-full border bg-fuchsia-100 text-fuchsia-800 border-fuchsia-300"
+                            title="Espèce exotique envahissante : enjeu de gestion, sans valeur patrimoniale de conservation."
+                            data-testid={`score-species-${i}`}
+                          >
+                            EEE · enjeu de gestion
+                          </span>
+                        ) : typeof sp.score === "number" && (
                           <span
                             className={`inline-flex items-center gap-1 text-[9px] font-semibold px-1.5 py-0.5 rounded-full border ${scoreColor(sp.score)}`}
                             title={[
@@ -403,6 +412,15 @@ export function PrioritySpeciesInline({ toponym, coords, occurrences, onAnalysis
                         {sp.vernacularName && (
                           <span className="text-xs text-gray-600">
                             ({sp.vernacularName})
+                          </span>
+                        )}
+                        {sp.isInvasive && (
+                          <span
+                            className="inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full border bg-fuchsia-100 text-fuchsia-800 border-fuchsia-300"
+                            title="Espèce exotique envahissante : aucune valeur patrimoniale de conservation. Son statut UICN reflète son aire d'origine, pas un enjeu local."
+                            data-testid={`invasive-species-${i}`}
+                          >
+                            Exotique envahissante (EEE)
                           </span>
                         )}
                       </div>

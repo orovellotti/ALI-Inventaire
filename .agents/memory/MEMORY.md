@@ -7,3 +7,4 @@
 - [Priority-species ranking](priority-species-ranking.md) — espèces-à-enjeux top-N reserves slots for Natura 2000 class C/B species or they get evicted by observed (A) species.
 - [EEA Natura 2000 bulk data + directive source](eea-natura2000-bulk-data.md) — download tabular DB via SDI Nextcloud WebDAV; no DIRECTIVESPECIES table exists, use EUNIS Species_Legal_Status for directive/annex.
 - [Taxon consolidation by cdRef](taxon-consolidation.md) — dedup occurrences to valid taxa via TAXREF cdRef+normalized-name bridge (noms bruts vs taxons valides); IUCN always territory-tagged; risk→potentiel d'enjeux.
+- [Invasive species (EEE) handling](invasive-eee-handling.md) — EEE never a conservation enjeu; isInvasiveExotic gates both inventory patrimonialité and the priority engine (statut 0, score ≤20, level modéré, "enjeu de gestion" badge).

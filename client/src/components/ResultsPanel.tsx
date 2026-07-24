@@ -112,7 +112,7 @@ export function ResultsPanel({ isOpen, onClose, results, selectedSpecies, onSele
   const [reformatting, setReformatting] = useState(false);
   const [reformatError, setReformatError] = useState<string | null>(null);
   const [showFilters, setShowFilters] = useState(true);
-  const [aiAnalysis, setAiAnalysis] = useState<{ species: { scientificName: string; vernacularName?: string; group: string; level: string; reason: string; sources?: string[]; inInventory?: boolean; evidenceClass?: string; evidenceLabel?: string; score?: number; scoreLabel?: string }[]; natura2000?: { type: string; name: string; url: string | null; code?: string | null; species?: { name: string; designating: boolean; grade?: string | null }[]; habitats?: { code: string; description: string; cover: number | null }[] }[]; generatedAt: string } | null>(null);
+  const [aiAnalysis, setAiAnalysis] = useState<{ species: { scientificName: string; vernacularName?: string; group: string; level: string; reason: string; sources?: string[]; inInventory?: boolean; evidenceClass?: string; evidenceLabel?: string; score?: number; scoreLabel?: string; isInvasive?: boolean }[]; natura2000?: { type: string; name: string; url: string | null; code?: string | null; species?: { name: string; designating: boolean; grade?: string | null }[]; habitats?: { code: string; description: string; cover: number | null }[] }[]; generatedAt: string } | null>(null);
   const [zonages, setZonages] = useState<ZonagesData | null>(null);
   const [zonagesLoading, setZonagesLoading] = useState(false);
   const [panelWidth, setPanelWidth] = useState<number>(() => {
@@ -486,7 +486,7 @@ ${(["A", "C", "B", "D", "E"] as const)
     if (group.length === 0) return "";
     return `\n[${cls}] ${label[cls]}\n${group
       .map((sp) => `• ${sp.scientificName}${sp.vernacularName ? ` (${sp.vernacularName})` : ""}
-   ${sp.group}${typeof sp.score === "number" ? ` • Enjeu ${sp.score}/100${sp.scoreLabel ? ` (${sp.scoreLabel})` : ""}` : ` • Niveau : ${sp.level}`}${sp.inInventory === false ? " • hors inventaire (suggestion IA)" : ""}
+   ${sp.group}${sp.isInvasive ? " • EXOTIQUE ENVAHISSANTE (EEE) — sans valeur patrimoniale" : typeof sp.score === "number" ? ` • Enjeu ${sp.score}/100${sp.scoreLabel ? ` (${sp.scoreLabel})` : ""}` : ` • Niveau : ${sp.level}`}${sp.inInventory === false ? " • hors inventaire (suggestion IA)" : ""}
    ${sp.reason}${sp.sources && sp.sources.length > 0 ? `
    Sources : ${sp.sources.join(" • ")}` : ""}`)
       .join("\n")}`;

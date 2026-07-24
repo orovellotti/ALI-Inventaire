@@ -2,6 +2,7 @@ import OpenAI from "openai";
 import { z } from "zod";
 import type { Occurrence } from "@shared/types";
 import { fetchSpeciesStatuses, type SpeciesStatus, type Patrimonialite } from "./ali";
+import { isInvasiveExotic } from "./invasive";
 import { getNaturaZones, type Zonage } from "./services/geoservices";
 import { getSpeciesForSite, type NaturaGrade } from "./services/natura2000Species";
 import { getSiteHabitatInfo, type SiteHabitat, type SiteGeometry } from "./services/natura2000Habitats";
@@ -205,34 +206,49 @@ function classifyAndScore(
     evidenceClass = "D";
   }
 
+  // Espèce exotique envahissante (EEE) : aucune valeur patrimoniale de
+  // conservation, même si son statut UICN mondial (évalué dans son aire
+  // d'origine) est défavorable. On neutralise le volet « statut » et on la
+  // signale explicitement plutôt que de la présenter comme un enjeu.
+  const isInvasive = isInvasiveExotic(sp.scientificName);
   const hasReglementaire = (sp.statuses ?? []).some(
     (s) => s.tone === "danger" || s.tone === "warn",
   );
-  const statutScore = sp.patrimonialite
-    ? sp.patrimonialite.score
-    : hasReglementaire
-      ? 55
-      : 40;
+  const statutScore = isInvasive
+    ? 0
+    : sp.patrimonialite
+      ? sp.patrimonialite.score
+      : hasReglementaire
+        ? 55
+        : 40;
   const importanceSite = site ? gradeImportanceScore(site.grade, site.designating) : 0;
   const occurrenceScore = observedInCore ? 100 : observedAtProximity ? 70 : 0;
   const obs = obsQuality.get(norm);
   const qualiteScore = qualiteScoreFor(inInventory, obs);
 
-  const score = Math.round(
+  const rawScore = Math.round(
     SCORE_WEIGHTS.statut * statutScore +
       SCORE_WEIGHTS.importanceSite * importanceSite +
       SCORE_WEIGHTS.occurrence * occurrenceScore +
       SCORE_WEIGHTS.habitat * habitatScore +
       SCORE_WEIGHTS.qualite * qualiteScore,
   );
+  // Une EEE ne peut pas figurer dans une bande d'enjeu élevé : on plafonne son
+  // score de conservation dans la zone « faible » (elle relève de la gestion,
+  // pas de la patrimonialité).
+  const score = isInvasive ? Math.min(rawScore, 20) : rawScore;
 
   return {
     ...sp,
+    // Une EEE n'est jamais un enjeu de conservation : niveau plafonné à
+    // « modéré » et patrimonialité masquée (elle reflèterait l'aire d'origine).
+    isInvasive,
+    patrimonialite: isInvasive ? undefined : sp.patrimonialite,
     evidenceClass,
     evidenceLabel: EVIDENCE_LABELS[evidenceClass],
-    level: levelFromScore(score),
+    level: isInvasive ? "modéré" : levelFromScore(score),
     score,
-    scoreLabel: scoreLabelFor(score),
+    scoreLabel: isInvasive ? "Exotique envahissante (EEE)" : scoreLabelFor(score),
     qualiteScore,
     observationCount: inInventory ? obs?.count : undefined,
     lastObservationYear: obs?.lastYear,
@@ -267,6 +283,7 @@ export interface PrioritySpecies {
   observationCount?: number;
   lastObservationYear?: number;
   source?: "gbif" | "inaturalist";
+  isInvasive?: boolean;
 }
 
 export interface NaturaZoneSpecies {
@@ -310,6 +327,7 @@ const priorityResponseSchema = z.object({
 
 const PRIORITY_SYSTEM_PROMPT = `Tu es un expert en écologie française et en pré-diagnostic écologique.
 Tu connais les statuts UICN, espèces protégées en France, ZNIEFF déterminantes, directives Habitats/Oiseaux.
+Les espèces exotiques envahissantes (EEE : Agave, Yucca, Opuntia, Carpobrotus, Reynoutria, Buddleja, Robinia, Ambrosia, Trachemys, Myocastor, Vespa velutina, etc.) ne sont JAMAIS des enjeux de conservation : leur statut UICN reflète leur aire d'origine, pas un enjeu local. Ne leur attribue pas de niveau « fort » ou « majeur » ; le cas échéant signale-les comme EEE (préoccupation de gestion, pas de patrimonialité).
 Tu réponds en français, concis, opérationnel.`;
 
 const REFORMAT_SYSTEM_PROMPT = `Tu es un écologue rédacteur de notes de pré-diagnostic écologique. Tu rédiges en français professionnel, clair, synthétique, dans un ton neutre et factuel. Tu ne parles jamais d'« étude d'impact » ou « EIE » : il s'agit uniquement d'un pré-diagnostic rapide.`;
