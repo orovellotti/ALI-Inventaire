@@ -1,4 +1,5 @@
 import { ALI_BASE, searchAliTaxon, fetchAliStatuts, type RawAliStatus } from "./services/aliApi";
+import type { AliStatusSummary } from "@shared/types";
 
 export type StatusTone = "danger" | "warn" | "info" | "neutral";
 
@@ -219,8 +220,12 @@ function normalizeStatuses(raws: RawAliStatus[]): SpeciesStatus[] {
     const type = raw.cdTypeStatut ?? "";
     if (type in RED_LIST_CATEGORIES) {
       const code = raw.codeStatut ?? "";
+      // Exclure uniquement les codes vraiment non informatifs (NE/NA/NApp) pour tous
+      // les types. Le filtre LRR && !threatened est supprimé : une évaluation régionale
+      // LC/DD doit être conservée pour que le moteur de scoring puisse appliquer la
+      // priorité stricte régional > national (une espèce LC régionalement ne doit pas
+      // être élevée en "fort" à cause d'un EN national).
       if (NON_INFORMATIVE_REDLIST.has(code)) continue;
-      if (type === "LRR" && !isThreatened(code)) continue;
       const list = redListByType.get(type) ?? [];
       list.push(raw);
       redListByType.set(type, list);
@@ -258,4 +263,34 @@ export async function fetchSpeciesStatuses(scientificName: string): Promise<AliE
     statuses: normalizeStatuses(raws),
     patrimonialite: computePatrimonialite(raws),
   };
+}
+
+/**
+ * Enrichissement territorial léger pour l'inventaire principal.
+ * Retourne un tableau compact AliStatusSummary ou null en cas d'échec/timeout.
+ * Utilise le même cache 24h que fetchSpeciesStatuses — pas de requête réseau
+ * supplémentaire si l'espèce a déjà été enrichie via le panneau espèces à enjeux.
+ *
+ * Timeout 4 s (vs 20 s pour l'usage normal) pour ne pas bloquer la réponse
+ * inventaire en cas de lenteur ALI.
+ */
+export async function fetchAliStatusesForInventory(
+  scientificName: string,
+): Promise<AliStatusSummary[] | null> {
+  try {
+    const result = await Promise.race<AliEnrichment | null>([
+      fetchSpeciesStatuses(scientificName),
+      new Promise<null>((resolve) => setTimeout(() => resolve(null), 4000)),
+    ]);
+    if (!result) return null;
+    return result.statuses.map((s) => ({
+      category: s.category,
+      value: s.value,
+      label: s.label,
+      tone: s.tone,
+      scope: s.scope,
+    }));
+  } catch {
+    return null;
+  }
 }

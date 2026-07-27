@@ -299,26 +299,46 @@ export function ResultsPanel({ isOpen, onClose, results, selectedSpecies, onSele
   }, [sortedSpecies]);
 
   const enjeuxBuckets = useMemo(() => {
-    // Les espèces exotiques envahissantes (EEE) n'ont aucune valeur
-    // patrimoniale de conservation : on les sort des buckets d'enjeu et on les
-    // regroupe à part (préoccupation de gestion, pas de patrimonialité).
+    // Les EEE sont retirées de tous les buckets de conservation.
     const eee: Occurrence[] = [];
     const critique: Occurrence[] = [];
     const fort: Occurrence[] = [];
-    for (const o of sortedSpecies.high) {
-      if (o.isInvasive) eee.push(o);
-      else if (getPatrimonialite(o.iucnStatus, o.alertLevel, o.isInvasive).level >= 4) critique.push(o);
-      else fort.push(o);
+    const modere: Occurrence[] = [];
+    const aConfirmer: Occurrence[] = [];
+    const faible: Occurrence[] = [];
+
+    function classify(o: Occurrence, defaultHighBucket: boolean) {
+      if (o.isInvasive) { eee.push(o); return; }
+      // Priorité : enjeuLevel territorial (si enrichissement ALI disponible)
+      if (o.enjeuLevel) {
+        switch (o.enjeuLevel) {
+          case "critique":    critique.push(o);    return;
+          case "fort":        fort.push(o);        return;
+          case "modere":      modere.push(o);      return;
+          case "a_confirmer": aConfirmer.push(o);  return;
+          default:            faible.push(o);      return;
+        }
+      }
+      // Repli : heuristique alertLevel + getPatrimonialite (avant enrichissement ALI)
+      if (defaultHighBucket) {
+        if (getPatrimonialite(o.iucnStatus, o.alertLevel, o.isInvasive).level >= 4) {
+          critique.push(o);
+        } else {
+          fort.push(o);
+        }
+      } else {
+        modere.push(o);
+      }
     }
-    const modere = sortedSpecies.medium.filter((o) => {
-      if (o.isInvasive) { eee.push(o); return false; }
-      return true;
+
+    sortedSpecies.high.forEach((o) => classify(o, true));
+    sortedSpecies.medium.forEach((o) => classify(o, false));
+    sortedSpecies.low.forEach((o) => {
+      if (o.isInvasive) eee.push(o);
+      else faible.push(o);
     });
-    const faible = sortedSpecies.low.filter((o) => {
-      if (o.isInvasive) { eee.push(o); return false; }
-      return true;
-    });
-    return { critique, fort, modere, faible, eee };
+
+    return { critique, fort, modere, aConfirmer, faible, eee };
   }, [sortedSpecies]);
 
   const especesList = useMemo(() => {
@@ -596,18 +616,19 @@ ${shareUrl ? `\n🔗 Reproduire cette analyse : ${shareUrl}` : ""}`;
 
   const tabs: { key: TabKey; label: string; icon: typeof Activity; badge?: number }[] = [
     { key: "synthese", label: "Synthèse", icon: Activity },
-    { key: "enjeux", label: "Enjeux", icon: ShieldAlert, badge: sortedSpecies.high.length + sortedSpecies.medium.length },
+    { key: "enjeux", label: "Enjeux", icon: ShieldAlert, badge: enjeuxBuckets.critique.length + enjeuxBuckets.fort.length + enjeuxBuckets.modere.length + enjeuxBuckets.aConfirmer.length },
     { key: "especes", label: "Espèces", icon: Leaf, badge: filteredTotal },
     { key: "zonages", label: "Zonages", icon: Layers, badge: zonages?.count || 0 },
     { key: "agent", label: "Agent IA", icon: Bot },
   ];
 
   const enjeuxSections: { key: string; label: string; tone: string; items: Occurrence[]; defaultTip: string }[] = [
-    { key: "critique", label: "Critique", tone: "bg-red-50 border-red-200 text-red-700", items: enjeuxBuckets.critique, defaultTip: "Patrimonialité forte ou majeure" },
-    { key: "fort", label: "Fort", tone: "bg-orange-50 border-orange-200 text-orange-700", items: enjeuxBuckets.fort, defaultTip: "Enjeu fort" },
-    { key: "modere", label: "Modéré", tone: "bg-amber-50 border-amber-200 text-amber-700", items: enjeuxBuckets.modere, defaultTip: "Enjeu moyen" },
-    { key: "faible", label: "Faible", tone: "bg-green-50 border-green-200 text-green-700", items: enjeuxBuckets.faible, defaultTip: "Enjeu faible" },
-    { key: "eee", label: "Exotique envahissante (EEE)", tone: "bg-fuchsia-50 border-fuchsia-200 text-fuchsia-700", items: enjeuxBuckets.eee, defaultTip: "Espèce exotique envahissante : enjeu de gestion, sans valeur patrimoniale" },
+    { key: "critique", label: "Critique", tone: "bg-red-50 border-red-200 text-red-700", items: enjeuxBuckets.critique, defaultTip: "CR/EX au niveau national ou régional — enjeu patrimonial majeur" },
+    { key: "fort", label: "Fort", tone: "bg-orange-50 border-orange-200 text-orange-700", items: enjeuxBuckets.fort, defaultTip: "EN/VU au niveau national ou régional, ou NT + protection forte" },
+    { key: "modere", label: "Modéré", tone: "bg-amber-50 border-amber-200 text-amber-700", items: enjeuxBuckets.modere, defaultTip: "NT sans protection forte, ou protection nationale/directive/ZNIEFF sans menace" },
+    { key: "a_confirmer", label: "À confirmer", tone: "bg-sky-50 border-sky-200 text-sky-700", items: enjeuxBuckets.aConfirmer, defaultTip: "Groupe protégé en France, statut national non vérifié — à confirmer par inventaire terrain" },
+    { key: "faible", label: "Faible", tone: "bg-green-50 border-green-200 text-green-700", items: enjeuxBuckets.faible, defaultTip: "LC ou NE au niveau national/régional — enjeu conservation faible" },
+    { key: "eee", label: "Exotique envahissante (EEE)", tone: "bg-fuchsia-50 border-fuchsia-200 text-fuchsia-700", items: enjeuxBuckets.eee, defaultTip: "Espèce exotique envahissante : enjeu de gestion, sans valeur patrimoniale de conservation" },
   ];
 
   return (
@@ -793,7 +814,7 @@ ${shareUrl ? `\n🔗 Reproduire cette analyse : ${shareUrl}` : ""}`;
                   >
                     <div className="flex items-center gap-2">
                       <ShieldAlert className="h-4 w-4" />
-                      <span className="font-bold text-sm uppercase tracking-wide">{section.key === "eee" ? section.label : `Enjeu ${section.label}`} ({section.items.length})</span>
+                      <span className="font-bold text-sm uppercase tracking-wide">{(section.key === "eee" || section.key === "a_confirmer") ? section.label : `Enjeu ${section.label}`} ({section.items.length})</span>
                     </div>
                     {open ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
                   </button>
@@ -808,7 +829,7 @@ ${shareUrl ? `\n🔗 Reproduire cette analyse : ${shareUrl}` : ""}`;
                           />
                           <div className="mt-1 ml-1 flex items-start gap-1.5 text-[11px] text-gray-600" data-testid={`action-${occ.scientificName}`}>
                             <ClipboardList className="h-3 w-3 shrink-0 mt-0.5 text-teal-600" />
-                            <span><span className="font-semibold">Action recommandée :</span> {occ.isInvasive ? "Espèce exotique envahissante : prévoir une gestion/limitation, sans valeur patrimoniale de conservation." : recommendedAction(getTaxonGroupId(occ))}</span>
+                            <span><span className="font-semibold">Action recommandée :</span> {occ.isInvasive ? "Espèce exotique envahissante : prévoir une gestion/limitation, sans valeur patrimoniale de conservation." : occ.enjeuLevel === "a_confirmer" ? `Groupe protégé — statut national non vérifié : ${recommendedAction(getTaxonGroupId(occ))} Comparer avec les listes TAXREF régionales.` : recommendedAction(getTaxonGroupId(occ))}</span>
                           </div>
                         </div>
                       ))}
@@ -1153,11 +1174,20 @@ function RiskScoreCard({ score, label, tone, factors }: { score: number; label: 
   );
 }
 
+const ENJEU_LEVEL_BADGE: Record<string, { label: string; color: string }> = {
+  critique:    { label: "Critique",    color: "bg-red-100 text-red-700 border-red-200" },
+  fort:        { label: "Fort",        color: "bg-orange-100 text-orange-700 border-orange-200" },
+  modere:      { label: "Modéré",      color: "bg-amber-100 text-amber-700 border-amber-200" },
+  a_confirmer: { label: "À confirmer", color: "bg-sky-100 text-sky-700 border-sky-200" },
+  faible:      { label: "Faible",      color: "bg-green-100 text-green-700 border-green-200" },
+};
+
 function CompactSpeciesRow({ occ, isSelected, onSelect }: { occ: Occurrence; isSelected: boolean; onSelect: () => void }) {
   const patri = getPatrimonialite(occ.iucnStatus, occ.alertLevel, occ.isInvasive);
   const group = TAXON_GROUPS.find((g) => g.id === getTaxonGroupId(occ));
   const hasVern = !!occ.vernacularName;
   const notEval = isNotEvaluated(occ.iucnStatus);
+  const enjeuBadge = occ.enjeuLevel ? ENJEU_LEVEL_BADGE[occ.enjeuLevel] : null;
   return (
     <button
       type="button"
@@ -1170,18 +1200,41 @@ function CompactSpeciesRow({ occ, isSelected, onSelect }: { occ: Occurrence; isS
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-1.5">
           <span className="text-sm font-medium text-gray-900 truncate">{hasVern ? occ.vernacularName : occ.scientificName}</span>
-          {notEval && (
-            <Info className="h-3 w-3 text-gray-400 shrink-0" aria-label="Statut non évalué" />
+          {notEval && (!occ.aliStatuses || occ.aliStatuses.length === 0) && (
+            <Info className="h-3 w-3 text-gray-400 shrink-0" aria-label="Statut UICN non évalué mondialement" />
+          )}
+          {occ.enjeuWarnings && occ.enjeuWarnings.length > 0 && (
+            <span title={occ.enjeuWarnings.join(" · ")}>
+              <AlertTriangle className="h-3 w-3 text-yellow-500 shrink-0" />
+            </span>
           )}
         </div>
         {hasVern && <div className="text-[11px] text-gray-500 italic truncate">{occ.scientificName}</div>}
         <div className="mt-1 flex flex-wrap items-center gap-1">
           {group && <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-gray-100 text-gray-600">{group.icon} {group.label}</span>}
-          <span className={`text-[9px] px-1.5 py-0.5 rounded-full border ${patri.color}`}>Patri. {patri.label}</span>
-          <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-gray-50 text-gray-500 border border-gray-200" title={getIucnFullLabel(occ.iucnStatus)}>{getIucnLabel(occ.iucnStatus)}{occ.iucnStatus ? " · mondiale" : ""}</span>
+          {/* Niveau d'enjeu territorial si enrichi, sinon patrimonialité heuristique */}
+          {enjeuBadge ? (
+            <span className={`text-[9px] px-1.5 py-0.5 rounded-full border ${enjeuBadge.color}`} title="Enjeu fondé sur les statuts territoriaux (ALI/TAXREF)">
+              {enjeuBadge.label}
+            </span>
+          ) : (
+            <span className={`text-[9px] px-1.5 py-0.5 rounded-full border ${patri.color}`} title="Patrimonialité estimée (heuristique)">
+              ~{patri.label}
+            </span>
+          )}
+          {/* Top statut territorial */}
+          {occ.aliStatuses && occ.aliStatuses.length > 0 && occ.aliStatuses[0] && (
+            <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-gray-50 text-gray-600 border border-gray-200 truncate max-w-[100px]" title={`${occ.aliStatuses[0].category}${occ.aliStatuses[0].scope ? ` — ${occ.aliStatuses[0].scope}` : ""}`}>
+              {occ.aliStatuses[0].value}{occ.aliStatuses[0].scope ? ` · ${occ.aliStatuses[0].scope}` : ""}
+            </span>
+          )}
+          {!occ.aliStatuses && (
+            <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-gray-50 text-gray-500 border border-gray-200" title={getIucnFullLabel(occ.iucnStatus)}>
+              {getIucnLabel(occ.iucnStatus)}{occ.iucnStatus ? " · mondiale" : ""}
+            </span>
+          )}
           {occ.lastObservationYear && <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-gray-50 text-gray-500 border border-gray-200">{occ.lastObservationYear}</span>}
           {occ.source && <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-gray-50 text-gray-400 border border-gray-200">{occ.source === "inaturalist" ? "iNat" : "GBIF"}</span>}
-          {occ.frenchProtected && <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-orange-100 text-orange-700 border border-orange-200">🇫🇷 Protégé</span>}
         </div>
       </div>
       <ChevronRight className="h-4 w-4 text-gray-300 shrink-0" />
@@ -1276,28 +1329,53 @@ function SpeciesCard({ occ, isSelected, onSelect }: { occ: Occurrence; isSelecte
           {occ.vernacularName || "Nom vernaculaire N/A"}
         </div>
         <div className="mt-1.5 flex flex-wrap gap-1">
+          {/* Statut UICN mondial — toujours annoté "mondiale" */}
           <StatusBadge status={occ.iucnStatus} />
-          {(() => {
+          {/* Statuts territoriaux ALI (liste rouge régionale/nationale, protection…) */}
+          {occ.aliStatuses && occ.aliStatuses.length > 0 && occ.aliStatuses.slice(0, 4).map((st, i) => {
+            const toneClass =
+              st.tone === "danger" ? "bg-red-100 text-red-700 border-red-200" :
+              st.tone === "warn"   ? "bg-amber-100 text-amber-700 border-amber-200" :
+              st.tone === "info"   ? "bg-blue-100 text-blue-700 border-blue-200" :
+                                     "bg-gray-100 text-gray-600 border-gray-200";
+            return (
+              <span
+                key={i}
+                className={`text-[10px] font-medium px-2 py-0.5 rounded-full border ${toneClass}`}
+                title={`${st.category}${st.scope ? ` — ${st.scope}` : ""} : ${st.label}`}
+              >
+                {st.value}{st.scope ? ` · ${st.scope}` : ""}
+              </span>
+            );
+          })}
+          {/* Badge patrimonialité (heuristique, si pas de données ALI ou tableau vide) */}
+          {(!occ.aliStatuses || occ.aliStatuses.length === 0) && (() => {
             const patri = getPatrimonialite(occ.iucnStatus, occ.alertLevel, occ.isInvasive);
             return (
               <span
                 className={`text-[10px] font-medium px-2 py-0.5 rounded-full border ${patri.color}`}
                 title={occ.isInvasive
-                  ? "Espèce exotique envahissante (EEE) : sans valeur patrimoniale de conservation, à signaler comme pression sur les milieux."
-                  : "Score de patrimonialité (fondé sur le statut UICN et la priorité française)"}
+                  ? "Espèce exotique envahissante (EEE) : sans valeur patrimoniale de conservation."
+                  : "Patrimonialité estimée (heuristique — statut national non vérifié)"}
                 data-testid={`badge-patrimonialite-${occ.scientificName}`}
               >
-                {occ.isInvasive ? patri.label : `Patrimonialité : ${patri.label}`}
+                {occ.isInvasive ? patri.label : `~Patri. ${patri.label}`}
               </span>
             );
           })()}
-          {occ.frenchProtected && (
+          {occ.frenchProtected && (!occ.aliStatuses || occ.aliStatuses.length === 0) && (
             <span
               className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-orange-100 text-orange-700 border border-orange-200"
-              title="Espèce appartenant à un groupe protégé ou patrimonial en France (protection nationale, Directive Habitats/Oiseaux, ZNIEFF déterminante). Signalée comme enjeu même si l'UICN mondiale ne l'a pas évaluée."
+              title="Groupe protégé en France (heuristique — statut national à vérifier par inventaire)"
               data-testid={`badge-french-protected-${occ.scientificName}`}
             >
-              🇫🇷 Protégé en France
+              🇫🇷 Groupe protégé
+            </span>
+          )}
+          {/* Habitat */}
+          {occ.habitatType === "marine" && (
+            <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-blue-50 text-blue-600 border border-blue-200">
+              🌊 Marin
             </span>
           )}
           {taxonGroup && (
@@ -1306,6 +1384,21 @@ function SpeciesCard({ occ, isSelected, onSelect }: { occ: Occurrence; isSelecte
             </span>
           )}
         </div>
+        {/* Avertissements de cohérence */}
+        {occ.enjeuWarnings && occ.enjeuWarnings.length > 0 && (
+          <div className="mt-1 flex flex-wrap gap-1">
+            {occ.enjeuWarnings.map((w, i) => (
+              <span
+                key={i}
+                className="inline-flex items-center gap-1 text-[9px] px-1.5 py-0.5 rounded bg-yellow-50 text-yellow-700 border border-yellow-200"
+                title={w}
+              >
+                <AlertTriangle className="h-2.5 w-2.5 shrink-0" />
+                {w}
+              </span>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );

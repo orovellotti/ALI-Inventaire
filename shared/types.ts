@@ -1,3 +1,31 @@
+/**
+ * Résumé compact d'un statut ALI/TAXREF, stocké sur l'occurrence pour affichage
+ * côté client sans appel API supplémentaire.
+ */
+export interface AliStatusSummary {
+  /** Catégorie lisible : "Liste rouge nationale", "Protection nationale", etc. */
+  category: string;
+  /** Code court : "VU", "Protégée", "Annexe II", etc. */
+  value: string;
+  /** Libellé complet (peut être long). */
+  label: string;
+  /** Tonalité visuelle. */
+  tone: "danger" | "warn" | "info" | "neutral";
+  /** Territoire de l'évaluation : "PACA", "France métropolitaine", etc. */
+  scope?: string;
+}
+
+/**
+ * Niveau d'enjeu territorial (remplace alertLevel pour la classification en buckets).
+ * Calculé à partir des statuts régionaux/nationaux/européens, jamais du seul UICN mondial.
+ */
+export type EnjeuLevel =
+  | "critique"    // CR/EX au niveau national ou régional
+  | "fort"        // EN/VU territorial ou NT + protection forte
+  | "modere"      // NT sans protection forte, ou protection seule
+  | "faible"      // LC ou aucun signal conservation
+  | "a_confirmer"; // Groupe protégé mais statut national non vérifié
+
 export interface Occurrence {
   key: number;
   scientificName: string;
@@ -21,6 +49,16 @@ export interface Occurrence {
   observationCount?: number;
   lastObservationYear?: number;
   sourceNames?: string[];
+  /** Rang taxonomique GBIF : SPECIES, SUBSPECIES, VARIETY, GENUS, FAMILY… */
+  taxonRank?: string;
+  /** Classification de l'habitat principal (heuristique taxonomique). */
+  habitatType?: "terrestrial" | "marine";
+  /** Statuts ALI/TAXREF enrichis (liste rouge régionale/nationale, protection…). */
+  aliStatuses?: AliStatusSummary[];
+  /** Niveau d'enjeu calculé à partir des statuts territoriaux. */
+  enjeuLevel?: EnjeuLevel;
+  /** Avertissements de cohérence (LC classé fort, protégée classée faible, etc.). */
+  enjeuWarnings?: string[];
 }
 
 export interface ConfidenceScore {

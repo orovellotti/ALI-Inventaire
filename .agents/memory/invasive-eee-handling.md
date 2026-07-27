@@ -36,3 +36,9 @@ those buckets into a dedicated fuchsia **"Exotique envahissante (EEE)"** section
 with a management-oriented "Action recommandée". Bucketing by alertLevel alone
 put invasives in "Fort" even though patrimonialité=0 — always gate on
 `occ.isInvasive` when classifying occurrences by enjeu.
+
+## Scoring engine — territorial enjeu model
+- `enjeuLevel` field on `Occurrence` (shared/types.ts) is the canonical bucket classification, computed server-side via `server/scoring.ts:computeEnjeuLevel`.
+- Only set for "sensitive candidates" (alertLevel=high OR frenchProtected) — rest stay enjeuLevel=undefined (faible by default).
+- `aliStatuses` (AliStatusSummary[]) stored on Occurrence: compact ALI statuses with territory scope.
+- `enjeuWarnings` (string[]): consistency flags — LC classé fort, protégée classée faible, etc.

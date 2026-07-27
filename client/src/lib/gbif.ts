@@ -5,6 +5,7 @@ import type {
   InventoryResult as InventoryResultType,
   ProjectPreset as ProjectPresetType,
   StudyArea,
+  EnjeuLevel,
 } from "@shared/types";
 
 export type Occurrence = OccurrenceType;
@@ -12,6 +13,7 @@ export type ConfidenceScore = ConfidenceScoreType;
 export type BufferCircle = BufferCircleType;
 export type InventoryResult = InventoryResultType;
 export type ProjectPreset = ProjectPresetType;
+export type { EnjeuLevel };
 
 export interface TaxonGroup {
   id: string;

@@ -3,6 +3,8 @@ import { searchINaturalist } from "./inaturalist";
 import { fetchTaxRefCdNom } from "./taxref";
 import { applyFrenchPriorityBoost, isFrenchPriority } from "./frenchPriority";
 import { isInvasiveExotic } from "./invasive";
+import { fetchAliStatusesForInventory } from "./ali";
+import { computeEnjeuLevel, checkConsistency } from "./scoring";
 import { calculateConfidenceScore, emptyConfidence } from "./confidence";
 import { haversineDistance } from "./lib/geo";
 import {
@@ -87,6 +89,37 @@ function dedupBySpecies<T extends { scientificName?: string; decimalLatitude?: n
   return Array.from(map.values());
 }
 
+// Rangs taxonomiques acceptés comme "espèce" (GBIF nomenclature).
+const SPECIES_RANKS = new Set([
+  "SPECIES", "SUBSPECIES", "VARIETY", "FORM", "SUBVARIETY", "RACE",
+]);
+
+/** Renvoie true si le rang est au niveau espèce ou infra-espèce. */
+function isSpeciesLevel(rank: string | undefined): boolean {
+  if (!rank) return true; // rang absent → on l'inclut par défaut
+  return SPECIES_RANKS.has(rank.toUpperCase());
+}
+
+/** Déduit l'habitat principal à partir de la taxonomie (heuristique). */
+function deriveHabitatType(
+  phylum: string | undefined,
+  klass: string | undefined,
+): "terrestrial" | "marine" {
+  const MARINE_PHYLA = new Set([
+    "Cnidaria", "Echinodermata", "Porifera", "Ctenophora", "Brachiopoda",
+    "Chaetognatha", "Bryozoa", "Hemichordata", "Phoronida", "Xenacoelomorpha", "Placozoa",
+  ]);
+  const MARINE_CLASSES = new Set([
+    "Chondrichthyes", "Cephalopoda", "Polyplacophora", "Scaphopoda",
+    "Ascidiacea", "Thaliacea", "Appendicularia",
+    "Anthozoa", "Hydrozoa", "Scyphozoa", "Cubozoa",
+    "Asteroidea", "Echinoidea", "Holothuroidea", "Crinoidea", "Ophiuroidea",
+  ]);
+  if (phylum && MARINE_PHYLA.has(phylum)) return "marine";
+  if (klass && MARINE_CLASSES.has(klass)) return "marine";
+  return "terrestrial";
+}
+
 async function enrichSpecies(record: any): Promise<Occurrence> {
   const speciesKey = record.speciesKey || record.taxonKey;
 
@@ -102,6 +135,48 @@ async function enrichSpecies(record: any): Promise<Occurrence> {
   const baseLevel = getAlertLevelFromIucn(iucnStatus);
   const alertLevel = applyFrenchPriorityBoost(baseLevel, record.family, record.order, record.class);
   const frenchProtected = isFrenchPriority(record.family, record.order, record.class);
+  const isInvasive = isInvasiveExotic(record.scientificName);
+  const taxonRank: string | undefined = record.taxonRank;
+  const habitatType = deriveHabitatType(record.phylum, record.class);
+
+  // Enrichissement territorial ALI pour les espèces potentiellement sensibles.
+  // Déclenché uniquement si alertLevel=high (espèce mondialement menacée) ou
+  // frenchProtected (groupe protégé en France). Les EEE sont explicitement
+  // exclues (isInvasive=true) : leur patrimonialité est nulle quel que soit leur
+  // statut UICN. Timeout court (4 s) — pas de blocage si ALI est lent ;
+  // le cache 24 h évite les requêtes redondantes sur les espèces déjà enrichies.
+  let aliStatuses: Occurrence["aliStatuses"] | undefined;
+  let enjeuLevel: Occurrence["enjeuLevel"] | undefined;
+  let enjeuWarnings: string[] | undefined;
+
+  const isSensitiveCandidate =
+    !isInvasive && (alertLevel === "high" || frenchProtected);
+
+  if (isSensitiveCandidate) {
+    const scientificNameBinomial = (record.scientificName ?? "")
+      .split(" ")
+      .slice(0, 2)
+      .join(" ");
+    aliStatuses =
+      (await fetchAliStatusesForInventory(scientificNameBinomial)) ?? undefined;
+
+    const { enjeuLevel: el, enjeuWarnings: ew } = computeEnjeuLevel({
+      globalIucn: iucnStatus,
+      frenchProtected,
+      isInvasive,
+      aliStatuses,
+    });
+    enjeuLevel = el;
+
+    const extraWarnings = checkConsistency({
+      enjeuLevel: el,
+      globalIucn: iucnStatus,
+      aliStatuses,
+      frenchProtected,
+    });
+    enjeuWarnings = [...ew, ...extraWarnings].filter(Boolean);
+    if (enjeuWarnings.length === 0) enjeuWarnings = undefined;
+  }
 
   return {
     key: record.key,
@@ -122,7 +197,12 @@ async function enrichSpecies(record: any): Promise<Occurrence> {
     sourceUrl: speciesKey ? `https://www.gbif.org/species/${speciesKey}` : undefined,
     cdNom,
     frenchProtected,
-    isInvasive: isInvasiveExotic(record.scientificName),
+    isInvasive,
+    taxonRank,
+    habitatType,
+    aliStatuses,
+    enjeuLevel,
+    enjeuWarnings,
   };
 }
 
@@ -240,6 +320,12 @@ function consolidateByCdRef(occurrences: Occurrence[]): ConsolidationResult {
     existing.cdNom = existing.cdNom ?? occ.cdNom;
     existing.frenchProtected = existing.frenchProtected || occ.frenchProtected;
     existing.isInvasive = existing.isInvasive || occ.isInvasive;
+    // Conserver l'aliStatuses/enjeuLevel de l'occurrence la plus informée
+    if (!existing.aliStatuses && occ.aliStatuses) {
+      existing.aliStatuses = occ.aliStatuses;
+      existing.enjeuLevel = occ.enjeuLevel;
+      existing.enjeuWarnings = occ.enjeuWarnings;
+    }
     if (ALERT_PRIORITY[occ.alertLevel] > ALERT_PRIORITY[existing.alertLevel]) {
       existing.alertLevel = occ.alertLevel;
     }
@@ -302,7 +388,10 @@ export async function searchGBIF(
 
   const confidence = calculateConfidenceScore(rawRecords);
   const obsStats = computeSpeciesObsStats(rawRecords);
-  const uniqueRecords = dedupBySpecies(rawRecords);
+  // Filtre les rangs supra-spécifiques (genres, familles…) : on ne veut pas
+  // les taxons non identifiés à l'espèce dans la liste d'inventaire.
+  const speciesLevelRecords = rawRecords.filter((r) => isSpeciesLevel(r.taxonRank));
+  const uniqueRecords = dedupBySpecies(speciesLevelRecords);
   const enriched = await Promise.all(uniqueRecords.map(enrichSpecies));
   for (const o of enriched) {
     const st = obsStats.get(o.scientificName);
