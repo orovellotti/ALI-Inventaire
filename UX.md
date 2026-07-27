@@ -127,6 +127,8 @@ Bouton **« ? »** : ouvre une fenêtre expliquant la méthodologie (sources, ca
 ### Dialogue « Agent IA »
 Bouton **« Agent IA »** : explique comment connecter Inventaire Flash comme **serveur MCP** à Claude Desktop, ChatGPT (Custom Connector ou Custom GPT), Claude.ai, Cursor. Inclut un prompt système prêt à coller et des exemples de questions naturelles (« Quelles espèces protégées autour de Honfleur ? »).
 
+Le serveur MCP est exposé sur l'endpoint **`/mcp`** (Streamable HTTP, mode stateless). En production, l'URL à fournir aux clients MCP est **`https://ali-inventaire.replit.app/mcp`** (le dialogue la déduit automatiquement de l'URL courante). Outils exposés : `inventory_simple`, `inventory_multi`, `species_details`, `geocode`, `sinp_links`, `zonages_for_location`, `priority_species_for_location`, `list_reference_data`.
+
 ### Reformulation IA du rapport
 Le bouton **« Reformuler »** envoie le rapport brut à GPT-4o-mini (via le proxy AI Integrations de Replit) qui produit une note de synthèse de 250-400 mots, structurée (contexte, enjeux, espèces clés, recommandations justifiées, limites), respectant strictement les données fournies (pas d'hallucination de référentiels).
 

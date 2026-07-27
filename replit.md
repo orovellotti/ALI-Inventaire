@@ -45,7 +45,7 @@ Preferred communication style: Simple, everyday language.
 | `GET` | `/api/zonages?lat=&lng=&radius=` | Environmental zonings (ZNIEFF, Natura 2000, réserves…) intersecting the study area, grouped by category |
 | `GET` | `/api/natura2000/expected?lat=&lng=&radius=` | Designating species of nearby Natura 2000 sites (local Postgres DB, France), deduped by species, for "expected species" panel |
 | `POST` | `/api/llm/priority-species` | AI analysis of priority species (espèces à enjeux) for a toponym |
-| `ALL`  | `/mcp` | MCP server (Streamable HTTP, stateless). Tools: `inventory_simple`, `inventory_multi`, `species_details`, `geocode`, `sinp_links`, `zonages_for_location`, `priority_species_for_location`, `list_reference_data` |
+| `ALL`  | `/mcp` | MCP server (Streamable HTTP, stateless). Production URL: `https://ali-inventaire.replit.app/mcp`. Tools: `inventory_simple`, `inventory_multi`, `species_details`, `geocode`, `sinp_links`, `zonages_for_location`, `priority_species_for_location`, `list_reference_data` |
 
 ### Data Layer
 - **ORM**: Drizzle ORM with PostgreSQL dialect
