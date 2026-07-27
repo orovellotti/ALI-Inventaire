@@ -736,31 +736,33 @@ ${shareUrl ? `\n🔗 Reproduire cette analyse : ${shareUrl}` : ""}`;
           {/* SYNTHÈSE */}
           <div className={activeTab === "synthese" ? "space-y-4" : "hidden"} data-testid="panel-synthese">
             <div className="rounded-xl border border-gray-200 bg-white p-4">
-              <div className="grid grid-cols-3 gap-3 text-center">
+              <div className="grid grid-cols-4 gap-2 text-center">
                 <div>
-                  <div className="text-2xl font-bold text-gray-900" data-testid="text-species-detected">{results.stats.speciesCount}</div>
-                  <div className="text-[11px] text-gray-500 leading-tight">taxons valides</div>
+                  <div className="text-xl font-bold text-gray-900" data-testid="text-species-detected">{results.stats.speciesCount}</div>
+                  <div className="text-[10px] text-gray-500 leading-tight">taxons</div>
                   {results.stats.rawNameCount != null && results.stats.rawNameCount !== results.stats.speciesCount && (
-                    <div className="text-[9px] text-gray-400 leading-tight mt-0.5" data-testid="text-raw-names">sur {results.stats.rawNameCount} noms collectés</div>
+                    <div className="text-[9px] text-gray-400 leading-tight mt-0.5" data-testid="text-raw-names">/{results.stats.rawNameCount}</div>
                   )}
                 </div>
                 <div>
-                  <div className="text-2xl font-bold text-orange-600" data-testid="text-species-sensitive">{results.stats.sensitiveCount}</div>
-                  <div className="text-[11px] text-gray-500 leading-tight">espèces sensibles</div>
+                  <div className="text-xl font-bold text-orange-600" data-testid="text-species-sensitive">{results.stats.sensitiveCount}</div>
+                  <div className="text-[10px] text-gray-500 leading-tight">sensibles</div>
                 </div>
                 <div>
-                  <div className="text-2xl font-bold text-teal-600" data-testid="text-zonages-total">{zonages?.count ?? "—"}</div>
-                  <div className="text-[11px] text-gray-500 leading-tight">zonages</div>
+                  <div className="text-xl font-bold text-teal-600" data-testid="text-zonages-total">{zonages?.count ?? "—"}</div>
+                  <div className="text-[10px] text-gray-500 leading-tight">zonages</div>
                 </div>
-              </div>
-              <div className="mt-3 pt-3 border-t border-gray-100 text-[11px] text-gray-400 text-center">
-                Sources : {sourcesLabel}
+                <div>
+                  <div className="text-xl font-bold text-indigo-600">{includeINaturalist ? 2 : 1}</div>
+                  <div className="text-[10px] text-gray-500 leading-tight">source{(includeINaturalist ? 2 : 1) > 1 ? "s" : ""}</div>
+                  <div className="text-[9px] text-gray-400 mt-0.5">{includeINaturalist ? "GBIF+iNat" : "GBIF"}</div>
+                </div>
               </div>
             </div>
 
-            <div className="grid grid-cols-1 gap-3">
-              <ConfidencePanel confidence={results.confidence} />
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <RiskScoreCard score={riskScore.score} label={riskScore.label} tone={riskScore.tone} factors={riskScore.factors} />
+              <ConfidencePanel confidence={results.confidence} />
             </div>
 
             <div className="rounded-xl border border-blue-200 bg-blue-50/50 p-4">
@@ -826,6 +828,7 @@ ${shareUrl ? `\n🔗 Reproduire cette analyse : ${shareUrl}` : ""}`;
                             occ={occ}
                             isSelected={selectedSpecies === occ.scientificName}
                             onSelect={() => onSelectSpecies(selectedSpecies === occ.scientificName ? null : occ.scientificName)}
+                            centerCoords={results.center}
                           />
                           <div className="mt-1 ml-1 flex items-start gap-1.5 text-[11px] text-gray-600" data-testid={`action-${occ.scientificName}`}>
                             <ClipboardList className="h-3 w-3 shrink-0 mt-0.5 text-teal-600" />
@@ -1242,9 +1245,25 @@ function CompactSpeciesRow({ occ, isSelected, onSelect }: { occ: Occurrence; isS
   );
 }
 
-function SpeciesCard({ occ, isSelected, onSelect }: { occ: Occurrence; isSelected: boolean; onSelect: () => void }) {
+function haversineKm(aLat: number, aLng: number, bLat: number, bLng: number): number {
+  const R = 6371;
+  const toRad = (d: number) => (d * Math.PI) / 180;
+  const dLat = toRad(bLat - aLat);
+  const dLng = toRad(bLng - aLng);
+  const s = Math.sin(dLat / 2) ** 2 + Math.cos(toRad(aLat)) * Math.cos(toRad(bLat)) * Math.sin(dLng / 2) ** 2;
+  return 2 * R * Math.asin(Math.min(1, Math.sqrt(s)));
+}
+
+function fmtDist(km: number): string {
+  return km < 1 ? `${Math.round(km * 1000)} m` : `${km.toFixed(1)} km`;
+}
+
+function SpeciesCard({ occ, isSelected, onSelect, centerCoords }: { occ: Occurrence; isSelected: boolean; onSelect: () => void; centerCoords?: [number, number] }) {
   const [imageError, setImageError] = useState(false);
   const gbifUrl = occ.taxonKey ? `https://www.gbif.org/species/${occ.taxonKey}` : null;
+  const distKm = centerCoords
+    ? haversineKm(centerCoords[0], centerCoords[1], occ.decimalLatitude, occ.decimalLongitude)
+    : undefined;
   const wikiUrl = `https://fr.wikipedia.org/wiki/${encodeURIComponent(occ.scientificName.split(' ').slice(0, 2).join('_'))}`;
   const aliUrl = occ.cdNom
     ? `https://alispecies.io/taxon/${occ.cdNom}`
@@ -1399,6 +1418,29 @@ function SpeciesCard({ occ, isSelected, onSelect }: { occ: Occurrence; isSelecte
             ))}
           </div>
         )}
+        {/* Métadonnées d'observation */}
+        <div className="mt-2 pt-2 border-t border-gray-100/80 flex flex-wrap gap-x-3 gap-y-0.5 text-[10px] text-gray-400">
+          {distKm !== undefined && (
+            <span className="flex items-center gap-0.5" title="Distance approximative depuis le centre de l'aire d'étude">
+              <MapPin className="h-2.5 w-2.5 shrink-0" /> {fmtDist(distKm)}
+            </span>
+          )}
+          {occ.lastObservationYear && (
+            <span className="flex items-center gap-0.5" title="Année de la dernière observation">
+              <Calendar className="h-2.5 w-2.5 shrink-0" /> {occ.lastObservationYear}
+            </span>
+          )}
+          {occ.observationCount != null && occ.observationCount > 0 && (
+            <span title={`${occ.observationCount} occurrence${occ.observationCount > 1 ? "s" : ""} dans l'aire`}>
+              ×{occ.observationCount} obs.
+            </span>
+          )}
+          {occ.source && (
+            <span className="uppercase tracking-wide font-mono text-[9px]" title={occ.source === "inaturalist" ? "iNaturalist — science participative" : "GBIF — agrégateur institutionnel"}>
+              {occ.source === "inaturalist" ? "iNat" : "GBIF"}
+            </span>
+          )}
+        </div>
       </div>
     </div>
   );

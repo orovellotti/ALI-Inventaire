@@ -48,32 +48,53 @@ L'utilisateur clique sur **« ⚡ Lancer l'inventaire flash »**. Pendant le tra
 - Les requêtes vers GBIF et iNaturalist sont parallélisées côté serveur.
 - Les résultats sont fusionnés, dédoublonnés, et enrichis avec les statuts UICN.
 
-### Étape 5 — Lire les résultats
-Le **panneau de résultats** glisse depuis la droite. La carte se décale automatiquement vers la gauche pour que le point d'analyse reste visible à côté du panneau. Le panneau contient :
+### Étape 5 — Lire les résultats (tableau de bord à onglets)
+Le **panneau de résultats** glisse depuis la droite. La carte se décale automatiquement vers la gauche pour que le point d'analyse reste visible à côté du panneau. Plutôt qu'une longue liste déroulante, le panneau est un **tableau de bord d'aide à la décision organisé en 5 onglets** navigables via une barre d'onglets à icônes et badges numériques. L'objectif : permettre à un écologue de comprendre le niveau d'enjeu d'un secteur en moins de 30 secondes.
 
-1. **En-tête** : nom du lieu, coordonnées, rayon, date.
-2. **Indice de confiance** (0-100) calculé sur 6 critères : géolocalisation, fiabilité taxonomique, fraîcheur temporelle, traçabilité, qualité de la source, dédoublonnage.
-3. **Compteurs synthétiques** : nombre total d'espèces, espèces sensibles, répartition haut/moyen/faible enjeu.
-4. **Filtres par groupe taxonomique** (chips cliquables) : Oiseaux, Mammifères, Reptiles, Amphibiens, Poissons, Insectes, Arachnides, Mollusques, Plantes, Champignons, Autres. « Tout sélectionner / désélectionner » disponible.
-5. **Listes d'espèces** par niveau d'enjeu :
-   - 🔴 **Enjeux forts** (UICN CR/EN/VU)
-   - 🟠 **Enjeux moyens** (UICN NT/DD)
-   - 🟢 **Enjeux faibles** (LC ou non évalué)
-   - Chaque carte d'espèce : vignette photo, nom scientifique, nom vernaculaire français, statut UICN, liens vers ALI Species (référentiel français TAXREF), Wikipédia, GBIF, iNaturalist.
-6. **Boutons d'action** en pied de panneau :
-   - **Copier le rapport** (texte structuré pour mail/chat)
-   - **Reformuler** (✨ IA — produit une note de synthèse rédigée par GPT-4o-mini)
-   - **Partager** (Web Share API ou copie)
-   - **Email** (mailto: pré-rempli)
-   - **Export CSV / Excel** (3 feuilles : espèces, métadonnées, synthèse par groupe)
-   - **Export image** (capture .jpg de la carte)
-   - **Espèces à enjeux** (✨ analyse IA dédiée : top 5 espèces à enjeux avec citation des référentiels)
+En-tête permanent : nom du lieu, coordonnées, rayon, date.
+
+**Onglet 1 — Synthèse** (vue d'entrée)
+- **4 compteurs** : taxons valides (avec le nombre de noms bruts collectés en annotation), espèces sensibles, zonages, sources interrogées (GBIF / GBIF+iNat).
+- **2 indicateurs côte à côte** :
+  - *Potentiel d'enjeux* : jauge circulaire (SVG) 0-100 avec icône, libellé et facteurs contributifs listés.
+  - *Indice de confiance* (0-100) calculé sur 6 critères : géolocalisation, fiabilité taxonomique, fraîcheur temporelle, traçabilité, qualité de la source, dédoublonnage.
+- **Synthèse automatique** : court texte généré côté client résumant le secteur.
+- **3 boutons d'action** qui basculent vers les autres onglets : « Analyser les enjeux », « Préparer les inventaires », « Générer une note écologique ».
+
+**Onglet 2 — Enjeux** (cœur décisionnel)
+Les espèces sont classées par **niveau d'enjeu territorial** (moteur de scoring multi-échelle : régional → national → européen → mondial, précédence stricte), présenté en **6 sections repliables** (les plus critiques ouvertes par défaut) :
+- 🔴 **Critique**
+- 🟠 **Fort**
+- 🟡 **Modéré**
+- ⚪ **À confirmer** (statut incertain, ex. ALI indisponible)
+- 🟢 **Faible**
+- 🟤 **EEE** (espèces exotiques envahissantes — enjeu de gestion, jamais de conservation)
+
+Chaque carte d'espèce affiche : vignette photo, nom vernaculaire + scientifique, statuts territoriaux ALI/TAXREF (portée + territoire + tonalité), statut UICN, avertissements de cohérence, action recommandée, **métadonnées d'observation** (distance depuis le centre, année de dernière observation, nombre d'occurrences, source) et liens vers ALI Species (référentiel français TAXREF), Wikipédia, GBIF, iNaturalist.
+
+**Onglet 3 — Espèces** (exploration exhaustive)
+- **Chips de filtre par attribut** : Toutes, Protégées, Menacées, Patrimoniales, Récentes, Marine, Terrestre.
+- **Champ de recherche** par nom.
+- **Cartes de groupes taxonomiques** repliables (Oiseaux, Mammifères, Reptiles, Amphibiens, Poissons, Insectes, Arachnides, Mollusques, Plantes, Champignons, Autres) avec compteurs (total / sensibles / protégées) et période propice d'inventaire.
+- **Liste compacte** : une ligne par espèce (nom vernaculaire + scientifique une seule fois), badge de niveau d'enjeu, statut, dernière observation, source, icône info pour les statuts non évalués.
+
+**Onglet 4 — Zonages** (contexte réglementaire)
+- Phrase de synthèse des zonages recoupés.
+- Zonages environnementaux (parcs, réserves, Natura 2000, ZNIEFF, zones humides), espèces désignantes Natura 2000 attendues, et lien SINP régional.
+
+**Onglet 5 — Agent IA** (analyse experte)
+- Analyse IA « Espèces à enjeux » : top 5 espèces les plus marquantes avec niveau et justification citant les référentiels officiels.
+
+**Pied de panneau — actions transverses** (accessibles depuis tous les onglets)
+- **Note écologique** : ouvre un dialogue avec le rapport texte structuré, copiable ; option **Reformuler** (✨ IA GPT-4o-mini) ; **Partager** (Web Share API) ; **Email** (mailto: pré-rempli).
+- **Export CSV / Excel** (3 feuilles : espèces, métadonnées, synthèse par groupe).
+- **Export image** (capture .jpg de la carte).
 
 ### Étape 6 — Interaction carte ↔ liste
 - **Marqueurs colorés** sur la carte (rouge/orange/vert selon le niveau d'enjeu) pour chaque observation.
 - **Survol** d'un marqueur : info-bulle avec nom vernaculaire + scientifique + statut UICN.
-- **Clic** sur un marqueur : sélectionne l'espèce, met en surbrillance le point (anneau teal), ouvre le panneau si fermé, scrolle vers la carte d'espèce correspondante.
-- **Clic** sur une carte d'espèce dans le panneau : met en évidence ses observations sur la carte.
+- **Clic** sur un marqueur : sélectionne l'espèce, met en surbrillance le point (anneau teal), ouvre le panneau si fermé et bascule sur l'onglet pertinent (Enjeux/Espèces) pour révéler la carte d'espèce correspondante.
+- **Clic** sur une carte ou une ligne d'espèce dans le panneau : met en évidence ses observations sur la carte.
 
 ### Étape 7 — Couches contextuelles (optionnel)
 Le bouton **« Couches »** en haut à droite ouvre un sélecteur pour :
@@ -93,6 +114,9 @@ Le bouton **« Couches »** en haut à droite ouvre un sélecteur pour :
 ---
 
 ## 4. Composants UX transverses
+
+### Barre d'onglets du tableau de bord
+Le panneau de résultats est structuré en 5 onglets (Synthèse, Enjeux, Espèces, Zonages, Agent IA) présentés dans une barre scrollable horizontalement, chacun avec une icône et un badge numérique (ex. nombre d'espèces à enjeux, nombre de zonages). Les boutons d'action de l'onglet Synthèse servent de raccourcis vers les autres onglets pour guider le parcours de lecture.
 
 ### Panneau redimensionnable
 La poignée verticale verte sur le bord gauche du panneau de résultats permet de le redimensionner (largeur 360-800 px). Double-clic = reset à 600 px. La carte s'adapte automatiquement au nouveau décalage.
@@ -129,7 +153,7 @@ Bouton dédié dans le panneau : identifie les **5 espèces les plus marquantes*
 
 ## 6. Principes mobiles
 
-L'application est **responsive** : sur mobile, le panneau de résultats devient plein écran avec un bouton de fermeture en haut. La carte reste accessible en arrière-plan via un bouton « Voir la carte ». Les chips de filtres taxon scrollent horizontalement. Les boutons d'export utilisent l'API Web Share native quand disponible.
+L'application est **responsive** : sur mobile, le tableau de bord de résultats devient une **feuille inférieure** (bottom sheet, hauteur 80 %, coins arrondis) glissant depuis le bas, avec un bouton de fermeture. Sur desktop il s'agit d'un panneau latéral fixe et redimensionnable. Dans les deux cas la barre d'onglets et les chips de filtres taxon scrollent horizontalement. Les boutons d'export utilisent l'API Web Share native quand disponible.
 
 ---
 
