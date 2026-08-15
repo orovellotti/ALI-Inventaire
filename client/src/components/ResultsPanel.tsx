@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { X, Download, FileText, AlertTriangle, AlertCircle, Leaf, Info, ChevronDown, ChevronUp, ImageOff, Copy, Check, ExternalLink, BookOpen, Shield, ShieldAlert, MapPin, Tag, Calendar, Link, Flag, Layers, Filter, Table, Sparkles, Loader2, Share2, Mail, MoreHorizontal, Settings2, Search, Activity, ListChecks, ClipboardList, LayoutGrid, ChevronRight, Gauge } from "lucide-react";
+import { X, Download, FileText, AlertTriangle, AlertCircle, Leaf, Info, ChevronDown, ChevronUp, ImageOff, Copy, Check, ExternalLink, BookOpen, Shield, ShieldAlert, MapPin, Tag, Calendar, Link, Flag, Layers, Filter, Table, Sparkles, Loader2, Share2, Mail, MoreHorizontal, Settings2, Search, ChevronLeft, ListChecks, ClipboardList, LayoutGrid, ChevronRight, Gauge } from "lucide-react";
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuCheckboxItem } from "@/components/ui/dropdown-menu";
 import { InventoryResult, Occurrence, getIucnLabel, getIucnFullLabel, getPatrimonialite, ConfidenceScore, TAXON_GROUPS, getTaxonGroupId, isMarineSpecies } from "@/lib/gbif";
 import { findSINPPlatforms, SINPPlatform } from "@/lib/sinp";
@@ -39,8 +39,10 @@ interface ZonagesData {
   errors: string[];
 }
 
-type TabKey = "overview" | "especes" | "zonages";
-type DisplayMode = "essentiel" | "expert";
+/** Vue courante du panneau : diagnostic (page unique) ou l'une des deux vues détaillées. */
+type PanelView = "diagnostic" | "especes" | "zonages";
+/** Sections repliables du diagnostic. */
+type SectionKey = "especes" | "zonages" | "pourquoi" | "qualite";
 
 /**
  * Niveau d'enjeu global du site (Faible / Modéré / Fort), dérivé du score de
@@ -133,18 +135,13 @@ interface ResultsPanelProps {
 }
 
 export function ResultsPanel({ isOpen, onClose, results, selectedSpecies, onSelectSpecies, activeTaxonFilters, onToggleTaxonFilter, onToggleAllTaxonFilters, excludeMarine, onToggleExcludeMarine, includeINaturalist, onToggleIncludeINaturalist, toponym }: ResultsPanelProps) {
-  const [activeTab, setActiveTab] = useState<TabKey>("overview");
-  const [displayMode, setDisplayMode] = useState<DisplayMode>(() => {
-    if (typeof window === "undefined") return "essentiel";
-    const saved = localStorage.getItem("if.displayMode");
-    return saved === "expert" ? "expert" : "essentiel";
-  });
+  const [view, setView] = useState<PanelView>("diagnostic");
+  const [openSections, setOpenSections] = useState<Set<SectionKey>>(new Set());
+  const [showCalcDetail, setShowCalcDetail] = useState(false);
   const [assistantOpen, setAssistantOpen] = useState(false);
   const [expandedZonages, setExpandedZonages] = useState<Set<string>>(new Set());
-  const [showAllZonages, setShowAllZonages] = useState(false);
   const [speciesQuery, setSpeciesQuery] = useState("");
-  const [attrFilters, setAttrFilters] = useState<Set<string>>(new Set());
-  const [openEnjeux, setOpenEnjeux] = useState<Set<string>>(new Set(["critique", "fort"]));
+  const [speciesScope, setSpeciesScope] = useState<"prioritaires" | "toutes">("prioritaires");
   const [showReportPreview, setShowReportPreview] = useState(false);
   const [copied, setCopied] = useState(false);
   const [reformattedReport, setReformattedReport] = useState<string | null>(null);
@@ -188,22 +185,56 @@ export function ResultsPanel({ isOpen, onClose, results, selectedSpecies, onSele
   useEffect(() => {
     // Réinitialise l'état d'interface propre à un résultat lors d'une nouvelle analyse
     setAiAnalysis(null);
-    setActiveTab("overview");
-    setShowAllZonages(false);
+    setView("diagnostic");
+    setOpenSections(new Set());
+    setShowCalcDetail(false);
     setExpandedZonages(new Set());
     setAssistantOpen(false);
+    setSpeciesScope("prioritaires");
+    setSpeciesQuery("");
   }, [results]);
 
-  // Fermeture de l'assistant au clavier (Échap) + focus à l'ouverture
+  // Fermeture de l'assistant au clavier (Échap), focus à l'ouverture,
+  // piégeage du focus dans le tiroir et restitution au déclencheur à la fermeture.
   const assistantCloseRef = useRef<HTMLButtonElement | null>(null);
+  const assistantDrawerRef = useRef<HTMLDivElement | null>(null);
+  const explainTriggerRef = useRef<HTMLButtonElement | null>(null);
   useEffect(() => {
     if (!assistantOpen) return;
     assistantCloseRef.current?.focus();
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setAssistantOpen(false);
+      if (e.key === "Escape") {
+        setAssistantOpen(false);
+        return;
+      }
+      if (e.key === "Tab") {
+        const drawer = assistantDrawerRef.current;
+        if (!drawer) return;
+        const focusables = drawer.querySelectorAll<HTMLElement>(
+          'button, [href], input, textarea, select, [tabindex]:not([tabindex="-1"])'
+        );
+        if (focusables.length === 0) return;
+        const first = focusables[0];
+        const last = focusables[focusables.length - 1];
+        const active = document.activeElement as HTMLElement | null;
+        if (!active || !drawer.contains(active)) {
+          e.preventDefault();
+          first.focus();
+        } else if (e.shiftKey && active === first) {
+          e.preventDefault();
+          last.focus();
+        } else if (!e.shiftKey && active === last) {
+          e.preventDefault();
+          first.focus();
+        }
+      }
     };
     window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      // Restitue le focus au bouton « Expliquer ce diagnostic »
+      explainTriggerRef.current?.focus();
+    };
   }, [assistantOpen]);
 
   useEffect(() => {
@@ -397,21 +428,18 @@ export function ResultsPanel({ isOpen, onClose, results, selectedSpecies, onSele
     return { critique, fort, modere, aConfirmer, faible, eee };
   }, [sortedSpecies]);
 
+  /** Espèces prioritaires, par niveau d'enjeu décroissant (critique → fort → modéré → à confirmer). */
+  const prioritySpeciesList = useMemo(
+    () => [...enjeuxBuckets.critique, ...enjeuxBuckets.fort, ...enjeuxBuckets.modere, ...enjeuxBuckets.aConfirmer],
+    [enjeuxBuckets]
+  );
+
   const especesList = useMemo(() => {
     const q = speciesQuery.trim().toLowerCase();
-    return allFilteredSpecies.filter((o) => {
-      if (attrFilters.has("sensibles") && !(o.alertLevel === "high" || o.alertLevel === "medium")) return false;
-      if (attrFilters.has("averifier") && !(o.enjeuLevel === "a_confirmer" || (!o.enjeuLevel && isNotEvaluated(o.iucnStatus)))) return false;
-      if (attrFilters.has("protegees") && !o.frenchProtected) return false;
-      if (attrFilters.has("menacees") && !isThreatened(o.iucnStatus)) return false;
-      if (attrFilters.has("patrimoniales") && getPatrimonialite(o.iucnStatus, o.alertLevel, o.isInvasive).level < 4) return false;
-      if (attrFilters.has("recentes") && !(o.lastObservationYear && o.lastObservationYear >= CURRENT_YEAR - 5)) return false;
-      if (attrFilters.has("marine") && !isMarineSpecies(o)) return false;
-      if (attrFilters.has("terrestre") && isMarineSpecies(o)) return false;
-      if (q && !`${o.scientificName} ${o.vernacularName || ""}`.toLowerCase().includes(q)) return false;
-      return true;
-    });
-  }, [allFilteredSpecies, attrFilters, speciesQuery]);
+    const base = speciesScope === "prioritaires" ? prioritySpeciesList : allFilteredSpecies;
+    if (!q) return base;
+    return base.filter((o) => `${o.scientificName} ${o.vernacularName || ""}`.toLowerCase().includes(q));
+  }, [allFilteredSpecies, prioritySpeciesList, speciesScope, speciesQuery]);
 
   const riskScore = useMemo(() => {
     const hi = sortedSpecies.high.length;
@@ -479,13 +507,42 @@ export function ResultsPanel({ isOpen, onClose, results, selectedSpecies, onSele
     return text;
   }, [results, zonages, riskScore]);
 
-  const setMode = (m: DisplayMode) => {
-    setDisplayMode(m);
-    try { localStorage.setItem("if.displayMode", m); } catch {}
-  };
-  const isExpert = displayMode === "expert";
-
   const globalLevel = useMemo(() => computeGlobalIssueLevel(riskScore.tone), [riskScore.tone]);
+
+  const prefersReducedMotionRef = useRef(
+    typeof window !== "undefined" && window.matchMedia?.("(prefers-reduced-motion: reduce)").matches
+  );
+
+  // Sélection d'une espèce depuis la carte : bascule sur la vue détaillée Espèces
+  // (portée adaptée) et fait défiler jusqu'à la fiche correspondante.
+  useEffect(() => {
+    if (!selectedSpecies || !isOpen) return;
+    // Si l'espèce est déjà visible dans la vue détaillée courante, on se contente de défiler.
+    const alreadyVisible = view === "especes" && especesList.some((o) => o.scientificName === selectedSpecies);
+    if (!alreadyVisible) {
+      const isPriority = prioritySpeciesList.some((o) => o.scientificName === selectedSpecies);
+      setSpeciesScope(isPriority ? "prioritaires" : "toutes");
+      setView("especes");
+      setSpeciesQuery("");
+    }
+    // Attendre le rendu de la vue détaillée avant de faire défiler
+    const t = window.setTimeout(() => {
+      document
+        .querySelector(`[data-species-item="${CSS.escape(selectedSpecies)}"]`)
+        ?.scrollIntoView({ behavior: prefersReducedMotionRef.current ? "auto" : "smooth", block: "center" });
+    }, 100);
+    return () => window.clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedSpecies]);
+
+  const toggleSection = (key: SectionKey) => {
+    setOpenSections((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  };
 
   // Liste plate des zonages, triée par priorité de vigilance (réglementaire → Natura 2000 → ZNIEFF → info)
   const flatZonages = useMemo(() => {
@@ -712,60 +769,20 @@ ${shareUrl ? `\n🔗 Reproduire cette analyse : ${shareUrl}` : ""}`;
     }
   };
 
-  const toggleAttr = (key: string) => {
-    setAttrFilters((prev) => {
-      const next = new Set(prev);
-      if (next.has(key)) next.delete(key);
-      else next.add(key);
-      return next;
-    });
-  };
-
-  const toggleEnjeu = (key: string) => {
-    setOpenEnjeux((prev) => {
-      const next = new Set(prev);
-      if (next.has(key)) next.delete(key);
-      else next.add(key);
-      return next;
-    });
-  };
-
   if (!isOpen || !results) return null;
 
   const sourcesLabel = `GBIF${includeINaturalist ? " · iNaturalist" : ""} · UICN · ALI/TAXREF · IGN/INPN`;
 
-  const tabs: { key: TabKey; label: string; icon: typeof Activity; badge?: number }[] = [
-    { key: "overview", label: "Vue d'ensemble", icon: Activity },
-    { key: "especes", label: "Espèces", icon: Leaf, badge: filteredTotal },
-    { key: "zonages", label: "Zonages", icon: Layers, badge: zonages?.count || 0 },
+  const assistantSuggestions: string[] = [
+    "Résume ce diagnostic pour un non-spécialiste.",
+    "Quels sont les trois principaux risques ?",
+    "Quelles espèces nécessitent une vérification terrain ?",
+    "Quelles conséquences des zonages pour mon projet ?",
   ];
 
-  const assistantSuggestions: Record<TabKey, string[]> = {
-    overview: [
-      "Résume ce diagnostic pour un non-spécialiste.",
-      "Quels sont les trois principaux risques ?",
-      "Quelles vérifications faut-il effectuer ?",
-    ],
-    especes: [
-      "Quelles espèces nécessitent une vérification terrain ?",
-      "Quelles sont les périodes sensibles ?",
-      "Résume les espèces protégées.",
-    ],
-    zonages: [
-      "Pourquoi ces zonages sont-ils importants ?",
-      "Quelles conséquences pour mon projet ?",
-      "Résume les contraintes réglementaires.",
-    ],
-  };
-
-  const enjeuxSections: { key: string; label: string; tone: string; items: Occurrence[]; defaultTip: string }[] = [
-    { key: "critique", label: "Critique", tone: "bg-red-50 border-red-200 text-red-700", items: enjeuxBuckets.critique, defaultTip: "CR/EX au niveau national ou régional — enjeu patrimonial majeur" },
-    { key: "fort", label: "Fort", tone: "bg-orange-50 border-orange-200 text-orange-700", items: enjeuxBuckets.fort, defaultTip: "EN/VU au niveau national ou régional, ou NT + protection forte" },
-    { key: "modere", label: "Modéré", tone: "bg-amber-50 border-amber-200 text-amber-700", items: enjeuxBuckets.modere, defaultTip: "NT sans protection forte, ou protection nationale/directive/ZNIEFF sans menace" },
-    { key: "a_confirmer", label: "À confirmer", tone: "bg-sky-50 border-sky-200 text-sky-700", items: enjeuxBuckets.aConfirmer, defaultTip: "Groupe protégé en France, statut national non vérifié — à confirmer par inventaire terrain" },
-    { key: "faible", label: "Faible", tone: "bg-green-50 border-green-200 text-green-700", items: enjeuxBuckets.faible, defaultTip: "LC ou NE au niveau national/régional — enjeu conservation faible" },
-    { key: "eee", label: "Exotique envahissante (EEE)", tone: "bg-fuchsia-50 border-fuchsia-200 text-fuchsia-700", items: enjeuxBuckets.eee, defaultTip: "Espèce exotique envahissante : enjeu de gestion, sans valeur patrimoniale de conservation" },
-  ];
+  const fortSpeciesCount = enjeuxBuckets.critique.length + enjeuxBuckets.fort.length;
+  const prefersReducedMotion =
+    typeof window !== "undefined" && window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
 
   return (
     <AnimatePresence>
@@ -773,7 +790,7 @@ ${shareUrl ? `\n🔗 Reproduire cette analyse : ${shareUrl}` : ""}`;
         initial={{ x: "100%" }}
         animate={{ x: 0 }}
         exit={{ x: "100%" }}
-        transition={{ type: "spring", damping: 25, stiffness: 200 }}
+        transition={prefersReducedMotion ? { duration: 0 } : { type: "spring", damping: 25, stiffness: 200 }}
         className="fixed right-0 z-[2000] bg-white/95 backdrop-blur-xl shadow-2xl border-white/20 flex flex-col inset-x-0 bottom-0 h-[80vh] rounded-t-2xl border-t md:inset-x-auto md:top-0 md:bottom-auto md:h-full md:max-w-[95vw] md:rounded-none md:border-t-0 md:border-l"
         style={typeof window !== "undefined" && window.innerWidth >= 768 ? { width: panelWidth } : undefined}
       >
@@ -796,22 +813,6 @@ ${shareUrl ? `\n🔗 Reproduire cette analyse : ${shareUrl}` : ""}`;
               )}
             </div>
             <div className="flex items-center gap-1 shrink-0">
-              <div className="flex rounded-lg border border-gray-200 overflow-hidden mr-1" role="group" aria-label="Niveau de détail">
-                {(["essentiel", "expert"] as DisplayMode[]).map((m) => (
-                  <button
-                    key={m}
-                    type="button"
-                    onClick={() => setMode(m)}
-                    aria-pressed={displayMode === m}
-                    className={`px-2 py-1 text-[10px] font-semibold capitalize transition-colors ${
-                      displayMode === m ? "bg-teal-600 text-white" : "bg-white text-gray-500 hover:bg-gray-50"
-                    }`}
-                    data-testid={`button-mode-${m}`}
-                  >
-                    {m === "essentiel" ? "Essentiel" : "Expert"}
-                  </button>
-                ))}
-              </div>
               <Button
                 variant="outline"
                 size="sm"
@@ -853,6 +854,33 @@ ${shareUrl ? `\n🔗 Reproduire cette analyse : ${shareUrl}` : ""}`;
                   )}
                 </DropdownMenuContent>
               </DropdownMenu>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="ghost" size="icon" className="hover:bg-gray-100 rounded-full h-8 w-8" data-testid="button-more-exports" title="Exports et partage" aria-label="Exports et partage">
+                    <MoreHorizontal className="h-4 w-4 text-gray-500" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-52">
+                  <DropdownMenuLabel className="text-xs">Exporter les données</DropdownMenuLabel>
+                  <DropdownMenuItem onClick={handleExportExcel} data-testid="button-export-excel" className="gap-2 text-xs">
+                    <Table className="h-3.5 w-3.5" /> Excel (.xlsx)
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={handleExportCSV} data-testid="button-export-csv" className="gap-2 text-xs">
+                    <FileText className="h-3.5 w-3.5" /> CSV
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={handleExportImage} data-testid="button-export-image" className="gap-2 text-xs">
+                    <Download className="h-3.5 w-3.5" /> Image de la carte
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuLabel className="text-xs">Partager</DropdownMenuLabel>
+                  <DropdownMenuItem onClick={handleShareReport} data-testid="button-share-report-menu" className="gap-2 text-xs">
+                    <Share2 className="h-3.5 w-3.5" /> Partager la note
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={handleEmailReport} data-testid="button-email-report-menu" className="gap-2 text-xs">
+                    <Mail className="h-3.5 w-3.5" /> Envoyer par e-mail
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
               <Button variant="ghost" size="icon" onClick={onClose} className="hover:bg-gray-100 rounded-full h-8 w-8" data-testid="button-close-panel" aria-label="Fermer le panneau">
                 <X className="h-4 w-4" />
               </Button>
@@ -860,66 +888,9 @@ ${shareUrl ? `\n🔗 Reproduire cette analyse : ${shareUrl}` : ""}`;
           </div>
         </div>
 
-        <div className="flex gap-1 px-3 pt-2 pb-1 border-b border-gray-100 bg-white/40 overflow-x-auto" role="tablist" aria-label="Sections du diagnostic">
-          {tabs.map((t) => {
-            const Icon = t.icon;
-            const active = activeTab === t.key;
-            return (
-              <button
-                key={t.key}
-                type="button"
-                role="tab"
-                id={`tab-btn-${t.key}`}
-                aria-selected={active}
-                aria-controls={`tabpanel-${t.key}`}
-                onClick={() => setActiveTab(t.key)}
-                onKeyDown={(e) => {
-                  let next: (typeof tabs)[number] | undefined;
-                  if (e.key === "ArrowRight" || e.key === "ArrowLeft") {
-                    const idx = tabs.findIndex((x) => x.key === activeTab);
-                    next = tabs[(idx + (e.key === "ArrowRight" ? 1 : tabs.length - 1)) % tabs.length];
-                  } else if (e.key === "Home") next = tabs[0];
-                  else if (e.key === "End") next = tabs[tabs.length - 1];
-                  if (!next) return;
-                  e.preventDefault();
-                  setActiveTab(next.key);
-                  document.getElementById(`tab-btn-${next.key}`)?.focus();
-                }}
-                className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold whitespace-nowrap transition-colors focus-visible:ring-2 focus-visible:ring-teal-400 focus-visible:outline-none ${
-                  active ? "bg-teal-100 text-teal-800 ring-1 ring-teal-300" : "text-gray-500 hover:bg-gray-100"
-                }`}
-                data-testid={`tab-${t.key}`}
-              >
-                <Icon className="h-3.5 w-3.5" />
-                {t.label}
-                {typeof t.badge === "number" && t.badge > 0 && (
-                  <span className={`text-[10px] px-1.5 py-0.5 rounded-full ${active ? "bg-white/70 text-teal-700" : "bg-gray-200 text-gray-500"}`} aria-label={`${t.badge} éléments`}>
-                    {t.badge}
-                  </span>
-                )}
-              </button>
-            );
-          })}
-          <button
-            type="button"
-            onClick={() => setAssistantOpen(true)}
-            className="ml-auto flex items-center gap-1 px-2.5 py-2 rounded-lg text-xs font-semibold whitespace-nowrap text-indigo-600 hover:bg-indigo-50 transition-colors focus-visible:ring-2 focus-visible:ring-indigo-400 focus-visible:outline-none"
-            data-testid="button-open-assistant"
-            aria-haspopup="dialog"
-          >
-            <Sparkles className="h-3.5 w-3.5" /> Assistant
-          </button>
-        </div>
-
         <ScrollArea className="flex-1 px-5 py-4">
-          {/* VUE D'ENSEMBLE */}
-          <div
-            className={activeTab === "overview" ? "space-y-4" : "hidden"}
-            role="tabpanel"
-            id="tabpanel-overview"
-            aria-labelledby="tab-btn-overview"
-            data-testid="panel-overview"
-          >
+          {/* ══════════ VUE DIAGNOSTIC (page unique à divulgation progressive) ══════════ */}
+          <div className={view === "diagnostic" ? "space-y-4" : "hidden"} data-testid="panel-overview">
             {/* Niveau d'enjeu global */}
             <div
               className={`rounded-xl border p-4 ${
@@ -932,7 +903,7 @@ ${shareUrl ? `\n🔗 Reproduire cette analyse : ${shareUrl}` : ""}`;
               data-testid="card-issue-level"
             >
               <div className="flex items-center justify-between gap-2">
-                <div className="text-[10px] font-bold uppercase tracking-wider text-gray-500">Niveau d'enjeu du site</div>
+                <div className="text-[10px] font-bold uppercase tracking-wider text-gray-500">Enjeu potentiel du site</div>
                 {zonagesLoading && <Loader2 className="h-3.5 w-3.5 animate-spin text-gray-400" aria-label="Chargement des zonages" />}
               </div>
               <div
@@ -978,151 +949,280 @@ ${shareUrl ? `\n🔗 Reproduire cette analyse : ${shareUrl}` : ""}`;
               </ul>
             </div>
 
-            {/* Actions recommandées */}
-            <div className="rounded-xl border border-gray-200 bg-white p-4" data-testid="card-recommended-actions">
-              <div className="text-xs font-bold text-gray-700 uppercase tracking-wide mb-2">Actions recommandées</div>
-              <div className="grid grid-cols-1 gap-1.5">
-                <Button onClick={() => { setActiveTab("especes"); setAttrFilters(new Set(["sensibles"])); }} variant="outline" size="sm" className="justify-start gap-2 h-9 text-xs border-gray-200" data-testid="button-action-species">
-                  <Leaf className="h-3.5 w-3.5 text-orange-600" /> Consulter les espèces prioritaires
-                </Button>
-                <Button onClick={() => setActiveTab("zonages")} variant="outline" size="sm" className="justify-start gap-2 h-9 text-xs border-gray-200" data-testid="button-action-zonages">
-                  <Layers className="h-3.5 w-3.5 text-red-600" /> Contrôler les contraintes réglementaires
-                </Button>
-                <Button onClick={() => setAssistantOpen(true)} variant="outline" size="sm" className="justify-start gap-2 h-9 text-xs border-gray-200" data-testid="button-action-assistant">
-                  <ClipboardList className="h-3.5 w-3.5 text-teal-600" /> Vérifier les périodes sensibles d'inventaire
-                </Button>
-              </div>
-            </div>
-
-            {/* Mode expert : indicateurs détaillés */}
-            {isExpert && (
-              <>
-                <div className="rounded-xl border border-gray-200 bg-white p-4">
-                  <div className="grid grid-cols-4 gap-2 text-center">
-                    <div>
-                      <div className="text-xl font-bold text-gray-900" data-testid="text-species-detected">{results.stats.speciesCount}</div>
-                      <div className="text-[10px] text-gray-500 leading-tight">taxons</div>
-                      {results.stats.rawNameCount != null && results.stats.rawNameCount !== results.stats.speciesCount && (
-                        <div className="text-[9px] text-gray-400 leading-tight mt-0.5" data-testid="text-raw-names">/{results.stats.rawNameCount}</div>
-                      )}
-                    </div>
-                    <div>
-                      <div className="text-xl font-bold text-orange-600" data-testid="text-species-sensitive">{results.stats.sensitiveCount}</div>
-                      <div className="text-[10px] text-gray-500 leading-tight">sensibles</div>
-                    </div>
-                    <div>
-                      <div className="text-xl font-bold text-teal-600" data-testid="text-zonages-total">{zonages?.count ?? "—"}</div>
-                      <div className="text-[10px] text-gray-500 leading-tight">zonages</div>
-                    </div>
-                    <div>
-                      <div className="text-xl font-bold text-indigo-600">{includeINaturalist ? 2 : 1}</div>
-                      <div className="text-[10px] text-gray-500 leading-tight">source{(includeINaturalist ? 2 : 1) > 1 ? "s" : ""}</div>
-                      <div className="text-[9px] text-gray-400 mt-0.5" title="Sources des observations">{includeINaturalist ? "GBIF+iNat" : "GBIF"}</div>
-                    </div>
+            {/* Section 3 — Espèces prioritaires (repliable) */}
+            <section className="rounded-xl border border-gray-200 bg-white overflow-hidden" data-testid="section-especes">
+              <button
+                type="button"
+                onClick={() => toggleSection("especes")}
+                aria-expanded={openSections.has("especes")}
+                aria-controls="section-body-especes"
+                className="w-full flex items-center justify-between gap-2 px-4 py-3 hover:bg-gray-50 transition-colors focus-visible:ring-2 focus-visible:ring-teal-400 focus-visible:outline-none"
+                data-testid="button-section-especes"
+              >
+                <span className="flex items-center gap-2 text-sm font-bold text-gray-800">
+                  <Leaf className="h-4 w-4 text-orange-600" /> Espèces prioritaires
+                </span>
+                <span className="flex items-center gap-2 text-[11px] text-gray-500 min-w-0">
+                  <span className="truncate">
+                    {prioritySpeciesList.length === 0
+                      ? "Aucune espèce prioritaire"
+                      : `${prioritySpeciesList.length} espèce${prioritySpeciesList.length > 1 ? "s" : ""}${fortSpeciesCount > 0 ? `, dont ${fortSpeciesCount} à enjeu fort` : ""}`}
+                  </span>
+                  {openSections.has("especes") ? <ChevronUp className="h-4 w-4 shrink-0" /> : <ChevronDown className="h-4 w-4 shrink-0" />}
+                </span>
+              </button>
+              {openSections.has("especes") && (
+                <div id="section-body-especes" className="px-4 pb-3 space-y-1.5 border-t border-gray-100 pt-3">
+                  {prioritySpeciesList.length === 0 ? (
+                    <p className="text-xs text-gray-400 italic">Aucune espèce à enjeu détectée dans les données publiques.</p>
+                  ) : (
+                    prioritySpeciesList.slice(0, 3).map((occ, idx) => (
+                      <CompactSpeciesRow
+                        key={`prio-${occ.scientificName}-${idx}`}
+                        occ={occ}
+                        isSelected={selectedSpecies === occ.scientificName}
+                        onSelect={() => onSelectSpecies(selectedSpecies === occ.scientificName ? null : occ.scientificName)}
+                      />
+                    ))
+                  )}
+                  <div className="flex flex-col gap-1 pt-1">
+                    {prioritySpeciesList.length > 0 && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => { setSpeciesScope("prioritaires"); setSpeciesQuery(""); setView("especes"); }}
+                        className="w-full h-9 text-xs border-gray-200 text-gray-700"
+                        data-testid="button-view-priority-species"
+                      >
+                        Voir les {prioritySpeciesList.length} espèce{prioritySpeciesList.length > 1 ? "s" : ""} prioritaire{prioritySpeciesList.length > 1 ? "s" : ""} <ChevronRight className="h-3.5 w-3.5 ml-1" />
+                      </Button>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => { setSpeciesScope("toutes"); setSpeciesQuery(""); setView("especes"); }}
+                      className="text-[11px] text-teal-700 font-semibold hover:underline self-start px-1"
+                      data-testid="button-view-all-species"
+                    >
+                      Voir les {filteredTotal} espèce{filteredTotal > 1 ? "s" : ""} observée{filteredTotal > 1 ? "s" : ""}
+                    </button>
                   </div>
                 </div>
+              )}
+            </section>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <RiskScoreCard score={riskScore.score} label={riskScore.label} tone={riskScore.tone} factors={riskScore.factors} />
-                  <ConfidencePanel confidence={results.confidence} />
+            {/* Section 4 — Zonages concernés (repliable) */}
+            <section className="rounded-xl border border-gray-200 bg-white overflow-hidden" data-testid="section-zonages">
+              <button
+                type="button"
+                onClick={() => toggleSection("zonages")}
+                aria-expanded={openSections.has("zonages")}
+                aria-controls="section-body-zonages"
+                className="w-full flex items-center justify-between gap-2 px-4 py-3 hover:bg-gray-50 transition-colors focus-visible:ring-2 focus-visible:ring-teal-400 focus-visible:outline-none"
+                data-testid="button-section-zonages"
+              >
+                <span className="flex items-center gap-2 text-sm font-bold text-gray-800">
+                  <Layers className="h-4 w-4 text-teal-600" /> Zonages concernés
+                </span>
+                <span className="flex items-center gap-2 text-[11px] text-gray-500 min-w-0">
+                  <span className="truncate">
+                    {zonagesLoading
+                      ? "Chargement…"
+                      : flatZonages.length === 0
+                      ? "Aucun zonage recensé"
+                      : `${flatZonages.length} zonage${flatZonages.length > 1 ? "s" : ""}${reglementaireCount > 0 ? `, dont ${reglementaireCount} réglementaire${reglementaireCount > 1 ? "s" : ""}` : ""}`}
+                  </span>
+                  {openSections.has("zonages") ? <ChevronUp className="h-4 w-4 shrink-0" /> : <ChevronDown className="h-4 w-4 shrink-0" />}
+                </span>
+              </button>
+              {openSections.has("zonages") && (
+                <div id="section-body-zonages" className="px-4 pb-3 space-y-1.5 border-t border-gray-100 pt-3">
+                  {zonagesLoading && (
+                    <div className="flex items-center gap-2 text-xs text-gray-400 py-2 justify-center">
+                      <Loader2 className="h-4 w-4 animate-spin" /> Chargement des zonages…
+                    </div>
+                  )}
+                  {!zonagesLoading && flatZonages.length === 0 && (
+                    <p className="text-xs text-gray-400 italic">Aucun zonage environnemental recensé dans l'aire d'étude.</p>
+                  )}
+                  {flatZonages.slice(0, 3).map((z, idx) => {
+                    const badge = ZONAGE_CATEGORY_BADGE[z.groupCategory] || ZONAGE_CATEGORY_BADGE.autre;
+                    return (
+                      <div key={`top-z-${idx}`} className="flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2" data-testid={`top-zonage-${idx}`}>
+                        <span className={`shrink-0 text-[9px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded border ${badge.cls}`}>{badge.label}</span>
+                        <span className="min-w-0 flex-1">
+                          <span className="block text-xs font-semibold text-gray-800 truncate">{z.name}</span>
+                          <span className="block text-[10px] text-gray-500 truncate">{z.type} · Dans l'aire d'étude</span>
+                        </span>
+                      </div>
+                    );
+                  })}
+                  {flatZonages.length > 0 && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setView("zonages")}
+                      className="w-full h-9 text-xs border-gray-200 text-gray-700"
+                      data-testid="button-view-all-zonages"
+                    >
+                      Voir les {flatZonages.length} zonage{flatZonages.length > 1 ? "s" : ""} <ChevronRight className="h-3.5 w-3.5 ml-1" />
+                    </Button>
+                  )}
                 </div>
+              )}
+            </section>
 
-                <div className="rounded-xl border border-blue-200 bg-blue-50/50 p-4">
-                  <div className="flex items-center gap-2 mb-2">
-                    <Sparkles className="h-4 w-4 text-blue-600" />
-                    <span className="font-bold text-sm text-blue-700">Synthèse automatique</span>
-                  </div>
-                  <p className="text-xs text-gray-700 leading-relaxed" data-testid="text-auto-summary">{autoSummary}</p>
-                </div>
-              </>
-            )}
-
-            {/* Points de vigilance (ex-onglet Enjeux) */}
-            <div className="pt-1">
-              <div className="text-xs font-bold text-gray-700 uppercase tracking-wide mb-2">
-                Points de vigilance ({enjeuxBuckets.critique.length + enjeuxBuckets.fort.length + enjeuxBuckets.modere.length + enjeuxBuckets.aConfirmer.length})
-              </div>
-            </div>
-
-            {enjeuxSections.map((section) => {
-              if (section.items.length === 0) return null;
-              const open = openEnjeux.has(section.key);
-              return (
-                <div key={section.key} className={`rounded-xl border ${section.tone.split(" ").filter(c => c.startsWith("border")).join(" ")} overflow-hidden`}>
+            {/* Section 5 — Pourquoi ce niveau ? (repliable) */}
+            <section className="rounded-xl border border-gray-200 bg-white overflow-hidden" data-testid="section-pourquoi">
+              <button
+                type="button"
+                onClick={() => toggleSection("pourquoi")}
+                aria-expanded={openSections.has("pourquoi")}
+                aria-controls="section-body-pourquoi"
+                className="w-full flex items-center justify-between gap-2 px-4 py-3 hover:bg-gray-50 transition-colors focus-visible:ring-2 focus-visible:ring-teal-400 focus-visible:outline-none"
+                data-testid="button-section-pourquoi"
+              >
+                <span className="flex items-center gap-2 text-sm font-bold text-gray-800">
+                  <Gauge className="h-4 w-4 text-indigo-600" /> Pourquoi ce niveau ?
+                </span>
+                <span className="flex items-center gap-2 text-[11px] text-gray-500 min-w-0">
+                  <span className="truncate">{riskScore.factors.length} facteur{riskScore.factors.length > 1 ? "s" : ""} identifié{riskScore.factors.length > 1 ? "s" : ""}</span>
+                  {openSections.has("pourquoi") ? <ChevronUp className="h-4 w-4 shrink-0" /> : <ChevronDown className="h-4 w-4 shrink-0" />}
+                </span>
+              </button>
+              {openSections.has("pourquoi") && (
+                <div id="section-body-pourquoi" className="px-4 pb-3 space-y-3 border-t border-gray-100 pt-3">
+                  <ul className="space-y-1.5">
+                    {riskScore.factors.slice(0, 3).map((f, i) => (
+                      <li key={i} className="flex items-start gap-2 text-xs text-gray-700">
+                        <span className="mt-1.5 h-1.5 w-1.5 rounded-full bg-indigo-500 shrink-0" />
+                        {f}
+                      </li>
+                    ))}
+                  </ul>
+                  <Button
+                    ref={explainTriggerRef}
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setAssistantOpen(true)}
+                    className="w-full h-9 text-xs gap-1.5 border-indigo-200 text-indigo-700 hover:bg-indigo-50"
+                    data-testid="button-open-assistant"
+                    aria-haspopup="dialog"
+                  >
+                    <Sparkles className="h-3.5 w-3.5" /> Expliquer ce diagnostic
+                  </Button>
                   <button
                     type="button"
-                    onClick={() => toggleEnjeu(section.key)}
-                    className={`w-full flex items-center justify-between px-4 py-3 ${section.tone}`}
-                    data-testid={`button-enjeu-${section.key}`}
+                    onClick={() => setShowCalcDetail((v) => !v)}
+                    aria-expanded={showCalcDetail}
+                    className="text-[11px] text-teal-700 font-semibold hover:underline px-1"
+                    data-testid="button-toggle-calc-detail"
                   >
-                    <div className="flex items-center gap-2">
-                      <ShieldAlert className="h-4 w-4" />
-                      <span className="font-bold text-sm uppercase tracking-wide">{(section.key === "eee" || section.key === "a_confirmer") ? section.label : `Enjeu ${section.label}`} ({section.items.length})</span>
-                    </div>
-                    {open ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                    {showCalcDetail ? "Masquer le calcul détaillé" : "Afficher le calcul détaillé"}
                   </button>
-                  {open && (
-                    <div className="p-3 space-y-3 bg-white/60">
-                      {section.items.map((occ, idx) => (
-                        <div key={`${section.key}-${occ.scientificName}-${idx}`}>
-                          <SpeciesCard
-                            occ={occ}
-                            isSelected={selectedSpecies === occ.scientificName}
-                            onSelect={() => onSelectSpecies(selectedSpecies === occ.scientificName ? null : occ.scientificName)}
-                            centerCoords={results.center}
-                          />
-                          <div className="mt-1 ml-1 flex items-start gap-1.5 text-[11px] text-gray-600" data-testid={`action-${occ.scientificName}`}>
-                            <ClipboardList className="h-3 w-3 shrink-0 mt-0.5 text-teal-600" />
-                            <span><span className="font-semibold">Action recommandée :</span> {occ.isInvasive ? "Espèce exotique envahissante : prévoir une gestion/limitation, sans valeur patrimoniale de conservation." : occ.enjeuLevel === "a_confirmer" ? `Groupe protégé — statut national non vérifié : ${recommendedAction(getTaxonGroupId(occ))} Comparer avec les listes TAXREF régionales.` : recommendedAction(getTaxonGroupId(occ))}</span>
+                  {showCalcDetail && (
+                    <div className="space-y-3">
+                      <div className="rounded-xl border border-gray-200 bg-white p-4">
+                        <div className="grid grid-cols-4 gap-2 text-center">
+                          <div>
+                            <div className="text-xl font-bold text-gray-900" data-testid="text-species-detected">{results.stats.speciesCount}</div>
+                            <div className="text-[10px] text-gray-500 leading-tight">taxons</div>
+                            {results.stats.rawNameCount != null && results.stats.rawNameCount !== results.stats.speciesCount && (
+                              <div className="text-[9px] text-gray-400 leading-tight mt-0.5" data-testid="text-raw-names">/{results.stats.rawNameCount}</div>
+                            )}
+                          </div>
+                          <div>
+                            <div className="text-xl font-bold text-orange-600" data-testid="text-species-sensitive">{results.stats.sensitiveCount}</div>
+                            <div className="text-[10px] text-gray-500 leading-tight">sensibles</div>
+                          </div>
+                          <div>
+                            <div className="text-xl font-bold text-teal-600" data-testid="text-zonages-total">{zonages?.count ?? "—"}</div>
+                            <div className="text-[10px] text-gray-500 leading-tight">zonages</div>
+                          </div>
+                          <div>
+                            <div className="text-xl font-bold text-indigo-600">{includeINaturalist ? 2 : 1}</div>
+                            <div className="text-[10px] text-gray-500 leading-tight">source{(includeINaturalist ? 2 : 1) > 1 ? "s" : ""}</div>
+                            <div className="text-[9px] text-gray-400 mt-0.5" title="Sources des observations">{includeINaturalist ? "GBIF+iNat" : "GBIF"}</div>
                           </div>
                         </div>
-                      ))}
+                      </div>
+                      <RiskScoreCard score={riskScore.score} label={riskScore.label} tone={riskScore.tone} factors={riskScore.factors} />
+                      <div className="rounded-xl border border-blue-200 bg-blue-50/50 p-4">
+                        <div className="flex items-center gap-2 mb-2">
+                          <Sparkles className="h-4 w-4 text-blue-600" />
+                          <span className="font-bold text-sm text-blue-700">Synthèse automatique</span>
+                        </div>
+                        <p className="text-xs text-gray-700 leading-relaxed" data-testid="text-auto-summary">{autoSummary}</p>
+                      </div>
                     </div>
                   )}
                 </div>
-              );
-            })}
+              )}
+            </section>
 
-            {sortedSpecies.high.length + sortedSpecies.medium.length + sortedSpecies.low.length === 0 && (
-              <p className="text-sm text-gray-400 italic">Aucune espèce à enjeu détectée avec les filtres actuels.</p>
-            )}
+            {/* Section 6 — Qualité et limites des données (repliable) */}
+            <section className="rounded-xl border border-gray-200 bg-white overflow-hidden" data-testid="section-qualite">
+              <button
+                type="button"
+                onClick={() => toggleSection("qualite")}
+                aria-expanded={openSections.has("qualite")}
+                aria-controls="section-body-qualite"
+                className="w-full flex items-center justify-between gap-2 px-4 py-3 hover:bg-gray-50 transition-colors focus-visible:ring-2 focus-visible:ring-teal-400 focus-visible:outline-none"
+                data-testid="button-section-qualite"
+              >
+                <span className="flex items-center gap-2 text-sm font-bold text-gray-800">
+                  <Info className="h-4 w-4 text-sky-600" /> Qualité et limites des données
+                </span>
+                <span className="flex items-center gap-2 text-[11px] text-gray-500 min-w-0">
+                  <span className="truncate">Sources publiques — à valider sur le terrain</span>
+                  {openSections.has("qualite") ? <ChevronUp className="h-4 w-4 shrink-0" /> : <ChevronDown className="h-4 w-4 shrink-0" />}
+                </span>
+              </button>
+              {openSections.has("qualite") && (
+                <div id="section-body-qualite" className="px-4 pb-3 space-y-3 border-t border-gray-100 pt-3">
+                  <ConfidencePanel confidence={results.confidence} />
+                  <div className="text-[11px] text-gray-600 space-y-1.5">
+                    <p><span className="font-semibold">Sources :</span> {sourcesLabel}</p>
+                    <p className="flex items-start gap-1.5">
+                      <AlertTriangle className="h-3.5 w-3.5 shrink-0 mt-0.5 text-amber-600" />
+                      Absence de donnée ≠ absence d'espèce : les données publiques ne couvrent pas tout le territoire.
+                    </p>
+                    <p className="flex items-start gap-1.5">
+                      <ClipboardList className="h-3.5 w-3.5 shrink-0 mt-0.5 text-teal-600" />
+                      Pré-diagnostic indicatif — à valider par un écologue lors d'un inventaire terrain.
+                    </p>
+                  </div>
+                </div>
+              )}
+            </section>
           </div>
 
-          {/* ESPÈCES */}
-          <div
-            className={activeTab === "especes" ? "space-y-4" : "hidden"}
-            role="tabpanel"
-            id="tabpanel-especes"
-            aria-labelledby="tab-btn-especes"
-            data-testid="panel-especes"
-          >
+          {/* ══════════ VUE DÉTAILLÉE — ESPÈCES ══════════ */}
+          <div className={view === "especes" ? "space-y-4" : "hidden"} data-testid="panel-especes">
+            <button
+              type="button"
+              onClick={() => setView("diagnostic")}
+              className="flex items-center gap-1 text-xs font-semibold text-teal-700 hover:underline focus-visible:ring-2 focus-visible:ring-teal-400 focus-visible:outline-none rounded"
+              data-testid="button-back-from-especes"
+            >
+              <ChevronLeft className="h-3.5 w-3.5" /> Retour au diagnostic
+            </button>
             <div className="rounded-lg border border-gray-200 bg-gray-50/60 px-3 py-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-gray-600" data-testid="species-summary">
               <span><strong className="text-gray-900">{filteredTotal}</strong> espèce{filteredTotal > 1 ? "s" : ""}</span>
-              <span><strong className="text-orange-700">{sortedSpecies.high.length + sortedSpecies.medium.length}</strong> sensible{sortedSpecies.high.length + sortedSpecies.medium.length > 1 ? "s" : ""}</span>
+              <span><strong className="text-orange-700">{prioritySpeciesList.length}</strong> prioritaire{prioritySpeciesList.length > 1 ? "s" : ""}</span>
               <span><strong className="text-sky-700">{aVerifierCount}</strong> à vérifier</span>
             </div>
             <div className="flex flex-wrap gap-1.5" data-testid="species-attr-filters">
-              {[
-                { key: "all", label: "Toutes" },
-                { key: "sensibles", label: "Sensibles" },
-                { key: "protegees", label: "Protégées" },
-                { key: "averifier", label: "À vérifier" },
-                { key: "recentes", label: "Observations récentes" },
-                ...(isExpert
-                  ? [
-                      { key: "menacees", label: "Menacées" },
-                      { key: "patrimoniales", label: "Patrimoniales" },
-                      { key: "marine", label: "Marine" },
-                      { key: "terrestre", label: "Terrestre" },
-                    ]
-                  : []),
-              ].map((chip) => {
-                const active = chip.key === "all" ? attrFilters.size === 0 : attrFilters.has(chip.key);
+              {([
+                { key: "prioritaires", label: `Prioritaires (${prioritySpeciesList.length})` },
+                { key: "toutes", label: `Toutes (${filteredTotal})` },
+              ] as { key: "prioritaires" | "toutes"; label: string }[]).map((chip) => {
+                const active = speciesScope === chip.key;
                 return (
                   <button
                     key={chip.key}
                     type="button"
-                    onClick={() => chip.key === "all" ? setAttrFilters(new Set()) : toggleAttr(chip.key)}
+                    onClick={() => setSpeciesScope(chip.key)}
+                    aria-pressed={active}
                     className={`px-2.5 py-1 rounded-lg text-xs font-medium transition-all ${
                       active ? "bg-teal-100 text-teal-800 ring-1 ring-teal-300" : "bg-white text-gray-500 ring-1 ring-gray-200 hover:bg-gray-50"
                     }`}
@@ -1218,27 +1318,62 @@ ${shareUrl ? `\n🔗 Reproduire cette analyse : ${shareUrl}` : ""}`;
               </div>
               {especesList.length === 0 ? (
                 <p className="text-sm text-gray-400 italic px-1 py-4 text-center">Aucune espèce ne correspond aux filtres.</p>
+              ) : speciesScope === "prioritaires" ? (
+                <div className="space-y-3">
+                  {especesList.map((occ, idx) => (
+                    <div key={`${occ.scientificName}-${idx}`} data-species-item={occ.scientificName}>
+                      <SpeciesCard
+                        occ={occ}
+                        isSelected={selectedSpecies === occ.scientificName}
+                        onSelect={() => onSelectSpecies(selectedSpecies === occ.scientificName ? null : occ.scientificName)}
+                        centerCoords={results.center}
+                      />
+                      <div className="mt-1 ml-1 flex items-start gap-1.5 text-[11px] text-gray-600" data-testid={`action-${occ.scientificName}`}>
+                        <ClipboardList className="h-3 w-3 shrink-0 mt-0.5 text-teal-600" />
+                        <span><span className="font-semibold">Action recommandée :</span> {occ.isInvasive ? "Espèce exotique envahissante : prévoir une gestion/limitation, sans valeur patrimoniale de conservation." : occ.enjeuLevel === "a_confirmer" ? `Groupe protégé — statut national non vérifié : ${recommendedAction(getTaxonGroupId(occ))} Comparer avec les listes TAXREF régionales.` : recommendedAction(getTaxonGroupId(occ))}</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
               ) : (
                 especesList.map((occ, idx) => (
-                  <CompactSpeciesRow
-                    key={`${occ.scientificName}-${idx}`}
-                    occ={occ}
-                    isSelected={selectedSpecies === occ.scientificName}
-                    onSelect={() => onSelectSpecies(selectedSpecies === occ.scientificName ? null : occ.scientificName)}
-                  />
+                  <div key={`${occ.scientificName}-${idx}`} data-species-item={occ.scientificName}>
+                    {selectedSpecies === occ.scientificName ? (
+                      <div className="py-1.5">
+                        <SpeciesCard
+                          occ={occ}
+                          isSelected
+                          onSelect={() => onSelectSpecies(null)}
+                          centerCoords={results.center}
+                        />
+                        <div className="mt-1 ml-1 flex items-start gap-1.5 text-[11px] text-gray-600" data-testid={`action-${occ.scientificName}`}>
+                          <ClipboardList className="h-3 w-3 shrink-0 mt-0.5 text-teal-600" />
+                          <span><span className="font-semibold">Action recommandée :</span> {occ.isInvasive ? "Espèce exotique envahissante : prévoir une gestion/limitation, sans valeur patrimoniale de conservation." : occ.enjeuLevel === "a_confirmer" ? `Groupe protégé — statut national non vérifié : ${recommendedAction(getTaxonGroupId(occ))} Comparer avec les listes TAXREF régionales.` : recommendedAction(getTaxonGroupId(occ))}</span>
+                        </div>
+                      </div>
+                    ) : (
+                      <CompactSpeciesRow
+                        occ={occ}
+                        isSelected={false}
+                        onSelect={() => onSelectSpecies(occ.scientificName)}
+                      />
+                    )}
+                  </div>
                 ))
               )}
             </div>
           </div>
 
-          {/* ZONAGES */}
-          <div
-            className={activeTab === "zonages" ? "space-y-4" : "hidden"}
-            role="tabpanel"
-            id="tabpanel-zonages"
-            aria-labelledby="tab-btn-zonages"
-            data-testid="panel-zonages-tab"
-          >
+          {/* ══════════ VUE DÉTAILLÉE — ZONAGES ══════════ */}
+          <div className={view === "zonages" ? "space-y-4" : "hidden"} data-testid="panel-zonages-tab">
+            <button
+              type="button"
+              onClick={() => setView("diagnostic")}
+              className="flex items-center gap-1 text-xs font-semibold text-teal-700 hover:underline focus-visible:ring-2 focus-visible:ring-teal-400 focus-visible:outline-none rounded"
+              data-testid="button-back-from-zonages"
+            >
+              <ChevronLeft className="h-3.5 w-3.5" /> Retour au diagnostic
+            </button>
             {zonages && zonages.count > 0 && (
               <div className="rounded-lg border border-gray-200 bg-gray-50/60 px-3 py-2 text-xs text-gray-600 leading-relaxed" data-testid="text-zonages-summary">
                 {zonages.count} zonage{zonages.count > 1 ? "s" : ""} dans l'aire d'étude (rayon {zonages.radius} m) — les plus importants d'abord.
@@ -1253,7 +1388,7 @@ ${shareUrl ? `\n🔗 Reproduire cette analyse : ${shareUrl}` : ""}`;
 
             {/* Liste compacte hiérarchisée */}
             <div className="space-y-1.5" data-testid="zoning-list">
-              {(showAllZonages ? flatZonages : flatZonages.slice(0, 3)).map((z, idx) => {
+              {flatZonages.map((z, idx) => {
                 const key = `${z.type}-${z.name}-${idx}`;
                 const expanded = expandedZonages.has(key);
                 const badge = ZONAGE_CATEGORY_BADGE[z.groupCategory] || ZONAGE_CATEGORY_BADGE.autre;
@@ -1282,8 +1417,8 @@ ${shareUrl ? `\n🔗 Reproduire cette analyse : ${shareUrl}` : ""}`;
                       <div className="px-3 pb-3 pt-1 border-t border-gray-100 space-y-1.5 text-[11px] text-gray-600">
                         <div><span className="font-semibold">Type :</span> {z.type}</div>
                         <div><span className="font-semibold">Catégorie :</span> {z.categoryLabel}</div>
-                        {isExpert && z.id && <div><span className="font-semibold">Identifiant :</span> <span className="font-mono">{z.id}</span></div>}
-                        {isExpert && z.code && <div><span className="font-semibold">Code :</span> <span className="font-mono">{z.code}</span></div>}
+                        {z.id && <div><span className="font-semibold">Identifiant :</span> <span className="font-mono">{z.id}</span></div>}
+                        {z.code && <div><span className="font-semibold">Code :</span> <span className="font-mono">{z.code}</span></div>}
                         {isNatura && z.code && (
                           <NaturaSpeciesList code={z.code} index={idx} />
                         )}
@@ -1298,18 +1433,6 @@ ${shareUrl ? `\n🔗 Reproduire cette analyse : ${shareUrl}` : ""}`;
                 );
               })}
             </div>
-
-            {!showAllZonages && flatZonages.length > 3 && (
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setShowAllZonages(true)}
-                className="w-full h-9 text-xs border-gray-200 text-gray-600"
-                data-testid="button-show-all-zonages"
-              >
-                Voir les {flatZonages.length - 3} autres zonages <ChevronDown className="h-3.5 w-3.5 ml-1" />
-              </Button>
-            )}
 
             <Natura2000ExpectedPanel
               center={results.center}
@@ -1335,7 +1458,8 @@ ${shareUrl ? `\n🔗 Reproduire cette analyse : ${shareUrl}` : ""}`;
               initial={{ y: "100%" }}
               animate={{ y: 0 }}
               exit={{ y: "100%" }}
-              transition={{ type: "spring", damping: 28, stiffness: 260 }}
+              transition={prefersReducedMotion ? { duration: 0 } : { type: "spring", damping: 28, stiffness: 260 }}
+              ref={assistantDrawerRef}
               className="absolute inset-0 z-20 bg-white flex flex-col"
               role="dialog"
               aria-modal="true"
@@ -1359,7 +1483,7 @@ ${shareUrl ? `\n🔗 Reproduire cette analyse : ${shareUrl}` : ""}`;
                       Questions utiles pour cette vue
                     </div>
                     <ul className="space-y-1">
-                      {assistantSuggestions[activeTab].map((q, i) => (
+                      {assistantSuggestions.map((q, i) => (
                         <li key={i} className="text-xs text-gray-600 flex items-start gap-1.5">
                           <ChevronRight className="h-3 w-3 shrink-0 mt-0.5 text-indigo-400" /> {q}
                         </li>
@@ -1374,6 +1498,7 @@ ${shareUrl ? `\n🔗 Reproduire cette analyse : ${shareUrl}` : ""}`;
                     coords={results.center}
                     occurrences={allFilteredSpecies}
                     onAnalysisChange={setAiAnalysis}
+                    autoStart={assistantOpen}
                   />
                 </div>
               </ScrollArea>
@@ -1395,26 +1520,6 @@ ${shareUrl ? `\n🔗 Reproduire cette analyse : ${shareUrl}` : ""}`;
               </span>
             )}
           </Button>
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="outline" size="icon" className="h-11 w-11 border-gray-200 hover:bg-gray-50" data-testid="button-more-exports" title="Autres exports" aria-label="Autres exports">
-                <MoreHorizontal className="h-4 w-4 text-gray-600" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-48">
-              <DropdownMenuLabel className="text-xs">Exporter les données</DropdownMenuLabel>
-              <DropdownMenuItem onClick={handleExportExcel} data-testid="button-export-excel" className="gap-2 text-xs">
-                <Table className="h-3.5 w-3.5" /> Excel (.xlsx)
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={handleExportCSV} data-testid="button-export-csv" className="gap-2 text-xs">
-                <FileText className="h-3.5 w-3.5" /> CSV
-              </DropdownMenuItem>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem onClick={handleExportImage} data-testid="button-export-image" className="gap-2 text-xs">
-                <Download className="h-3.5 w-3.5" /> Image de la carte
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
         </div>
       </motion.div>
 

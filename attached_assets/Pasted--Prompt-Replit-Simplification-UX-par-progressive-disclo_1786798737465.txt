@@ -1,0 +1,528 @@
+# Prompt Replit — Simplification UX par progressive disclosure
+
+Tu es un développeur senior spécialisé en React, UX/UI et cartographie web.
+
+Ta mission est de **simplifier le panneau de résultats d’Inventaire Flash** en appliquant un principe de progressive disclosure :
+
+> Montrer d’abord la conclusion, puis les raisons, puis les résultats détaillés, puis les informations techniques.
+
+L’utilisateur doit comprendre l’enjeu principal du site en moins de 30 secondes, sans être immédiatement confronté à toutes les données scientifiques.
+
+## 1. Périmètre de la mission
+
+Travaille uniquement sur l’interface du panneau de résultats.
+
+Ne modifie pas :
+
+* les appels API ;
+* les règles métier ;
+* le calcul des scores ;
+* la récupération GBIF, iNaturalist, UICN, TAXREF ou PatriNat ;
+* le moteur cartographique ;
+* la génération de la note écologique ;
+* les exports existants ;
+* les données existantes.
+
+Commence par analyser le projet et identifier les composants concernés.
+
+Réutilise la stack actuelle, notamment les composants existants, shadcn/ui, Radix, Lucide et Framer Motion.
+
+Ne t’arrête pas à une proposition ou à une maquette : implémente la refonte dans l’application.
+
+---
+
+## 2. Supprimer la navigation par onglets
+
+Supprime les trois onglets principaux :
+
+* Vue d’ensemble
+* Espèces
+* Zonages
+
+Remplace-les par **une seule page verticale progressive**.
+
+La nouvelle structure doit être :
+
+```text
+1. Résultat global
+2. À retenir
+3. Espèces prioritaires
+4. Zonages concernés
+5. Pourquoi ce niveau ?
+6. Qualité et limites des données
+7. Générer la note écologique
+```
+
+Les sections 3 à 6 sont repliables.
+
+Ne crée pas plusieurs accordéons imbriqués les uns dans les autres.
+
+---
+
+## 3. Premier niveau : résultat immédiatement visible
+
+À l’ouverture du panneau, afficher uniquement les informations essentielles.
+
+### En-tête
+
+Afficher :
+
+* Inventaire Flash
+* Diagnostic biodiversité d’un site
+* Nom du lieu analysé
+* Bouton « Changer le site »
+* Bouton pour fermer ou réduire le panneau
+* Menu `•••` pour les actions secondaires
+
+### Carte de résultat global
+
+Afficher :
+
+```text
+ENJEU POTENTIEL DU SITE
+
+FORT
+Estimation indicative à valider par un écologue
+
+5 espèces sensibles
+2 protections réglementaires
+8 zonages identifiés
+```
+
+Utiliser le niveau d’enjeu déjà calculé par l’application.
+
+Ne crée pas de nouvelle règle de calcul.
+
+Ne pas afficher immédiatement :
+
+* le score sur 100 ;
+* les facteurs contributifs ;
+* l’indice de confiance détaillé ;
+* les noms scientifiques ;
+* les identifiants techniques ;
+* les sources détaillées.
+
+### Section « À retenir »
+
+Afficher au maximum trois informations prioritaires générées à partir des données réelles.
+
+Exemple :
+
+```text
+À RETENIR
+
+• Le site intersecte un parc national.
+• 5 espèces nécessitent une attention particulière.
+• Une vérification terrain est recommandée.
+```
+
+Toujours conserver une formulation prudente.
+
+Ne jamais présenter le résultat comme une certitude scientifique.
+
+---
+
+## 4. Deuxième niveau : sections repliables
+
+Sous la synthèse, créer quatre sections.
+
+Chaque section fermée doit déjà présenter un résumé utile.
+
+### Espèces prioritaires
+
+État fermé :
+
+```text
+Espèces prioritaires
+5 espèces, dont 2 à enjeu fort                         >
+```
+
+État ouvert :
+
+* afficher les trois espèces les plus importantes ;
+* utiliser les données et le classement existants ;
+* afficher une ligne compacte par espèce.
+
+Exemple :
+
+```text
+Gypaète barbu
+Enjeu fort · Espèce protégée
+Observation à 1,2 km
+
+Lagopède alpin
+Enjeu fort · Présence à confirmer
+Observation à 800 m
+```
+
+Ajouter à la fin :
+
+**Voir les 5 espèces prioritaires**
+
+Puis, si nécessaire :
+
+**Voir les 40 espèces**
+
+### Zonages concernés
+
+État fermé :
+
+```text
+Zonages concernés
+2 protections intersectées, 6 zonages proches        >
+```
+
+État ouvert :
+
+* afficher les trois zonages les plus importants ;
+* afficher d’abord les zonages qui intersectent le site ;
+* afficher ensuite les zonages situés à proximité.
+
+Exemple :
+
+```text
+Parc national de la Vanoise
+Le site intersecte ce zonage
+
+Natura 2000 — Massif de la Vanoise
+Le site intersecte ce zonage
+
+ZNIEFF — Col de la Vanoise
+Située à proximité
+```
+
+Ajouter :
+
+**Voir les 8 zonages**
+
+### Pourquoi ce niveau ?
+
+État fermé :
+
+```text
+Pourquoi ce niveau ?
+Voir les principaux facteurs                           >
+```
+
+État ouvert :
+
+Afficher une explication courte avec trois facteurs maximum.
+
+Exemple :
+
+```text
+Ce niveau est principalement lié à :
+
+• l’intersection avec deux protections réglementaires ;
+• la présence potentielle de cinq espèces sensibles ;
+• plusieurs observations récentes à proximité.
+```
+
+Afficher ensuite un lien :
+
+**Afficher le calcul détaillé**
+
+Ce lien révèle :
+
+* le score existant ;
+* les facteurs contributifs ;
+* les pondérations déjà utilisées ;
+* les informations techniques disponibles.
+
+Ne pas modifier la méthode de calcul.
+
+### Qualité et limites des données
+
+État fermé :
+
+```text
+Qualité et limites des données
+Données publiques · Vérification terrain recommandée  >
+```
+
+État ouvert :
+
+Afficher :
+
+* l’indice de confiance existant ;
+* la fraîcheur des données ;
+* les principales sources ;
+* les éventuelles données manquantes ;
+* les avertissements méthodologiques.
+
+Les deux mentions suivantes doivent toujours rester clairement accessibles :
+
+* « Absence de donnée ne signifie pas absence d’espèce. »
+* « Ce pré-diagnostic doit être validé par un écologue. »
+
+---
+
+## 5. Troisième niveau : listes complètes
+
+Les boutons « Voir les espèces » et « Voir les zonages » ouvrent une vue détaillée dans le même panneau.
+
+Ne réintroduis pas les anciens onglets.
+
+### Vue détaillée des espèces
+
+Afficher :
+
+```text
+< Retour au diagnostic
+
+ESPÈCES
+
+[Prioritaires 5] [Toutes 40]
+
+Rechercher une espèce…
+```
+
+Conserver seulement deux filtres principaux :
+
+* Prioritaires
+* Toutes
+
+Chaque ligne affiche :
+
+* nom vernaculaire ;
+* niveau d’enjeu ;
+* statut principal ;
+* dernière observation ;
+* distance ;
+* source courte.
+
+Au clic sur une espèce, ouvrir sa fiche détaillée.
+
+### Vue détaillée des zonages
+
+Afficher :
+
+```text
+< Retour au diagnostic
+
+ZONAGES
+
+[Concernent le site] [À proximité]
+```
+
+Conserver seulement deux regroupements :
+
+* Concernent le site
+* À proximité
+
+Chaque ligne affiche :
+
+* nom du zonage ;
+* type ;
+* intersection ou distance ;
+* niveau de vigilance ;
+* accès aux détails.
+
+Ne crée pas de sélection précise d’un zonage sur la carte si les couches actuelles sont des tuiles WMS raster et ne permettent pas cette interaction.
+
+---
+
+## 6. Quatrième niveau : détails techniques
+
+Dans les fiches Espèces et Zonages, ajouter un lien :
+
+**Afficher les détails techniques**
+
+### Pour une espèce
+
+Révéler :
+
+* nom scientifique ;
+* statuts territoriaux ;
+* statut UICN ;
+* statut réglementaire ;
+* date de dernière observation ;
+* nombre d’occurrences ;
+* source complète ;
+* liens externes existants ;
+* avertissements de cohérence.
+
+### Pour un zonage
+
+Révéler :
+
+* identifiant officiel ;
+* catégorie réglementaire ;
+* directive éventuelle ;
+* espèces justifiant le classement ;
+* source officielle ;
+* lien vers la fiche INPN ;
+* métadonnées disponibles.
+
+Ne supprime aucune donnée experte.
+
+Déplace simplement ces données dans ce quatrième niveau.
+
+---
+
+## 7. Supprimer le mode Essentiel / Expert
+
+Supprime la bascule « Essentiel / Expert ».
+
+Elle est remplacée par le progressive disclosure :
+
+```text
+Résumé
+→ Résultats
+→ Fiche
+→ Détails techniques
+```
+
+Un utilisateur non expert peut s’arrêter après le résumé.
+
+Un écologue peut ouvrir les niveaux détaillés.
+
+La suppression de la bascule ne doit entraîner aucune suppression des données expertes.
+
+---
+
+## 8. Simplifier l’assistant IA
+
+Supprime le bouton Assistant de la navigation principale.
+
+Dans la section « Pourquoi ce niveau ? », ajouter une action secondaire :
+
+**✨ Expliquer ce diagnostic**
+
+Cette action utilise le système IA existant pour produire une explication courte et factuelle.
+
+L’explication doit :
+
+* tenir en quelques paragraphes ;
+* utiliser les données du diagnostic ;
+* rappeler qu’il s’agit d’une estimation ;
+* ne pas inventer de réglementation ou de référentiel ;
+* ne pas ouvrir une interface de chat complexe.
+
+Ne crée pas de système de question libre si celui-ci n’existe pas encore.
+
+---
+
+## 9. Une seule action principale
+
+Conserver un bouton fixé en bas du panneau :
+
+**Générer la note écologique**
+
+Ce bouton doit :
+
+* rester visible pendant le défilement ;
+* conserver son fonctionnement actuel ;
+* afficher un état de chargement ;
+* gérer les erreurs ;
+* ne pas masquer le contenu.
+
+Déplacer les actions secondaires dans le menu `•••` :
+
+* Export CSV
+* Export Excel
+* Export image
+* Partager
+* Email
+
+---
+
+## 10. Carte et responsive
+
+La carte doit rester dominante.
+
+Sur desktop :
+
+* panneau latéral d’environ 420 à 480 px ;
+* panneau réductible ;
+* carte toujours visible.
+
+Sur mobile :
+
+* carte en plein écran ;
+* panneau de résultats sous forme de bottom sheet ;
+* trois positions : réduit, intermédiaire, plein écran ;
+* bouton « Générer la note écologique » toujours accessible.
+
+Conserver les interactions existantes entre les espèces et la carte :
+
+* clic sur une espèce ;
+* mise en évidence des observations ;
+* sélection d’un marqueur ;
+* retour vers la fiche correspondante.
+
+---
+
+## 11. Accessibilité
+
+Prévoir :
+
+* navigation clavier ;
+* focus visible ;
+* `aria-expanded` sur les sections ;
+* titres correctement structurés ;
+* boutons avec libellés accessibles ;
+* fermeture avec Échap pour les dialogues ;
+* focus restauré après fermeture ;
+* information non transmise uniquement par la couleur ;
+* zones tactiles suffisantes sur mobile ;
+* respect de `prefers-reduced-motion`.
+
+---
+
+## 12. Ordre d’implémentation
+
+* [ ] Auditer les composants actuels du panneau de résultats.
+* [ ] Identifier les données utilisées par les trois onglets actuels.
+* [ ] Créer la nouvelle page unique.
+* [ ] Créer la carte de résultat global.
+* [ ] Créer la section « À retenir ».
+* [ ] Transformer Espèces, Zonages, Calcul et Limites en sections repliables.
+* [ ] Créer les vues détaillées Espèces et Zonages avec retour au diagnostic.
+* [ ] Déplacer les données expertes dans « Afficher les détails techniques ».
+* [ ] Supprimer la bascule Essentiel / Expert.
+* [ ] Simplifier l’accès à l’assistant IA.
+* [ ] Regrouper les exports dans le menu `•••`.
+* [ ] Vérifier le fonctionnement du bouton de note écologique.
+* [ ] Adapter la version mobile.
+* [ ] Vérifier l’accessibilité et les états d’erreur.
+* [ ] Supprimer le code devenu inutile après validation.
+
+---
+
+## 13. Critères d’acceptation
+
+La refonte est terminée lorsque :
+
+* [ ] Il n’existe plus d’onglets principaux dans le panneau de résultats.
+* [ ] Le niveau d’enjeu est visible immédiatement.
+* [ ] Les trois informations principales sont visibles sans défilement sur desktop.
+* [ ] Les détails scientifiques sont masqués par défaut.
+* [ ] Toutes les données expertes restent accessibles.
+* [ ] Les espèces prioritaires sont visibles avant la liste complète.
+* [ ] Les zonages intersectant le site apparaissent avant les zonages proches.
+* [ ] Les listes complètes s’ouvrent sans perdre le contexte du diagnostic.
+* [ ] Un bouton clair permet de revenir au résumé.
+* [ ] Le bouton « Générer la note écologique » fonctionne toujours.
+* [ ] Les exports existants fonctionnent toujours.
+* [ ] Les appels API et les règles métier ne sont pas modifiés.
+* [ ] Les interactions existantes entre les espèces et la carte fonctionnent.
+* [ ] L’interface fonctionne sur desktop et mobile.
+* [ ] Aucun contenu critique n’est caché.
+* [ ] Aucun message d’erreur n’apparaît dans la console pendant le parcours normal.
+
+---
+
+## 14. Compte rendu final
+
+Après l’implémentation, fournis :
+
+1. les fichiers modifiés ;
+2. les composants créés ou supprimés ;
+3. les principaux changements UX ;
+4. les fonctions existantes conservées ;
+5. les éventuelles limites techniques rencontrées ;
+6. les tests réalisés ;
+7. les commandes permettant de lancer et vérifier l’application.
+
+Implémente les changements directement et ne t’arrête pas après la phase d’analyse.

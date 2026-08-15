@@ -1,5 +1,5 @@
 import { Sparkles, AlertTriangle, AlertCircle, Info, Loader2, RefreshCw, ExternalLink, BookOpen, Layers } from "lucide-react";
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { Occurrence } from "@/lib/gbif";
 
 interface Props {
@@ -7,6 +7,8 @@ interface Props {
   coords: [number, number];
   occurrences: Occurrence[];
   onAnalysisChange?: (a: Analysis | null) => void;
+  /** Lance automatiquement l'analyse à l'affichage (si pas déjà disponible). */
+  autoStart?: boolean;
 }
 
 interface SpeciesStatus {
@@ -132,7 +134,7 @@ const LEVEL_STYLE: Record<string, { color: string; icon: typeof AlertTriangle }>
   modéré: { color: "text-amber-700 bg-amber-50 border-amber-200", icon: Info },
 };
 
-export function PrioritySpeciesInline({ toponym, coords, occurrences, onAnalysisChange }: Props) {
+export function PrioritySpeciesInline({ toponym, coords, occurrences, onAnalysisChange, autoStart }: Props) {
   const [analysis, setAnalysis] = useState<Analysis | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -210,6 +212,13 @@ export function PrioritySpeciesInline({ toponym, coords, occurrences, onAnalysis
       });
   };
 
+  // Lancement automatique à l'affichage (ex. bouton « Expliquer ce diagnostic »)
+  useEffect(() => {
+    if (autoStart && !analysis && !loading && !error && slim.length > 0) {
+      runAnalysis(true);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [autoStart]);
 
   return (
     <div className="rounded-lg border border-gray-200 bg-white p-3 space-y-2.5" data-testid="priority-species-inline">

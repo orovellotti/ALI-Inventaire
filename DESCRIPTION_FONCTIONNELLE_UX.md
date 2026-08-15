@@ -1,6 +1,6 @@
 # Inventaire Flash — Description fonctionnelle et UX complète
 
-> Document de référence décrivant le fonctionnement de l'application et l'expérience utilisateur, à jour de la refonte du tableau de bord (3 onglets, mode Essentiel/Expert, assistant IA contextuel).
+> Document de référence décrivant le fonctionnement de l'application et l'expérience utilisateur, à jour de la refonte du tableau de bord (page unique à divulgation progressive, vues détaillées Espèces/Zonages, analyse IA « Expliquer ce diagnostic »).
 
 ---
 
@@ -26,7 +26,7 @@ L'outil **ne remplace pas un inventaire terrain** : c'est une indication amont p
 
 - **Carte plein écran** : la carte interactive domine l'écran ; les outils sont des panneaux flottants en verre dépoli (glass morphism).
 - **Français, ton neutre** : terminologie écologue (UICN, ZNIEFF, EIE, SINP), sans jargon informatique.
-- **Deux niveaux de lecture** : mode **Essentiel** (par défaut, lecture décisionnelle simple) et mode **Expert** (indicateurs techniques, identifiants, filtres avancés).
+- **Lecture progressive** : le résultat global d'abord, puis des sections repliables et des révélations « détails techniques » — aucune donnée experte supprimée, seulement déplacée derrière des niveaux de divulgation.
 - **Tout est partageable** : chaque analyse génère une URL reproductible (`?lat=…&lng=…&radius=…`) et une note écologique copiable.
 - **Indication, pas vérité** : indice de confiance, mentions « à valider par un écologue », niveaux d'enjeu présentés comme des potentiels.
 
@@ -66,50 +66,46 @@ Le **panneau de résultats** glisse depuis la droite (desktop, redimensionnable 
 - Titre + sous-titre « Diagnostic biodiversité d'un site »
 - Nom du lieu analysé
 - Bouton **« Changer le site »** (retour à la carte)
-- Bascule **Essentiel / Expert** (persistée en localStorage, sans rechargement)
+- Menu Sources & options et menu **« ⋯ »** (exports CSV / Excel / image, partage, e-mail)
 
-#### Barre d'onglets (3 onglets, accessible)
-Rôles ARIA tablist/tab/tabpanel, navigation clavier (flèches, Home/End), badges numériques, plus le bouton **« ✨ Assistant »**.
+#### Page diagnostic (divulgation progressive, sans onglets)
+Une page unique, du global au détail :
+1. **Carte « Enjeu potentiel du site »** : Faible / Modéré / Fort (dérivé du potentiel d'enjeux) avec 3 compteurs : protections réglementaires, espèces sensibles, zonages identifiés. Mention « estimation indicative à valider par un écologue ».
+2. **« À retenir »** : max 3 informations prioritaires dérivées des données réelles (protection réglementaire, espèces sensibles, statuts à vérifier, recommandation terrain).
+3. **Espèces prioritaires** (section repliable, résumé « N espèces, dont X à enjeu fort ») : top 3 espèces + boutons « Voir les N espèces prioritaires » / « Voir les N espèces observées ».
+4. **Zonages concernés** (repliable, résumé « N zonages, dont X réglementaires ») : top 3 zonages + bouton « Voir les N zonages ».
+5. **Pourquoi ce niveau ?** (repliable) : ≤ 3 facteurs en langage courant, bouton **« ✨ Expliquer ce diagnostic »**, lien « Afficher le calcul détaillé » révélant : 4 compteurs (taxons valides / noms bruts, sensibles, zonages, sources GBIF±iNat), jauge **Potentiel d'enjeux** 0-100 avec facteurs contributifs, synthèse automatique textuelle.
+6. **Qualité et limites des données** (repliable) : **Indice de confiance** 0-100 (6 critères : géolocalisation, fiabilité taxonomique, fraîcheur, traçabilité, qualité de source, dédoublonnage), sources, mentions « Absence de donnée ≠ absence d'espèce » et « à valider par un écologue ».
+Chaque en-tête de section porte `aria-expanded` et un résumé lisible à l'état replié.
 
-#### Onglet 1 — Vue d'ensemble (entrée et cœur décisionnel)
-- **Carte « Niveau d'enjeu du site »** : Faible / Modéré / Fort (dérivé du potentiel d'enjeux) avec 3 compteurs : protections réglementaires, espèces sensibles, zonages identifiés. Mention « estimation indicative à valider par un écologue ».
-- **« À retenir »** : max 3 informations prioritaires dérivées des données réelles (protection réglementaire, espèces sensibles, statuts à vérifier, recommandation terrain).
-- **« Actions recommandées »** : raccourcis vers les espèces prioritaires, les contraintes réglementaires, l'assistant IA.
-- **Mode Expert uniquement** : 4 compteurs (taxons valides / noms bruts, sensibles, zonages, sources GBIF±iNat), jauge **Potentiel d'enjeux** 0-100 avec facteurs contributifs, **Indice de confiance** 0-100 (6 critères : géolocalisation, fiabilité taxonomique, fraîcheur, traçabilité, qualité de source, dédoublonnage), synthèse automatique textuelle.
-- **Points de vigilance** : espèces classées par **niveau d'enjeu territorial** (moteur de scoring multi-échelle régional → national → européen → mondial, précédence stricte), en 6 sections repliables :
-  - 🔴 Critique · 🟠 Fort · 🟡 Modéré · ⚪ À confirmer · 🟢 Faible · 🟤 EEE (espèces exotiques envahissantes — enjeu de gestion, jamais de conservation)
-- Chaque **carte d'espèce** affiche : photo, noms vernaculaire + scientifique, statuts territoriaux ALI/TAXREF, statut UICN, avertissements de cohérence, action recommandée, métadonnées d'observation (distance du centre, année de dernière observation, nombre d'occurrences, source) et liens ALI Species, Wikipédia, GBIF, iNaturalist.
+#### Vue détaillée Espèces (même panneau, « ‹ Retour au diagnostic »)
+- **Ligne de synthèse** : total, prioritaires, à vérifier.
+- **Deux filtres** : Prioritaires (N) / Toutes (N), plus **recherche** par nom.
+- **Prioritaires** : cartes d'espèces complètes classées par **niveau d'enjeu territorial** (moteur de scoring multi-échelle régional → national → européen → mondial, précédence stricte : critique → fort → modéré → à confirmer), avec action recommandée. Chaque **carte d'espèce** affiche : photo, noms vernaculaire + scientifique, statuts territoriaux ALI/TAXREF, statut UICN, avertissements de cohérence, métadonnées d'observation (distance du centre, année de dernière observation, nombre d'occurrences, source) et liens ALI Species, Wikipédia, GBIF, iNaturalist.
+- **Toutes** : liste compacte (une ligne par espèce avec badge de niveau d'enjeu, statut, dernière observation, source) et **groupes taxonomiques repliables** (Oiseaux, Mammifères, Reptiles, Amphibiens, Poissons, Insectes, Arachnides, Mollusques, Plantes, Champignons, Autres) avec compteurs et **période propice d'inventaire**.
 
-#### Onglet 2 — Espèces (exploration exhaustive)
-- **Ligne de synthèse** : total, sensibles, à vérifier.
-- **Filtres** : Toutes, Sensibles, Protégées, À vérifier, Observations récentes (+ Menacées, Patrimoniales, Marine, Terrestre en mode Expert).
-- **Recherche** par nom.
-- **Groupes taxonomiques repliables** (Oiseaux, Mammifères, Reptiles, Amphibiens, Poissons, Insectes, Arachnides, Mollusques, Plantes, Champignons, Autres) avec compteurs et **période propice d'inventaire**.
-- **Liste compacte** : une ligne par espèce avec badge de niveau d'enjeu, statut, dernière observation, source.
-
-#### Onglet 3 — Zonages (contexte réglementaire)
-- Phrase de synthèse (nombre de zonages, rayon).
-- **Liste compacte hiérarchisée** : réglementaire > Natura 2000 > ZNIEFF > information. Les **3 plus importants** d'abord, bouton « Voir les N autres zonages ». Chaque ligne se déplie : type, catégorie, lien fiche officielle INPN, **espèces justifiant le classement** (sites Natura 2000), identifiants techniques en mode Expert.
+#### Vue détaillée Zonages (même panneau, « ‹ Retour au diagnostic »)
+- Phrase de synthèse (nombre de zonages, rayon). Tous les zonages retournés intersectent l'aire d'étude (pas de distinction site/proximité fournie par l'API).
+- **Liste complète hiérarchisée** : réglementaire > Natura 2000 > ZNIEFF > information. Chaque ligne se déplie : type, catégorie, identifiant et code techniques, lien fiche officielle INPN, **espèces justifiant le classement** (sites Natura 2000).
 - **Espèces Natura 2000 attendues** : espèces désignatrices des sites proches (base locale France ~37 000 lignes), marquées **attendue** ou **observée** selon croisement avec l'inventaire.
 - **Lien SINP régional** (auto-détection de la région, 14 régions dont DOM-TOM).
 
 Zonages couverts (17 couches IGN/PatriNat) : ZNIEFF I/II (+ mer), Natura 2000 (SIC/ZSC, ZPS), Parcs nationaux, PNR, Réserves naturelles (RNN/RNR), Réserves biologiques, APB/APHN, Parcs marins, Ramsar, Réserves de biosphère, Conservatoire du littoral.
 
-#### Assistant IA contextuel
-Bouton **« ✨ Assistant »** dans la barre d'onglets (et action recommandée en Vue d'ensemble) : panneau plein écran avec suggestions de questions propres à la vue courante et l'**analyse IA « Espèces à enjeux »** — top 5 espèces les plus marquantes, avec niveau (majeur/fort/modéré) et justification factuelle citant les référentiels officiels (UICN France, Arrêté du 29/10/2009, Directives Oiseaux/Habitats, ZNIEFF déterminantes). L'analyse intègre :
+#### Analyse IA « Expliquer ce diagnostic »
+Bouton **« ✨ Expliquer ce diagnostic »** dans la section « Pourquoi ce niveau ? » : panneau plein écran avec suggestions de questions et l'**analyse IA « Espèces à enjeux »** — top 5 espèces les plus marquantes, avec niveau (majeur/fort/modéré) et justification factuelle citant les référentiels officiels (UICN France, Arrêté du 29/10/2009, Directives Oiseaux/Habitats, ZNIEFF déterminantes). L'analyse intègre :
 - les sites **Natura 2000 à proximité** (5 km) et leurs espèces désignatrices,
 - la **compatibilité d'habitat** (recouvrement emprise/site + distance écologique par groupe taxonomique) qui promeut des espèces « très probables localement »,
 - les **statuts officiels ALI/TAXREF** en badges colorés.
 Classement des preuves : observée (A) > très probable localement (C) > avérée à l'échelle du site (B) > autres (D, E). Fermeture par Échap ou bouton dédié.
 
-#### Pied de panneau — actions transverses
-- **« Générer la note écologique »** (bouton principal) : dialogue avec le rapport texte structuré, copiable. Options : **Reformuler** (IA — note de synthèse 250-400 mots structurée, sans hallucination de référentiels), **Partager** (Web Share API), **Email** (mailto pré-rempli).
-- **Export CSV** (compatible Excel FR) et **Excel** (.xlsx, 3 feuilles : Espèces, Métadonnées, Synthèse par groupe) — respectent les filtres actifs.
-- **Export image** (capture .jpg de la carte).
+#### Actions
+- **« Générer la note écologique »** (bouton principal sticky, seul en pied de panneau) : dialogue avec le rapport texte structuré, copiable. Options : **Reformuler** (IA — note de synthèse 250-400 mots structurée, sans hallucination de référentiels), **Partager** (Web Share API), **Email** (mailto pré-rempli).
+- Menu **« ⋯ »** dans l'en-tête : **Export CSV** (compatible Excel FR), **Excel** (.xlsx, 3 feuilles : Espèces, Métadonnées, Synthèse par groupe) — respectent les filtres actifs —, **Export image** (capture .jpg de la carte), partage et e-mail de la note.
 
 ### Étape 6 — Interaction carte ↔ liste
 - **Marqueurs colorés** (rouge/orange/vert selon le niveau d'enjeu) pour chaque observation.
-- **Survol** : info-bulle nom + statut UICN. **Clic marqueur** : sélection de l'espèce, anneau teal, ouverture du panneau sur l'onglet pertinent.
+- **Survol** : info-bulle nom + statut UICN. **Clic marqueur** : sélection de l'espèce, anneau teal, ouverture du panneau si fermé.
 - **Clic sur une espèce** dans le panneau : mise en évidence de ses observations sur la carte.
 
 ### Étape 7 — Affichage de la carte
@@ -166,7 +162,7 @@ L'application est aussi un **serveur MCP** (Model Context Protocol, Streamable H
 | Recherche en cours | Spinner + suggestions live |
 | Inventaire en cours | Bouton désactivé « Analyse en cours… » |
 | Aucun résultat | « Aucune espèce trouvée — essayer un rayon plus grand » |
-| Zonages en chargement | Loader dans la carte de niveau d'enjeu et l'onglet Zonages |
+| Zonages en chargement | Loader dans la carte d'enjeu potentiel et la section Zonages concernés |
 | Aucun zonage | Message + suggestion d'élargir le rayon |
 | Erreur API | Toast d'erreur, suggestion de réessayer |
 | Confiance faible | Avertissement + recommandation d'inventaire terrain |
@@ -180,7 +176,7 @@ L'application est aussi un **serveur MCP** (Model Context Protocol, Streamable H
 
 - **Onglets** : rôles ARIA complets, navigation flèches/Home/End.
 - **Sections dépliables** : `aria-expanded` ; **assistant** : dialogue modal, focus à l'ouverture, fermeture Échap.
-- **Mobile** : bottom sheet (80 % de hauteur, coins arrondis) ; **desktop** : panneau latéral redimensionnable (poignée, double-clic = 600 px). Barres d'onglets et de filtres scrollables horizontalement. Web Share natif quand disponible.
+- **Mobile** : bottom sheet (80 % de hauteur, coins arrondis) ; **desktop** : panneau latéral redimensionnable (poignée, double-clic = 600 px). Chips de filtres scrollables horizontalement. Web Share natif quand disponible.
 
 ---
 
