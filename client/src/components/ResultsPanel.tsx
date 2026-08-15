@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { X, Download, FileText, AlertTriangle, AlertCircle, Leaf, Info, ChevronDown, ChevronUp, ImageOff, Copy, Check, ExternalLink, BookOpen, Shield, ShieldAlert, MapPin, Tag, Calendar, Link, Flag, Layers, Filter, Table, Sparkles, Loader2, Share2, Mail, MoreHorizontal, Settings2, Search, Activity, ListChecks, Bot, ClipboardList, LayoutGrid, ChevronRight, Gauge } from "lucide-react";
+import { X, Download, FileText, AlertTriangle, AlertCircle, Leaf, Info, ChevronDown, ChevronUp, ImageOff, Copy, Check, ExternalLink, BookOpen, Shield, ShieldAlert, MapPin, Tag, Calendar, Link, Flag, Layers, Filter, Table, Sparkles, Loader2, Share2, Mail, MoreHorizontal, Settings2, Search, Activity, ListChecks, ClipboardList, LayoutGrid, ChevronRight, Gauge } from "lucide-react";
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuCheckboxItem } from "@/components/ui/dropdown-menu";
 import { InventoryResult, Occurrence, getIucnLabel, getIucnFullLabel, getPatrimonialite, ConfidenceScore, TAXON_GROUPS, getTaxonGroupId, isMarineSpecies } from "@/lib/gbif";
 import { findSINPPlatforms, SINPPlatform } from "@/lib/sinp";
@@ -39,7 +39,38 @@ interface ZonagesData {
   errors: string[];
 }
 
-type TabKey = "synthese" | "enjeux" | "especes" | "zonages" | "agent";
+type TabKey = "overview" | "especes" | "zonages";
+type DisplayMode = "essentiel" | "expert";
+
+/**
+ * Niveau d'enjeu global du site (Faible / Modéré / Fort), dérivé du score de
+ * potentiel d'enjeux existant (riskScore). NOTE MÉTIER : les seuils et la
+ * pondération devront être validés par un écologue — ne pas présenter comme
+ * une évaluation réglementaire définitive.
+ */
+function computeGlobalIssueLevel(riskTone: "critical" | "high" | "moderate" | "low"): {
+  level: "fort" | "modere" | "faible";
+  label: string;
+} {
+  if (riskTone === "critical" || riskTone === "high") return { level: "fort", label: "Fort" };
+  if (riskTone === "moderate") return { level: "modere", label: "Modéré" };
+  return { level: "faible", label: "Faible" };
+}
+
+/** Priorité d'affichage des catégories de zonages (plus petit = plus prioritaire). */
+const ZONAGE_CATEGORY_PRIORITY: Record<string, number> = {
+  reglementaire: 1,
+  natura2000: 2,
+  znieff: 3,
+  autre: 4,
+};
+
+const ZONAGE_CATEGORY_BADGE: Record<string, { label: string; cls: string }> = {
+  reglementaire: { label: "Réglementaire", cls: "bg-red-50 text-red-700 border-red-200" },
+  natura2000: { label: "Natura 2000", cls: "bg-orange-50 text-orange-700 border-orange-200" },
+  znieff: { label: "ZNIEFF", cls: "bg-amber-50 text-amber-700 border-amber-200" },
+  autre: { label: "Info", cls: "bg-gray-50 text-gray-600 border-gray-200" },
+};
 
 const CURRENT_YEAR = new Date().getFullYear();
 
@@ -102,7 +133,15 @@ interface ResultsPanelProps {
 }
 
 export function ResultsPanel({ isOpen, onClose, results, selectedSpecies, onSelectSpecies, activeTaxonFilters, onToggleTaxonFilter, onToggleAllTaxonFilters, excludeMarine, onToggleExcludeMarine, includeINaturalist, onToggleIncludeINaturalist, toponym }: ResultsPanelProps) {
-  const [activeTab, setActiveTab] = useState<TabKey>("synthese");
+  const [activeTab, setActiveTab] = useState<TabKey>("overview");
+  const [displayMode, setDisplayMode] = useState<DisplayMode>(() => {
+    if (typeof window === "undefined") return "essentiel";
+    const saved = localStorage.getItem("if.displayMode");
+    return saved === "expert" ? "expert" : "essentiel";
+  });
+  const [assistantOpen, setAssistantOpen] = useState(false);
+  const [expandedZonages, setExpandedZonages] = useState<Set<string>>(new Set());
+  const [showAllZonages, setShowAllZonages] = useState(false);
   const [speciesQuery, setSpeciesQuery] = useState("");
   const [attrFilters, setAttrFilters] = useState<Set<string>>(new Set());
   const [openEnjeux, setOpenEnjeux] = useState<Set<string>>(new Set(["critique", "fort"]));
@@ -147,8 +186,25 @@ export function ResultsPanel({ isOpen, onClose, results, selectedSpecies, onSele
   }, [panelWidth]);
 
   useEffect(() => {
+    // Réinitialise l'état d'interface propre à un résultat lors d'une nouvelle analyse
     setAiAnalysis(null);
+    setActiveTab("overview");
+    setShowAllZonages(false);
+    setExpandedZonages(new Set());
+    setAssistantOpen(false);
   }, [results]);
+
+  // Fermeture de l'assistant au clavier (Échap) + focus à l'ouverture
+  const assistantCloseRef = useRef<HTMLButtonElement | null>(null);
+  useEffect(() => {
+    if (!assistantOpen) return;
+    assistantCloseRef.current?.focus();
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setAssistantOpen(false);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [assistantOpen]);
 
   useEffect(() => {
     if (!results) {
@@ -344,6 +400,8 @@ export function ResultsPanel({ isOpen, onClose, results, selectedSpecies, onSele
   const especesList = useMemo(() => {
     const q = speciesQuery.trim().toLowerCase();
     return allFilteredSpecies.filter((o) => {
+      if (attrFilters.has("sensibles") && !(o.alertLevel === "high" || o.alertLevel === "medium")) return false;
+      if (attrFilters.has("averifier") && !(o.enjeuLevel === "a_confirmer" || (!o.enjeuLevel && isNotEvaluated(o.iucnStatus)))) return false;
       if (attrFilters.has("protegees") && !o.frenchProtected) return false;
       if (attrFilters.has("menacees") && !isThreatened(o.iucnStatus)) return false;
       if (attrFilters.has("patrimoniales") && getPatrimonialite(o.iucnStatus, o.alertLevel, o.isInvasive).level < 4) return false;
@@ -420,6 +478,68 @@ export function ResultsPanel({ isOpen, onClose, results, selectedSpecies, onSele
     }
     return text;
   }, [results, zonages, riskScore]);
+
+  const setMode = (m: DisplayMode) => {
+    setDisplayMode(m);
+    try { localStorage.setItem("if.displayMode", m); } catch {}
+  };
+  const isExpert = displayMode === "expert";
+
+  const globalLevel = useMemo(() => computeGlobalIssueLevel(riskScore.tone), [riskScore.tone]);
+
+  // Liste plate des zonages, triée par priorité de vigilance (réglementaire → Natura 2000 → ZNIEFF → info)
+  const flatZonages = useMemo(() => {
+    if (!zonages) return [] as (ZonageItem & { groupCategory: string; categoryLabel: string; priority: number })[];
+    const list: (ZonageItem & { groupCategory: string; categoryLabel: string; priority: number })[] = [];
+    for (const g of zonages.groups) {
+      for (const z of g.zonages) {
+        list.push({ ...z, groupCategory: g.category, categoryLabel: g.label, priority: ZONAGE_CATEGORY_PRIORITY[g.category] ?? 9 });
+      }
+    }
+    list.sort((a, b) => a.priority - b.priority || a.name.localeCompare(b.name));
+    return list;
+  }, [zonages]);
+
+  const reglementaireCount = useMemo(
+    () => zonages?.groups.find((g) => g.category === "reglementaire")?.count || 0,
+    [zonages]
+  );
+
+  const aVerifierCount = useMemo(
+    () => allFilteredSpecies.filter((o) => o.enjeuLevel === "a_confirmer" || (!o.enjeuLevel && isNotEvaluated(o.iucnStatus))).length,
+    [allFilteredSpecies]
+  );
+
+  // « À retenir » : au maximum 3 informations prioritaires dérivées des données réelles
+  const keyFindings = useMemo(() => {
+    const items: { icon: "shield" | "alert" | "check" | "info"; text: string }[] = [];
+    if (reglementaireCount > 0) {
+      items.push({ icon: "shield", text: `Site concerné par ${reglementaireCount} protection${reglementaireCount > 1 ? "s" : ""} réglementaire${reglementaireCount > 1 ? "s" : ""}.` });
+    } else if ((zonages?.groups.find((g) => g.category === "natura2000")?.count || 0) > 0) {
+      const n = zonages!.groups.find((g) => g.category === "natura2000")!.count;
+      items.push({ icon: "shield", text: `Site concerné par ${n} zonage${n > 1 ? "s" : ""} Natura 2000.` });
+    }
+    const sens = sortedSpecies.high.length + sortedSpecies.medium.length;
+    if (sens > 0) {
+      items.push({ icon: "alert", text: `Présence potentielle de ${sens} espèce${sens > 1 ? "s" : ""} sensible${sens > 1 ? "s" : ""} d'après les données publiques.` });
+    }
+    if (items.length < 3 && aVerifierCount > 0) {
+      items.push({ icon: "info", text: `${aVerifierCount} espèce${aVerifierCount > 1 ? "s" : ""} au statut à vérifier.` });
+    }
+    if (items.length < 3) {
+      items.push({ icon: "check", text: "Vérification terrain recommandée pour confirmer ce pré-diagnostic." });
+    }
+    return items.slice(0, 3);
+  }, [reglementaireCount, zonages, sortedSpecies, aVerifierCount]);
+
+  const toggleZonageDetails = (key: string) => {
+    setExpandedZonages((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  };
 
   const filteredTotal = allFilteredSpecies.length;
   const allGroupCount = presentGroups.length;
@@ -615,12 +735,28 @@ ${shareUrl ? `\n🔗 Reproduire cette analyse : ${shareUrl}` : ""}`;
   const sourcesLabel = `GBIF${includeINaturalist ? " · iNaturalist" : ""} · UICN · ALI/TAXREF · IGN/INPN`;
 
   const tabs: { key: TabKey; label: string; icon: typeof Activity; badge?: number }[] = [
-    { key: "synthese", label: "Synthèse", icon: Activity },
-    { key: "enjeux", label: "Enjeux", icon: ShieldAlert, badge: enjeuxBuckets.critique.length + enjeuxBuckets.fort.length + enjeuxBuckets.modere.length + enjeuxBuckets.aConfirmer.length },
+    { key: "overview", label: "Vue d'ensemble", icon: Activity },
     { key: "especes", label: "Espèces", icon: Leaf, badge: filteredTotal },
     { key: "zonages", label: "Zonages", icon: Layers, badge: zonages?.count || 0 },
-    { key: "agent", label: "Agent IA", icon: Bot },
   ];
+
+  const assistantSuggestions: Record<TabKey, string[]> = {
+    overview: [
+      "Résume ce diagnostic pour un non-spécialiste.",
+      "Quels sont les trois principaux risques ?",
+      "Quelles vérifications faut-il effectuer ?",
+    ],
+    especes: [
+      "Quelles espèces nécessitent une vérification terrain ?",
+      "Quelles sont les périodes sensibles ?",
+      "Résume les espèces protégées.",
+    ],
+    zonages: [
+      "Pourquoi ces zonages sont-ils importants ?",
+      "Quelles conséquences pour mon projet ?",
+      "Résume les contraintes réglementaires.",
+    ],
+  };
 
   const enjeuxSections: { key: string; label: string; tone: string; items: Occurrence[]; defaultTip: string }[] = [
     { key: "critique", label: "Critique", tone: "bg-red-50 border-red-200 text-red-700", items: enjeuxBuckets.critique, defaultTip: "CR/EX au niveau national ou régional — enjeu patrimonial majeur" },
@@ -652,21 +788,39 @@ ${shareUrl ? `\n🔗 Reproduire cette analyse : ${shareUrl}` : ""}`;
           <div className="flex justify-between items-start gap-2">
             <div className="min-w-0">
               <h2 className="text-lg font-bold text-gray-900 tracking-tight truncate">Inventaire Flash</h2>
-              <div className="flex items-center gap-3 mt-1 text-xs">
-                <span className="flex items-center gap-1 text-teal-700 font-semibold">
-                  <Leaf className="h-3.5 w-3.5" />
-                  {filteredTotal} <span className="font-normal text-gray-500">espèces</span>
-                </span>
-                <span className="flex items-center gap-1 text-orange-700 font-semibold">
-                  <AlertTriangle className="h-3.5 w-3.5" />
-                  {sortedSpecies.high.length + sortedSpecies.medium.length} <span className="font-normal text-gray-500">sensibles</span>
-                </span>
-                <span className="text-[10px] uppercase tracking-wider text-gray-400 font-mono">
-                  {includeINaturalist ? "GBIF+iNat" : "GBIF"}
-                </span>
-              </div>
+              <p className="text-[11px] text-gray-500 leading-tight">Diagnostic biodiversité d'un site</p>
+              {toponym && (
+                <p className="mt-1 text-xs font-semibold text-teal-700 flex items-center gap-1 truncate" data-testid="text-site-name">
+                  <MapPin className="h-3 w-3 shrink-0" /> <span className="truncate">{toponym}</span>
+                </p>
+              )}
             </div>
             <div className="flex items-center gap-1 shrink-0">
+              <div className="flex rounded-lg border border-gray-200 overflow-hidden mr-1" role="group" aria-label="Niveau de détail">
+                {(["essentiel", "expert"] as DisplayMode[]).map((m) => (
+                  <button
+                    key={m}
+                    type="button"
+                    onClick={() => setMode(m)}
+                    aria-pressed={displayMode === m}
+                    className={`px-2 py-1 text-[10px] font-semibold capitalize transition-colors ${
+                      displayMode === m ? "bg-teal-600 text-white" : "bg-white text-gray-500 hover:bg-gray-50"
+                    }`}
+                    data-testid={`button-mode-${m}`}
+                  >
+                    {m === "essentiel" ? "Essentiel" : "Expert"}
+                  </button>
+                ))}
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={onClose}
+                className="h-8 px-2.5 text-xs border-gray-200 text-gray-600 gap-1"
+                data-testid="button-change-site"
+              >
+                <MapPin className="h-3 w-3" /> Changer le site
+              </Button>
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button variant="ghost" size="icon" className="hover:bg-gray-100 rounded-full h-8 w-8" data-testid="button-panel-settings" title="Sources & options" aria-label="Sources et options">
@@ -706,7 +860,7 @@ ${shareUrl ? `\n🔗 Reproduire cette analyse : ${shareUrl}` : ""}`;
           </div>
         </div>
 
-        <div className="flex gap-1 px-3 pt-2 pb-1 border-b border-gray-100 bg-white/40 overflow-x-auto">
+        <div className="flex gap-1 px-3 pt-2 pb-1 border-b border-gray-100 bg-white/40 overflow-x-auto" role="tablist" aria-label="Sections du diagnostic">
           {tabs.map((t) => {
             const Icon = t.icon;
             const active = activeTab === t.key;
@@ -714,8 +868,24 @@ ${shareUrl ? `\n🔗 Reproduire cette analyse : ${shareUrl}` : ""}`;
               <button
                 key={t.key}
                 type="button"
+                role="tab"
+                id={`tab-btn-${t.key}`}
+                aria-selected={active}
+                aria-controls={`tabpanel-${t.key}`}
                 onClick={() => setActiveTab(t.key)}
-                className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold whitespace-nowrap transition-colors ${
+                onKeyDown={(e) => {
+                  let next: (typeof tabs)[number] | undefined;
+                  if (e.key === "ArrowRight" || e.key === "ArrowLeft") {
+                    const idx = tabs.findIndex((x) => x.key === activeTab);
+                    next = tabs[(idx + (e.key === "ArrowRight" ? 1 : tabs.length - 1)) % tabs.length];
+                  } else if (e.key === "Home") next = tabs[0];
+                  else if (e.key === "End") next = tabs[tabs.length - 1];
+                  if (!next) return;
+                  e.preventDefault();
+                  setActiveTab(next.key);
+                  document.getElementById(`tab-btn-${next.key}`)?.focus();
+                }}
+                className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold whitespace-nowrap transition-colors focus-visible:ring-2 focus-visible:ring-teal-400 focus-visible:outline-none ${
                   active ? "bg-teal-100 text-teal-800 ring-1 ring-teal-300" : "text-gray-500 hover:bg-gray-100"
                 }`}
                 data-testid={`tab-${t.key}`}
@@ -723,84 +893,155 @@ ${shareUrl ? `\n🔗 Reproduire cette analyse : ${shareUrl}` : ""}`;
                 <Icon className="h-3.5 w-3.5" />
                 {t.label}
                 {typeof t.badge === "number" && t.badge > 0 && (
-                  <span className={`text-[10px] px-1.5 py-0.5 rounded-full ${active ? "bg-white/70 text-teal-700" : "bg-gray-200 text-gray-500"}`}>
+                  <span className={`text-[10px] px-1.5 py-0.5 rounded-full ${active ? "bg-white/70 text-teal-700" : "bg-gray-200 text-gray-500"}`} aria-label={`${t.badge} éléments`}>
                     {t.badge}
                   </span>
                 )}
               </button>
             );
           })}
+          <button
+            type="button"
+            onClick={() => setAssistantOpen(true)}
+            className="ml-auto flex items-center gap-1 px-2.5 py-2 rounded-lg text-xs font-semibold whitespace-nowrap text-indigo-600 hover:bg-indigo-50 transition-colors focus-visible:ring-2 focus-visible:ring-indigo-400 focus-visible:outline-none"
+            data-testid="button-open-assistant"
+            aria-haspopup="dialog"
+          >
+            <Sparkles className="h-3.5 w-3.5" /> Assistant
+          </button>
         </div>
 
         <ScrollArea className="flex-1 px-5 py-4">
-          {/* SYNTHÈSE */}
-          <div className={activeTab === "synthese" ? "space-y-4" : "hidden"} data-testid="panel-synthese">
-            <div className="rounded-xl border border-gray-200 bg-white p-4">
-              <div className="grid grid-cols-4 gap-2 text-center">
-                <div>
-                  <div className="text-xl font-bold text-gray-900" data-testid="text-species-detected">{results.stats.speciesCount}</div>
-                  <div className="text-[10px] text-gray-500 leading-tight">taxons</div>
-                  {results.stats.rawNameCount != null && results.stats.rawNameCount !== results.stats.speciesCount && (
-                    <div className="text-[9px] text-gray-400 leading-tight mt-0.5" data-testid="text-raw-names">/{results.stats.rawNameCount}</div>
-                  )}
-                </div>
-                <div>
-                  <div className="text-xl font-bold text-orange-600" data-testid="text-species-sensitive">{results.stats.sensitiveCount}</div>
-                  <div className="text-[10px] text-gray-500 leading-tight">sensibles</div>
-                </div>
-                <div>
-                  <div className="text-xl font-bold text-teal-600" data-testid="text-zonages-total">{zonages?.count ?? "—"}</div>
-                  <div className="text-[10px] text-gray-500 leading-tight">zonages</div>
-                </div>
-                <div>
-                  <div className="text-xl font-bold text-indigo-600">{includeINaturalist ? 2 : 1}</div>
-                  <div className="text-[10px] text-gray-500 leading-tight">source{(includeINaturalist ? 2 : 1) > 1 ? "s" : ""}</div>
-                  <div className="text-[9px] text-gray-400 mt-0.5">{includeINaturalist ? "GBIF+iNat" : "GBIF"}</div>
-                </div>
+          {/* VUE D'ENSEMBLE */}
+          <div
+            className={activeTab === "overview" ? "space-y-4" : "hidden"}
+            role="tabpanel"
+            id="tabpanel-overview"
+            aria-labelledby="tab-btn-overview"
+            data-testid="panel-overview"
+          >
+            {/* Niveau d'enjeu global */}
+            <div
+              className={`rounded-xl border p-4 ${
+                globalLevel.level === "fort"
+                  ? "border-red-200 bg-red-50/70"
+                  : globalLevel.level === "modere"
+                  ? "border-orange-200 bg-orange-50/70"
+                  : "border-green-200 bg-green-50/70"
+              }`}
+              data-testid="card-issue-level"
+            >
+              <div className="flex items-center justify-between gap-2">
+                <div className="text-[10px] font-bold uppercase tracking-wider text-gray-500">Niveau d'enjeu du site</div>
+                {zonagesLoading && <Loader2 className="h-3.5 w-3.5 animate-spin text-gray-400" aria-label="Chargement des zonages" />}
               </div>
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <RiskScoreCard score={riskScore.score} label={riskScore.label} tone={riskScore.tone} factors={riskScore.factors} />
-              <ConfidencePanel confidence={results.confidence} />
-            </div>
-
-            <div className="rounded-xl border border-blue-200 bg-blue-50/50 p-4">
-              <div className="flex items-center gap-2 mb-2">
-                <Sparkles className="h-4 w-4 text-blue-600" />
-                <span className="font-bold text-sm text-blue-700">Synthèse automatique</span>
-              </div>
-              <p className="text-xs text-gray-700 leading-relaxed" data-testid="text-auto-summary">{autoSummary}</p>
-            </div>
-
-            <div className="grid grid-cols-1 gap-2">
-              <Button onClick={() => setActiveTab("enjeux")} variant="outline" className="justify-start gap-2 h-11 border-gray-200" data-testid="button-analyze-enjeux">
-                <ShieldAlert className="h-4 w-4 text-orange-600" /> Analyser les enjeux
-              </Button>
-              <Button onClick={() => setActiveTab("agent")} variant="outline" className="justify-start gap-2 h-11 border-gray-200" data-testid="button-prepare-surveys">
-                <ClipboardList className="h-4 w-4 text-teal-600" /> Préparer les inventaires
-              </Button>
-              <Button onClick={() => setShowReportPreview(true)} className="justify-start gap-2 h-11 bg-gradient-to-r from-indigo-600 to-blue-600 hover:from-indigo-700 hover:to-blue-700 text-white" data-testid="button-generate-note">
-                <FileText className="h-4 w-4" /> Générer une note écologique
-              </Button>
-            </div>
-          </div>
-
-          {/* ENJEUX */}
-          <div className={activeTab === "enjeux" ? "space-y-4" : "hidden"} data-testid="panel-enjeux">
-            <div className="rounded-lg border border-blue-200 bg-blue-50/50 p-3 text-xs text-blue-700 flex items-start justify-between gap-2">
-              <span className="flex items-start gap-2">
-                <Sparkles className="h-3.5 w-3.5 shrink-0 mt-0.5" />
-                Pour une analyse détaillée des espèces à enjeux, ouvrez l'onglet « Agent IA ».
-              </span>
-              <button
-                type="button"
-                onClick={() => setActiveTab("agent")}
-                className="shrink-0 font-semibold underline hover:text-blue-900"
-                data-testid="button-goto-agent"
+              <div
+                className={`mt-1 text-2xl font-extrabold tracking-tight ${
+                  globalLevel.level === "fort" ? "text-red-700" : globalLevel.level === "modere" ? "text-orange-700" : "text-green-700"
+                }`}
+                data-testid="text-issue-level"
               >
-                Agent IA
-              </button>
+                {globalLevel.label}
+              </div>
+              <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-gray-700">
+                <span className="flex items-center gap-1">
+                  <Shield className="h-3.5 w-3.5 text-red-600" />
+                  {reglementaireCount} protection{reglementaireCount > 1 ? "s" : ""} réglementaire{reglementaireCount > 1 ? "s" : ""}
+                </span>
+                <span className="flex items-center gap-1">
+                  <AlertTriangle className="h-3.5 w-3.5 text-orange-600" />
+                  {sortedSpecies.high.length + sortedSpecies.medium.length} espèce{sortedSpecies.high.length + sortedSpecies.medium.length > 1 ? "s" : ""} sensible{sortedSpecies.high.length + sortedSpecies.medium.length > 1 ? "s" : ""}
+                </span>
+                <span className="flex items-center gap-1">
+                  <Layers className="h-3.5 w-3.5 text-teal-600" />
+                  {zonages?.count ?? "—"} zonage{(zonages?.count || 0) > 1 ? "s" : ""} identifié{(zonages?.count || 0) > 1 ? "s" : ""}
+                </span>
+              </div>
+              <p className="mt-2 text-[10px] text-gray-400 leading-snug">
+                Estimation indicative issue des données publiques — à valider par un écologue.
+              </p>
+            </div>
+
+            {/* À retenir */}
+            <div className="rounded-xl border border-gray-200 bg-white p-4" data-testid="card-key-findings">
+              <div className="text-xs font-bold text-gray-700 uppercase tracking-wide mb-2">À retenir</div>
+              <ul className="space-y-1.5">
+                {keyFindings.map((f, i) => (
+                  <li key={i} className="flex items-start gap-2 text-xs text-gray-700">
+                    {f.icon === "shield" && <Shield className="h-3.5 w-3.5 shrink-0 mt-0.5 text-red-600" />}
+                    {f.icon === "alert" && <AlertTriangle className="h-3.5 w-3.5 shrink-0 mt-0.5 text-orange-600" />}
+                    {f.icon === "info" && <Info className="h-3.5 w-3.5 shrink-0 mt-0.5 text-sky-600" />}
+                    {f.icon === "check" && <Check className="h-3.5 w-3.5 shrink-0 mt-0.5 text-teal-600" />}
+                    <span>{f.text}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+
+            {/* Actions recommandées */}
+            <div className="rounded-xl border border-gray-200 bg-white p-4" data-testid="card-recommended-actions">
+              <div className="text-xs font-bold text-gray-700 uppercase tracking-wide mb-2">Actions recommandées</div>
+              <div className="grid grid-cols-1 gap-1.5">
+                <Button onClick={() => { setActiveTab("especes"); setAttrFilters(new Set(["sensibles"])); }} variant="outline" size="sm" className="justify-start gap-2 h-9 text-xs border-gray-200" data-testid="button-action-species">
+                  <Leaf className="h-3.5 w-3.5 text-orange-600" /> Consulter les espèces prioritaires
+                </Button>
+                <Button onClick={() => setActiveTab("zonages")} variant="outline" size="sm" className="justify-start gap-2 h-9 text-xs border-gray-200" data-testid="button-action-zonages">
+                  <Layers className="h-3.5 w-3.5 text-red-600" /> Contrôler les contraintes réglementaires
+                </Button>
+                <Button onClick={() => setAssistantOpen(true)} variant="outline" size="sm" className="justify-start gap-2 h-9 text-xs border-gray-200" data-testid="button-action-assistant">
+                  <ClipboardList className="h-3.5 w-3.5 text-teal-600" /> Vérifier les périodes sensibles d'inventaire
+                </Button>
+              </div>
+            </div>
+
+            {/* Mode expert : indicateurs détaillés */}
+            {isExpert && (
+              <>
+                <div className="rounded-xl border border-gray-200 bg-white p-4">
+                  <div className="grid grid-cols-4 gap-2 text-center">
+                    <div>
+                      <div className="text-xl font-bold text-gray-900" data-testid="text-species-detected">{results.stats.speciesCount}</div>
+                      <div className="text-[10px] text-gray-500 leading-tight">taxons</div>
+                      {results.stats.rawNameCount != null && results.stats.rawNameCount !== results.stats.speciesCount && (
+                        <div className="text-[9px] text-gray-400 leading-tight mt-0.5" data-testid="text-raw-names">/{results.stats.rawNameCount}</div>
+                      )}
+                    </div>
+                    <div>
+                      <div className="text-xl font-bold text-orange-600" data-testid="text-species-sensitive">{results.stats.sensitiveCount}</div>
+                      <div className="text-[10px] text-gray-500 leading-tight">sensibles</div>
+                    </div>
+                    <div>
+                      <div className="text-xl font-bold text-teal-600" data-testid="text-zonages-total">{zonages?.count ?? "—"}</div>
+                      <div className="text-[10px] text-gray-500 leading-tight">zonages</div>
+                    </div>
+                    <div>
+                      <div className="text-xl font-bold text-indigo-600">{includeINaturalist ? 2 : 1}</div>
+                      <div className="text-[10px] text-gray-500 leading-tight">source{(includeINaturalist ? 2 : 1) > 1 ? "s" : ""}</div>
+                      <div className="text-[9px] text-gray-400 mt-0.5" title="Sources des observations">{includeINaturalist ? "GBIF+iNat" : "GBIF"}</div>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <RiskScoreCard score={riskScore.score} label={riskScore.label} tone={riskScore.tone} factors={riskScore.factors} />
+                  <ConfidencePanel confidence={results.confidence} />
+                </div>
+
+                <div className="rounded-xl border border-blue-200 bg-blue-50/50 p-4">
+                  <div className="flex items-center gap-2 mb-2">
+                    <Sparkles className="h-4 w-4 text-blue-600" />
+                    <span className="font-bold text-sm text-blue-700">Synthèse automatique</span>
+                  </div>
+                  <p className="text-xs text-gray-700 leading-relaxed" data-testid="text-auto-summary">{autoSummary}</p>
+                </div>
+              </>
+            )}
+
+            {/* Points de vigilance (ex-onglet Enjeux) */}
+            <div className="pt-1">
+              <div className="text-xs font-bold text-gray-700 uppercase tracking-wide mb-2">
+                Points de vigilance ({enjeuxBuckets.critique.length + enjeuxBuckets.fort.length + enjeuxBuckets.modere.length + enjeuxBuckets.aConfirmer.length})
+              </div>
             </div>
 
             {enjeuxSections.map((section) => {
@@ -848,16 +1089,33 @@ ${shareUrl ? `\n🔗 Reproduire cette analyse : ${shareUrl}` : ""}`;
           </div>
 
           {/* ESPÈCES */}
-          <div className={activeTab === "especes" ? "space-y-4" : "hidden"} data-testid="panel-especes">
+          <div
+            className={activeTab === "especes" ? "space-y-4" : "hidden"}
+            role="tabpanel"
+            id="tabpanel-especes"
+            aria-labelledby="tab-btn-especes"
+            data-testid="panel-especes"
+          >
+            <div className="rounded-lg border border-gray-200 bg-gray-50/60 px-3 py-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-gray-600" data-testid="species-summary">
+              <span><strong className="text-gray-900">{filteredTotal}</strong> espèce{filteredTotal > 1 ? "s" : ""}</span>
+              <span><strong className="text-orange-700">{sortedSpecies.high.length + sortedSpecies.medium.length}</strong> sensible{sortedSpecies.high.length + sortedSpecies.medium.length > 1 ? "s" : ""}</span>
+              <span><strong className="text-sky-700">{aVerifierCount}</strong> à vérifier</span>
+            </div>
             <div className="flex flex-wrap gap-1.5" data-testid="species-attr-filters">
               {[
                 { key: "all", label: "Toutes" },
+                { key: "sensibles", label: "Sensibles" },
                 { key: "protegees", label: "Protégées" },
-                { key: "menacees", label: "Menacées" },
-                { key: "patrimoniales", label: "Patrimoniales" },
-                { key: "recentes", label: "Récentes" },
-                { key: "marine", label: "Marine" },
-                { key: "terrestre", label: "Terrestre" },
+                { key: "averifier", label: "À vérifier" },
+                { key: "recentes", label: "Observations récentes" },
+                ...(isExpert
+                  ? [
+                      { key: "menacees", label: "Menacées" },
+                      { key: "patrimoniales", label: "Patrimoniales" },
+                      { key: "marine", label: "Marine" },
+                      { key: "terrestre", label: "Terrestre" },
+                    ]
+                  : []),
               ].map((chip) => {
                 const active = chip.key === "all" ? attrFilters.size === 0 : attrFilters.has(chip.key);
                 return (
@@ -974,13 +1232,85 @@ ${shareUrl ? `\n🔗 Reproduire cette analyse : ${shareUrl}` : ""}`;
           </div>
 
           {/* ZONAGES */}
-          <div className={activeTab === "zonages" ? "space-y-4" : "hidden"} data-testid="panel-zonages-tab">
+          <div
+            className={activeTab === "zonages" ? "space-y-4" : "hidden"}
+            role="tabpanel"
+            id="tabpanel-zonages"
+            aria-labelledby="tab-btn-zonages"
+            data-testid="panel-zonages-tab"
+          >
             {zonages && zonages.count > 0 && (
-              <div className="rounded-xl border border-gray-200 bg-gray-50/60 p-3 text-xs text-gray-600 leading-relaxed" data-testid="text-zonages-summary">
-                {zonages.count} zonage{zonages.count > 1 ? "s" : ""} environnemental{zonages.count > 1 ? "aux" : ""} recensé{zonages.count > 1 ? "s" : ""} dans l'aire d'étude (rayon {zonages.radius} m), répartis en {zonages.groups.filter(g => g.count > 0).length} catégorie{zonages.groups.filter(g => g.count > 0).length > 1 ? "s" : ""}.
+              <div className="rounded-lg border border-gray-200 bg-gray-50/60 px-3 py-2 text-xs text-gray-600 leading-relaxed" data-testid="text-zonages-summary">
+                {zonages.count} zonage{zonages.count > 1 ? "s" : ""} dans l'aire d'étude (rayon {zonages.radius} m) — les plus importants d'abord.
               </div>
             )}
-            <ZonagesPanel data={zonages} loading={zonagesLoading} />
+
+            {zonagesLoading && (
+              <div className="flex items-center gap-2 text-xs text-gray-400 py-4 justify-center">
+                <Loader2 className="h-4 w-4 animate-spin" /> Chargement des zonages…
+              </div>
+            )}
+
+            {/* Liste compacte hiérarchisée */}
+            <div className="space-y-1.5" data-testid="zoning-list">
+              {(showAllZonages ? flatZonages : flatZonages.slice(0, 3)).map((z, idx) => {
+                const key = `${z.type}-${z.name}-${idx}`;
+                const expanded = expandedZonages.has(key);
+                const badge = ZONAGE_CATEGORY_BADGE[z.groupCategory] || ZONAGE_CATEGORY_BADGE.autre;
+                const isNatura = z.groupCategory === "natura2000";
+                return (
+                  <div key={key} className="rounded-lg border border-gray-200 bg-white overflow-hidden">
+                    <button
+                      type="button"
+                      onClick={() => toggleZonageDetails(key)}
+                      aria-expanded={expanded}
+                      className="w-full flex items-center gap-2 px-3 py-2.5 text-left hover:bg-gray-50 transition-colors focus-visible:ring-2 focus-visible:ring-teal-400 focus-visible:outline-none"
+                      data-testid={`zoning-row-${idx}`}
+                    >
+                      <span className={`shrink-0 text-[9px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded border ${badge.cls}`}>
+                        {badge.label}
+                      </span>
+                      <span className="min-w-0 flex-1">
+                        <span className="block text-xs font-semibold text-gray-800 truncate">{z.name}</span>
+                        <span className="block text-[10px] text-gray-500 truncate">
+                          {z.type} · Dans l'aire d'étude
+                        </span>
+                      </span>
+                      {expanded ? <ChevronUp className="h-3.5 w-3.5 text-gray-400 shrink-0" /> : <ChevronDown className="h-3.5 w-3.5 text-gray-400 shrink-0" />}
+                    </button>
+                    {expanded && (
+                      <div className="px-3 pb-3 pt-1 border-t border-gray-100 space-y-1.5 text-[11px] text-gray-600">
+                        <div><span className="font-semibold">Type :</span> {z.type}</div>
+                        <div><span className="font-semibold">Catégorie :</span> {z.categoryLabel}</div>
+                        {isExpert && z.id && <div><span className="font-semibold">Identifiant :</span> <span className="font-mono">{z.id}</span></div>}
+                        {isExpert && z.code && <div><span className="font-semibold">Code :</span> <span className="font-mono">{z.code}</span></div>}
+                        {isNatura && z.code && (
+                          <NaturaSpeciesList code={z.code} index={idx} />
+                        )}
+                        {z.url && (
+                          <a href={z.url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-teal-700 font-semibold hover:underline">
+                            <ExternalLink className="h-3 w-3" /> Fiche officielle (INPN)
+                          </a>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+
+            {!showAllZonages && flatZonages.length > 3 && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setShowAllZonages(true)}
+                className="w-full h-9 text-xs border-gray-200 text-gray-600"
+                data-testid="button-show-all-zonages"
+              >
+                Voir les {flatZonages.length - 3} autres zonages <ChevronDown className="h-3.5 w-3.5 ml-1" />
+              </Button>
+            )}
+
             <Natura2000ExpectedPanel
               center={results.center}
               radius={results.radius}
@@ -988,22 +1318,8 @@ ${shareUrl ? `\n🔗 Reproduire cette analyse : ${shareUrl}` : ""}`;
             />
             <SINPPanel center={results.center} />
             {!zonagesLoading && (!zonages || zonages.count === 0) && (
-              <p className="text-sm text-gray-400 italic">Aucun zonage environnemental recensé dans l'aire d'étude.</p>
+              <p className="text-sm text-gray-400 italic">Aucun zonage environnemental recensé dans l'aire d'étude. Vous pouvez élargir le rayon d'analyse.</p>
             )}
-          </div>
-
-          {/* AGENT IA */}
-          <div className={activeTab === "agent" ? "space-y-4" : "hidden"} data-testid="panel-agent">
-            <div className="rounded-lg border border-teal-200 bg-teal-50/50 p-3 text-xs text-teal-700 flex items-start gap-2">
-              <Info className="h-3.5 w-3.5 shrink-0 mt-0.5" />
-              Analyse indicative à valider par un écologue.
-            </div>
-            <PrioritySpeciesInline
-              toponym={toponym || `Point ${results.center[0].toFixed(4)}, ${results.center[1].toFixed(4)}`}
-              coords={results.center}
-              occurrences={allFilteredSpecies}
-              onAnalysisChange={setAiAnalysis}
-            />
           </div>
 
           <p className="mt-4 px-1 text-[11px] text-gray-400 leading-snug flex gap-1.5 items-start">
@@ -1012,6 +1328,59 @@ ${shareUrl ? `\n🔗 Reproduire cette analyse : ${shareUrl}` : ""}`;
           </p>
         </ScrollArea>
 
+        {/* Assistant IA contextuel */}
+        <AnimatePresence>
+          {assistantOpen && (
+            <motion.div
+              initial={{ y: "100%" }}
+              animate={{ y: 0 }}
+              exit={{ y: "100%" }}
+              transition={{ type: "spring", damping: 28, stiffness: 260 }}
+              className="absolute inset-0 z-20 bg-white flex flex-col"
+              role="dialog"
+              aria-modal="true"
+              aria-label="Assistant IA"
+              data-testid="assistant-drawer"
+            >
+              <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
+                <div className="flex items-center gap-2">
+                  <Sparkles className="h-4 w-4 text-indigo-600" />
+                  <span className="text-sm font-bold text-gray-800">Assistant IA</span>
+                  <span className="text-[10px] text-gray-400">— analyse indicative à valider par un écologue</span>
+                </div>
+                <Button ref={assistantCloseRef} variant="ghost" size="icon" onClick={() => setAssistantOpen(false)} className="h-8 w-8 rounded-full" data-testid="button-close-assistant" aria-label="Fermer l'assistant">
+                  <X className="h-4 w-4" />
+                </Button>
+              </div>
+              <ScrollArea className="flex-1 px-4 py-3">
+                <div className="space-y-3">
+                  <div>
+                    <div className="text-[10px] font-bold uppercase tracking-wide text-gray-500 mb-1.5">
+                      Questions utiles pour cette vue
+                    </div>
+                    <ul className="space-y-1">
+                      {assistantSuggestions[activeTab].map((q, i) => (
+                        <li key={i} className="text-xs text-gray-600 flex items-start gap-1.5">
+                          <ChevronRight className="h-3 w-3 shrink-0 mt-0.5 text-indigo-400" /> {q}
+                        </li>
+                      ))}
+                    </ul>
+                    <p className="mt-1.5 text-[10px] text-gray-400 leading-snug">
+                      L'analyse ci-dessous répond à ces questions à partir des données réelles de l'inventaire. Pour une note rédigée, utilisez « Générer la note écologique » puis « Reformuler ».
+                    </p>
+                  </div>
+                  <PrioritySpeciesInline
+                    toponym={toponym || `Point ${results.center[0].toFixed(4)}, ${results.center[1].toFixed(4)}`}
+                    coords={results.center}
+                    occurrences={allFilteredSpecies}
+                    onAnalysisChange={setAiAnalysis}
+                  />
+                </div>
+              </ScrollArea>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
         <div className="px-5 py-3 border-t border-gray-100 bg-white/50 flex items-center gap-2">
           <Button
             onClick={() => setShowReportPreview(true)}
@@ -1019,7 +1388,7 @@ ${shareUrl ? `\n🔗 Reproduire cette analyse : ${shareUrl}` : ""}`;
             data-testid="button-report-text"
           >
             <FileText className="h-4 w-4" />
-            Note écologique
+            Générer la note écologique
             {aiAnalysis && (
               <span className="ml-0.5 inline-flex items-center gap-0.5 text-[9px] font-bold uppercase tracking-wider px-1 py-0.5 rounded bg-white/20 border border-white/30">
                 <Sparkles className="h-2.5 w-2.5" /> IA
@@ -1502,93 +1871,6 @@ function safeHttpUrl(raw: string | null): string | null {
   }
 }
 
-function ZonagesPanel({ data, loading }: { data: ZonagesData | null; loading: boolean }) {
-  const [expanded, setExpanded] = useState(true);
-
-  if (loading) {
-    return (
-      <div className="rounded-xl border border-teal-200 bg-teal-50/50 p-4 flex items-center gap-2 text-sm text-teal-700">
-        <Loader2 className="h-4 w-4 animate-spin" />
-        Recherche des zonages environnementaux…
-      </div>
-    );
-  }
-
-  if (!data || data.count === 0) return null;
-
-  return (
-    <div className="rounded-xl border border-teal-200 bg-teal-50/50 p-4" data-testid="panel-zonages">
-      <button onClick={() => setExpanded(!expanded)} className="w-full" data-testid="button-toggle-zonages">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <Layers className="h-4 w-4 text-teal-600" />
-            <span className="font-bold text-sm text-teal-700">Zonages environnementaux</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <span className="text-xs text-teal-500 bg-teal-100 px-2 py-0.5 rounded-full" data-testid="text-zonages-count">
-              {data.count} zonage{data.count > 1 ? "s" : ""}
-            </span>
-            {expanded ? <ChevronUp className="h-4 w-4 text-teal-500" /> : <ChevronDown className="h-4 w-4 text-teal-500" />}
-          </div>
-        </div>
-      </button>
-
-      {expanded && (
-        <div className="mt-3 space-y-3">
-          <p className="text-xs text-teal-600/70">
-            Zonages officiels intersectant l'aire d'étude (rayon {data.radius} m) — source IGN Géoplateforme / INPN (PatriNat) :
-          </p>
-          {data.groups.map((group) => {
-            const s = ZONAGE_CATEGORY_STYLES[group.category] || ZONAGE_CATEGORY_STYLES.autre;
-            return (
-              <div key={group.category} className={`bg-white/70 rounded-lg p-3 border ${s.border}`}>
-                <div className="flex items-center justify-between mb-2">
-                  <span className={`text-xs font-bold ${s.text}`}>{group.label}</span>
-                  <span className={`text-[10px] px-1.5 py-0.5 rounded-full ${s.badge}`}>{group.count}</span>
-                </div>
-                <div className="space-y-1.5">
-                  {group.zonages.map((z, i) => {
-                    const href = safeHttpUrl(z.url);
-                    const showSpecies = group.category === "natura2000" && !!z.code;
-                    return (
-                      <div key={`${z.id || z.code || z.name}-${i}`}>
-                        {href ? (
-                          <a
-                            href={href}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className={`flex items-start gap-2 text-xs ${s.text} ${s.hover} rounded px-2 py-1.5 transition-colors`}
-                            data-testid={`zonage-link-${group.category}-${i}`}
-                          >
-                            <ExternalLink className="h-3 w-3 flex-shrink-0 mt-0.5" />
-                            <span>
-                              <span className="font-semibold">{z.type}</span> — {z.name}
-                            </span>
-                          </a>
-                        ) : (
-                          <div
-                            className={`flex items-start gap-2 text-xs ${s.text} px-2 py-1.5`}
-                            data-testid={`zonage-item-${group.category}-${i}`}
-                          >
-                            <Shield className="h-3 w-3 flex-shrink-0 mt-0.5" />
-                            <span>
-                              <span className="font-semibold">{z.type}</span> — {z.name}
-                            </span>
-                          </div>
-                        )}
-                        {showSpecies && <NaturaSpeciesList code={z.code!} index={i} />}
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      )}
-    </div>
-  );
-}
 
 const GRADE_STYLES: Record<string, { badge: string; label: string }> = {
   A: { badge: "bg-red-100 text-red-700", label: "Population majeure (grade A)" },
@@ -1629,7 +1911,7 @@ function NaturaSpeciesList({ code, index }: { code: string; index: number }) {
         data-testid={`button-natura-species-${index}`}
       >
         {expanded ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
-        Espèces désignatrices (grade A/B/C/D)
+        Espèces justifiant le classement (grade A/B/C/D)
       </button>
       {expanded && (
         <div className="mt-1 pl-4 border-l border-emerald-200" data-testid={`list-natura-species-${index}`}>
@@ -1768,7 +2050,7 @@ function Natura2000ExpectedPanel({
           {loaded && !error && (
             <>
               <p className="text-[11px] text-gray-500 mb-2 leading-snug">
-                Espèces désignatrices des {siteCount} site{siteCount > 1 ? "s" : ""} Natura 2000 proche
+                Espèces justifiant le classement des {siteCount} site{siteCount > 1 ? "s" : ""} Natura 2000 proche
                 {siteCount > 1 ? "s" : ""} (base EEA, France). Les espèces « non observées » ne figurent
                 pas dans les résultats GBIF/iNaturalist mais sont attendues localement.
               </p>

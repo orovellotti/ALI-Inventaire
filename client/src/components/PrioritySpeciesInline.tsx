@@ -290,7 +290,7 @@ export function PrioritySpeciesInline({ toponym, coords, occurrences, onAnalysis
                         if (desig.length === 0) return null;
                         return (
                           <div className="mt-0.5 text-[10px] text-amber-700/90 leading-snug" data-testid={`natura2000-species-${i}`}>
-                            <span className="font-medium">Espèces désignatrices :</span>{" "}
+                            <span className="font-medium">Espèces justifiant le classement :</span>{" "}
                             <span className="italic">{desig.join(", ")}</span>
                           </div>
                         );

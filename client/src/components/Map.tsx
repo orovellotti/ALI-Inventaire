@@ -358,7 +358,7 @@ export function Map({ center, circles, results, onMapClick, selectedSpecies, onS
           title="Choisir le fond de carte et les couches écologiques"
         >
           <Layers className="h-3.5 w-3.5 text-teal-600" />
-          <span>Couches</span>
+          <span>Affichage de la carte</span>
           {activeOverlays.size > 0 && (
             <span className="text-[10px] bg-teal-100 text-teal-700 px-1.5 py-0.5 rounded-full font-bold">
               {activeOverlays.size}

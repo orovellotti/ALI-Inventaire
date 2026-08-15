@@ -49,20 +49,16 @@ L'utilisateur clique sur **« ⚡ Lancer l'inventaire flash »**. Pendant le tra
 - Les résultats sont fusionnés, dédoublonnés, et enrichis avec les statuts UICN.
 
 ### Étape 5 — Lire les résultats (tableau de bord à onglets)
-Le **panneau de résultats** glisse depuis la droite. La carte se décale automatiquement vers la gauche pour que le point d'analyse reste visible à côté du panneau. Plutôt qu'une longue liste déroulante, le panneau est un **tableau de bord d'aide à la décision organisé en 5 onglets** navigables via une barre d'onglets à icônes et badges numériques. L'objectif : permettre à un écologue de comprendre le niveau d'enjeu d'un secteur en moins de 30 secondes.
+Le **panneau de résultats** glisse depuis la droite. La carte se décale automatiquement vers la gauche pour que le point d'analyse reste visible à côté du panneau. Plutôt qu'une longue liste déroulante, le panneau est un **tableau de bord d'aide à la décision organisé en 3 onglets** (Vue d'ensemble, Espèces, Zonages) navigables via une barre d'onglets accessible (rôles ARIA tablist, navigation flèches/Home/End) avec badges numériques. L'objectif : permettre à un écologue de comprendre le niveau d'enjeu d'un secteur en moins de 30 secondes.
 
-En-tête permanent : nom du lieu, coordonnées, rayon, date.
+En-tête compact : titre + sous-titre « Diagnostic biodiversité d'un site », nom du lieu, bouton **« Changer le site »**, bascule **Essentiel / Expert** (persistée en localStorage — le mode Essentiel masque les indicateurs techniques, le mode Expert révèle compteurs, jauges, identifiants et filtres avancés).
 
-**Onglet 1 — Synthèse** (vue d'entrée)
-- **4 compteurs** : taxons valides (avec le nombre de noms bruts collectés en annotation), espèces sensibles, zonages, sources interrogées (GBIF / GBIF+iNat).
-- **2 indicateurs côte à côte** :
-  - *Potentiel d'enjeux* : jauge circulaire (SVG) 0-100 avec icône, libellé et facteurs contributifs listés.
-  - *Indice de confiance* (0-100) calculé sur 6 critères : géolocalisation, fiabilité taxonomique, fraîcheur temporelle, traçabilité, qualité de la source, dédoublonnage.
-- **Synthèse automatique** : court texte généré côté client résumant le secteur.
-- **3 boutons d'action** qui basculent vers les autres onglets : « Analyser les enjeux », « Préparer les inventaires », « Générer une note écologique ».
-
-**Onglet 2 — Enjeux** (cœur décisionnel)
-Les espèces sont classées par **niveau d'enjeu territorial** (moteur de scoring multi-échelle : régional → national → européen → mondial, précédence stricte), présenté en **6 sections repliables** (les plus critiques ouvertes par défaut) :
+**Onglet 1 — Vue d'ensemble** (vue d'entrée et cœur décisionnel)
+- **Carte « Niveau d'enjeu du site »** : niveau global Faible / Modéré / Fort (dérivé du potentiel d'enjeux), avec 3 compteurs contextuels : protections réglementaires, espèces sensibles, zonages identifiés.
+- **« À retenir »** : au maximum 3 informations prioritaires dérivées des données réelles.
+- **« Actions recommandées »** : raccourcis vers les espèces prioritaires, les contraintes réglementaires et l'assistant IA.
+- **Mode Expert uniquement** : 4 compteurs (taxons, sensibles, zonages, sources), jauge *Potentiel d'enjeux* 0-100, *Indice de confiance* (6 critères), synthèse automatique.
+- **Points de vigilance** : les espèces classées par **niveau d'enjeu territorial** (moteur de scoring multi-échelle : régional → national → européen → mondial, précédence stricte), présentées en **6 sections repliables** (les plus critiques ouvertes par défaut) :
 - 🔴 **Critique**
 - 🟠 **Fort**
 - 🟡 **Modéré**
@@ -72,18 +68,20 @@ Les espèces sont classées par **niveau d'enjeu territorial** (moteur de scorin
 
 Chaque carte d'espèce affiche : vignette photo, nom vernaculaire + scientifique, statuts territoriaux ALI/TAXREF (portée + territoire + tonalité), statut UICN, avertissements de cohérence, action recommandée, **métadonnées d'observation** (distance depuis le centre, année de dernière observation, nombre d'occurrences, source) et liens vers ALI Species (référentiel français TAXREF), Wikipédia, GBIF, iNaturalist.
 
-**Onglet 3 — Espèces** (exploration exhaustive)
-- **Chips de filtre par attribut** : Toutes, Protégées, Menacées, Patrimoniales, Récentes, Marine, Terrestre.
+**Onglet 2 — Espèces** (exploration exhaustive)
+- **Ligne de synthèse** : total d'espèces, sensibles, à vérifier.
+- **Chips de filtre par attribut** : Toutes, Sensibles, Protégées, À vérifier, Observations récentes (+ Menacées, Patrimoniales, Marine, Terrestre en mode Expert).
 - **Champ de recherche** par nom.
 - **Cartes de groupes taxonomiques** repliables (Oiseaux, Mammifères, Reptiles, Amphibiens, Poissons, Insectes, Arachnides, Mollusques, Plantes, Champignons, Autres) avec compteurs (total / sensibles / protégées) et période propice d'inventaire.
 - **Liste compacte** : une ligne par espèce (nom vernaculaire + scientifique une seule fois), badge de niveau d'enjeu, statut, dernière observation, source, icône info pour les statuts non évalués.
 
-**Onglet 4 — Zonages** (contexte réglementaire)
+**Onglet 3 — Zonages** (contexte réglementaire)
 - Phrase de synthèse des zonages recoupés.
-- Zonages environnementaux (parcs, réserves, Natura 2000, ZNIEFF, zones humides), espèces désignantes Natura 2000 attendues, et lien SINP régional.
+- **Liste compacte hiérarchisée** (réglementaire > Natura 2000 > ZNIEFF > info) : les 3 zonages les plus importants affichés d'abord, bouton « Voir les N autres zonages ». Chaque ligne est dépliable : type, catégorie, lien fiche INPN, espèces justifiant le classement (Natura 2000), identifiants techniques en mode Expert.
+- Espèces Natura 2000 attendues et lien SINP régional.
 
-**Onglet 5 — Agent IA** (analyse experte)
-- Analyse IA « Espèces à enjeux » : top 5 espèces les plus marquantes avec niveau et justification citant les référentiels officiels.
+**Assistant IA contextuel** (remplace l'ancien onglet Agent IA)
+- Bouton **« ✨ Assistant »** dans la barre d'onglets (et action recommandée en Vue d'ensemble) : ouvre un panneau plein écran avec des suggestions de questions propres à la vue courante et l'analyse IA « Espèces à enjeux » (top 5 espèces les plus marquantes avec niveau et justification citant les référentiels officiels). Fermeture par Échap ou bouton dédié.
 
 **Pied de panneau — actions transverses** (accessibles depuis tous les onglets)
 - **Note écologique** : ouvre un dialogue avec le rapport texte structuré, copiable ; option **Reformuler** (✨ IA GPT-4o-mini) ; **Partager** (Web Share API) ; **Email** (mailto: pré-rempli).
@@ -97,7 +95,7 @@ Chaque carte d'espèce affiche : vignette photo, nom vernaculaire + scientifique
 - **Clic** sur une carte ou une ligne d'espèce dans le panneau : met en évidence ses observations sur la carte.
 
 ### Étape 7 — Couches contextuelles (optionnel)
-Le bouton **« Couches »** en haut à droite ouvre un sélecteur pour :
+Le bouton **« Affichage de la carte »** en haut à droite ouvre un sélecteur pour :
 - **Choisir un fond de carte** : IGN Plan v2, IGN Photos satellite, IGN Cartes IGN, OSM clair, OSM topographique.
 - **Afficher des zones nature** (couches WMS Géoplateforme IGN) :
   - Parcs nationaux, parcs naturels régionaux
@@ -116,7 +114,7 @@ Le bouton **« Couches »** en haut à droite ouvre un sélecteur pour :
 ## 4. Composants UX transverses
 
 ### Barre d'onglets du tableau de bord
-Le panneau de résultats est structuré en 5 onglets (Synthèse, Enjeux, Espèces, Zonages, Agent IA) présentés dans une barre scrollable horizontalement, chacun avec une icône et un badge numérique (ex. nombre d'espèces à enjeux, nombre de zonages). Les boutons d'action de l'onglet Synthèse servent de raccourcis vers les autres onglets pour guider le parcours de lecture.
+Le panneau de résultats est structuré en 3 onglets (Vue d'ensemble, Espèces, Zonages) présentés dans une barre scrollable horizontalement, chacun avec une icône et un badge numérique (ex. nombre d'espèces, nombre de zonages), plus le bouton « ✨ Assistant ». Les « Actions recommandées » de la Vue d'ensemble servent de raccourcis pour guider le parcours de lecture. Le bouton principal en pied de panneau s'intitule « Générer la note écologique ».
 
 ### Panneau redimensionnable
 La poignée verticale verte sur le bord gauche du panneau de résultats permet de le redimensionner (largeur 360-800 px). Double-clic = reset à 600 px. La carte s'adapte automatiquement au nouveau décalage.

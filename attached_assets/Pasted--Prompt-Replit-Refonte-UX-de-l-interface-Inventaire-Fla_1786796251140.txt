@@ -1,0 +1,691 @@
+# Prompt Replit — Refonte UX de l’interface « Inventaire Flash »
+
+Tu es un développeur senior spécialisé en **UX/UI, React, cartographie web et applications environnementales**.
+
+Ta mission est de refondre l’interface existante de l’application **Inventaire Flash** afin de rendre le diagnostic biodiversité plus simple, plus lisible et plus rapide à comprendre pour un utilisateur non expert, tout en conservant l’accès aux informations détaillées pour les écologues.
+
+## Objectif principal
+
+L’utilisateur doit pouvoir répondre en moins de 20 secondes aux questions suivantes :
+
+1. Quel est le niveau d’enjeu biodiversité du site ?
+2. Quels sont les principaux points de vigilance ?
+3. Quelles espèces ou quels zonages sont concernés ?
+4. Quelle est la prochaine action recommandée ?
+5. Comment générer une note écologique ?
+
+Le principe directeur de la refonte est :
+
+> Une conclusion visible immédiatement, trois niveaux de détail maximum et une seule action principale.
+
+---
+
+## Consignes générales
+
+Avant de modifier le code :
+
+* Analyse l’architecture actuelle du projet.
+* Identifie le framework, les composants, le système de styles, la bibliothèque cartographique et la structure des données.
+* Réutilise les composants, APIs et données déjà présents.
+* Ne modifie pas la logique métier, les appels API, les modèles de données ou les traitements géographiques sans nécessité.
+* Ne remplace pas les données réelles par des données statiques.
+* Ne casse aucune fonctionnalité existante.
+* Conserve la carte et les couches cartographiques actuelles.
+* Privilégie une refonte progressive de l’interface plutôt qu’une réécriture complète.
+* Crée des composants réutilisables et faciles à maintenir.
+* Respecte le design actuel de l’application, mais simplifie fortement sa hiérarchie visuelle.
+
+En cas d’incertitude, commence par inspecter le code existant et choisis la solution la plus cohérente avec la stack déjà utilisée.
+
+---
+
+## 1. Simplifier la navigation principale
+
+Remplacer les cinq onglets actuels :
+
+* Synthèse
+* Enjeux
+* Espèces
+* Zonages
+* Agent IA
+
+Par seulement trois onglets :
+
+* **Vue d’ensemble**
+* **Espèces**
+* **Zonages**
+
+### Règles
+
+* Fusionner le contenu de « Synthèse » et « Enjeux » dans « Vue d’ensemble ».
+* Supprimer l’onglet « Agent IA ».
+* Transformer l’Agent IA en assistant contextuel accessible depuis chaque vue.
+* Conserver les compteurs uniquement dans les onglets :
+
+  * Espèces 40
+  * Zonages 8
+* Éviter de répéter les mêmes compteurs dans le bandeau supérieur.
+
+---
+
+## 2. Refaire l’en-tête du panneau
+
+Créer un en-tête compact contenant :
+
+* Le nom du produit : **Inventaire Flash**
+* Le sous-titre : **Diagnostic biodiversité d’un site**
+* Le nom ou la localisation du site analysé, si cette information existe.
+* Un bouton secondaire : **Changer le site**
+* Un bouton pour fermer ou réduire le panneau.
+* Un accès discret aux paramètres ou options supplémentaires.
+
+Remplacer le libellé « Modifier la recherche » par :
+
+**Changer le site**
+
+Le panneau doit rester visuellement secondaire par rapport à la carte.
+
+Largeur desktop recommandée :
+
+* environ 400 à 440 px ;
+* largeur maximale raisonnable ;
+* possibilité de réduire ou fermer le panneau ;
+* carte toujours dominante.
+
+---
+
+## 3. Créer une vue d’ensemble réellement synthétique
+
+La vue d’ensemble doit commencer par une carte de synthèse présentant le niveau d’enjeu global.
+
+Exemple :
+
+```text
+NIVEAU D’ENJEU : FORT
+
+2 protections réglementaires
+5 espèces sensibles
+8 zonages identifiés
+```
+
+Prévoir trois niveaux visuels :
+
+* Faible
+* Modéré
+* Fort
+
+Si aucun système de calcul du niveau global n’existe encore, ne crée pas arbitrairement une logique métier définitive.
+
+Dans ce cas :
+
+* crée un composant prêt à recevoir une valeur calculée ;
+* utilise les données déjà disponibles ;
+* isole la fonction de calcul ;
+* ajoute un commentaire indiquant que les règles métier devront être validées ;
+* n’affiche pas une fausse précision à l’utilisateur.
+
+### Ajouter une section « À retenir »
+
+Afficher au maximum trois informations prioritaires, par exemple :
+
+* Site situé dans une protection réglementaire.
+* Présence potentielle de cinq espèces sensibles.
+* Vérification terrain recommandée.
+
+Ces éléments doivent être générés à partir des données existantes lorsque cela est possible.
+
+### Ajouter une section « Actions recommandées »
+
+Afficher une liste courte d’actions, par exemple :
+
+* Vérifier les périodes sensibles.
+* Consulter les espèces prioritaires.
+* Contrôler les contraintes réglementaires.
+* Générer une note écologique.
+
+Ne pas afficher de longs paragraphes dans la vue d’ensemble.
+
+---
+
+## 4. Simplifier la vue « Zonages »
+
+La vue actuelle utilise de grandes cartes colorées par catégorie et provoque beaucoup de défilement.
+
+Remplacer cette présentation par une liste compacte et hiérarchisée.
+
+Chaque ligne de zonage doit afficher :
+
+* une icône ou un badge de catégorie ;
+* le nom du zonage ;
+* le type de zonage ;
+* sa relation avec la zone d’étude ;
+* son niveau d’importance ou de vigilance ;
+* un chevron ou un bouton « Voir les détails ».
+
+Exemples de statuts :
+
+* Intersecte la zone d’étude
+* À proximité
+* Hors zone d’étude
+* Distance : 180 m
+
+### Tri des résultats
+
+Trier les zonages dans cet ordre :
+
+1. Zonages intersectant directement la zone d’étude.
+2. Protections réglementaires.
+3. Zonages Natura 2000.
+4. Zonages présentant une forte vigilance.
+5. Zonages situés à proximité.
+6. Inventaires informatifs.
+
+Afficher en priorité les trois résultats les plus importants.
+
+Ajouter ensuite un bouton :
+
+**Voir les 5 autres zonages**
+
+### Détails repliables
+
+Les informations techniques doivent être masquées par défaut et accessibles dans un panneau dépliable :
+
+* directive ;
+* identifiant ;
+* espèces désignatrices ;
+* grade ;
+* source ;
+* description ;
+* date de mise à jour ;
+* lien vers la fiche officielle, lorsqu’il existe déjà dans les données.
+
+Ne pas supprimer ces informations. Les placer dans un second niveau de lecture.
+
+---
+
+## 5. Synchroniser la liste et la carte
+
+Lorsqu’un utilisateur clique sur un zonage dans la liste :
+
+* sélectionner le zonage ;
+* mettre son contour en évidence sur la carte ;
+* atténuer visuellement les autres zonages si la technologie actuelle le permet ;
+* recentrer ou ajuster le zoom lorsque cela est pertinent ;
+* ouvrir sa fiche résumée ;
+* conserver l’élément sélectionné visible dans le panneau.
+
+Lorsqu’un utilisateur clique sur un zonage directement sur la carte :
+
+* sélectionner la ligne correspondante dans la liste ;
+* faire défiler le panneau jusqu’à cet élément ;
+* ouvrir sa fiche ;
+* conserver la sélection synchronisée.
+
+Ajouter un état visuel clair pour l’élément sélectionné.
+
+Ne pas modifier le moteur cartographique si ce n’est pas nécessaire.
+
+---
+
+## 6. Améliorer la vue « Espèces »
+
+Structurer la vue Espèces avec :
+
+* un résumé du nombre total d’espèces ;
+* le nombre d’espèces sensibles ;
+* le nombre d’espèces nécessitant une vérification ;
+* des filtres simples ;
+* une liste compacte.
+
+Filtres proposés :
+
+* Toutes
+* Sensibles
+* Protégées
+* À vérifier
+* Observations récentes
+
+Chaque ligne doit afficher prioritairement :
+
+* le nom vernaculaire ;
+* le nom scientifique en information secondaire ;
+* le niveau de sensibilité ;
+* la date ou période d’observation si disponible ;
+* la distance par rapport au site si disponible ;
+* la source ;
+* un bouton ou chevron pour les détails.
+
+Les données scientifiques détaillées doivent être accessibles sans surcharger l’affichage initial.
+
+---
+
+## 7. Transformer l’Agent IA en assistant contextuel
+
+Supprimer l’onglet « Agent IA ».
+
+Ajouter dans chaque vue un bouton discret :
+
+**✨ Demander à l’assistant**
+
+Le bouton ouvre un panneau latéral, une pop-up ou une zone conversationnelle compacte.
+
+Les suggestions doivent dépendre de la vue active.
+
+### Dans la vue d’ensemble
+
+Proposer :
+
+* Résume ce diagnostic pour un non-spécialiste.
+* Quels sont les trois principaux risques ?
+* Quelles vérifications faut-il effectuer ?
+* Prépare un résumé pour une note de cadrage.
+
+### Dans la vue Espèces
+
+Proposer :
+
+* Quelles espèces nécessitent une vérification terrain ?
+* Quelles sont les périodes sensibles ?
+* Classe les espèces par niveau de vigilance.
+* Résume les espèces protégées.
+
+### Dans la vue Zonages
+
+Proposer :
+
+* Pourquoi ce zonage est-il important ?
+* Quelles conséquences pour mon projet ?
+* Résume les contraintes réglementaires.
+* Quels zonages nécessitent une attention prioritaire ?
+
+Réutiliser le système IA existant. Ne pas créer une fausse réponse locale si l’application utilise déjà une API.
+
+---
+
+## 8. Ajouter un mode « Essentiel / Expert »
+
+Ajouter un sélecteur d’affichage :
+
+**Essentiel | Expert**
+
+Le mode « Essentiel » doit être activé par défaut.
+
+### Mode Essentiel
+
+Afficher :
+
+* des formulations simples ;
+* les résultats prioritaires ;
+* les recommandations ;
+* les statuts d’intersection ;
+* les informations directement utiles à la décision.
+
+Masquer par défaut :
+
+* identifiants techniques ;
+* grades ;
+* détails de directives ;
+* métadonnées avancées ;
+* informations scientifiques secondaires.
+
+### Mode Expert
+
+Afficher en complément :
+
+* noms scientifiques ;
+* grades des espèces désignatrices ;
+* identifiants des zonages ;
+* dates des observations ;
+* sources détaillées ;
+* niveau de confiance ;
+* fraîcheur des données ;
+* filtres avancés disponibles dans l’application.
+
+Le changement de mode ne doit pas recharger toute la page.
+
+Conserver la préférence dans le stockage local du navigateur si cela est cohérent avec l’architecture actuelle.
+
+---
+
+## 9. Clarifier les libellés
+
+Remplacer les libellés suivants lorsque cela est pertinent :
+
+| Libellé actuel        | Nouveau libellé                  |
+| --------------------- | -------------------------------- |
+| Modifier la recherche | Changer le site                  |
+| 5 sensibles           | 5 espèces sensibles              |
+| Enjeux 4              | 4 points de vigilance            |
+| Note écologique       | Générer la note écologique       |
+| Couches               | Affichage de la carte            |
+| GBIF + INAT           | Sources des observations         |
+| Espèces désignatrices | Espèces justifiant le classement |
+
+Conserver les noms officiels des organismes, zonages et dispositifs réglementaires.
+
+---
+
+## 10. Revoir la hiérarchie des couleurs
+
+Utiliser les couleurs pour représenter le niveau d’attention et non uniquement les catégories.
+
+Logique recommandée :
+
+* Rouge : protection ou contrainte forte.
+* Orange : vigilance ou vérification nécessaire.
+* Vert : situation favorable ou absence d’alerte.
+* Gris ou neutre : information contextuelle.
+* Bleu ou couleur principale du produit : actions et navigation.
+
+Éviter d’entourer chaque bloc d’une couleur différente.
+
+Privilégier :
+
+* des badges ;
+* des icônes ;
+* une bordure légère ;
+* un fond neutre ;
+* une couleur forte uniquement sur l’information prioritaire.
+
+Respecter les couleurs déjà définies dans le design system si elles existent.
+
+---
+
+## 11. Clarifier l’action principale
+
+Le bouton principal fixé en bas du panneau doit devenir :
+
+**Générer la note écologique**
+
+Le bouton doit :
+
+* être clairement identifiable comme l’action principale ;
+* rester visible pendant le défilement ;
+* ne pas masquer le contenu ;
+* conserver son comportement actuel ;
+* afficher un état de chargement ;
+* être désactivé avec une explication si les données nécessaires ne sont pas disponibles ;
+* gérer les erreurs proprement.
+
+Les actions secondaires doivent être visuellement moins importantes.
+
+---
+
+## 12. Responsive mobile et tablette
+
+Sur mobile :
+
+* afficher la carte en plein écran ;
+* afficher le contenu dans un panneau coulissant depuis le bas ;
+* permettre trois positions :
+
+  * réduit ;
+  * intermédiaire ;
+  * plein écran ;
+* conserver les trois onglets ;
+* garder le bouton « Générer la note écologique » accessible ;
+* éviter les zones de clic trop petites ;
+* permettre de fermer facilement les détails ;
+* conserver la synchronisation entre la carte et les listes.
+
+Sur tablette :
+
+* utiliser un panneau latéral redimensionné ;
+* conserver une surface de carte suffisante.
+
+Ne pas reproduire simplement la version desktop en largeur réduite.
+
+---
+
+## 13. Accessibilité
+
+Respecter au minimum les règles suivantes :
+
+* navigation complète au clavier ;
+* focus visible ;
+* contrastes suffisants ;
+* boutons avec libellés accessibles ;
+* icônes accompagnées d’un texte ou d’un aria-label ;
+* accordéons correctement annoncés ;
+* ne pas transmettre une information uniquement par la couleur ;
+* zones cliquables d’au moins 44 px sur mobile ;
+* titres structurés ;
+* gestion correcte du focus à l’ouverture d’un panneau ou d’une modale ;
+* respect de `prefers-reduced-motion`.
+
+---
+
+## 14. États à prévoir
+
+Créer des états cohérents pour :
+
+* chargement des espèces ;
+* chargement des zonages ;
+* chargement de la carte ;
+* aucune donnée trouvée ;
+* erreur API ;
+* données partielles ;
+* données anciennes ;
+* résultat non disponible ;
+* génération de la note en cours ;
+* sélection d’un zonage ;
+* sélection d’une espèce ;
+* mode essentiel ;
+* mode expert.
+
+Les messages d’erreur doivent expliquer ce que l’utilisateur peut faire.
+
+---
+
+## 15. Composants recommandés
+
+Adapter les noms à la convention actuelle du projet.
+
+Créer ou refactoriser des composants similaires à :
+
+```text
+InventoryHeader
+MainNavigation
+OverviewPanel
+IssueLevelCard
+KeyFindings
+RecommendedActions
+SpeciesList
+SpeciesListItem
+SpeciesFilters
+ZoningList
+ZoningListItem
+ZoningDetails
+MapSelectionCard
+EssentialExpertToggle
+ContextualAIAssistant
+StickyReportAction
+LoadingState
+EmptyState
+ErrorState
+```
+
+Éviter les composants trop volumineux.
+
+Séparer :
+
+* la récupération des données ;
+* la transformation des données ;
+* la logique de sélection ;
+* l’affichage ;
+* les interactions cartographiques.
+
+---
+
+## 16. Gestion des données
+
+Créer une couche de transformation pour produire des objets d’interface cohérents sans modifier les données sources.
+
+Exemple de structure pour un zonage :
+
+```ts
+type ZoningDisplayItem = {
+  id: string;
+  name: string;
+  category: string;
+  categoryLabel: string;
+  relation: "intersects" | "nearby" | "outside" | "unknown";
+  distanceMeters?: number;
+  priority: number;
+  vigilanceLevel: "high" | "medium" | "low" | "info";
+  source?: string;
+  details?: Record<string, unknown>;
+};
+```
+
+Exemple de structure pour une espèce :
+
+```ts
+type SpeciesDisplayItem = {
+  id: string;
+  commonName?: string;
+  scientificName: string;
+  sensitivityLevel: "high" | "medium" | "low" | "unknown";
+  protected?: boolean;
+  requiresVerification?: boolean;
+  observationDate?: string;
+  distanceMeters?: number;
+  source?: string;
+};
+```
+
+Utiliser TypeScript si le projet l’utilise déjà.
+
+Ne pas introduire TypeScript dans tout le projet uniquement pour cette refonte si l’application est actuellement en JavaScript.
+
+---
+
+## 17. Ordre d’implémentation
+
+Réaliser la refonte dans cet ordre :
+
+* [ ] Auditer la structure du projet et identifier les composants concernés.
+* [ ] Vérifier le fonctionnement actuel de la carte, des onglets et de la génération de note.
+* [ ] Simplifier la navigation à trois onglets.
+* [ ] Créer le nouvel en-tête.
+* [ ] Créer la nouvelle vue d’ensemble.
+* [ ] Transformer la liste des zonages en liste compacte.
+* [ ] Ajouter le tri par priorité.
+* [ ] Ajouter les détails repliables.
+* [ ] Synchroniser la liste des zonages avec la carte.
+* [ ] Simplifier la vue Espèces.
+* [ ] Ajouter les filtres Espèces.
+* [ ] Transformer l’Agent IA en assistant contextuel.
+* [ ] Ajouter le mode Essentiel / Expert.
+* [ ] Renommer les libellés.
+* [ ] Revoir la hiérarchie des couleurs.
+* [ ] Refaire le bouton « Générer la note écologique ».
+* [ ] Ajouter les états de chargement, vide et erreur.
+* [ ] Adapter l’interface au mobile.
+* [ ] Vérifier l’accessibilité.
+* [ ] Tester les principales interactions.
+* [ ] Nettoyer le code inutilisé après validation.
+
+---
+
+## 18. Critères d’acceptation
+
+La tâche est considérée comme terminée lorsque :
+
+* [ ] L’interface ne contient plus que trois onglets principaux.
+* [ ] La conclusion principale est visible sans défilement sur desktop.
+* [ ] Les trois principales informations sont compréhensibles immédiatement.
+* [ ] Les zonages sont affichés sous forme de liste compacte.
+* [ ] Les résultats prioritaires apparaissent en premier.
+* [ ] Les détails techniques sont repliés par défaut.
+* [ ] Cliquer sur un zonage de la liste le sélectionne sur la carte.
+* [ ] Cliquer sur un zonage de la carte ouvre le bon élément dans la liste.
+* [ ] La vue Espèces dispose de filtres simples.
+* [ ] Le mode Essentiel est activé par défaut.
+* [ ] Le mode Expert affiche les informations avancées.
+* [ ] L’Agent IA n’est plus un onglet principal.
+* [ ] L’assistant IA propose des questions adaptées à la vue active.
+* [ ] Le bouton « Générer la note écologique » reste visible.
+* [ ] Les appels API existants fonctionnent toujours.
+* [ ] La génération de la note écologique fonctionne toujours.
+* [ ] La carte et les couches existantes fonctionnent toujours.
+* [ ] L’interface est utilisable sur mobile.
+* [ ] L’interface est navigable au clavier.
+* [ ] Aucun message d’erreur n’apparaît dans la console lors du parcours normal.
+* [ ] Aucun contenu important n’est masqué ou coupé.
+* [ ] Les états de chargement et d’erreur sont traités.
+
+---
+
+## 19. Tests à effectuer
+
+Tester au minimum les scénarios suivants :
+
+### Scénario 1 — Consultation rapide
+
+1. Ouvrir un inventaire.
+2. Identifier le niveau d’enjeu.
+3. Lire les trois informations principales.
+4. Accéder à la liste des zonages.
+5. Revenir à la vue d’ensemble.
+
+### Scénario 2 — Sélection cartographique
+
+1. Ouvrir l’onglet Zonages.
+2. Cliquer sur un zonage dans la liste.
+3. Vérifier sa mise en évidence sur la carte.
+4. Cliquer sur un autre zonage directement sur la carte.
+5. Vérifier que la bonne fiche s’ouvre dans le panneau.
+
+### Scénario 3 — Consultation d’une espèce
+
+1. Ouvrir l’onglet Espèces.
+2. Filtrer les espèces sensibles.
+3. Ouvrir le détail d’une espèce.
+4. Passer du mode Essentiel au mode Expert.
+5. Vérifier que les informations détaillées apparaissent.
+
+### Scénario 4 — Assistant IA
+
+1. Ouvrir l’assistant depuis la vue d’ensemble.
+2. Vérifier les suggestions proposées.
+3. Aller dans la vue Zonages.
+4. Vérifier que les suggestions ont changé.
+5. Tester une question avec le système IA existant.
+
+### Scénario 5 — Génération de note
+
+1. Cliquer sur « Générer la note écologique ».
+2. Vérifier l’état de chargement.
+3. Vérifier la réussite ou le message d’erreur.
+4. Vérifier que le comportement métier existant est conservé.
+
+### Scénario 6 — Mobile
+
+1. Ouvrir l’application sur une largeur mobile.
+2. Manipuler le panneau coulissant.
+3. Changer d’onglet.
+4. Sélectionner un élément.
+5. Vérifier la synchronisation avec la carte.
+6. Générer la note écologique.
+
+---
+
+## 20. Livrable attendu
+
+Implémente directement la refonte dans le projet.
+
+À la fin, fournis un compte rendu contenant :
+
+1. Les fichiers créés.
+2. Les fichiers modifiés.
+3. Les principaux composants ajoutés.
+4. Les changements UX réalisés.
+5. Les éventuelles règles métier qui restent à valider.
+6. Les limitations connues.
+7. Les tests effectués.
+8. Les commandes nécessaires pour lancer et tester l’application.
+
+Ne considère pas la tâche comme terminée avec une simple maquette statique.
+
+La refonte doit être connectée aux données et aux interactions réelles de l’application existante.

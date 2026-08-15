@@ -12,7 +12,7 @@ En quelques clics, Inventaire Flash fournit un premier aperçu des espèces conn
 
 - **Carte interactive plein écran** (Leaflet + fonds IGN Géoplateforme / OSM) avec recherche d'adresse, clic direct ou import de shapefile.
 - **Aires concentriques EIE** (immédiate / rapprochée / éloignée) avec presets prêts à l'emploi (éolien, PV sol, urbanisation, infrastructure, carrière/ICPE).
-- **Tableau de bord à 5 onglets** : Synthèse, Enjeux, Espèces, Zonages, Agent IA.
+- **Tableau de bord à 3 onglets** : Vue d'ensemble (niveau d'enjeu global, à retenir, actions recommandées, points de vigilance), Espèces, Zonages — avec assistant IA contextuel et mode Essentiel/Expert.
 - **Scoring d'enjeux territorial multi-échelle** (régional → national → européen → mondial) avec 6 niveaux : critique, fort, modéré, à confirmer, faible, EEE.
 - **Indice de confiance** des données (6 critères) et **jauge de potentiel d'enjeux**.
 - **Zonages environnementaux** (ZNIEFF, Natura 2000, réserves, parcs, Ramsar…) recoupant l'aire d'étude, et **espèces désignantes Natura 2000** attendues.
