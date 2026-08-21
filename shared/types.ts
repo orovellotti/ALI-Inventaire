@@ -123,6 +123,47 @@ export interface InventoryRequest {
   circles: BufferCircle[];
 }
 
+/** Statut d'un indice déterministe de compatibilité écologique (jamais une probabilité de présence). */
+export type PotentialSpeciesStatus =
+  | "Très probable localement"
+  | "Potentielle"
+  | "Peu compatible"
+  | "Non évaluée";
+
+export type PotentialSpeciesConfidence = "Élevé" | "Moyen" | "Faible";
+
+export interface PotentialSpeciesItem {
+  scientificName: string;
+  speciesGroup: string;
+  /** Vrai uniquement si une occurrence réelle de l'inventaire porte ce nom scientifique. */
+  observed: boolean;
+  status: PotentialSpeciesStatus;
+  /** Indice de compatibilité écologique ; null quand les données sont insuffisantes. */
+  score: number | null;
+  confidence: PotentialSpeciesConfidence;
+  reasons: string[];
+  sites: { code: string; name: string }[];
+  habitats: { code: string; description: string }[];
+}
+
+export interface PotentialSpeciesResult {
+  species: PotentialSpeciesItem[];
+  observedCount: number;
+  potentialCount: number;
+  evaluatedCount: number;
+  siteCount: number;
+  habitatCount: number;
+  partial: boolean;
+  reference: {
+    id: string;
+    title: string;
+    publisher: string;
+    sourceUrl: string;
+    sourceUpdated: string;
+  };
+  generatedAt: string;
+}
+
 export interface GeocodingResult {
   lat: number;
   lon: number;

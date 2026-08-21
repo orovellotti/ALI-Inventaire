@@ -24,6 +24,7 @@ export interface SiteHabitatInfo {
 }
 
 const cache = new Map<string, { at: number; data: SiteHabitatInfo }>();
+const inFlight = new Map<string, Promise<SiteHabitatInfo | null>>();
 
 function isValidSiteCode(code: string): boolean {
   return /^[A-Z]{2}\d{6,}$/i.test(code);
@@ -100,14 +101,21 @@ export async function getSiteHabitatInfo(siteCode: string): Promise<SiteHabitatI
 
   const cached = cache.get(code);
   if (cached && Date.now() - cached.at < CACHE_TTL_MS) return cached.data;
+  const pending = inFlight.get(code);
+  if (pending) return pending;
 
-  const [habitats, geometry] = await Promise.all([
-    fetchHabitats(code).catch(() => [] as SiteHabitat[]),
-    fetchGeometry(code).catch(() => null),
-  ]);
-
-  const info: SiteHabitatInfo = { habitats, geometry };
-  // Ne mettre en cache que les réponses utiles (polygone ou habitats trouvés).
-  if (geometry || habitats.length > 0) cache.set(code, { at: Date.now(), data: info });
-  return info;
+  const request = (async () => {
+    const [habitats, geometry] = await Promise.all([
+      fetchHabitats(code).catch(() => [] as SiteHabitat[]),
+      fetchGeometry(code).catch(() => null),
+    ]);
+    const info: SiteHabitatInfo = { habitats, geometry };
+    // Ne mettre en cache que les réponses utiles (polygone ou habitats trouvés).
+    if (geometry || habitats.length > 0) cache.set(code, { at: Date.now(), data: info });
+    return info;
+  })().finally(() => {
+    inFlight.delete(code);
+  });
+  inFlight.set(code, request);
+  return request;
 }

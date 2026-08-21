@@ -16,6 +16,7 @@ import {
   latLngQuerySchema,
   searchQuerySchema,
   priorityBodySchema,
+  potentialSpeciesBodySchema,
   reformatBodySchema,
   taxonKeyParamSchema,
   zonagesQuerySchema,
@@ -24,6 +25,7 @@ import { geocodePlace, reverseGeocode, searchLieuxDits } from "./services/nomina
 import { getZonages, getNaturaZones } from "./services/geoservices";
 import { getSpeciesForSite } from "./services/natura2000Species";
 import { storage } from "./storage";
+import { getPotentialSpecies } from "./services/potentialSpecies";
 
 const DATA_SOURCES_TTL_MS = 10 * 60 * 1000;
 let dataSourcesCache: { data: unknown; expires: number } | null = null;
@@ -38,6 +40,7 @@ const ENDPOINTS_DOC = [
   { method: "GET", path: "/api/zonages?lat=&lng=&radius=", description: "Zonages environnementaux (ZNIEFF, Natura 2000, réserves, APB…) intersectant l'aire d'étude (IGN/PatriNat)" },
   { method: "GET", path: "/api/natura-species?code=", description: "Espèces désignatrices (grade A/B/C/D) d'un site Natura 2000 (source EEA, live)" },
   { method: "GET", path: "/api/natura2000/expected?lat=&lng=&radius=", description: "Espèces désignatrices Natura 2000 attendues autour d'un point (base locale, France)" },
+  { method: "POST", path: "/api/potential-species", description: "Compatibilité déterministe des espèces Natura 2000 avec les habitats de l'emprise" },
   { method: "GET", path: "/api/sinp/all", description: "Toutes les plateformes SINP" },
   { method: "GET", path: "/api/presets", description: "Presets de projets EIE" },
   { method: "GET", path: "/api/study-areas", description: "Définitions des aires d'étude" },
@@ -204,6 +207,15 @@ export async function registerRoutes(
         a.scientificName.localeCompare(b.scientificName),
       );
       res.json({ siteCount: codes.length, count: species.length, species });
+    }),
+  );
+
+  app.post(
+    "/api/potential-species",
+    asyncHandler(async (req, res) => {
+      const { lat, lng, radius, occurrences } =
+        potentialSpeciesBodySchema.parse(req.body);
+      res.json(await getPotentialSpecies(lat, lng, radius, occurrences));
     }),
   );
 

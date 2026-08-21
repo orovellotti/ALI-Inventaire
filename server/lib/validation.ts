@@ -68,6 +68,23 @@ export const priorityBodySchema = z.object({
     .max(5000, "Maximum 5000 occurrences"),
 });
 
+export const potentialSpeciesBodySchema = z.object({
+  lat: latSchema,
+  lng: lngSchema,
+  radius: radiusSchema.default(2000),
+  occurrences: z
+    .array(
+      z.object({
+        key: z.number().int(),
+        scientificName: z.string().trim().min(1, "Nom scientifique requis"),
+        decimalLatitude: latSchema,
+        decimalLongitude: lngSchema,
+        source: z.enum(["gbif", "inaturalist"]),
+      }),
+    )
+    .max(5000, "Maximum 5000 occurrences"),
+});
+
 export const reformatBodySchema = z.object({
   report: z.string().min(1, "Champ 'report' requis").max(50000, "Rapport trop long (max 50000 caractères)"),
 });

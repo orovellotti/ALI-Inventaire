@@ -10,6 +10,11 @@ import { findSINPPlatforms, SINPPlatform } from "@/lib/sinp";
 import { exportCSV, exportExcel } from "@/lib/export";
 import { PrioritySpeciesInline } from "./PrioritySpeciesInline";
 import html2canvas from "html2canvas";
+import type {
+  PotentialSpeciesItem,
+  PotentialSpeciesResult,
+  PotentialSpeciesStatus,
+} from "@shared/types";
 
 interface ZonageItem {
   category: string;
@@ -42,7 +47,7 @@ interface ZonagesData {
 /** Vue courante du panneau : diagnostic (page unique) ou l'une des deux vues détaillées. */
 type PanelView = "diagnostic" | "especes" | "zonages";
 /** Sections repliables du diagnostic. */
-type SectionKey = "especes" | "zonages" | "pourquoi" | "qualite";
+type SectionKey = "especes" | "potentielles" | "zonages" | "pourquoi" | "qualite";
 
 /**
  * Niveau d'enjeu global du site (Faible / Modéré / Fort), dérivé du score de
@@ -1010,7 +1015,16 @@ ${shareUrl ? `\n🔗 Reproduire cette analyse : ${shareUrl}` : ""}`;
               )}
             </section>
 
-            {/* Section 4 — Zonages concernés (repliable) */}
+            {/* Section 4 — Espèces potentiellement présentes (repliable) */}
+            <PotentialSpeciesSection
+              center={results.center}
+              radius={results.radius}
+              occurrences={results.occurrences}
+              open={openSections.has("potentielles")}
+              onToggle={() => toggleSection("potentielles")}
+            />
+
+            {/* Section 5 — Zonages concernés (repliable) */}
             <section className="rounded-xl border border-gray-200 bg-white overflow-hidden" data-testid="section-zonages">
               <button
                 type="button"
@@ -2058,6 +2072,348 @@ interface ExpectedSpeciesItem {
   directive: string;
   annexes: string;
   sites: { code: string; name: string }[];
+}
+
+const POTENTIAL_STATUS_STYLE: Record<
+  PotentialSpeciesStatus,
+  { badge: string; bar: string }
+> = {
+  "Très probable localement": {
+    badge: "bg-emerald-100 text-emerald-800 border-emerald-200",
+    bar: "bg-emerald-500",
+  },
+  Potentielle: {
+    badge: "bg-sky-100 text-sky-800 border-sky-200",
+    bar: "bg-sky-500",
+  },
+  "Peu compatible": {
+    badge: "bg-amber-100 text-amber-800 border-amber-200",
+    bar: "bg-amber-500",
+  },
+  "Non évaluée": {
+    badge: "bg-gray-100 text-gray-600 border-gray-200",
+    bar: "bg-gray-300",
+  },
+};
+
+function PotentialSpeciesRow({
+  item,
+}: {
+  item: PotentialSpeciesItem;
+}) {
+  const style = POTENTIAL_STATUS_STYLE[item.status];
+  return (
+    <li
+      className="rounded-lg border border-gray-200 bg-white p-3 space-y-2"
+      data-testid={`potential-species-${item.scientificName}`}
+    >
+      <div className="flex items-start justify-between gap-2">
+        <div className="min-w-0">
+          <div className="flex flex-wrap items-center gap-1.5">
+            {item.observed && (
+              <span className="text-[9px] font-bold uppercase tracking-wide rounded border border-teal-200 bg-teal-50 px-1.5 py-0.5 text-teal-700">
+                Observée
+              </span>
+            )}
+            <span className="font-semibold italic text-xs text-gray-800">
+              {item.scientificName}
+            </span>
+          </div>
+          {item.speciesGroup && (
+            <span className="mt-0.5 block text-[10px] text-gray-400">
+              {SPECIES_GROUP_FR[item.speciesGroup] ?? item.speciesGroup}
+            </span>
+          )}
+        </div>
+        <span
+          className={`shrink-0 rounded border px-1.5 py-0.5 text-[9px] font-bold ${style.badge}`}
+        >
+          {item.status}
+        </span>
+      </div>
+
+      <div className="grid grid-cols-[1fr_auto] items-center gap-x-3 gap-y-1">
+        <span className="text-[10px] font-semibold text-gray-600">
+          Score de compatibilité
+        </span>
+        <span className="text-[11px] font-bold text-gray-700">
+          {item.score === null ? "—" : `${item.score}/100`}
+        </span>
+        <div
+          className="h-1.5 overflow-hidden rounded-full bg-gray-100"
+          role="meter"
+          aria-label={`Score de compatibilité de ${item.scientificName}`}
+          aria-valuemin={0}
+          aria-valuemax={100}
+          aria-valuenow={item.score ?? undefined}
+          aria-valuetext={
+            item.score === null ? "Non évalué" : `${item.score} sur 100`
+          }
+        >
+          <div
+            className={`h-full rounded-full ${style.bar}`}
+            style={{ width: `${item.score ?? 0}%` }}
+          />
+        </div>
+        <span className="text-[10px] text-gray-500">
+          Confiance : <strong>{item.confidence}</strong>
+        </span>
+      </div>
+
+      <ul className="space-y-1">
+        {item.reasons.map((reason, index) => (
+          <li
+            key={`${reason}-${index}`}
+            className="flex items-start gap-1.5 text-[10px] leading-snug text-gray-600"
+          >
+            <span className="mt-1 h-1 w-1 shrink-0 rounded-full bg-gray-400" />
+            <span>{reason}</span>
+          </li>
+        ))}
+      </ul>
+    </li>
+  );
+}
+
+function PotentialSpeciesSection({
+  center,
+  radius,
+  occurrences,
+  open,
+  onToggle,
+}: {
+  center: [number, number];
+  radius: number;
+  occurrences: Occurrence[];
+  open: boolean;
+  onToggle: () => void;
+}) {
+  const [result, setResult] = useState<PotentialSpeciesResult | null>(null);
+  const [resultKey, setResultKey] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(false);
+  const requestKey = useMemo(
+    () =>
+      `${center[0].toFixed(5)}|${center[1].toFixed(5)}|${radius}|${occurrences
+        .map(
+          (occurrence) =>
+            `${occurrence.key}:${occurrence.source}:${occurrence.scientificName}:${occurrence.decimalLatitude}:${occurrence.decimalLongitude}`,
+        )
+        .sort()
+        .join(",")}`,
+    [center[0], center[1], radius, occurrences],
+  );
+  const currentResult = resultKey === requestKey ? result : null;
+
+  useEffect(() => {
+    // Calcul externe volontairement différé jusqu'à l'ouverture de la section.
+    if (!open || (resultKey === requestKey && result)) {
+      setLoading(false);
+      return;
+    }
+    const controller = new AbortController();
+    setLoading(true);
+    setError(false);
+    fetch("/api/potential-species", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      signal: controller.signal,
+      body: JSON.stringify({
+        lat: center[0],
+        lng: center[1],
+        radius,
+        occurrences: occurrences.map((occurrence) => ({
+          key: occurrence.key,
+          scientificName: occurrence.scientificName,
+          decimalLatitude: occurrence.decimalLatitude,
+          decimalLongitude: occurrence.decimalLongitude,
+          source: occurrence.source,
+        })).filter((occurrence) => occurrence.source === "gbif" || occurrence.source === "inaturalist"),
+      }),
+    })
+      .then(async (response) => {
+        if (!response.ok) {
+          const body = await response.json().catch(() => null);
+          throw new Error(body?.error || "Évaluation indisponible");
+        }
+        return response.json() as Promise<PotentialSpeciesResult>;
+      })
+      .then((data) => {
+        setResult(data);
+        setResultKey(requestKey);
+      })
+      .catch((requestError) => {
+        if (requestError?.name !== "AbortError") setError(true);
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setLoading(false);
+      });
+    return () => controller.abort();
+  }, [open, requestKey, resultKey, result, center[0], center[1], radius, occurrences]);
+
+  const potential = currentResult?.species.filter((item) => !item.observed) ?? [];
+  const observed = currentResult?.species.filter((item) => item.observed) ?? [];
+  const summary = loading
+    ? "Calcul en cours…"
+    : error
+      ? "Évaluation indisponible"
+      : !currentResult
+        ? "Ouvrir pour calculer"
+        : currentResult.species.length === 0
+          ? "Aucune espèce candidate"
+          : `${currentResult.potentialCount} candidate${currentResult.potentialCount > 1 ? "s" : ""} non observée${currentResult.potentialCount > 1 ? "s" : ""}, ${currentResult.observedCount} observée${currentResult.observedCount > 1 ? "s" : ""}`;
+
+  return (
+    <section
+      className="overflow-hidden rounded-xl border border-emerald-200 bg-white"
+      data-testid="section-potential-species"
+    >
+      <button
+        type="button"
+        onClick={onToggle}
+        aria-expanded={open}
+        aria-controls="section-body-potential-species"
+        className="flex w-full items-center justify-between gap-2 px-4 py-3 transition-colors hover:bg-emerald-50/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400"
+        data-testid="button-section-potential-species"
+      >
+        <span className="flex items-center gap-2 text-left text-sm font-bold text-gray-800">
+          <ListChecks className="h-4 w-4 shrink-0 text-emerald-600" />
+          Espèces potentiellement présentes
+        </span>
+        <span className="flex min-w-0 items-center gap-2 text-[11px] text-gray-500">
+          <span className="truncate">{summary}</span>
+          {loading ? (
+            <Loader2 className="h-4 w-4 shrink-0 animate-spin text-emerald-600" />
+          ) : open ? (
+            <ChevronUp className="h-4 w-4 shrink-0" />
+          ) : (
+            <ChevronDown className="h-4 w-4 shrink-0" />
+          )}
+        </span>
+      </button>
+
+      {open && (
+        <div
+          id="section-body-potential-species"
+          className="space-y-3 border-t border-emerald-100 px-4 pb-4 pt-3"
+        >
+          <div className="rounded-lg border border-sky-100 bg-sky-50 p-2.5 text-[10px] leading-relaxed text-sky-800">
+            <strong>Indice de compatibilité, pas probabilité de présence.</strong>{" "}
+            Le calcul croise les liens Natura 2000 et les correspondances
+            écologiques explicites entre l’espèce et les habitats décrits sur
+            les sites proches. La localisation précise de chaque habitat dans
+            l’emprise n’est pas connue. Les occurrences servent uniquement à
+            séparer les espèces observées. Ce pré-diagnostic doit être validé
+            par un écologue.
+            {currentResult?.reference && (
+              <>
+                {" "}
+                <a
+                  href={currentResult.reference.sourceUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="font-semibold underline"
+                >
+                  Référentiel {currentResult.reference.publisher} {currentResult.reference.id}
+                </a>
+                .
+              </>
+            )}
+          </div>
+
+          {loading && (
+            <div
+              className="flex items-center justify-center gap-2 py-4 text-xs text-gray-500"
+              role="status"
+            >
+              <Loader2 className="h-4 w-4 animate-spin text-emerald-600" />
+              Calcul des compatibilités…
+            </div>
+          )}
+          {error && (
+            <div className="flex items-start gap-2 rounded-lg border border-red-100 bg-red-50 p-2.5 text-[11px] text-red-700">
+              <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+              Les données nécessaires sont temporairement indisponibles. Aucun
+              score n’a été inventé.
+            </div>
+          )}
+          {!loading && !error && currentResult && currentResult.species.length === 0 && (
+            <p className="py-2 text-xs italic text-gray-500">
+              Aucune espèce candidate n’est disponible dans les sites Natura
+              2000 concernés.
+            </p>
+          )}
+          {!loading && !error && currentResult && currentResult.partial && (
+            <div className="flex items-start gap-2 rounded-lg border border-amber-100 bg-amber-50 p-2.5 text-[10px] text-amber-800">
+              <Info className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+              Certaines données d’habitat n’ont pas pu être chargées ; les
+              espèces concernées restent « Non évaluée ».
+            </div>
+          )}
+
+          {!loading && !error && currentResult && currentResult.species.length > 0 && (
+            <>
+              <div>
+                <div className="mb-1.5 flex items-center justify-between">
+                  <h4 className="text-[11px] font-bold uppercase tracking-wide text-emerald-800">
+                    Candidates non observées
+                  </h4>
+                  <span className="text-[10px] text-gray-400">
+                    {potential.length}
+                  </span>
+                </div>
+                {potential.length > 0 ? (
+                  <ul className="space-y-2" data-testid="list-potential-species">
+                    {potential.map((item) => (
+                      <PotentialSpeciesRow
+                        key={`potential-${item.scientificName}`}
+                        item={item}
+                      />
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="text-[11px] italic text-gray-500">
+                    Aucune espèce seulement potentielle dans le référentiel
+                    disponible.
+                  </p>
+                )}
+              </div>
+
+              <div className="border-t border-gray-100 pt-3">
+                <div className="mb-1.5 flex items-center justify-between">
+                  <h4 className="text-[11px] font-bold uppercase tracking-wide text-teal-800">
+                    Observées parmi les espèces attendues
+                  </h4>
+                  <span className="text-[10px] text-gray-400">
+                    {observed.length}
+                  </span>
+                </div>
+                <p className="mb-2 text-[10px] leading-snug text-gray-500">
+                  Ce statut est réservé aux espèces disposant d’une occurrence
+                  réelle dans l’inventaire GBIF ou iNaturalist.
+                </p>
+                {observed.length > 0 ? (
+                  <ul className="space-y-2" data-testid="list-observed-potential-species">
+                    {observed.map((item) => (
+                      <PotentialSpeciesRow
+                        key={`observed-${item.scientificName}`}
+                        item={item}
+                      />
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="text-[11px] italic text-gray-500">
+                    Aucune occurrence réelle ne correspond aux espèces
+                    attendues.
+                  </p>
+                )}
+              </div>
+            </>
+          )}
+        </div>
+      )}
+    </section>
+  );
 }
 
 const SPECIES_GROUP_FR: Record<string, string> = {
