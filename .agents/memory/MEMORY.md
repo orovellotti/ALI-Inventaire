@@ -12,3 +12,4 @@
 - [Species–habitat ecological reference](species-habitat-reference.md) — score only exact EEA DAT-143 group matches; partial evidence means Non évaluée; site-level habitat data cap scores at 70.
 - [ZNIEFF documentary evidence](znieff-documentary-evidence.md) — PatriNat zone-scale species are documentary signals, never occurrences or Natura/EEA score inputs; preserve D/E/A semantics.
 - [iNaturalist species counts](inaturalist-species-counts.md) — species_counts is a centre/radius taxon aggregate, not individual coordinates; never describe it as point-level re-filtering.
+- [EEA SDI download filtering](eea-sdi-download-filtering.md) — SDI public share pages can return 403 to Node’s default fetch profile; use browser-like content negotiation.

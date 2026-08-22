@@ -9,6 +9,7 @@
     "build": "tsx script/build.ts",
     "start": "NODE_ENV=production node dist/index.cjs",
     "check": "tsc",
+    "refresh:eea-reference": "tsx scripts/buildEeaEcologicalReference.ts && tsx --test server/services/potentialSpeciesScore.test.ts",
     "db:push": "drizzle-kit push",
     "seed:znieff": "tsx scripts/seedZnieff.ts"
   },
