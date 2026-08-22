@@ -146,6 +146,43 @@ export interface PotentialSpeciesItem {
   habitats: { code: string; description: string }[];
 }
 
+export type ZnieffDeterminationStatus = "D" | "E" | "A";
+
+export interface ZnieffDocumentedSpeciesItem {
+  scientificName: string;
+  citedName: string;
+  speciesGroup: string;
+  cdRef: string | null;
+  determinationStatus: ZnieffDeterminationStatus;
+  /**
+   * Signal transversal uniquement : la preuve d'observation reste l'occurrence
+   * géolocalisée et n'est jamais déduite de la ZNIEFF.
+   */
+  alsoObserved: boolean;
+  zones: {
+    code: string;
+    name: string;
+    type: string;
+    url: string | null;
+    determinationStatus: ZnieffDeterminationStatus;
+  }[];
+}
+
+export interface ZnieffDocumentaryResult {
+  species: ZnieffDocumentedSpeciesItem[];
+  speciesCount: number;
+  siteCount: number;
+  partial: boolean;
+  reference: {
+    id: string;
+    title: string;
+    publisher: string;
+    sourceUrl: string;
+    sourceUpdated: string;
+    sourceVersion: string;
+  };
+}
+
 export interface PotentialSpeciesResult {
   species: PotentialSpeciesItem[];
   observedCount: number;
@@ -161,6 +198,7 @@ export interface PotentialSpeciesResult {
     sourceUrl: string;
     sourceUpdated: string;
   };
+  znieff: ZnieffDocumentaryResult;
   generatedAt: string;
 }
 

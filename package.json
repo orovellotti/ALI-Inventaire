@@ -9,7 +9,8 @@
     "build": "tsx script/build.ts",
     "start": "NODE_ENV=production node dist/index.cjs",
     "check": "tsc",
-    "db:push": "drizzle-kit push"
+    "db:push": "drizzle-kit push",
+    "seed:znieff": "tsx scripts/seedZnieff.ts"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.10.0",
@@ -45,6 +46,7 @@
     "@tanstack/react-query": "^5.60.5",
     "@types/geojson": "^7946.0.16",
     "@types/leaflet": "^1.9.21",
+    "@types/pg-copy-streams": "^1.2.5",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "cmdk": "^1.1.1",
@@ -66,6 +68,7 @@
     "passport": "^0.7.0",
     "passport-local": "^1.0.0",
     "pg": "^8.16.3",
+    "pg-copy-streams": "^7.0.0",
     "react": "^19.2.0",
     "react-day-picker": "^9.11.1",
     "react-dom": "^19.2.0",

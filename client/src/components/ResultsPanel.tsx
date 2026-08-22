@@ -2175,6 +2175,217 @@ function PotentialSpeciesRow({
   );
 }
 
+const ZNIEFF_STATUS_STYLE: Record<
+  "D" | "E" | "A",
+  { label: string; badge: string; description: string }
+> = {
+  D: {
+    label: "D · Déterminante",
+    badge: "border-rose-200 bg-rose-50 text-rose-700",
+    description: "Espèce déterminante pour la désignation de la ZNIEFF",
+  },
+  E: {
+    label: "E · À enjeux",
+    badge: "border-orange-200 bg-orange-50 text-orange-700",
+    description: "Autre espèce à enjeux",
+  },
+  A: {
+    label: "A · Documentée",
+    badge: "border-slate-200 bg-slate-50 text-slate-600",
+    description: "Autre espèce documentée dans la ZNIEFF",
+  },
+};
+
+function ZnieffSpeciesRow({
+  item,
+  index,
+}: {
+  item: PotentialSpeciesResult["znieff"]["species"][number];
+  index: number;
+}) {
+  return (
+    <li
+      className="rounded-lg border border-slate-200 bg-white px-3 py-2.5"
+      data-testid={`znieff-species-${index}`}
+    >
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <div className="flex flex-wrap items-center gap-1.5">
+            <span
+              className={`shrink-0 rounded border px-1.5 py-0.5 text-[9px] font-bold ${ZNIEFF_STATUS_STYLE[item.determinationStatus].badge}`}
+              title={ZNIEFF_STATUS_STYLE[item.determinationStatus].description}
+            >
+              {item.determinationStatus}
+            </span>
+            <span className="truncate text-xs font-semibold italic text-slate-800">
+              {item.scientificName}
+            </span>
+            {item.alsoObserved && (
+              <span
+                className="rounded border border-teal-200 bg-teal-50 px-1.5 py-0.5 text-[9px] font-semibold text-teal-700"
+                title="Une occurrence géolocalisée indépendante est également présente dans l’inventaire"
+              >
+                Occurrence indépendante
+              </span>
+            )}
+          </div>
+          <div className="mt-0.5 flex flex-wrap items-center gap-x-2 text-[10px] text-slate-500">
+            <span>{item.citedName}</span>
+            {item.speciesGroup && (
+              <>
+                <span className="text-slate-300">·</span>
+                <span>{SPECIES_GROUP_FR[item.speciesGroup] ?? item.speciesGroup}</span>
+              </>
+            )}
+            {item.cdRef && <span className="font-mono text-[9px] text-slate-400">{item.cdRef}</span>}
+          </div>
+        </div>
+        <span className="shrink-0 text-[9px] font-semibold text-slate-400">
+          {item.zones.length} zone{item.zones.length > 1 ? "s" : ""}
+        </span>
+      </div>
+
+      <div className="mt-2 space-y-1 border-l-2 border-slate-100 pl-2.5">
+        {item.zones.map((zone, zoneIndex) => {
+          const url = safeHttpUrl(zone.url);
+          const zoneStyle = ZNIEFF_STATUS_STYLE[zone.determinationStatus];
+          return (
+            <div
+              key={`${zone.code}-${zoneIndex}`}
+              className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[10px]"
+            >
+              <span className="font-mono text-[9px] text-slate-400">{zone.code}</span>
+              <span className="font-medium text-slate-700">{zone.name}</span>
+              <span className={`rounded px-1 py-0.5 text-[9px] font-semibold ${zoneStyle.badge}`}>
+                {zone.determinationStatus}
+              </span>
+              <span className="text-slate-400">{zone.type}</span>
+              {url && (
+                <a
+                  href={url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="ml-auto inline-flex items-center gap-1 font-semibold text-slate-600 underline decoration-slate-300 underline-offset-2 hover:text-slate-900"
+                  aria-label={`Voir la fiche officielle de ${zone.name}`}
+                >
+                  Fiche officielle
+                  <ExternalLink className="h-2.5 w-2.5" />
+                </a>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </li>
+  );
+}
+
+function ZnieffDocumentaryBlock({
+  result,
+}: {
+  result: PotentialSpeciesResult;
+}) {
+  const znieff = result.znieff;
+  const referenceUrl = safeHttpUrl(znieff.reference.sourceUrl);
+  const [visibleCount, setVisibleCount] = useState(250);
+  useEffect(() => setVisibleCount(250), [result.generatedAt]);
+  const visibleSpecies = znieff.species.slice(0, visibleCount);
+  return (
+    <div
+      className="rounded-xl border border-slate-200 bg-slate-50/70 p-3"
+      data-testid="block-znieff-documentary"
+    >
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <div className="flex items-center gap-2">
+            <BookOpen className="h-4 w-4 shrink-0 text-slate-600" />
+            <h4 className="text-xs font-bold text-slate-800">Preuves documentaires ZNIEFF</h4>
+          </div>
+          <p className="mt-1 max-w-2xl text-[10px] leading-relaxed text-slate-500">
+            Présence documentée à l’échelle des zones, pas une observation dans l’emprise
+            et aucun bonus de score. La mention « occurrence indépendante » signale seulement
+            un recoupement avec une occurrence géolocalisée de l’inventaire.
+          </p>
+        </div>
+        <div className="shrink-0 text-right">
+          <div className="text-sm font-bold tabular-nums text-slate-800">{znieff.speciesCount}</div>
+          <div className="text-[9px] uppercase tracking-wide text-slate-400">espèces</div>
+        </div>
+      </div>
+
+      <div className="mt-2 flex flex-wrap items-center gap-1.5 text-[10px]">
+        <span className="rounded border border-slate-200 bg-white px-2 py-1 font-semibold text-slate-600">
+          Échelle : {znieff.siteCount} zone{znieff.siteCount > 1 ? "s" : ""} ZNIEFF
+        </span>
+        {znieff.partial ? (
+          <span className="inline-flex items-center gap-1 rounded border border-amber-200 bg-amber-50 px-2 py-1 font-semibold text-amber-800">
+            <Info className="h-3 w-3" />
+            Résultat partiel : certaines zones ou espèces peuvent manquer
+          </span>
+        ) : (
+          <span className="rounded border border-emerald-200 bg-emerald-50 px-2 py-1 font-semibold text-emerald-700">
+            Données disponibles pour les zones retournées
+          </span>
+        )}
+      </div>
+
+      <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 border-y border-slate-200 py-2 text-[9px] text-slate-500">
+        <span className="font-semibold text-slate-600">Statuts :</span>
+        {(Object.keys(ZNIEFF_STATUS_STYLE) as Array<"D" | "E" | "A">).map((status) => (
+          <span key={status} className="inline-flex items-center gap-1" title={ZNIEFF_STATUS_STYLE[status].description}>
+            <strong className={`rounded border px-1 py-0.5 ${ZNIEFF_STATUS_STYLE[status].badge}`}>
+              {status}
+            </strong>
+            {ZNIEFF_STATUS_STYLE[status].label.split(" · ")[1]}
+          </span>
+        ))}
+      </div>
+
+      {znieff.species.length > 0 ? (
+        <ul className="mt-2 max-h-[34rem] space-y-1.5 overflow-y-auto pr-1" data-testid="list-znieff-species">
+          {visibleSpecies.map((item, index) => (
+            <ZnieffSpeciesRow key={`${item.scientificName}-${index}`} item={item} index={index} />
+          ))}
+        </ul>
+      ) : (
+        <p className="mt-2 rounded border border-dashed border-slate-200 bg-white px-3 py-3 text-[11px] italic text-slate-500">
+          Aucune espèce documentée dans les zones ZNIEFF retournées.
+        </p>
+      )}
+      {visibleSpecies.length < znieff.species.length && (
+        <button
+          type="button"
+          onClick={() => setVisibleCount((count) => count + 250)}
+          className="mt-2 w-full rounded border border-slate-200 bg-white px-3 py-2 text-[10px] font-semibold text-slate-600 transition-colors hover:border-slate-300 hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400"
+        >
+          Afficher 250 espèces supplémentaires
+        </button>
+      )}
+
+      <div className="mt-2 flex flex-wrap items-center justify-between gap-2 text-[9px] text-slate-400">
+        <span>{visibleSpecies.length} ligne{visibleSpecies.length > 1 ? "s" : ""} affichée{visibleSpecies.length > 1 ? "s" : ""} sur {znieff.speciesCount} espèce{znieff.speciesCount > 1 ? "s" : ""} documentée{znieff.speciesCount > 1 ? "s" : ""}</span>
+        <span className="inline-flex flex-wrap items-center justify-end gap-x-2 gap-y-1">
+          <span>
+            Source mise à jour : {znieff.reference.sourceUpdated}
+            {znieff.reference.sourceVersion ? ` · version ${znieff.reference.sourceVersion}` : ""}
+          </span>
+          {referenceUrl && (
+            <a
+              href={referenceUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1 font-semibold text-slate-600 underline decoration-slate-300 underline-offset-2 hover:text-slate-900"
+            >
+              {znieff.reference.publisher} · Référentiel officiel
+              <ExternalLink className="h-2.5 w-2.5" />
+            </a>
+          )}
+        </span>
+      </div>
+    </div>
+  );
+}
+
 function PotentialSpeciesSection({
   center,
   radius,
@@ -2260,8 +2471,8 @@ function PotentialSpeciesSection({
       : !currentResult
         ? "Ouvrir pour calculer"
         : currentResult.species.length === 0
-          ? "Aucune espèce candidate"
-          : `${currentResult.potentialCount} candidate${currentResult.potentialCount > 1 ? "s" : ""} non observée${currentResult.potentialCount > 1 ? "s" : ""}, ${currentResult.observedCount} observée${currentResult.observedCount > 1 ? "s" : ""}`;
+          ? `${currentResult.znieff?.speciesCount ?? 0} espèce${(currentResult.znieff?.speciesCount ?? 0) > 1 ? "s" : ""} documentée${(currentResult.znieff?.speciesCount ?? 0) > 1 ? "s" : ""} en ZNIEFF`
+          : `${currentResult.potentialCount} candidate${currentResult.potentialCount > 1 ? "s" : ""} non observée${currentResult.potentialCount > 1 ? "s" : ""}, ${currentResult.observedCount} observée${currentResult.observedCount > 1 ? "s" : ""}${currentResult.znieff?.speciesCount ? ` · ${currentResult.znieff.speciesCount} documentée${currentResult.znieff.speciesCount > 1 ? "s" : ""} en ZNIEFF` : ""}`;
 
   return (
     <section
@@ -2349,6 +2560,18 @@ function PotentialSpeciesSection({
               Certaines données d’habitat n’ont pas pu être chargées ; les
               espèces concernées restent « Non évaluée ».
             </div>
+          )}
+
+          {!loading && !error && currentResult && (
+            currentResult.znieff ? (
+              <ZnieffDocumentaryBlock result={currentResult} />
+            ) : (
+              <div className="flex items-start gap-2 rounded-lg border border-slate-200 bg-slate-50 p-2.5 text-[10px] text-slate-600">
+                <Info className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                Les données documentaires ZNIEFF sont indisponibles pour cette
+                requête. Elles ne sont pas déduites des observations ni du score.
+              </div>
+            )
           )}
 
           {!loading && !error && currentResult && currentResult.species.length > 0 && (

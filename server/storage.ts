@@ -2,10 +2,14 @@ import {
   type User,
   type InsertUser,
   type Natura2000Species,
+  type ZnieffReferenceMeta,
+  type ZnieffSpecies,
   natura2000Species,
+  znieffReferenceMeta,
+  znieffSpecies,
 } from "@shared/schema";
 import { randomUUID } from "crypto";
-import { inArray } from "drizzle-orm";
+import { eq, inArray } from "drizzle-orm";
 import { db } from "./db";
 
 // modify the interface with any CRUD methods
@@ -16,6 +20,8 @@ export interface IStorage {
   getUserByUsername(username: string): Promise<User | undefined>;
   createUser(user: InsertUser): Promise<User>;
   getNaturaSpeciesForSites(siteCodes: string[]): Promise<Natura2000Species[]>;
+  getZnieffSpeciesForZones(zoneCodes: string[]): Promise<ZnieffSpecies[]>;
+  getZnieffReferenceMeta(): Promise<ZnieffReferenceMeta | undefined>;
 }
 
 export class MemStorage implements IStorage {
@@ -48,6 +54,23 @@ export class MemStorage implements IStorage {
       .select()
       .from(natura2000Species)
       .where(inArray(natura2000Species.siteCode, siteCodes));
+  }
+
+  async getZnieffSpeciesForZones(zoneCodes: string[]): Promise<ZnieffSpecies[]> {
+    if (zoneCodes.length === 0) return [];
+    return db
+      .select()
+      .from(znieffSpecies)
+      .where(inArray(znieffSpecies.zoneCode, zoneCodes));
+  }
+
+  async getZnieffReferenceMeta(): Promise<ZnieffReferenceMeta | undefined> {
+    const rows = await db
+      .select()
+      .from(znieffReferenceMeta)
+      .where(eq(znieffReferenceMeta.id, "patrinat-znieff"))
+      .limit(1);
+    return rows[0];
   }
 }
 

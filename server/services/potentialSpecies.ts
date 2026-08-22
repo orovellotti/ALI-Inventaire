@@ -1,6 +1,6 @@
 import type { PotentialSpeciesResult } from "@shared/types";
 import { storage } from "../storage";
-import { getNaturaZones } from "./geoservices";
+import { getNaturaZones, getZnieffZones } from "./geoservices";
 import { computeSiteMetrics } from "./habitatCompat";
 import { getSiteHabitatInfo } from "./natura2000Habitats";
 import {
@@ -9,10 +9,16 @@ import {
   type PotentialSpeciesSiteEvidence,
 } from "./potentialSpeciesScore";
 import { EEA_ECOLOGICAL_REFERENCE_META } from "../data/eeaEcologicalGroups";
+import {
+  buildZnieffDocumentedSpecies,
+  buildZnieffReference,
+  canonicalTaxonName,
+} from "./znieffSpecies";
 
 const SITE_FETCH_CONCURRENCY = 4;
 const REQUEST_BUDGET_MS = 15_000;
 const NATURA_ZONES_BUDGET_MS = 8_000;
+const ZNIEFF_ZONES_BUDGET_MS = 8_000;
 const EARTH_RADIUS_M = 6_371_000;
 
 export interface PotentialOccurrence {
@@ -84,24 +90,45 @@ export async function getPotentialSpecies(
 ): Promise<PotentialSpeciesResult> {
   const deadline = Date.now() + REQUEST_BUDGET_MS;
   let partial = false;
-  const zonesResult = await withDeadline(
-    getNaturaZones(lat, lng, radius),
-    NATURA_ZONES_BUDGET_MS,
-  );
+  let znieffPartial = false;
+  const [zonesResult, znieffZonesResult] = await Promise.all([
+    withDeadline(getNaturaZones(lat, lng, radius), NATURA_ZONES_BUDGET_MS),
+    withDeadline(getZnieffZones(lat, lng, radius), ZNIEFF_ZONES_BUDGET_MS),
+  ]);
   const zones = zonesResult ?? [];
   if (!zonesResult) partial = true;
+  const znieffZones = znieffZonesResult?.zones ?? [];
+  if (!znieffZonesResult || znieffZonesResult.partial) znieffPartial = true;
   const zoneByCode = new Map(
     zones
       .filter((zone) => zone.code && /^FR\d{7,}$/i.test(zone.code))
       .map((zone) => [zone.code!.trim().toUpperCase(), zone] as const),
   );
   const codes = Array.from(zoneByCode.keys());
-  const rowsResult = await withDeadline(
-    storage.getNaturaSpeciesForSites(codes),
-    deadline - Date.now(),
+  const znieffZoneByCode = new Map(
+    znieffZones
+      .filter((zone) => zone.code?.trim())
+      .map((zone) => [zone.code!.trim(), zone] as const),
   );
+  const znieffCodes = Array.from(znieffZoneByCode.keys());
+  const [rowsResult, znieffRowsResult, znieffMetaResult] = await Promise.all([
+    withDeadline(
+      storage.getNaturaSpeciesForSites(codes),
+      deadline - Date.now(),
+    ),
+    withDeadline(
+      storage.getZnieffSpeciesForZones(znieffCodes).catch(() => null),
+      deadline - Date.now(),
+    ),
+    withDeadline(
+      storage.getZnieffReferenceMeta().catch(() => undefined),
+      deadline - Date.now(),
+    ),
+  ]);
   const rows = rowsResult ?? [];
   if (!rowsResult) partial = true;
+  const znieffRows = znieffRowsResult ?? [];
+  if (!znieffRowsResult || !znieffMetaResult) znieffPartial = true;
   const evidenceCodes = Array.from(
     new Set(
       rows
@@ -161,7 +188,15 @@ export async function getPotentialSpecies(
       .filter(
         (occ) => isOccurrenceInStudyArea(occ, lat, lng, radius),
       )
-      .map((occ) => normalizeSpeciesName(occ.scientificName)),
+      .flatMap((occ) => [
+        normalizeSpeciesName(occ.scientificName),
+        canonicalTaxonName(occ.scientificName),
+      ]),
+  );
+  const znieffSpecies = buildZnieffDocumentedSpecies(
+    znieffRows,
+    znieffZones,
+    observedNames,
   );
   const candidates = new Map<
     string,
@@ -228,6 +263,13 @@ export async function getPotentialSpecies(
     habitatCount: habitatCodes.size,
     partial,
     reference: EEA_ECOLOGICAL_REFERENCE_META,
+    znieff: {
+      species: znieffSpecies,
+      speciesCount: znieffSpecies.length,
+      siteCount: znieffCodes.length,
+      partial: znieffPartial,
+      reference: buildZnieffReference(znieffMetaResult ?? undefined),
+    },
     generatedAt: new Date().toISOString(),
   };
 }

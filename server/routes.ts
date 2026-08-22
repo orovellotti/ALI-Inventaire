@@ -40,7 +40,7 @@ const ENDPOINTS_DOC = [
   { method: "GET", path: "/api/zonages?lat=&lng=&radius=", description: "Zonages environnementaux (ZNIEFF, Natura 2000, réserves, APB…) intersectant l'aire d'étude (IGN/PatriNat)" },
   { method: "GET", path: "/api/natura-species?code=", description: "Espèces désignatrices (grade A/B/C/D) d'un site Natura 2000 (source EEA, live)" },
   { method: "GET", path: "/api/natura2000/expected?lat=&lng=&radius=", description: "Espèces désignatrices Natura 2000 attendues autour d'un point (base locale, France)" },
-  { method: "POST", path: "/api/potential-species", description: "Compatibilité déterministe des espèces Natura 2000 avec les habitats de l'emprise" },
+  { method: "POST", path: "/api/potential-species", description: "Compatibilité Natura 2000 et espèces documentées dans les ZNIEFF locales" },
   { method: "GET", path: "/api/sinp/all", description: "Toutes les plateformes SINP" },
   { method: "GET", path: "/api/presets", description: "Presets de projets EIE" },
   { method: "GET", path: "/api/study-areas", description: "Définitions des aires d'étude" },

@@ -10,3 +10,4 @@
 - [Zonage list↔map sync limitation](zonage-map-wms-limitation.md) — map zonages are WMS raster tiles: no vector selection; use WFS GeoJSON polygons if sync is ever needed.
 - [Invasive species (EEE) handling](invasive-eee-handling.md) — EEE never a conservation enjeu; isInvasiveExotic gates both inventory patrimonialité and the priority engine (statut 0, score ≤20, level modéré, "enjeu de gestion" badge).
 - [Species–habitat ecological reference](species-habitat-reference.md) — score only exact EEA DAT-143 group matches; partial evidence means Non évaluée; site-level habitat data cap scores at 70.
+- [ZNIEFF documentary evidence](znieff-documentary-evidence.md) — PatriNat zone-scale species are documentary signals, never occurrences or Natura/EEA score inputs; preserve D/E/A semantics.

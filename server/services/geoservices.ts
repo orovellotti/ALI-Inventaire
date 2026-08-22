@@ -4,6 +4,8 @@ import type { SiteGeometry } from "./natura2000Habitats";
 const WFS_BASE = "https://data.geopf.fr/wfs/ows";
 const PER_LAYER_TIMEOUT_MS = 9000;
 const CONCURRENCY = 6;
+const ZNIEFF_PAGE_SIZE = 200;
+const ZNIEFF_MAX_FEATURES_PER_LAYER = 2000;
 
 export type ZonageCategory = "znieff" | "natura2000" | "reglementaire" | "autre";
 
@@ -127,11 +129,25 @@ function normalizeRings(
   return { rings: out, areaKm2: null };
 }
 
-async function fetchLayer(
+export interface LayerPage {
+  zonages: Zonage[];
+  numberMatched: number | null;
+  numberReturned: number;
+}
+
+export function parseWfsNumberMatched(value: unknown): number | null {
+  if (value === null || value === undefined || value === "unknown") return null;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) && parsed >= 0 ? parsed : null;
+}
+
+async function fetchLayerPage(
   layer: LayerDef,
   bbox: string,
   center?: { lat: number; lng: number },
-): Promise<Zonage[]> {
+  startIndex = 0,
+  count = 50,
+): Promise<LayerPage> {
   const params = new URLSearchParams({
     SERVICE: "WFS",
     VERSION: "2.0.0",
@@ -139,9 +155,10 @@ async function fetchLayer(
     TYPENAMES: layer.typeName,
     SRSNAME: "urn:ogc:def:crs:EPSG::4326",
     OUTPUTFORMAT: "application/json",
-    COUNT: "50",
+    COUNT: String(count),
     BBOX: bbox,
   });
+  if (startIndex > 0) params.set("STARTINDEX", String(startIndex));
   const wantGeometry = !!center;
 
   const controller = new AbortController();
@@ -154,6 +171,7 @@ async function fetchLayer(
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
     const data = await response.json();
     const features: any[] = Array.isArray(data?.features) ? data.features : [];
+    const numberMatched = parseWfsNumberMatched(data?.numberMatched);
 
     const seen = new Set<string>();
     const zonages: Zonage[] = [];
@@ -177,10 +195,88 @@ async function fetchLayer(
           : null;
       zonages.push({ category: layer.category, type: layer.type, name, url, id, code, geometry });
     }
-    return zonages;
+    return {
+      zonages,
+      numberMatched,
+      numberReturned: features.length,
+    };
   } finally {
     clearTimeout(timer);
   }
+}
+
+async function fetchLayer(
+  layer: LayerDef,
+  bbox: string,
+  center?: { lat: number; lng: number },
+): Promise<Zonage[]> {
+  return (await fetchLayerPage(layer, bbox, center)).zonages;
+}
+
+async function fetchLayerPaginated(
+  layer: LayerDef,
+  bbox: string,
+): Promise<{ zones: Zonage[]; partial: boolean }> {
+  return collectPaginatedZonages((startIndex, count) =>
+    fetchLayerPage(layer, bbox, undefined, startIndex, count),
+  );
+}
+
+export async function collectPaginatedZonages(
+  fetchPage: (startIndex: number, count: number) => Promise<LayerPage>,
+  pageSize = ZNIEFF_PAGE_SIZE,
+  maxFeatures = ZNIEFF_MAX_FEATURES_PER_LAYER,
+): Promise<{ zones: Zonage[]; partial: boolean }> {
+  const zonesByKey = new Map<string, Zonage>();
+  let startIndex = 0;
+  let partial = false;
+  let completed = false;
+
+  while (startIndex < maxFeatures) {
+    const remaining = maxFeatures - startIndex;
+    const page = await fetchPage(startIndex, Math.min(pageSize, remaining));
+    const sizeBeforePage = zonesByKey.size;
+    for (const zone of page.zonages) {
+      const key = (zone.code || zone.url || `${zone.type}:${zone.name}`).toLowerCase();
+      zonesByKey.set(key, zone);
+    }
+    const newZoneCount = zonesByKey.size - sizeBeforePage;
+    const startBeforePage = startIndex;
+    startIndex += page.numberReturned;
+
+    // Certains serveurs WFS ignorent STARTINDEX et répètent la première page.
+    // Le compteur brut ne suffit donc pas : une page non vide sans nouvelle
+    // entité est une pagination incohérente, jamais un résultat complet.
+    if (
+      page.numberReturned > 0 &&
+      newZoneCount === 0 &&
+      (page.numberMatched === null || startBeforePage < page.numberMatched)
+    ) {
+      partial = true;
+      break;
+    }
+    if (page.numberMatched !== null && startIndex >= page.numberMatched) {
+      if (zonesByKey.size < page.numberMatched) partial = true;
+      completed = true;
+      break;
+    }
+    if (page.numberReturned === 0) {
+      partial = page.numberMatched !== null && startIndex < page.numberMatched;
+      break;
+    }
+    if (
+      page.numberMatched === null &&
+      page.numberReturned < pageSize
+    ) {
+      completed = true;
+      break;
+    }
+  }
+
+  if (startIndex >= maxFeatures && !completed) {
+    partial = true;
+  }
+  return { zones: Array.from(zonesByKey.values()), partial };
 }
 
 async function runWithConcurrency<T, R>(
@@ -245,4 +341,35 @@ export async function getNaturaZones(lat: number, lng: number, radius: number): 
     }
   });
   return perLayer.flat();
+}
+
+/**
+ * Charge seulement les quatre couches ZNIEFF. Cette voie ciblée évite de
+ * requêter tous les zonages lorsque le moteur d'espèces documentaires s'ouvre.
+ * L'identifiant national vient de `id_mnhn` ; contrairement à Natura 2000, il
+ * ne suit pas le motif FR####### et ne doit pas passer par ce filtre.
+ */
+export interface ZnieffZonesResult {
+  zones: Zonage[];
+  partial: boolean;
+}
+
+export async function getZnieffZones(
+  lat: number,
+  lng: number,
+  radius: number,
+): Promise<ZnieffZonesResult> {
+  const bbox = bboxFromRadius(lat, lng, radius);
+  const znieffLayers = ZONAGE_LAYERS.filter((layer) => layer.category === "znieff");
+  const perLayer = await runWithConcurrency(znieffLayers, CONCURRENCY, async (layer) => {
+    try {
+      return await fetchLayerPaginated(layer, bbox);
+    } catch {
+      return { zones: [] as Zonage[], partial: true };
+    }
+  });
+  return {
+    zones: perLayer.flatMap((result) => result.zones),
+    partial: perLayer.some((result) => result.partial),
+  };
 }
