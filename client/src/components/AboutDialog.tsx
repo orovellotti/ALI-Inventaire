@@ -1,6 +1,7 @@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { MapPin, Database, BarChart3, AlertTriangle, ExternalLink, Leaf, Target, Gauge } from "lucide-react";
+import { Link } from "wouter";
 
 interface AboutDialogProps {
   open: boolean;
@@ -47,27 +48,32 @@ export function AboutDialog({ open, onOpenChange }: AboutDialogProps) {
             <section>
               <h3 className="flex items-center gap-2 font-bold text-gray-900 text-base mb-2">
                 <Database className="h-4 w-4 text-teal-600" />
-                Source de données : API GBIF
+                Sources d’observations : GBIF et iNaturalist
               </h3>
               <p>
-                Toutes les données proviennent du <strong>GBIF</strong> (Global Biodiversity Information Facility), 
-                la plus grande base de données ouverte sur la biodiversité mondiale. Le GBIF agrège les observations 
-                de centaines d'institutions, de programmes de science participative (iNaturalist, eBird...) et de 
-                collections muséales.
+                L’outil interroge deux services distincts : l’API <strong>GBIF</strong> (Global Biodiversity
+                Information Facility), qui agrège les données de nombreuses institutions et collections,
+                et l’API directe <strong>iNaturalist</strong>, qui apporte des observations naturalistes
+                complémentaires lorsque cette source est activée.
               </p>
               <div className="mt-3 space-y-2">
                 <div className="bg-teal-50/50 rounded-lg p-3 border border-teal-100">
                   <span className="font-semibold text-teal-800 text-xs uppercase tracking-wide block mb-1">
-                    Endpoint utilisé
+                    Services utilisés
                   </span>
-                  <code className="text-xs text-teal-700 font-mono">
-                    api.gbif.org/v1/occurrence/search
-                  </code>
+                  <div className="space-y-1">
+                    <code className="block text-xs text-teal-700 font-mono">
+                      api.gbif.org/v1/occurrence/search
+                    </code>
+                    <code className="block text-xs text-teal-700 font-mono">
+                      api.inaturalist.org/v1/observations/species_counts
+                    </code>
+                  </div>
                 </div>
                 <div className="text-xs space-y-1 text-gray-600">
-                  <p><strong>Filtrage spatial :</strong> Les occurrences sont d'abord récupérées dans un rectangle englobant (bounding box), puis filtrées par distance euclidienne (formule de Haversine) pour ne conserver que celles situées dans le cercle d'étude.</p>
+                  <p><strong>Filtrage spatial :</strong> Les occurrences GBIF sont récupérées dans un rectangle englobant puis filtrées par distance (formule de Haversine). iNaturalist est interrogé directement avec le centre et le rayon de l’aire.</p>
                   <p><strong>Dédoublonnage :</strong> Les doublons sont supprimés par nom scientifique, en conservant l'occurrence avec le statut de conservation le plus élevé.</p>
-                  <p><strong>Limite :</strong> Maximum 1 000 occurrences par requête GBIF.</p>
+                  <p><strong>Limites :</strong> maximum 1 000 occurrences GBIF et 1 000 taxons iNaturalist parcourus par aire.</p>
                 </div>
               </div>
               <a 
@@ -78,6 +84,15 @@ export function AboutDialog({ open, onOpenChange }: AboutDialogProps) {
               >
                 <ExternalLink className="h-3 w-3" />
                 gbif.org
+              </a>
+              <a
+                href="https://www.inaturalist.org/"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="ml-4 inline-flex items-center gap-1 text-xs text-teal-600 hover:text-teal-800 mt-2"
+              >
+                <ExternalLink className="h-3 w-3" />
+                inaturalist.org
               </a>
             </section>
 
@@ -285,6 +300,16 @@ export function AboutDialog({ open, onOpenChange }: AboutDialogProps) {
 
           </div>
         </ScrollArea>
+        <div className="border-t border-gray-100 pt-3">
+          <Link
+            href="/methodologie"
+            onClick={() => onOpenChange(false)}
+            className="inline-flex items-center gap-2 text-sm font-semibold text-teal-700 hover:text-teal-900"
+          >
+            Lire la méthodologie complète
+            <ExternalLink className="h-3.5 w-3.5" />
+          </Link>
+        </div>
       </DialogContent>
     </Dialog>
   );

@@ -9,7 +9,8 @@ import { searchGBIFMultiCircle, InventoryResult, BufferCircle, STUDY_AREAS, Proj
 import { searchPlace, reverseGeocode } from "@/lib/geocoding";
 import { parseShapefile, ProjectPolygon } from "@/lib/shapefile";
 import { useToast } from "@/hooks/use-toast";
-import { Leaf, HelpCircle, Bot } from "lucide-react";
+import { Leaf, HelpCircle, Bot, BookOpen } from "lucide-react";
+import { Link } from "wouter";
 
 function createDefaultCircles(center: [number, number]): BufferCircle[] {
   return STUDY_AREAS.map(area => ({
@@ -404,6 +405,16 @@ export default function Home() {
         >
           <HelpCircle className="h-4 w-4 text-gray-600" />
         </button>
+
+        <Link
+          href="/methodologie"
+          className="flex items-center gap-1.5 rounded-lg bg-white/80 px-2.5 py-2 text-gray-700 shadow-sm backdrop-blur transition-colors hover:bg-white"
+          aria-label="Lire la méthodologie"
+          title="Lire la méthodologie"
+        >
+          <BookOpen className="h-4 w-4 text-teal-600" />
+          <span className="hidden text-xs font-semibold sm:inline">Méthode</span>
+        </Link>
 
         <button
           type="button"
