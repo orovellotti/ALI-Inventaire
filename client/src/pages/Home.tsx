@@ -8,6 +8,7 @@ import { LieuxDitsDialog } from "@/components/LieuxDitsDialog";
 import { searchGBIFMultiCircle, InventoryResult, BufferCircle, STUDY_AREAS, ProjectPreset, TAXON_GROUPS, getTaxonGroupId } from "@/lib/gbif";
 import { searchPlace, reverseGeocode } from "@/lib/geocoding";
 import { parseShapefile, ProjectPolygon } from "@/lib/shapefile";
+import type { ZonageMapFeature } from "@/lib/zonageMap";
 import { useToast } from "@/hooks/use-toast";
 import { Leaf, HelpCircle, Bot, BookOpen } from "lucide-react";
 import { Link } from "wouter";
@@ -98,6 +99,8 @@ export default function Home() {
   const [excludeMarine, setExcludeMarine] = useState<boolean>(true);
   const [includeINaturalist, setIncludeINaturalist] = useState<boolean>(true);
   const [projectPolygon, setProjectPolygon] = useState<ProjectPolygon | null>(null);
+  const [zonageFeatures, setZonageFeatures] = useState<ZonageMapFeature[]>([]);
+  const [selectedZonageId, setSelectedZonageId] = useState<string | null>(null);
   const [isLoadingShapefile, setIsLoadingShapefile] = useState(false);
   const [locationKey, setLocationKey] = useState(0);
   const { toast } = useToast();
@@ -107,6 +110,8 @@ export default function Home() {
     inventoryRequestId.current++;
     setResults(null);
     setSelectedSpecies(null);
+    setZonageFeatures([]);
+    setSelectedZonageId(null);
     setIsPanelOpen(false);
     setIsAnalyzing(false);
     setLocationKey(k => k + 1);
@@ -332,6 +337,12 @@ export default function Home() {
         projectPolygon={projectPolygon}
         panelOpen={isPanelOpen}
         panelWidth={panelWidth}
+        zonageFeatures={zonageFeatures}
+        selectedZonageId={selectedZonageId}
+        onSelectZonage={(id) => {
+          setSelectedZonageId(id);
+          if (id && !isPanelOpen) setIsPanelOpen(true);
+        }}
       />
 
       <SearchPanel 
@@ -368,6 +379,9 @@ export default function Home() {
         includeINaturalist={includeINaturalist}
         onToggleIncludeINaturalist={() => setIncludeINaturalist(v => !v)}
         toponym={currentToponym}
+        onZonagesLoaded={setZonageFeatures}
+        selectedZonageId={selectedZonageId}
+        onSelectZonage={setSelectedZonageId}
       />
 
       <AboutDialog open={showAbout} onOpenChange={setShowAbout} />

@@ -1,10 +1,11 @@
-import { MapContainer, TileLayer, WMSTileLayer, Circle, CircleMarker, GeoJSON, Tooltip as LeafletTooltip, useMapEvents, useMap } from "react-leaflet";
+import { MapContainer, TileLayer, WMSTileLayer, Circle, CircleMarker, GeoJSON, Polygon, Tooltip as LeafletTooltip, useMapEvents, useMap } from "react-leaflet";
 import { useEffect, useMemo, useState } from "react";
 import { Layers, Map as MapIcon, Satellite, Mountain, ChevronDown, Trees, Droplets, Building2 } from "lucide-react";
 import "leaflet/dist/leaflet.css";
 import L from "leaflet";
 import { InventoryResult, BufferCircle, STUDY_AREAS, getTaxonGroupId, isMarineSpecies } from "@/lib/gbif";
 import type { ProjectPolygon } from "@/lib/shapefile";
+import { ZonageMapFeature, ZONAGE_MAP_COLORS } from "@/lib/zonageMap";
 
 import icon from 'leaflet/dist/images/marker-icon.png';
 import iconShadow from 'leaflet/dist/images/marker-shadow.png';
@@ -30,6 +31,27 @@ interface MapProps {
   projectPolygon: ProjectPolygon | null;
   panelOpen?: boolean;
   panelWidth?: number;
+  zonageFeatures?: ZonageMapFeature[];
+  selectedZonageId?: string | null;
+  onSelectZonage?: (id: string | null) => void;
+}
+
+/** Centre la carte sur l'emprise du zonage sélectionné (avec marge pour le panneau). */
+function ZonageFitter({ features, selectedId, panelOpen, panelWidth }: { features: ZonageMapFeature[]; selectedId: string | null | undefined; panelOpen?: boolean; panelWidth?: number }) {
+  const map = useMap();
+  useEffect(() => {
+    if (!selectedId) return;
+    const feature = features.find(f => f.id === selectedId);
+    if (!feature || feature.polygons.length === 0) return;
+    const bounds = L.latLngBounds(feature.polygons.flat(2) as [number, number][]);
+    if (!bounds.isValid()) return;
+    map.fitBounds(bounds, {
+      padding: [60, 60],
+      paddingBottomRight: [60 + (panelOpen && panelWidth ? panelWidth : 0), 60],
+      maxZoom: 14,
+    } as any);
+  }, [selectedId, features, panelOpen, panelWidth, map]);
+  return null;
 }
 
 function MapController({ center, projectPolygon, panelOpen, panelWidth }: { center: [number, number]; projectPolygon: ProjectPolygon | null; panelOpen?: boolean; panelWidth?: number }) {
@@ -186,7 +208,7 @@ const OVERLAYS: Record<OverlayId, {
   },
 };
 
-export function Map({ center, circles, results, onMapClick, selectedSpecies, onSelectSpecies, activeTaxonFilters, excludeMarine, projectPolygon, panelOpen, panelWidth }: MapProps) {
+export function Map({ center, circles, results, onMapClick, selectedSpecies, onSelectSpecies, activeTaxonFilters, excludeMarine, projectPolygon, panelOpen, panelWidth, zonageFeatures, selectedZonageId, onSelectZonage }: MapProps) {
   const [baseLayer, setBaseLayer] = useState<BaseLayer>(() => {
     try {
       const v = localStorage.getItem("if.baseLayer");
@@ -263,6 +285,39 @@ export function Map({ center, circles, results, onMapClick, selectedSpecies, onS
 
         <MapController center={center} projectPolygon={projectPolygon} panelOpen={panelOpen} panelWidth={panelWidth} />
         <MapEvents onMapClick={onMapClick} />
+        <ZonageFitter features={zonageFeatures || []} selectedId={selectedZonageId} panelOpen={panelOpen} panelWidth={panelWidth} />
+
+        {(zonageFeatures || []).map((f) => {
+          const isSelected = selectedZonageId === f.id;
+          const color = ZONAGE_MAP_COLORS[f.category] || ZONAGE_MAP_COLORS.autre;
+          return (
+            <Polygon
+              key={`zonage-${f.id}`}
+              positions={f.polygons}
+              pathOptions={{
+                color,
+                weight: isSelected ? 3 : 1.5,
+                dashArray: isSelected ? undefined : "4 3",
+                fillColor: color,
+                fillOpacity: isSelected ? 0.22 : 0.05,
+              }}
+              eventHandlers={{
+                click: (e) => {
+                  L.DomEvent.stopPropagation(e);
+                  if (onSelectZonage) onSelectZonage(isSelected ? null : f.id);
+                },
+              }}
+            >
+              <LeafletTooltip direction="top" opacity={0.95} sticky>
+                <div className="text-xs">
+                  <div className="font-semibold">{f.name}</div>
+                  <div className="text-gray-600">{f.type}</div>
+                  <div className="text-[10px] text-gray-400 mt-0.5">Cliquer pour voir dans la liste</div>
+                </div>
+              </LeafletTooltip>
+            </Polygon>
+          );
+        })}
 
         {projectPolygon && (
           <GeoJSON

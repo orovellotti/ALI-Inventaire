@@ -93,40 +93,39 @@ function haversineM(aLat: number, aLng: number, bLat: number, bLng: number): num
   return 2 * EARTH_R * Math.asin(Math.min(1, Math.sqrt(s)));
 }
 
-// Aplati une géométrie GeoJSON (Polygon/MultiPolygon) en une liste d'anneaux.
-function collectRings(geom: any): number[][][] {
+// Préserve la structure GeoJSON : chaque polygone garde son contour extérieur
+// et ses éventuels trous.
+function collectPolygons(geom: any): number[][][][] {
   if (!geom) return [];
   const coords = geom.coordinates;
   if (!Array.isArray(coords)) return [];
-  if (geom.type === "Polygon") return coords as number[][][];
+  if (geom.type === "Polygon") return [coords as number[][][]];
   if (geom.type === "MultiPolygon") {
-    const rings: number[][][] = [];
-    for (const poly of coords) {
-      if (Array.isArray(poly)) for (const ring of poly) rings.push(ring);
-    }
-    return rings;
+    return (coords as number[][][][]).filter((polygon) => Array.isArray(polygon));
   }
   return [];
 }
 
-// Normalise les anneaux WFS en [lng, lat] (ordre attendu par habitatCompat).
+// Normalise les polygones WFS en [lng, lat] (ordre attendu par habitatCompat).
 // L'ordre des axes GeoJSON du WFS Géoplateforme dépend du CRS ; on le déduit en
 // choisissant l'interprétation qui place le polygone le plus près du centre.
-function normalizeRings(
-  rings: number[][][],
+function normalizePolygons(
+  polygons: number[][][][],
   centerLat: number,
   centerLng: number,
 ): SiteGeometry | null {
-  const first = rings[0]?.[0];
+  const first = polygons[0]?.[0]?.[0];
   if (!Array.isArray(first) || first.length < 2) return null;
   const [a, b] = first;
   const distLngLat = haversineM(centerLat, centerLng, b, a); // [lng=a, lat=b]
   const distLatLng = haversineM(centerLat, centerLng, a, b); // [lat=a, lng=b]
-  const swap = distLatLng < distLngLat; // anneaux en [lat, lng] → à inverser
-  const out = rings.map((ring) =>
-    ring.map((pt) => (swap ? [pt[1], pt[0]] : [pt[0], pt[1]])),
+  const swap = distLatLng < distLngLat; // points en [lat, lng] → à inverser
+  const normalized = polygons.map((polygon) =>
+    polygon.map((ring) =>
+      ring.map((pt) => (swap ? [pt[1], pt[0]] : [pt[0], pt[1]])),
+    ),
   );
-  return { rings: out, areaKm2: null };
+  return { rings: normalized.flat(), polygons: normalized, areaKm2: null };
 }
 
 export interface LayerPage {
@@ -191,7 +190,7 @@ async function fetchLayerPage(
       seen.add(dedupeKey);
       const geometry =
         wantGeometry && center
-          ? normalizeRings(collectRings(f?.geometry), center.lat, center.lng)
+          ? normalizePolygons(collectPolygons(f?.geometry), center.lat, center.lng)
           : null;
       zonages.push({ category: layer.category, type: layer.type, name, url, id, code, geometry });
     }
@@ -301,13 +300,15 @@ export async function getZonages(
   lat: number,
   lng: number,
   radius: number,
+  opts?: { includeGeometry?: boolean },
 ): Promise<ZonagesResult> {
   const bbox = bboxFromRadius(lat, lng, radius);
   const errors: string[] = [];
+  const center = opts?.includeGeometry ? { lat, lng } : undefined;
 
   const perLayer = await runWithConcurrency(ZONAGE_LAYERS, CONCURRENCY, async (layer) => {
     try {
-      return await fetchLayer(layer, bbox);
+      return await fetchLayer(layer, bbox, center);
     } catch (e: any) {
       errors.push(`${layer.type}: ${e?.name === "AbortError" ? "délai dépassé" : e?.message || "erreur"}`);
       return [] as Zonage[];

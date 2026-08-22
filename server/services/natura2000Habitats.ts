@@ -16,6 +16,12 @@ export interface SiteHabitat {
 export interface SiteGeometry {
   rings: number[][][];
   areaKm2: number | null;
+  /**
+   * Structure MultiPolygon préservée : chaque polygone contient son anneau
+   * extérieur puis ses éventuels trous. `rings` reste disponible pour les
+   * calculs historiques qui travaillent sur une liste aplatie.
+   */
+  polygons?: number[][][][];
 }
 
 export interface SiteHabitatInfo {

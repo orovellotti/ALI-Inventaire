@@ -143,7 +143,8 @@ export async function registerRoutes(
     "/api/zonages",
     asyncHandler(async (req, res) => {
       const { lat, lng, radius } = zonagesQuerySchema.parse(req.query);
-      res.json(await getZonages(lat, lng, radius));
+      const includeGeometry = req.query.geometry === "1" || req.query.geometry === "true";
+      res.json(await getZonages(lat, lng, radius, { includeGeometry }));
     }),
   );
 

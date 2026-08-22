@@ -1,10 +1,10 @@
 ---
-name: Zonage list↔map sync limitation
-description: Why zonage list/map selection sync is impossible with the current WMS raster overlay approach
+name: Zonage list↔map sync
+description: Design decision — zonage list/map selection sync uses WFS GeoJSON vectors; WMS raster overlays are never selectable
 ---
 
-Zonage overlays on the map are IGN Géoplateforme **WMS raster tiles**, not vector features. No per-polygon click/highlight is possible.
+Zonage list↔map selection sync is done with **vector emprises from the Géoplateforme WFS** (opt-in geometry on the zonage endpoint), drawn as Leaflet polygons with a shared stable key between list and map.
 
-**Why:** the 2026-08 UX refonte required list↔map zonage sync; it was skipped as a documented limitation (spec allowed it).
+**Why:** the WMS raster overlays used as visual layers cannot support per-polygon click/highlight; earlier attempts to promise selection on them were dropped. A completion review also rejected flattening MultiPolygons — flattened rings render islands as holes in Leaflet.
 
-**How to apply:** to implement sync (task exists), fetch geometries via **WFS GeoJSON** from data.geopf.fr for the listed zonages and render Leaflet polygons — remember the EPSG:4326 lat,lng bbox order quirk (see ign-geoplateforme-wfs.md). Don't promise selection behavior on the WMS layers.
+**How to apply:** any zonage-on-map feature must use the WFS vector path, preserve Polygon/MultiPolygon nesting end to end (holes stay with their exterior part), and degrade gracefully when the WFS returns no geometry. Never promise click behavior on WMS raster layers. Bbox axis quirk: see ign-geoplateforme-wfs.md.

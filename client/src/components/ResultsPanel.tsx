@@ -15,6 +15,7 @@ import type {
   PotentialSpeciesResult,
   PotentialSpeciesStatus,
 } from "@shared/types";
+import { ZonageMapFeature, zonageKey } from "@/lib/zonageMap";
 
 interface ZonageItem {
   category: string;
@@ -23,6 +24,8 @@ interface ZonageItem {
   url: string | null;
   id: string | null;
   code?: string | null;
+  /** Emprise WFS : polygones en anneaux [lng, lat] (null si indisponible). */
+  geometry?: { rings: number[][][]; polygons?: number[][][][] } | null;
 }
 interface NaturaSpeciesItem {
   name: string;
@@ -137,9 +140,12 @@ interface ResultsPanelProps {
   includeINaturalist?: boolean;
   onToggleIncludeINaturalist?: () => void;
   toponym?: string;
+  onZonagesLoaded?: (features: ZonageMapFeature[]) => void;
+  selectedZonageId?: string | null;
+  onSelectZonage?: (id: string | null) => void;
 }
 
-export function ResultsPanel({ isOpen, onClose, results, selectedSpecies, onSelectSpecies, activeTaxonFilters, onToggleTaxonFilter, onToggleAllTaxonFilters, excludeMarine, onToggleExcludeMarine, includeINaturalist, onToggleIncludeINaturalist, toponym }: ResultsPanelProps) {
+export function ResultsPanel({ isOpen, onClose, results, selectedSpecies, onSelectSpecies, activeTaxonFilters, onToggleTaxonFilter, onToggleAllTaxonFilters, excludeMarine, onToggleExcludeMarine, includeINaturalist, onToggleIncludeINaturalist, toponym, onZonagesLoaded, selectedZonageId, onSelectZonage }: ResultsPanelProps) {
   const [view, setView] = useState<PanelView>("diagnostic");
   const [openSections, setOpenSections] = useState<Set<SectionKey>>(new Set());
   const [showCalcDetail, setShowCalcDetail] = useState(false);
@@ -252,7 +258,7 @@ export function ResultsPanel({ isOpen, onClose, results, selectedSpecies, onSele
     let cancelled = false;
     setZonages(null);
     setZonagesLoading(true);
-    fetch(`/api/zonages?lat=${lat}&lng=${lng}&radius=${radius}`)
+    fetch(`/api/zonages?lat=${lat}&lng=${lng}&radius=${radius}&geometry=1`)
       .then((r) => (r.ok ? r.json() : null))
       .then((d) => {
         if (!cancelled) setZonages(d);
@@ -561,6 +567,57 @@ export function ResultsPanel({ isOpen, onClose, results, selectedSpecies, onSele
     list.sort((a, b) => a.priority - b.priority || a.name.localeCompare(b.name));
     return list;
   }, [zonages]);
+
+  // Transforme les emprises WFS [lng, lat] en MultiPolygons Leaflet [lat, lng].
+  // La structure polygonale est conservée pour ne pas confondre îlots et trous.
+  useEffect(() => {
+    if (!onZonagesLoaded) return;
+    const features: ZonageMapFeature[] = [];
+    const seen = new Set<string>();
+    for (const z of flatZonages) {
+      const polygons = z.geometry?.polygons?.length
+        ? z.geometry.polygons
+        : (z.geometry?.rings || []).map((ring) => [ring]);
+      if (polygons.length === 0) continue;
+      const id = zonageKey(z);
+      if (seen.has(id)) continue;
+      seen.add(id);
+      features.push({
+        id,
+        name: z.name,
+        type: z.type,
+        category: z.groupCategory,
+        polygons: polygons.map((polygon) =>
+          polygon.map((ring) =>
+            ring.map((point) => [point[1], point[0]] as [number, number]),
+          ),
+        ),
+      });
+    }
+    onZonagesLoaded(features);
+  }, [flatZonages, onZonagesLoaded]);
+
+  // Un clic sur la carte ouvre et centre la ligne correspondante dans la liste.
+  useEffect(() => {
+    if (!selectedZonageId) return;
+    if (!flatZonages.some((z) => zonageKey(z) === selectedZonageId)) return;
+    setView("zonages");
+    setExpandedZonages((prev) => {
+      if (prev.has(selectedZonageId)) return prev;
+      const next = new Set(prev);
+      next.add(selectedZonageId);
+      return next;
+    });
+    const timer = window.setTimeout(() => {
+      document
+        .querySelector(`[data-zonage-key="${CSS.escape(selectedZonageId)}"]`)
+        ?.scrollIntoView({
+          behavior: prefersReducedMotionRef.current ? "auto" : "smooth",
+          block: "center",
+        });
+    }, 100);
+    return () => window.clearTimeout(timer);
+  }, [selectedZonageId, flatZonages]);
 
   const reglementaireCount = useMemo(
     () => zonages?.groups.find((g) => g.category === "reglementaire")?.count || 0,
@@ -1060,14 +1117,39 @@ ${shareUrl ? `\n🔗 Reproduire cette analyse : ${shareUrl}` : ""}`;
                   )}
                   {flatZonages.slice(0, 3).map((z, idx) => {
                     const badge = ZONAGE_CATEGORY_BADGE[z.groupCategory] || ZONAGE_CATEGORY_BADGE.autre;
+                    const key = zonageKey(z);
+                    const hasGeometry = !!(
+                      z.geometry &&
+                      ((z.geometry.polygons?.length ?? 0) > 0 || z.geometry.rings.length > 0)
+                    );
+                    const isSelectedOnMap = selectedZonageId === key;
                     return (
-                      <div key={`top-z-${idx}`} className="flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2" data-testid={`top-zonage-${idx}`}>
+                      <button
+                        type="button"
+                        key={`top-z-${key}`}
+                        onClick={() => {
+                          if (hasGeometry && onSelectZonage) {
+                            onSelectZonage(isSelectedOnMap ? null : key);
+                          } else {
+                            setView("zonages");
+                          }
+                        }}
+                        className={`w-full flex items-center gap-2 rounded-lg border bg-white px-3 py-2 text-left transition-colors hover:bg-gray-50 ${
+                          isSelectedOnMap ? "border-teal-400 ring-1 ring-teal-300" : "border-gray-200"
+                        }`}
+                        data-testid={`top-zonage-${idx}`}
+                      >
                         <span className={`shrink-0 text-[9px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded border ${badge.cls}`}>{badge.label}</span>
                         <span className="min-w-0 flex-1">
                           <span className="block text-xs font-semibold text-gray-800 truncate">{z.name}</span>
-                          <span className="block text-[10px] text-gray-500 truncate">{z.type} · Dans l'aire d'étude</span>
+                          <span className="block text-[10px] text-gray-500 truncate">
+                            {z.type} · {hasGeometry ? (isSelectedOnMap ? "Affiché sur la carte" : "Cliquer pour voir sur la carte") : "Dans l'aire d'étude"}
+                          </span>
                         </span>
-                      </div>
+                        {hasGeometry && (
+                          <MapPin className={`h-3.5 w-3.5 shrink-0 ${isSelectedOnMap ? "text-teal-600" : "text-gray-300"}`} />
+                        )}
+                      </button>
                     );
                   })}
                   {flatZonages.length > 0 && (
@@ -1403,15 +1485,31 @@ ${shareUrl ? `\n🔗 Reproduire cette analyse : ${shareUrl}` : ""}`;
             {/* Liste compacte hiérarchisée */}
             <div className="space-y-1.5" data-testid="zoning-list">
               {flatZonages.map((z, idx) => {
-                const key = `${z.type}-${z.name}-${idx}`;
+                const key = zonageKey(z);
                 const expanded = expandedZonages.has(key);
                 const badge = ZONAGE_CATEGORY_BADGE[z.groupCategory] || ZONAGE_CATEGORY_BADGE.autre;
                 const isNatura = z.groupCategory === "natura2000";
+                const hasGeometry = !!(
+                  z.geometry &&
+                  ((z.geometry.polygons?.length ?? 0) > 0 || z.geometry.rings.length > 0)
+                );
+                const isSelectedOnMap = selectedZonageId === key;
                 return (
-                  <div key={key} className="rounded-lg border border-gray-200 bg-white overflow-hidden">
+                  <div
+                    key={key}
+                    data-zonage-key={key}
+                    className={`rounded-lg border bg-white overflow-hidden ${
+                      isSelectedOnMap ? "border-teal-400 ring-1 ring-teal-300" : "border-gray-200"
+                    }`}
+                  >
                     <button
                       type="button"
-                      onClick={() => toggleZonageDetails(key)}
+                      onClick={() => {
+                        toggleZonageDetails(key);
+                        if (hasGeometry && onSelectZonage) {
+                          onSelectZonage(isSelectedOnMap ? null : key);
+                        }
+                      }}
                       aria-expanded={expanded}
                       className="w-full flex items-center gap-2 px-3 py-2.5 text-left hover:bg-gray-50 transition-colors focus-visible:ring-2 focus-visible:ring-teal-400 focus-visible:outline-none"
                       data-testid={`zoning-row-${idx}`}
@@ -1422,15 +1520,23 @@ ${shareUrl ? `\n🔗 Reproduire cette analyse : ${shareUrl}` : ""}`;
                       <span className="min-w-0 flex-1">
                         <span className="block text-xs font-semibold text-gray-800 truncate">{z.name}</span>
                         <span className="block text-[10px] text-gray-500 truncate">
-                          {z.type} · Dans l'aire d'étude
+                          {z.type} · {hasGeometry ? (isSelectedOnMap ? "Affiché sur la carte" : "Cliquer pour voir sur la carte") : "Dans l'aire d'étude"}
                         </span>
                       </span>
+                      {hasGeometry && (
+                        <MapPin className={`h-3.5 w-3.5 shrink-0 ${isSelectedOnMap ? "text-teal-600" : "text-gray-300"}`} />
+                      )}
                       {expanded ? <ChevronUp className="h-3.5 w-3.5 text-gray-400 shrink-0" /> : <ChevronDown className="h-3.5 w-3.5 text-gray-400 shrink-0" />}
                     </button>
                     {expanded && (
                       <div className="px-3 pb-3 pt-1 border-t border-gray-100 space-y-1.5 text-[11px] text-gray-600">
                         <div><span className="font-semibold">Type :</span> {z.type}</div>
                         <div><span className="font-semibold">Catégorie :</span> {z.categoryLabel}</div>
+                        {!hasGeometry && (
+                          <div className="text-[10px] text-gray-400 italic">
+                            Emprise non disponible sur la carte (géométrie non fournie par le service).
+                          </div>
+                        )}
                         {z.id && <div><span className="font-semibold">Identifiant :</span> <span className="font-mono">{z.id}</span></div>}
                         {z.code && <div><span className="font-semibold">Code :</span> <span className="font-mono">{z.code}</span></div>}
                         {isNatura && z.code && (
