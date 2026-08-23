@@ -296,6 +296,15 @@ export default function Methodologie() {
           <p className="max-w-sm text-sm leading-6 text-slate-500">Les liens ci-dessous pointent vers les organismes ou catalogues officiels de référence.</p>
         </div>
         <div className="mt-10 grid gap-4 md:grid-cols-2 lg:grid-cols-3">{sources.map((source) => <SourceCard key={source.name} source={source} />)}</div>
+        <div className="mt-8 rounded-2xl border border-[#d9e4d5] bg-[#f7faf5] p-6 sm:p-7">
+          <p className="font-mono text-[11px] font-semibold uppercase tracking-[0.16em] text-teal-700">Accès agent IA</p>
+          <p className="mt-2 text-sm leading-6 text-slate-600">
+            L’ensemble de ces outils — géocodage, inventaires, fiches espèces, analyse des espèces à enjeux — est aussi exposé
+            via un serveur <strong className="text-slate-900">MCP</strong> (Model Context Protocol). Vous pouvez ainsi interroger
+            Inventaire Flash directement depuis Claude, ChatGPT ou tout client compatible. La configuration détaillée est
+            accessible depuis le bouton <strong className="text-slate-900">MCP</strong> sur la carte.
+          </p>
+        </div>
       </section>
 
       <section className="bg-[#dcead8]">

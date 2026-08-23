@@ -434,12 +434,12 @@ export default function Home() {
           type="button"
           onClick={() => setShowApi(true)}
           className="flex items-center gap-1.5 bg-white/80 backdrop-blur px-2.5 py-2 rounded-lg cursor-pointer hover:bg-white transition-colors shadow-sm"
-          aria-label="Agent IA — connecter Claude ou ChatGPT"
+          aria-label="MCP — connecter Claude ou ChatGPT à Inventaire Flash"
           data-testid="button-agent-ia"
-          title="Agent IA — connecter Claude / ChatGPT à Inventaire Flash via MCP"
+          title="MCP — connecter Claude / ChatGPT (agent IA) à Inventaire Flash"
         >
           <Bot className="h-4 w-4 text-teal-600" />
-          <span className="text-xs font-semibold text-gray-700">Agent IA</span>
+          <span className="text-xs font-semibold text-gray-700">MCP</span>
         </button>
 
       </div>

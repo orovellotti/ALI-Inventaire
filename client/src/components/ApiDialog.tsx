@@ -124,7 +124,7 @@ Réponds en français, ton professionnel et concis.`;
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Bot className="h-5 w-5 text-teal-600" />
-            Agent IA — Inventaire Flash
+            MCP — Agent IA Inventaire Flash
           </DialogTitle>
           <DialogDescription>
             Connecte Claude, ChatGPT ou tout client compatible MCP à Inventaire Flash pour interroger la biodiversité française depuis une simple conversation.
