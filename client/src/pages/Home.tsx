@@ -4,6 +4,7 @@ import { SearchPanel } from "@/components/SearchPanel";
 import { ResultsPanel } from "@/components/ResultsPanel";
 import { AboutDialog } from "@/components/AboutDialog";
 import { ApiDialog } from "@/components/ApiDialog";
+import { AnalysisProgress } from "@/components/AnalysisProgress";
 import { LieuxDitsDialog } from "@/components/LieuxDitsDialog";
 import { searchGBIFMultiCircle, InventoryResult, BufferCircle, STUDY_AREAS, ProjectPreset, TAXON_GROUPS, getTaxonGroupId } from "@/lib/gbif";
 import { searchPlace, reverseGeocode } from "@/lib/geocoding";
@@ -382,6 +383,12 @@ export default function Home() {
         onZonagesLoaded={setZonageFeatures}
         selectedZonageId={selectedZonageId}
         onSelectZonage={setSelectedZonageId}
+      />
+
+      <AnalysisProgress
+        active={isAnalyzing}
+        includeINaturalist={includeINaturalist}
+        areaCount={circles.filter((c) => c.enabled).length}
       />
 
       <AboutDialog open={showAbout} onOpenChange={setShowAbout} />
