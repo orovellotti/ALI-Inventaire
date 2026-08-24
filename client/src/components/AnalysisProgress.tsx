@@ -37,25 +37,19 @@ function buildSteps(includeINaturalist: boolean, areaCount: number): Step[] {
       effort: 1,
     },
     {
-      label: "Interrogation de GBIF",
-      detail: "Occurrences géolocalisées, filtrées dans le rayon",
-      duration: 4200,
+      label: "Interrogation des sources en parallèle",
+      detail: includeINaturalist
+        ? "GBIF, iNaturalist et zonages IGN / PatriNat"
+        : "GBIF et zonages IGN / PatriNat",
+      duration: 6800,
       effort: 3,
     },
   ];
-  if (includeINaturalist) {
-    steps.push({
-      label: "Interrogation d'iNaturalist",
-      detail: "Comptages de taxons autour du centre demandé",
-      duration: 2600,
-      effort: 3,
-    });
-  }
   steps.push(
     {
-      label: "Fusion et déduplication des espèces",
-      detail: "Rapprochement des noms, statuts UICN et protections",
-      duration: 1800,
+      label: "Consolidation des données",
+      detail: "Espèces, statuts et zonages territoriaux",
+      duration: 2400,
       effort: 2,
     },
     {

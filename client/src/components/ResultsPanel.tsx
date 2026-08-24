@@ -16,41 +16,17 @@ import type {
   PotentialSpeciesStatus,
 } from "@shared/types";
 import { ZonageMapFeature, zonageKey } from "@/lib/zonageMap";
+import type { ZonagesData, ZonageItem } from "@/lib/zonages";
 
-interface ZonageItem {
-  category: string;
-  type: string;
-  name: string;
-  url: string | null;
-  id: string | null;
-  code?: string | null;
-  /** Emprise WFS : polygones en anneaux [lng, lat] (null si indisponible). */
-  geometry?: { rings: number[][][]; polygons?: number[][][][] } | null;
-}
 interface NaturaSpeciesItem {
   name: string;
   grade: "A" | "B" | "C" | "D" | null;
   sensitive: boolean;
 }
-interface ZonageGroupData {
-  category: string;
-  label: string;
-  count: number;
-  zonages: ZonageItem[];
-}
-interface ZonagesData {
-  lat: number;
-  lng: number;
-  radius: number;
-  count: number;
-  groups: ZonageGroupData[];
-  errors: string[];
-}
-
 /** Vue courante du panneau : diagnostic (page unique) ou l'une des deux vues détaillées. */
 type PanelView = "diagnostic" | "especes" | "zonages";
 /** Sections repliables du diagnostic. */
-type SectionKey = "especes" | "potentielles" | "zonages" | "pourquoi" | "qualite";
+type SectionKey = "especes" | "potentielles" | "zonages" | "pourquoi";
 
 /**
  * Niveau d'enjeu global du site (Faible / Modéré / Fort), dérivé du score de
@@ -140,12 +116,14 @@ interface ResultsPanelProps {
   includeINaturalist?: boolean;
   onToggleIncludeINaturalist?: () => void;
   toponym?: string;
+  zonages: ZonagesData | null;
+  zonagesLoading: boolean;
   onZonagesLoaded?: (features: ZonageMapFeature[]) => void;
   selectedZonageId?: string | null;
   onSelectZonage?: (id: string | null) => void;
 }
 
-export function ResultsPanel({ isOpen, onClose, results, selectedSpecies, onSelectSpecies, activeTaxonFilters, onToggleTaxonFilter, onToggleAllTaxonFilters, excludeMarine, onToggleExcludeMarine, includeINaturalist, onToggleIncludeINaturalist, toponym, onZonagesLoaded, selectedZonageId, onSelectZonage }: ResultsPanelProps) {
+export function ResultsPanel({ isOpen, onClose, results, selectedSpecies, onSelectSpecies, activeTaxonFilters, onToggleTaxonFilter, onToggleAllTaxonFilters, excludeMarine, onToggleExcludeMarine, includeINaturalist, onToggleIncludeINaturalist, toponym, zonages, zonagesLoading, onZonagesLoaded, selectedZonageId, onSelectZonage }: ResultsPanelProps) {
   const [view, setView] = useState<PanelView>("diagnostic");
   const [openSections, setOpenSections] = useState<Set<SectionKey>>(new Set());
   const [showCalcDetail, setShowCalcDetail] = useState(false);
@@ -160,8 +138,6 @@ export function ResultsPanel({ isOpen, onClose, results, selectedSpecies, onSele
   const [reformatError, setReformatError] = useState<string | null>(null);
   const [showFilters, setShowFilters] = useState(true);
   const [aiAnalysis, setAiAnalysis] = useState<{ species: { scientificName: string; vernacularName?: string; group: string; level: string; reason: string; sources?: string[]; inInventory?: boolean; evidenceClass?: string; evidenceLabel?: string; score?: number; scoreLabel?: string; isInvasive?: boolean }[]; natura2000?: { type: string; name: string; url: string | null; code?: string | null; species?: { name: string; designating: boolean; grade?: string | null }[]; habitats?: { code: string; description: string; cover: number | null }[] }[]; generatedAt: string } | null>(null);
-  const [zonages, setZonages] = useState<ZonagesData | null>(null);
-  const [zonagesLoading, setZonagesLoading] = useState(false);
   const [panelWidth, setPanelWidth] = useState<number>(() => {
     if (typeof window === "undefined") return 600;
     const saved = Number(localStorage.getItem("resultsPanelWidth"));
@@ -247,32 +223,6 @@ export function ResultsPanel({ isOpen, onClose, results, selectedSpecies, onSele
       explainTriggerRef.current?.focus();
     };
   }, [assistantOpen]);
-
-  useEffect(() => {
-    if (!results) {
-      setZonages(null);
-      return;
-    }
-    const [lat, lng] = results.center;
-    const radius = results.radius;
-    let cancelled = false;
-    setZonages(null);
-    setZonagesLoading(true);
-    fetch(`/api/zonages?lat=${lat}&lng=${lng}&radius=${radius}&geometry=1`)
-      .then((r) => (r.ok ? r.json() : null))
-      .then((d) => {
-        if (!cancelled) setZonages(d);
-      })
-      .catch(() => {
-        if (!cancelled) setZonages(null);
-      })
-      .finally(() => {
-        if (!cancelled) setZonagesLoading(false);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [results]);
 
   const startResize = (e: React.MouseEvent) => {
     e.preventDefault();
@@ -753,7 +703,7 @@ ${sectionList("🟢 ENJEUX FAIBLES", sortedSpecies.low)}${aiAnalysis && aiAnalys
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 ${(["A", "C", "B", "D", "E"] as const)
   .map((cls) => {
-    const label: Record<string, string> = { A: "Espèce observée", B: "Avérée à l'échelle du site", C: "Très probable localement", D: "Potentielle", E: "Peu pertinente localement" };
+    const label: Record<string, string> = { A: "Espèce avérée", B: "Avérée à l'échelle du site", C: "Très probable localement", D: "Potentielle", E: "Peu pertinente localement" };
     const group = aiAnalysis.species.filter((sp) => (sp.evidenceClass ?? "D") === cls);
     if (group.length === 0) return "";
     return `\n[${cls}] ${label[cls]}\n${group
@@ -1065,7 +1015,7 @@ ${shareUrl ? `\n🔗 Reproduire cette analyse : ${shareUrl}` : ""}`;
                       className="text-[11px] text-teal-700 font-semibold hover:underline self-start px-1"
                       data-testid="button-view-all-species"
                     >
-                      Voir les {filteredTotal} espèce{filteredTotal > 1 ? "s" : ""} observée{filteredTotal > 1 ? "s" : ""}
+                      Voir les {filteredTotal} espèce{filteredTotal > 1 ? "s" : ""} avérée{filteredTotal > 1 ? "s" : ""}
                     </button>
                   </div>
                 </div>
@@ -1167,7 +1117,7 @@ ${shareUrl ? `\n🔗 Reproduire cette analyse : ${shareUrl}` : ""}`;
               )}
             </section>
 
-            {/* Section 5 — Pourquoi ce niveau ? (repliable) */}
+            {/* Section 5 — Niveau d'enjeu, qualité et limites (repliable) */}
             <section className="rounded-xl border border-gray-200 bg-white overflow-hidden" data-testid="section-pourquoi">
               <button
                 type="button"
@@ -1178,10 +1128,10 @@ ${shareUrl ? `\n🔗 Reproduire cette analyse : ${shareUrl}` : ""}`;
                 data-testid="button-section-pourquoi"
               >
                 <span className="flex items-center gap-2 text-sm font-bold text-gray-800">
-                  <Gauge className="h-4 w-4 text-indigo-600" /> Pourquoi ce niveau ?
+                  <Gauge className="h-4 w-4 text-indigo-600" /> Niveau d’enjeu, qualité et limites
                 </span>
                 <span className="flex items-center gap-2 text-[11px] text-gray-500 min-w-0">
-                  <span className="truncate">{riskScore.factors.length} facteur{riskScore.factors.length > 1 ? "s" : ""} identifié{riskScore.factors.length > 1 ? "s" : ""}</span>
+                  <span className="truncate">{riskScore.factors.length} facteur{riskScore.factors.length > 1 ? "s" : ""} · sources publiques</span>
                   {openSections.has("pourquoi") ? <ChevronUp className="h-4 w-4 shrink-0" /> : <ChevronDown className="h-4 w-4 shrink-0" />}
                 </span>
               </button>
@@ -1251,41 +1201,23 @@ ${shareUrl ? `\n🔗 Reproduire cette analyse : ${shareUrl}` : ""}`;
                       </div>
                     </div>
                   )}
-                </div>
-              )}
-            </section>
-
-            {/* Section 6 — Qualité et limites des données (repliable) */}
-            <section className="rounded-xl border border-gray-200 bg-white overflow-hidden" data-testid="section-qualite">
-              <button
-                type="button"
-                onClick={() => toggleSection("qualite")}
-                aria-expanded={openSections.has("qualite")}
-                aria-controls="section-body-qualite"
-                className="w-full flex items-center justify-between gap-2 px-4 py-3 hover:bg-gray-50 transition-colors focus-visible:ring-2 focus-visible:ring-teal-400 focus-visible:outline-none"
-                data-testid="button-section-qualite"
-              >
-                <span className="flex items-center gap-2 text-sm font-bold text-gray-800">
-                  <Info className="h-4 w-4 text-sky-600" /> Qualité et limites des données
-                </span>
-                <span className="flex items-center gap-2 text-[11px] text-gray-500 min-w-0">
-                  <span className="truncate">Sources publiques — à valider sur le terrain</span>
-                  {openSections.has("qualite") ? <ChevronUp className="h-4 w-4 shrink-0" /> : <ChevronDown className="h-4 w-4 shrink-0" />}
-                </span>
-              </button>
-              {openSections.has("qualite") && (
-                <div id="section-body-qualite" className="px-4 pb-3 space-y-3 border-t border-gray-100 pt-3">
-                  <ConfidencePanel confidence={results.confidence} />
-                  <div className="text-[11px] text-gray-600 space-y-1.5">
-                    <p><span className="font-semibold">Sources :</span> {sourcesLabel}</p>
-                    <p className="flex items-start gap-1.5">
-                      <AlertTriangle className="h-3.5 w-3.5 shrink-0 mt-0.5 text-amber-600" />
-                      Absence de donnée ≠ absence d'espèce : les données publiques ne couvrent pas tout le territoire.
-                    </p>
-                    <p className="flex items-start gap-1.5">
-                      <ClipboardList className="h-3.5 w-3.5 shrink-0 mt-0.5 text-teal-600" />
-                      Pré-diagnostic indicatif — à valider par un écologue lors d'un inventaire terrain.
-                    </p>
+                  <div className="border-t border-gray-100 pt-3 space-y-3">
+                    <div className="flex items-center gap-2">
+                      <Info className="h-4 w-4 text-sky-600" />
+                      <span className="text-xs font-bold text-gray-700">Qualité et limites des données</span>
+                    </div>
+                    <ConfidencePanel confidence={results.confidence} />
+                    <div className="text-[11px] text-gray-600 space-y-1.5">
+                      <p><span className="font-semibold">Sources :</span> {sourcesLabel}</p>
+                      <p className="flex items-start gap-1.5">
+                        <AlertTriangle className="h-3.5 w-3.5 shrink-0 mt-0.5 text-amber-600" />
+                        Absence de donnée ≠ absence d'espèce : les données publiques ne couvrent pas tout le territoire.
+                      </p>
+                      <p className="flex items-start gap-1.5">
+                        <ClipboardList className="h-3.5 w-3.5 shrink-0 mt-0.5 text-teal-600" />
+                        Pré-diagnostic indicatif — à valider par un écologue lors d'un inventaire terrain.
+                      </p>
+                    </div>
                   </div>
                 </div>
               )}
@@ -1303,14 +1235,14 @@ ${shareUrl ? `\n🔗 Reproduire cette analyse : ${shareUrl}` : ""}`;
               <ChevronLeft className="h-3.5 w-3.5" /> Retour au diagnostic
             </button>
             <div className="rounded-lg border border-gray-200 bg-gray-50/60 px-3 py-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-gray-600" data-testid="species-summary">
-              <span><strong className="text-gray-900">{filteredTotal}</strong> espèce{filteredTotal > 1 ? "s" : ""}</span>
+              <span><strong className="text-gray-900">{filteredTotal}</strong> espèce{filteredTotal > 1 ? "s" : ""} avérée{filteredTotal > 1 ? "s" : ""}</span>
               <span><strong className="text-orange-700">{prioritySpeciesList.length}</strong> prioritaire{prioritySpeciesList.length > 1 ? "s" : ""}</span>
               <span><strong className="text-sky-700">{aVerifierCount}</strong> à vérifier</span>
             </div>
             <div className="flex flex-wrap gap-1.5" data-testid="species-attr-filters">
               {([
                 { key: "prioritaires", label: `Prioritaires (${prioritySpeciesList.length})` },
-                { key: "toutes", label: `Toutes (${filteredTotal})` },
+                { key: "toutes", label: `Avérées (${filteredTotal})` },
               ] as { key: "prioritaires" | "toutes"; label: string }[]).map((chip) => {
                 const active = speciesScope === chip.key;
                 return (
@@ -2218,7 +2150,7 @@ function PotentialSpeciesRow({
           <div className="flex flex-wrap items-center gap-1.5">
             {item.observed && (
               <span className="text-[9px] font-bold uppercase tracking-wide rounded border border-teal-200 bg-teal-50 px-1.5 py-0.5 text-teal-700">
-                Observée
+                Avérée
               </span>
             )}
             <span className="font-semibold italic text-xs text-gray-800">
@@ -2578,7 +2510,7 @@ function PotentialSpeciesSection({
         ? "Ouvrir pour calculer"
         : currentResult.species.length === 0
           ? `${currentResult.znieff?.speciesCount ?? 0} espèce${(currentResult.znieff?.speciesCount ?? 0) > 1 ? "s" : ""} documentée${(currentResult.znieff?.speciesCount ?? 0) > 1 ? "s" : ""} en ZNIEFF`
-          : `${currentResult.potentialCount} candidate${currentResult.potentialCount > 1 ? "s" : ""} non observée${currentResult.potentialCount > 1 ? "s" : ""}, ${currentResult.observedCount} observée${currentResult.observedCount > 1 ? "s" : ""}${currentResult.znieff?.speciesCount ? ` · ${currentResult.znieff.speciesCount} documentée${currentResult.znieff.speciesCount > 1 ? "s" : ""} en ZNIEFF` : ""}`;
+          : `${currentResult.potentialCount} espèce${currentResult.potentialCount > 1 ? "s" : ""} potentielle${currentResult.potentialCount > 1 ? "s" : ""}, ${currentResult.observedCount} espèce${currentResult.observedCount > 1 ? "s" : ""} avérée${currentResult.observedCount > 1 ? "s" : ""}${currentResult.znieff?.speciesCount ? ` · ${currentResult.znieff.speciesCount} documentée${currentResult.znieff.speciesCount > 1 ? "s" : ""} en ZNIEFF` : ""}`;
 
   return (
     <section
@@ -2595,7 +2527,7 @@ function PotentialSpeciesSection({
       >
         <span className="flex items-center gap-2 text-left text-sm font-bold text-gray-800">
           <ListChecks className="h-4 w-4 shrink-0 text-emerald-600" />
-          Espèces potentiellement présentes
+          Espèces potentielles
         </span>
         <span className="flex min-w-0 items-center gap-2 text-[11px] text-gray-500">
           <span className="truncate">{summary}</span>
@@ -2620,7 +2552,7 @@ function PotentialSpeciesSection({
             écologiques explicites entre l’espèce et les habitats décrits sur
             les sites proches. La localisation précise de chaque habitat dans
             l’emprise n’est pas connue. Les occurrences servent uniquement à
-            séparer les espèces observées. Ce pré-diagnostic doit être validé
+            distinguer les espèces avérées des espèces potentielles. Ce pré-diagnostic doit être validé
             par un écologue.
             {currentResult?.reference && (
               <>
@@ -2656,7 +2588,7 @@ function PotentialSpeciesSection({
           )}
           {!loading && !error && currentResult && currentResult.species.length === 0 && (
             <p className="py-2 text-xs italic text-gray-500">
-              Aucune espèce candidate n’est disponible dans les sites Natura
+              Aucune espèce potentielle n’est disponible dans les sites Natura
               2000 concernés.
             </p>
           )}
@@ -2685,7 +2617,7 @@ function PotentialSpeciesSection({
               <div>
                 <div className="mb-1.5 flex items-center justify-between">
                   <h4 className="text-[11px] font-bold uppercase tracking-wide text-emerald-800">
-                    Candidates non observées
+                    Espèces potentielles
                   </h4>
                   <span className="text-[10px] text-gray-400">
                     {potential.length}
@@ -2702,7 +2634,7 @@ function PotentialSpeciesSection({
                   </ul>
                 ) : (
                   <p className="text-[11px] italic text-gray-500">
-                    Aucune espèce seulement potentielle dans le référentiel
+                    Aucune espèce potentielle dans le référentiel
                     disponible.
                   </p>
                 )}
@@ -2711,7 +2643,7 @@ function PotentialSpeciesSection({
               <div className="border-t border-gray-100 pt-3">
                 <div className="mb-1.5 flex items-center justify-between">
                   <h4 className="text-[11px] font-bold uppercase tracking-wide text-teal-800">
-                    Observées parmi les espèces attendues
+                    Espèces avérées parmi les espèces attendues
                   </h4>
                   <span className="text-[10px] text-gray-400">
                     {observed.length}
@@ -2719,7 +2651,7 @@ function PotentialSpeciesSection({
                 </div>
                 <p className="mb-2 text-[10px] leading-snug text-gray-500">
                   Ce statut est réservé aux espèces disposant d’une occurrence
-                  réelle dans l’inventaire GBIF ou iNaturalist.
+                  dans l’inventaire GBIF ou d’un signal iNaturalist dans l’aire.
                 </p>
                 {observed.length > 0 ? (
                   <ul className="space-y-2" data-testid="list-observed-potential-species">
@@ -2813,14 +2745,14 @@ function Natura2000ExpectedPanel({
           <div className="flex items-center gap-2">
             <Shield className="h-4 w-4 text-emerald-600" />
             <span className="font-bold text-sm text-emerald-700 text-left">
-              Espèces Natura 2000 attendues
+              Espèces potentielles Natura 2000
             </span>
           </div>
           <div className="flex items-center gap-2">
             {loading && <Loader2 className="h-3.5 w-3.5 animate-spin text-emerald-600" />}
             {loaded && (
               <span className="text-[11px] font-semibold text-emerald-700 bg-emerald-100 rounded-full px-2 py-0.5">
-                {notObserved.length} non observée{notObserved.length > 1 ? "s" : ""}
+                {notObserved.length} potentielle{notObserved.length > 1 ? "s" : ""}
               </span>
             )}
             {expanded ? (
@@ -2835,14 +2767,14 @@ function Natura2000ExpectedPanel({
       {expanded && (
         <div className="mt-3">
           {error && (
-            <p className="text-[11px] text-red-500">Espèces attendues indisponibles.</p>
+            <p className="text-[11px] text-red-500">Espèces potentielles indisponibles.</p>
           )}
           {loaded && !error && (
             <>
               <p className="text-[11px] text-gray-500 mb-2 leading-snug">
                 Espèces justifiant le classement des {siteCount} site{siteCount > 1 ? "s" : ""} Natura 2000 proche
-                {siteCount > 1 ? "s" : ""} (base EEA, France). Les espèces « non observées » ne figurent
-                pas dans les résultats GBIF/iNaturalist mais sont attendues localement.
+                {siteCount > 1 ? "s" : ""} (base EEA, France). Les espèces potentielles ne figurent
+                pas parmi les espèces avérées mais sont documentées pour ces sites proches.
               </p>
               <ul className="space-y-1" data-testid="list-natura-expected">
                 {species.map((sp, i) => {
@@ -2859,9 +2791,9 @@ function Natura2000ExpectedPanel({
                             ? "bg-gray-100 text-gray-500"
                             : "bg-emerald-100 text-emerald-700"
                         }`}
-                        title={observed ? "Déjà observée dans l'inventaire" : "Attendue, non observée dans GBIF"}
+                        title={observed ? "Espèce avérée dans l'inventaire" : "Espèce potentielle documentée par Natura 2000"}
                       >
-                        {observed ? "observée" : "attendue"}
+                        {observed ? "avérée" : "potentielle"}
                       </span>
                       <span className="flex-1">
                         <span className="italic font-medium">{sp.scientificName}</span>

@@ -25,7 +25,7 @@ const TOOLS: McpTool[] = [
   {
     name: "inventory_simple",
     title: "Inventaire GBIF (un point)",
-    description: "Espèces observées autour d'un point GPS dans un rayon donné. Renvoie la liste des espèces, statut UICN, classification, et un score de confiance.",
+    description: "Espèces avérées autour d'un point GPS dans un rayon donné. Renvoie la liste des espèces, statut UICN, classification, et un score de confiance.",
     input: `{ "lat": 43.5497, "lng": 5.0341, "radius": 2000 }`,
   },
   {

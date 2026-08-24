@@ -10,6 +10,7 @@ import { searchGBIFMultiCircle, InventoryResult, BufferCircle, STUDY_AREAS, Proj
 import { searchPlace, reverseGeocode } from "@/lib/geocoding";
 import { parseShapefile, ProjectPolygon } from "@/lib/shapefile";
 import type { ZonageMapFeature } from "@/lib/zonageMap";
+import { fetchZonages, type ZonagesData } from "@/lib/zonages";
 import { useToast } from "@/hooks/use-toast";
 import { Leaf, HelpCircle, Bot, BookOpen } from "lucide-react";
 import { Link } from "wouter";
@@ -100,6 +101,8 @@ export default function Home() {
   const [excludeMarine, setExcludeMarine] = useState<boolean>(true);
   const [includeINaturalist, setIncludeINaturalist] = useState<boolean>(true);
   const [projectPolygon, setProjectPolygon] = useState<ProjectPolygon | null>(null);
+  const [zonages, setZonages] = useState<ZonagesData | null>(null);
+  const [zonagesLoading, setZonagesLoading] = useState(false);
   const [zonageFeatures, setZonageFeatures] = useState<ZonageMapFeature[]>([]);
   const [selectedZonageId, setSelectedZonageId] = useState<string | null>(null);
   const [isLoadingShapefile, setIsLoadingShapefile] = useState(false);
@@ -107,9 +110,14 @@ export default function Home() {
   const { toast } = useToast();
 
   const inventoryRequestId = useRef(0);
+  const zonagesAbortController = useRef<AbortController | null>(null);
   const resetForNewLocation = useCallback(() => {
     inventoryRequestId.current++;
+    zonagesAbortController.current?.abort();
+    zonagesAbortController.current = null;
     setResults(null);
+    setZonages(null);
+    setZonagesLoading(false);
     setSelectedSpecies(null);
     setZonageFeatures([]);
     setSelectedZonageId(null);
@@ -152,7 +160,8 @@ export default function Home() {
   };
 
   const handleLaunchAnalysis = async () => {
-    const enabledCount = circles.filter(c => c.enabled).length;
+    const enabledCircles = circles.filter(c => c.enabled);
+    const enabledCount = enabledCircles.length;
     if (enabledCount === 0) {
       toast({
         title: "Aucune aire sélectionnée",
@@ -163,6 +172,43 @@ export default function Home() {
     }
 
     const requestId = ++inventoryRequestId.current;
+    const referenceCircle =
+      enabledCircles.find((circle) => circle.id === "immediate") ?? enabledCircles[0];
+    zonagesAbortController.current?.abort();
+    const zonagesController = new AbortController();
+    zonagesAbortController.current = zonagesController;
+    setResults(null);
+    setSelectedSpecies(null);
+    setIsPanelOpen(false);
+    setLocationKey((key) => key + 1);
+    setZonages(null);
+    setZonageFeatures([]);
+    setSelectedZonageId(null);
+    setZonagesLoading(true);
+
+    // Les zonages partent dès le clic, en parallèle de GBIF/iNaturalist.
+    // Leur échec reste non bloquant : l'inventaire d'espèces s'ouvre quand même.
+    void fetchZonages(
+      referenceCircle.center[0],
+      referenceCircle.center[1],
+      referenceCircle.radius,
+      zonagesController.signal,
+    )
+      .then((data) => {
+        if (requestId === inventoryRequestId.current) setZonages(data);
+      })
+      .catch((error: unknown) => {
+        if (
+          requestId === inventoryRequestId.current &&
+          !(error instanceof DOMException && error.name === "AbortError")
+        ) {
+          setZonages(null);
+        }
+      })
+      .finally(() => {
+        if (requestId === inventoryRequestId.current) setZonagesLoading(false);
+      });
+
     setIsAnalyzing(true);
     try {
       const data = await searchGBIFMultiCircle(circles, { includeINaturalist });
@@ -175,6 +221,9 @@ export default function Home() {
       });
     } catch (error) {
       if (requestId !== inventoryRequestId.current) return;
+      zonagesController.abort();
+      setZonages(null);
+      setZonagesLoading(false);
       toast({
         title: "Erreur",
         description: "Impossible de récupérer les données GBIF.",
@@ -380,6 +429,8 @@ export default function Home() {
         includeINaturalist={includeINaturalist}
         onToggleIncludeINaturalist={() => setIncludeINaturalist(v => !v)}
         toponym={currentToponym}
+        zonages={zonages}
+        zonagesLoading={zonagesLoading}
         onZonagesLoaded={setZonageFeatures}
         selectedZonageId={selectedZonageId}
         onSelectZonage={setSelectedZonageId}
@@ -404,10 +455,7 @@ export default function Home() {
         <button 
           type="button"
           className="flex items-center gap-2 bg-white/80 backdrop-blur px-3 py-2 rounded-lg cursor-pointer hover:bg-white transition-colors shadow-sm"
-          onClick={() => {
-            setResults(null);
-            setIsPanelOpen(false);
-          }}
+          onClick={resetForNewLocation}
           aria-label="Réinitialiser la vue"
           data-testid="button-reset"
         >

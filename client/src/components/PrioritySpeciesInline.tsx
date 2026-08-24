@@ -59,7 +59,7 @@ const EVIDENCE_STYLE: Record<EvidenceClass, { color: string; short: string }> = 
 };
 
 const EVIDENCE_GROUP_LABEL: Record<EvidenceClass, string> = {
-  A: "Espèce observée",
+  A: "Espèce avérée",
   B: "Avérée à l'échelle du site",
   C: "Très probable localement",
   D: "Potentielle",
@@ -67,7 +67,7 @@ const EVIDENCE_GROUP_LABEL: Record<EvidenceClass, string> = {
 };
 
 const EVIDENCE_GROUP_DESC: Record<EvidenceClass, string> = {
-  A: "Observée dans votre zone d'étude (données GBIF / iNaturalist).",
+  A: "Avérée dans votre zone d'étude par les données GBIF ou iNaturalist.",
   B: "Ayant justifié la désignation d'un site Natura 2000 proche.",
   C: "Espèce Natura 2000 dont l'habitat est favorable dans votre emprise.",
   D: "Possible d'après le contexte, sans preuve locale directe.",
