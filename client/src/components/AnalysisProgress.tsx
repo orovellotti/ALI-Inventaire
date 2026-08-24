@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Check, Leaf } from "lucide-react";
+import { Check, Layers3, Leaf, Loader2 } from "lucide-react";
 
 type Effort = 1 | 2 | 3;
 
@@ -85,10 +85,16 @@ export function AnalysisProgress({
   active,
   includeINaturalist,
   areaCount,
+  zonagesLoading,
+  zonagesReady,
+  zonageFeatureCount,
 }: {
   active: boolean;
   includeINaturalist: boolean;
   areaCount: number;
+  zonagesLoading: boolean;
+  zonagesReady: boolean;
+  zonageFeatureCount: number;
 }) {
   const steps = useMemo(
     () => buildSteps(includeINaturalist, areaCount),
@@ -215,6 +221,29 @@ export function AnalysisProgress({
             style={{ width: `${progress}%` }}
           />
         </div>
+
+        {!done && (
+          <div className="mt-3 flex items-center gap-2 rounded-lg bg-sky-50 px-3 py-2 text-[11px] font-medium text-sky-800">
+            {zonagesLoading ? (
+              <>
+                <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin" />
+                Recherche des zonages IGN / PatriNat…
+              </>
+            ) : zonagesReady ? (
+              <>
+                <Check className="h-3.5 w-3.5 shrink-0 text-teal-600" />
+                {zonageFeatureCount > 0
+                  ? `${zonageFeatureCount} emprise${zonageFeatureCount > 1 ? "s" : ""} affichée${zonageFeatureCount > 1 ? "s" : ""} sur la carte`
+                  : "Aucune emprise de zonage trouvée dans l’aire"}
+              </>
+            ) : (
+              <>
+                <Layers3 className="h-3.5 w-3.5 shrink-0" />
+                Zonages indisponibles, recherche des espèces poursuivie
+              </>
+            )}
+          </div>
+        )}
 
         {/* Étapes : passées, en cours (avec effort), à venir */}
         <ol className="mt-4 space-y-1.5">

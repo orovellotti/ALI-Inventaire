@@ -15,7 +15,7 @@ import type {
   PotentialSpeciesResult,
   PotentialSpeciesStatus,
 } from "@shared/types";
-import { ZonageMapFeature, zonageKey } from "@/lib/zonageMap";
+import { zonageKey } from "@/lib/zonageMap";
 import type { ZonagesData, ZonageItem } from "@/lib/zonages";
 
 interface NaturaSpeciesItem {
@@ -118,12 +118,11 @@ interface ResultsPanelProps {
   toponym?: string;
   zonages: ZonagesData | null;
   zonagesLoading: boolean;
-  onZonagesLoaded?: (features: ZonageMapFeature[]) => void;
   selectedZonageId?: string | null;
   onSelectZonage?: (id: string | null) => void;
 }
 
-export function ResultsPanel({ isOpen, onClose, results, selectedSpecies, onSelectSpecies, activeTaxonFilters, onToggleTaxonFilter, onToggleAllTaxonFilters, excludeMarine, onToggleExcludeMarine, includeINaturalist, onToggleIncludeINaturalist, toponym, zonages, zonagesLoading, onZonagesLoaded, selectedZonageId, onSelectZonage }: ResultsPanelProps) {
+export function ResultsPanel({ isOpen, onClose, results, selectedSpecies, onSelectSpecies, activeTaxonFilters, onToggleTaxonFilter, onToggleAllTaxonFilters, excludeMarine, onToggleExcludeMarine, includeINaturalist, onToggleIncludeINaturalist, toponym, zonages, zonagesLoading, selectedZonageId, onSelectZonage }: ResultsPanelProps) {
   const [view, setView] = useState<PanelView>("diagnostic");
   const [openSections, setOpenSections] = useState<Set<SectionKey>>(new Set());
   const [showCalcDetail, setShowCalcDetail] = useState(false);
@@ -517,35 +516,6 @@ export function ResultsPanel({ isOpen, onClose, results, selectedSpecies, onSele
     list.sort((a, b) => a.priority - b.priority || a.name.localeCompare(b.name));
     return list;
   }, [zonages]);
-
-  // Transforme les emprises WFS [lng, lat] en MultiPolygons Leaflet [lat, lng].
-  // La structure polygonale est conservée pour ne pas confondre îlots et trous.
-  useEffect(() => {
-    if (!onZonagesLoaded) return;
-    const features: ZonageMapFeature[] = [];
-    const seen = new Set<string>();
-    for (const z of flatZonages) {
-      const polygons = z.geometry?.polygons?.length
-        ? z.geometry.polygons
-        : (z.geometry?.rings || []).map((ring) => [ring]);
-      if (polygons.length === 0) continue;
-      const id = zonageKey(z);
-      if (seen.has(id)) continue;
-      seen.add(id);
-      features.push({
-        id,
-        name: z.name,
-        type: z.type,
-        category: z.groupCategory,
-        polygons: polygons.map((polygon) =>
-          polygon.map((ring) =>
-            ring.map((point) => [point[1], point[0]] as [number, number]),
-          ),
-        ),
-      });
-    }
-    onZonagesLoaded(features);
-  }, [flatZonages, onZonagesLoaded]);
 
   // Un clic sur la carte ouvre et centre la ligne correspondante dans la liste.
   useEffect(() => {

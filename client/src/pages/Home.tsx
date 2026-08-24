@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect, useRef } from "react";
+import { useState, useCallback, useEffect, useMemo, useRef } from "react";
 import { Map } from "@/components/Map";
 import { SearchPanel } from "@/components/SearchPanel";
 import { ResultsPanel } from "@/components/ResultsPanel";
@@ -9,7 +9,7 @@ import { LieuxDitsDialog } from "@/components/LieuxDitsDialog";
 import { searchGBIFMultiCircle, InventoryResult, BufferCircle, STUDY_AREAS, ProjectPreset, TAXON_GROUPS, getTaxonGroupId } from "@/lib/gbif";
 import { searchPlace, reverseGeocode } from "@/lib/geocoding";
 import { parseShapefile, ProjectPolygon } from "@/lib/shapefile";
-import type { ZonageMapFeature } from "@/lib/zonageMap";
+import { toZonageMapFeatures } from "@/lib/zonageMap";
 import { fetchZonages, type ZonagesData } from "@/lib/zonages";
 import { useToast } from "@/hooks/use-toast";
 import { Leaf, HelpCircle, Bot, BookOpen } from "lucide-react";
@@ -103,7 +103,7 @@ export default function Home() {
   const [projectPolygon, setProjectPolygon] = useState<ProjectPolygon | null>(null);
   const [zonages, setZonages] = useState<ZonagesData | null>(null);
   const [zonagesLoading, setZonagesLoading] = useState(false);
-  const [zonageFeatures, setZonageFeatures] = useState<ZonageMapFeature[]>([]);
+  const zonageFeatures = useMemo(() => toZonageMapFeatures(zonages), [zonages]);
   const [selectedZonageId, setSelectedZonageId] = useState<string | null>(null);
   const [isLoadingShapefile, setIsLoadingShapefile] = useState(false);
   const [locationKey, setLocationKey] = useState(0);
@@ -119,7 +119,6 @@ export default function Home() {
     setZonages(null);
     setZonagesLoading(false);
     setSelectedSpecies(null);
-    setZonageFeatures([]);
     setSelectedZonageId(null);
     setIsPanelOpen(false);
     setIsAnalyzing(false);
@@ -182,7 +181,6 @@ export default function Home() {
     setIsPanelOpen(false);
     setLocationKey((key) => key + 1);
     setZonages(null);
-    setZonageFeatures([]);
     setSelectedZonageId(null);
     setZonagesLoading(true);
 
@@ -431,7 +429,6 @@ export default function Home() {
         toponym={currentToponym}
         zonages={zonages}
         zonagesLoading={zonagesLoading}
-        onZonagesLoaded={setZonageFeatures}
         selectedZonageId={selectedZonageId}
         onSelectZonage={setSelectedZonageId}
       />
@@ -440,6 +437,9 @@ export default function Home() {
         active={isAnalyzing}
         includeINaturalist={includeINaturalist}
         areaCount={circles.filter((c) => c.enabled).length}
+        zonagesLoading={zonagesLoading}
+        zonagesReady={zonages !== null}
+        zonageFeatureCount={zonageFeatures.length}
       />
 
       <AboutDialog open={showAbout} onOpenChange={setShowAbout} />
