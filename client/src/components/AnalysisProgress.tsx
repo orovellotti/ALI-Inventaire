@@ -12,12 +12,6 @@ interface Step {
   effort: Effort;
 }
 
-const EFFORT_LABEL: Record<Effort, string> = {
-  1: "effort léger",
-  2: "effort modéré",
-  3: "effort intense",
-};
-
 /** Vitesse des animations selon l'effort (durée d'un cycle en secondes). */
 const EFFORT_SPEED: Record<Effort, number> = {
   1: 2.4,
@@ -111,7 +105,7 @@ export function AnalysisProgress({
   const [done, setDone] = useState(false);
   const [stepIndex, setStepIndex] = useState(0);
   const [progress, setProgress] = useState(0);
-  const [sourcesOpen, setSourcesOpen] = useState(false);
+  const [openAgentDetail, setOpenAgentDetail] = useState<"occurrences" | "zonages" | "potential" | null>(null);
   const startRef = useRef(0);
 
   // Démarrage / fin pilotés par `active`.
@@ -121,7 +115,7 @@ export function AnalysisProgress({
       setDone(false);
       setStepIndex(0);
       setProgress(0);
-      setSourcesOpen(false);
+      setOpenAgentDetail(null);
       startRef.current = Date.now();
       return;
     }
@@ -177,6 +171,47 @@ export function AnalysisProgress({
     : potentialSpeciesReady
       ? `${potentialSpeciesCount} espèce${potentialSpeciesCount > 1 ? "s" : ""} potentielle${potentialSpeciesCount > 1 ? "s" : ""}`
       : "Espèces potentielles indisponibles";
+  const agents = [
+    {
+      id: "occurrences" as const,
+      marker: "AO",
+      name: "Agent Occurrences",
+      icon: Database,
+      tone: "text-[#2f705a]",
+      markerTone: "bg-[#dceee1] text-[#27614d]",
+      status: observationsSearching ? "En recherche" : "Croisement en cours",
+      activity: observationsSearching ? "Interroge les occurrences disponibles" : "Prépare les données pour l’inventaire",
+      detail: `Sources : ${includeINaturalist ? "GBIF et iNaturalist" : "GBIF"}.`,
+      working: true,
+      ready: false,
+    },
+    {
+      id: "zonages" as const,
+      marker: "AZ",
+      name: "Agent Zonages",
+      icon: Layers3,
+      tone: "text-[#50718a]",
+      markerTone: "bg-[#e1edf2] text-[#466d85]",
+      status: zonagesLoading ? "En recherche" : zonagesReady ? "Terminé" : "Indisponible",
+      activity: zonageLabel,
+      detail: "Sources : IGN / PatriNat.",
+      working: zonagesLoading,
+      ready: zonagesReady,
+    },
+    {
+      id: "potential" as const,
+      marker: "AP",
+      name: "Agent Potentiel écologique",
+      icon: Leaf,
+      tone: "text-[#6f7650]",
+      markerTone: "bg-[#eff0dc] text-[#696f45]",
+      status: potentialSpeciesLoading ? "En calcul" : potentialSpeciesReady ? "Terminé" : "Indisponible",
+      activity: potentialLabel,
+      detail: "Calcul lancé pour l’aire d’étude.",
+      working: potentialSpeciesLoading,
+      ready: potentialSpeciesReady,
+    },
+  ];
 
   return (
     <div className="pointer-events-none absolute inset-0 z-[1200] flex items-end justify-center pb-5 sm:items-center sm:pb-0">
@@ -244,9 +279,9 @@ export function AnalysisProgress({
               {!done && <EffortMeter effort={currentEffort} />}
             </div>
             <p className="mt-1 text-[13px] leading-5 text-[#36584b]" data-ifx-motion style={{ animation: "ifx-arrive 260ms ease-out both" }}>
-              {done ? "J’ai terminé le croisement. Ouverture des résultats…" : steps[stepIndex].label}
+              {done ? "J’ai terminé le croisement. Ouverture des résultats…" : "Je coordonne trois analyses en parallèle."}
             </p>
-            {!done && <p className="mt-0.5 text-xs leading-4 text-[#6b7d73]">{steps[stepIndex].detail}</p>}
+            {!done && <p className="mt-0.5 text-xs leading-4 text-[#6b7d73]">{steps[stepIndex].label}</p>}
           </div>
         </div>
 
@@ -266,78 +301,58 @@ export function AnalysisProgress({
 
         {!done && (
           <div className="px-5 py-3.5">
-            <p className="mb-2 text-[10px] font-bold uppercase tracking-[0.14em] text-[#789084]">Sources croisées</p>
-            <ul className="divide-y divide-[#dfe8de] rounded-xl border border-[#dfe8de] bg-[#fbfcf8]">
-              <li className="flex items-center gap-2.5 px-3 py-2 text-xs text-[#36584b]">
-                {observationsSearching ? <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin text-[#3e8069]" data-ifx-motion /> : <Database className="h-3.5 w-3.5 shrink-0 text-[#3e8069]" />}
-                <span className="flex-1">Occurrences observées</span>
-                <span className="text-[11px] text-[#72847b]">{observationsSearching ? "en cours" : "croisement en cours"}</span>
-              </li>
-              <li className="flex items-center gap-2.5 px-3 py-2 text-xs text-[#36584b]">
-                {zonagesLoading ? <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin text-[#527b91]" data-ifx-motion /> : zonagesReady ? <Check className="h-3.5 w-3.5 shrink-0 text-[#3e8069]" /> : <Layers3 className="h-3.5 w-3.5 shrink-0 text-[#75858c]" />}
-                <span className="flex-1">Zonages</span>
-                <span className="text-right text-[11px] text-[#72847b]">{zonageLabel}</span>
-              </li>
-              <li className="flex items-center gap-2.5 px-3 py-2 text-xs text-[#36584b]">
-                {potentialSpeciesLoading ? <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin text-[#3e8069]" data-ifx-motion /> : potentialSpeciesReady ? <Check className="h-3.5 w-3.5 shrink-0 text-[#3e8069]" /> : <Leaf className="h-3.5 w-3.5 shrink-0 text-[#75858c]" />}
-                <span className="flex-1">Espèces potentielles</span>
-                <span className="text-right text-[11px] text-[#72847b]">{potentialLabel}</span>
-              </li>
+            <p className="mb-2 text-[10px] font-bold uppercase tracking-[0.14em] text-[#789084]">Analyses coordonnées en parallèle</p>
+            <ul className="space-y-1.5">
+              {agents.map((agent) => {
+                const Icon = agent.icon;
+                const detailOpen = openAgentDetail === agent.id;
+                return (
+                  <li key={agent.id} className="rounded-xl border border-[#dfe8de] bg-[#fbfcf8] px-3 py-2.5">
+                    <div className="flex items-start gap-2.5">
+                      <span className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-lg font-mono text-[10px] font-bold ${agent.markerTone}`} aria-hidden="true">
+                        {agent.marker}
+                      </span>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center justify-between gap-2">
+                          <div className="flex min-w-0 items-center gap-1.5">
+                            <Icon className={`h-3.5 w-3.5 shrink-0 ${agent.tone}`} aria-hidden="true" />
+                            <span className="truncate text-xs font-semibold text-[#36584b]">{agent.name}</span>
+                          </div>
+                          <span className="flex shrink-0 items-center gap-1 text-[10px] font-medium text-[#72847b]">
+                            {agent.working ? (
+                              <Loader2 className={`h-3 w-3 animate-spin ${agent.tone}`} data-ifx-motion aria-hidden="true" />
+                            ) : agent.ready ? (
+                              <Check className={`h-3 w-3 ${agent.tone}`} aria-hidden="true" />
+                            ) : (
+                              <span className="h-1.5 w-1.5 rounded-full bg-[#9aa89f]" aria-hidden="true" />
+                            )}
+                            {agent.status}
+                          </span>
+                        </div>
+                        <p className="mt-0.5 text-[11px] leading-4 text-[#66796e]">{agent.activity}</p>
+                        <button
+                          type="button"
+                          onClick={() => setOpenAgentDetail((open) => open === agent.id ? null : agent.id)}
+                          className="mt-1 flex items-center gap-1 text-[10px] font-medium text-[#62766b] transition-colors hover:text-[#245746] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#4e8a73] focus-visible:ring-offset-1"
+                          aria-expanded={detailOpen}
+                          aria-controls={`agent-detail-${agent.id}`}
+                        >
+                          Détail de la source
+                          {detailOpen ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
+                        </button>
+                        {detailOpen && (
+                          <p id={`agent-detail-${agent.id}`} className="mt-1 rounded-md bg-[#f2f6ef] px-2 py-1 text-[10px] leading-4 text-[#5d7166]">
+                            {agent.detail}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  </li>
+                );
+              })}
             </ul>
-            <button
-              type="button"
-              onClick={() => setSourcesOpen((open) => !open)}
-              className="mt-2 flex w-full items-center justify-between rounded-md px-1 py-1 text-left text-[11px] font-medium text-[#62766b] transition-colors hover:text-[#245746] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#4e8a73] focus-visible:ring-offset-2"
-              aria-expanded={sourcesOpen}
-              aria-controls="analysis-source-details"
-            >
-              <span>Voir le détail des sources</span>
-              {sourcesOpen ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
-            </button>
-            {sourcesOpen && (
-              <div id="analysis-source-details" className="mt-1 rounded-lg border border-[#e1e9df] bg-[#f2f6ef] px-3 py-2 text-[11px] leading-4 text-[#5d7166]">
-                Occurrences : {includeINaturalist ? "GBIF et iNaturalist" : "GBIF"}. Zonages : IGN / PatriNat.
-              </div>
-            )}
           </div>
         )}
-
-        <ol className="border-t border-[#d8e2d5] px-5 py-3 space-y-1.5">
-          {steps.map((step, i) => {
-            const state = done || i < stepIndex ? "done" : i === stepIndex ? "current" : "todo";
-            return (
-              <li key={step.label} className="flex items-center gap-2 text-[11px]">
-                {state === "done" ? (
-                   <Check className="h-3.5 w-3.5 shrink-0 text-[#3e8069]" />
-                ) : state === "current" ? (
-                  <span
-                     className="h-2 w-2 shrink-0 rounded-full bg-[#3e8069]"
-                    data-ifx-motion
-                    style={{ animation: `ifx-leaf ${pulseSpeed}s ease-in-out infinite` }}
-                  />
-                ) : (
-                  <span className="h-2 w-2 shrink-0 rounded-full border border-gray-300" />
-                )}
-                <span
-                  className={
-                    state === "current"
-                       ? "font-semibold text-[#244338]"
-                      : state === "done"
-                         ? "text-[#6c8075]"
-                         : "text-[#9aa89f]"
-                  }
-                >
-                  {step.label}
-                </span>
-                {state === "current" && !done && (
-                   <span className="ml-auto shrink-0 rounded-full bg-[#e4f0e7] px-2 py-0.5 font-mono text-[10px] font-semibold uppercase tracking-wide text-[#2f705a]">
-                    {EFFORT_LABEL[step.effort]}
-                  </span>
-                )}
-              </li>
-            );
-          })}
-        </ol>
       </div>
     </div>
   );
