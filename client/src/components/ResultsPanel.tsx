@@ -950,12 +950,12 @@ ${shareUrl ? `\nReproduire cette analyse : ${shareUrl}` : ""}`;
                 data-testid="button-section-especes"
               >
                 <span className="flex items-center gap-2 text-sm font-bold text-gray-800">
-                  <Leaf className="h-4 w-4 text-orange-600" /> Espèces prioritaires
+                  <Leaf className="h-4 w-4 text-orange-600" /> Espèces avérées
                 </span>
                 <span className="flex items-center gap-2 text-[11px] text-gray-500 min-w-0">
                   <span className="truncate">
                     {prioritySpeciesList.length === 0
-                      ? "Aucune espèce prioritaire"
+                      ? "Aucune espèce avérée"
                       : `${prioritySpeciesList.length} espèce${prioritySpeciesList.length > 1 ? "s" : ""}${fortSpeciesCount > 0 ? `, dont ${fortSpeciesCount} à enjeu fort` : ""}`}
                   </span>
                   {openSections.has("especes") ? <ChevronUp className="h-4 w-4 shrink-0" /> : <ChevronDown className="h-4 w-4 shrink-0" />}
@@ -982,7 +982,7 @@ ${shareUrl ? `\nReproduire cette analyse : ${shareUrl}` : ""}`;
                         className="w-full h-9 text-xs border-gray-200 text-gray-700"
                         data-testid="button-view-priority-species"
                       >
-                        Voir les {prioritySpeciesList.length} espèce{prioritySpeciesList.length > 1 ? "s" : ""} prioritaire{prioritySpeciesList.length > 1 ? "s" : ""} <ChevronRight className="h-3.5 w-3.5 ml-1" />
+                        Voir les {prioritySpeciesList.length} espèce{prioritySpeciesList.length > 1 ? "s" : ""} avérée{prioritySpeciesList.length > 1 ? "s" : ""} <ChevronRight className="h-3.5 w-3.5 ml-1" />
                       </Button>
                     )}
                     <button
@@ -991,7 +991,7 @@ ${shareUrl ? `\nReproduire cette analyse : ${shareUrl}` : ""}`;
                       className="text-[11px] text-teal-700 font-semibold hover:underline self-start px-1"
                       data-testid="button-view-all-species"
                     >
-                      Voir les {filteredTotal} espèce{filteredTotal > 1 ? "s" : ""} avérée{filteredTotal > 1 ? "s" : ""}
+                      Voir toutes les {filteredTotal} espèces
                     </button>
                   </div>
                 </div>
@@ -1218,13 +1218,13 @@ ${shareUrl ? `\nReproduire cette analyse : ${shareUrl}` : ""}`;
                 <div className="space-y-4 p-4 sm:p-5" data-testid="panel-especes">
             <div className="rounded-lg border border-gray-200 bg-gray-50/60 px-3 py-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-gray-600" data-testid="species-summary">
               <span><strong className="text-gray-900">{filteredTotal}</strong> espèce{filteredTotal > 1 ? "s" : ""} avérée{filteredTotal > 1 ? "s" : ""}</span>
-              <span><strong className="text-orange-700">{prioritySpeciesList.length}</strong> prioritaire{prioritySpeciesList.length > 1 ? "s" : ""}</span>
+              <span><strong className="text-orange-700">{prioritySpeciesList.length}</strong> avérée{prioritySpeciesList.length > 1 ? "s" : ""}</span>
               <span><strong className="text-sky-700">{aVerifierCount}</strong> à vérifier</span>
             </div>
             <div className="flex flex-wrap gap-1.5" data-testid="species-attr-filters">
               {([
-                { key: "prioritaires", label: `Prioritaires (${prioritySpeciesList.length})` },
-                { key: "toutes", label: `Avérées (${filteredTotal})` },
+                { key: "prioritaires", label: `Avérées (${prioritySpeciesList.length})` },
+                { key: "toutes", label: `Toutes (${filteredTotal})` },
               ] as { key: "prioritaires" | "toutes"; label: string }[]).map((chip) => {
                 const active = speciesScope === chip.key;
                 return (
