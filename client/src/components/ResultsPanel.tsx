@@ -1783,6 +1783,13 @@ const ENJEU_LEVEL_BADGE: Record<string, { label: string; color: string }> = {
   faible:      { label: "Faible",      color: "bg-green-100 text-green-700 border-green-200" },
 };
 
+const SPECIES_TABLE_FRAME =
+  "overflow-hidden rounded-xl border border-slate-200 bg-white shadow-[0_1px_2px_rgba(38,63,58,0.06)]";
+const SPECIES_TABLE =
+  "w-full min-w-[620px] border-collapse text-left";
+const SPECIES_TABLE_HEAD =
+  "border-b border-slate-200 bg-slate-50 text-[9px] font-bold uppercase tracking-[0.11em] text-slate-500";
+
 function SpeciesInventoryTable({ species, selectedSpecies, onSelectSpecies, centerCoords }: {
   species: Occurrence[];
   selectedSpecies: string | null;
@@ -1790,11 +1797,11 @@ function SpeciesInventoryTable({ species, selectedSpecies, onSelectSpecies, cent
   centerCoords: [number, number];
 }) {
   return (
-    <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-[0_1px_2px_rgba(38,63,58,0.06)]">
+    <div className={SPECIES_TABLE_FRAME}>
       <div className="overflow-x-auto">
-        <table className="w-full min-w-[620px] border-collapse text-left" data-testid="species-inventory-table">
+        <table className={SPECIES_TABLE} data-testid="species-inventory-table">
           <caption className="sr-only">Inventaire des espèces : taxon, groupe, enjeu, statuts et dernière observation</caption>
-          <thead className="border-b border-slate-200 bg-slate-50 text-[9px] font-bold uppercase tracking-[0.11em] text-slate-500">
+          <thead className={SPECIES_TABLE_HEAD}>
             <tr>
               <th scope="col" className="w-[36%] px-3 py-2.5">Taxon</th>
               <th scope="col" className="px-2 py-2.5">Groupe</th>
@@ -2223,27 +2230,34 @@ function PotentialSpeciesRow({
   const style = POTENTIAL_STATUS_STYLE[item.status];
   return (
     <>
-      <tr className={`align-middle transition-colors ${expanded ? "bg-emerald-50/70" : "hover:bg-emerald-50/40"}`} data-testid={`potential-species-${item.scientificName}`}>
+      <tr className={`align-middle transition-colors ${expanded ? "bg-teal-50/80" : "hover:bg-teal-50/40"}`} data-testid={`potential-species-${item.scientificName}`}>
         <td className="px-3 py-2.5">
-          <button type="button" onClick={onToggle} className="block max-w-full text-left rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500">
-            <span className="block truncate text-[11px] font-semibold italic text-slate-800">{item.scientificName}</span>
-            <span className="mt-0.5 block truncate text-[9px] text-slate-500">{SPECIES_GROUP_FR[item.speciesGroup] ?? item.speciesGroup}</span>
+          <button type="button" onClick={onToggle} className="block max-w-full rounded text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500 focus-visible:ring-offset-2">
+            <span className="block truncate text-xs font-semibold italic text-slate-800">{item.scientificName}</span>
           </button>
         </td>
-        <td className="px-2 py-2.5">{item.observed ? <span className="inline-flex rounded border border-teal-200 bg-teal-50 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide text-teal-800">Avérée</span> : <span className="text-[10px] font-medium text-slate-500">Potentielle</span>}</td>
+        <td className="px-2 py-2.5 text-[10px] font-medium text-slate-600">{SPECIES_GROUP_FR[item.speciesGroup] ?? item.speciesGroup}</td>
         <td className="px-2 py-2.5"><span className={`inline-flex rounded border px-1.5 py-0.5 text-[9px] font-bold ${style.badge}`}>{item.status}</span></td>
-        <td className="px-2 py-2.5"><div className="flex items-center gap-1.5"><div className="h-1.5 w-12 overflow-hidden rounded-full bg-slate-100" role="meter" aria-label={`Score de compatibilité de ${item.scientificName}`} aria-valuemin={0} aria-valuemax={100} aria-valuenow={item.score ?? undefined} aria-valuetext={item.score === null ? "Non évalué" : `${item.score} sur 100`}><div className={`h-full rounded-full ${style.bar}`} style={{ width: `${item.score ?? 0}%` }} /></div><span className="text-[10px] font-bold tabular-nums text-slate-700">{item.score === null ? "—" : item.score}</span></div></td>
-        <td className="px-2 py-2.5 text-[10px] font-medium text-slate-600">{item.confidence}</td>
+        <td className="px-2 py-2.5">{item.observed ? <span className="inline-flex rounded border border-teal-200 bg-teal-50 px-1.5 py-0.5 text-[9px] font-bold text-teal-800">Avérée</span> : <span className="text-[10px] font-semibold text-slate-600">Potentielle</span>}</td>
         <td className="px-2 py-2.5">
-          <button type="button" onClick={onToggle} aria-expanded={expanded} aria-label={`${expanded ? "Masquer" : "Afficher"} les éléments de compatibilité de ${item.scientificName}`} className="rounded p-1 text-slate-400 transition-colors hover:bg-emerald-100 hover:text-emerald-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500">
+          <div className="flex items-center justify-end gap-1.5">
+            <div className="h-1.5 w-12 overflow-hidden rounded-full bg-slate-100" role="meter" aria-label={`Score de compatibilité de ${item.scientificName}`} aria-valuemin={0} aria-valuemax={100} aria-valuenow={item.score ?? undefined} aria-valuetext={item.score === null ? "Non évalué" : `${item.score} sur 100`}>
+              <div className={`h-full rounded-full ${style.bar}`} style={{ width: `${item.score ?? 0}%` }} />
+            </div>
+            <span className="text-[10px] font-bold tabular-nums text-slate-700">{item.score === null ? "—" : item.score}</span>
+            <span className="text-[9px] text-slate-400" title={`Confiance ${item.confidence}`}>{item.confidence.slice(0, 1)}</span>
+          </div>
+        </td>
+        <td className="px-2 py-2.5">
+          <button type="button" onClick={onToggle} aria-expanded={expanded} aria-label={`${expanded ? "Masquer" : "Afficher"} les éléments de compatibilité de ${item.scientificName}`} className="rounded p-1 text-slate-400 transition-colors hover:bg-teal-100 hover:text-teal-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500">
             {expanded ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
           </button>
         </td>
       </tr>
       {expanded && (
-        <tr className="bg-emerald-50/40">
+        <tr className="bg-teal-50/50">
           <td colSpan={6} className="px-3 pb-3">
-            <div className="grid gap-3 border-l-2 border-emerald-400 pl-3 text-[10px] text-slate-600 sm:grid-cols-2">
+            <div className="grid gap-3 border-l-2 border-teal-500 pl-3 text-[10px] text-slate-600 sm:grid-cols-2">
               <div>
                 <div className="mb-1 font-bold uppercase tracking-wide text-slate-500">Éléments de compatibilité</div>
                 <ul className="space-y-1">
@@ -2265,11 +2279,20 @@ function PotentialSpeciesRow({
 function PotentialSpeciesTable({ items, testId }: { items: PotentialSpeciesItem[]; testId: string }) {
   const [expandedSpecies, setExpandedSpecies] = useState<string | null>(null);
   return (
-    <div className="overflow-hidden rounded-lg border border-slate-200 bg-white">
+    <div className={SPECIES_TABLE_FRAME}>
       <div className="overflow-x-auto">
-        <table className="w-full min-w-[620px] border-collapse text-left" data-testid={testId}>
-          <caption className="sr-only">Tableau des espèces attendues et de leur indice de compatibilité</caption>
-          <thead className="border-b border-slate-200 bg-slate-50 text-[9px] font-bold uppercase tracking-[0.1em] text-slate-500"><tr><th className="px-3 py-2">Taxon</th><th className="px-2 py-2">Signal</th><th className="px-2 py-2">Compatibilité</th><th className="px-2 py-2">Indice</th><th className="px-2 py-2">Confiance</th><th className="w-8 px-2 py-2"><span className="sr-only">Détails</span></th></tr></thead>
+        <table className={SPECIES_TABLE} data-testid={testId}>
+          <caption className="sr-only">Espèces potentielles : taxon, groupe, enjeu, statut et indice de compatibilité</caption>
+          <thead className={SPECIES_TABLE_HEAD}>
+            <tr>
+              <th scope="col" className="w-[36%] px-3 py-2.5">Taxon</th>
+              <th scope="col" className="px-2 py-2.5">Groupe</th>
+              <th scope="col" className="px-2 py-2.5">Enjeu</th>
+              <th scope="col" className="px-2 py-2.5">Statut</th>
+              <th scope="col" className="px-2 py-2.5 text-right">Données</th>
+              <th scope="col" className="w-8 px-2 py-2.5"><span className="sr-only">Détails</span></th>
+            </tr>
+          </thead>
           <tbody className="divide-y divide-slate-100">{items.map((item) => <PotentialSpeciesRow key={item.scientificName} item={item} expanded={expandedSpecies === item.scientificName} onToggle={() => setExpandedSpecies((current) => current === item.scientificName ? null : item.scientificName)} />)}</tbody>
         </table>
       </div>
