@@ -405,6 +405,57 @@ export function ResultsPanel({ isOpen, onClose, results, selectedSpecies, onSele
     return base.filter((o) => `${o.scientificName} ${o.vernacularName || ""}`.toLowerCase().includes(q));
   }, [allFilteredSpecies, prioritySpeciesList, speciesScope, speciesQuery]);
 
+  const reconciledPotentialSpecies = useMemo(() => {
+    if (!results) return potentialSpecies;
+    return reconcilePotentialSpecies(
+      potentialSpecies,
+      results.occurrences,
+      results.center,
+      results.radius,
+    );
+  }, [potentialSpecies, results]);
+
+  const potentialIssueSignals = useMemo(() => {
+    if (
+      potentialSpeciesLoading ||
+      potentialSpeciesError ||
+      !reconciledPotentialSpecies
+    ) {
+      return { strong: 0, moderate: 0, count: 0, points: 0 };
+    }
+
+    let strong = 0;
+    let moderate = 0;
+    for (const item of reconciledPotentialSpecies.species) {
+      if (item.observed || item.score === null || item.status === "Non évaluée") continue;
+      if (
+        item.score >= 70 &&
+        item.status === "Très probable localement" &&
+        item.confidence !== "Faible"
+      ) {
+        strong += 1;
+      } else if (
+        item.score >= 50 &&
+        item.status !== "Peu compatible"
+      ) {
+        moderate += 1;
+      }
+    }
+
+    return {
+      strong,
+      moderate,
+      count: strong + moderate,
+      // Une compatibilité n'est pas une occurrence : contribution prudente,
+      // plafonnée à 15 % de l'indice global.
+      points: Math.min(15, strong * 2 + moderate),
+    };
+  }, [
+    potentialSpeciesLoading,
+    potentialSpeciesError,
+    reconciledPotentialSpecies,
+  ]);
+
   const riskScore = useMemo(() => {
     const hi = sortedSpecies.high.length;
     const med = sortedSpecies.medium.length;
@@ -432,7 +483,8 @@ export function ResultsPanel({ isOpen, onClose, results, selectedSpecies, onSele
       Math.min(24, zc * 4) +
       (hasMarine && hasTerrestrial ? 8 : 0) +
       Math.round(recentRatio * 8) +
-      Math.min(10, aiForts * 5);
+      Math.min(10, aiForts * 5) +
+      potentialIssueSignals.points;
     const score = Math.min(100, raw);
 
     let label: string;
@@ -445,13 +497,18 @@ export function ResultsPanel({ isOpen, onClose, results, selectedSpecies, onSele
     const factors: string[] = [];
     if (hi > 0) factors.push(`${hi} espèce${hi > 1 ? "s" : ""} à enjeu fort`);
     if (aiForts > 0) factors.push(`${aiForts} espèce${aiForts > 1 ? "s" : ""} à patrimonialité forte ou majeure (IA)`);
+    if (potentialIssueSignals.count > 0) {
+      factors.push(
+        `${potentialIssueSignals.count} espèce${potentialIssueSignals.count > 1 ? "s" : ""} potentielle${potentialIssueSignals.count > 1 ? "s" : ""} retenue${potentialIssueSignals.count > 1 ? "s" : ""} comme signal d’enjeu à confirmer`,
+      );
+    }
     if (zc > 0) factors.push(`${zc} zonage${zc > 1 ? "s" : ""} environnemental${zc > 1 ? "aux" : ""}`);
     if (hasMarine && hasTerrestrial) factors.push("Sensibilité marine et terrestre");
     if (recentRatio >= 0.4) factors.push("Observations récentes à proximité");
     if (factors.length === 0) factors.push("Peu de signaux d'enjeu détectés localement");
 
     return { score, label, tone, factors };
-  }, [sortedSpecies, zonages, marineCount, results, aiAnalysis]);
+  }, [sortedSpecies, zonages, marineCount, results, aiAnalysis, potentialIssueSignals]);
 
   const autoSummary = useMemo(() => {
     if (!results) return "";
@@ -459,6 +516,11 @@ export function ResultsPanel({ isOpen, onClose, results, selectedSpecies, onSele
     const sens = results.stats.sensitiveCount;
     const zc = zonages?.count || 0;
     const parts = [`Le secteur recense ${sp} espèce${sp > 1 ? "s" : ""}, dont ${sens} sensible${sens > 1 ? "s" : ""}`];
+    if (potentialIssueSignals.count > 0) {
+      parts.push(
+        `et retient ${potentialIssueSignals.count} espèce${potentialIssueSignals.count > 1 ? "s" : ""} potentielle${potentialIssueSignals.count > 1 ? "s" : ""} comme signal d’enjeu à confirmer`,
+      );
+    }
     if (zc > 0) parts.push(`et intersecte ${zc} zonage${zc > 1 ? "s" : ""} environnemental${zc > 1 ? "aux" : ""}`);
     let text = parts.join(" ") + ".";
     text += ` Le potentiel d'enjeux écologiques est estimé « ${riskScore.label} ».`;
@@ -469,7 +531,7 @@ export function ResultsPanel({ isOpen, onClose, results, selectedSpecies, onSele
       text += " Une vérification de terrain reste conseillée pour confirmer ce pré-diagnostic.";
     }
     return text;
-  }, [results, zonages, riskScore]);
+  }, [results, zonages, riskScore, potentialIssueSignals]);
 
   const globalLevel = useMemo(() => computeGlobalIssueLevel(riskScore.tone), [riskScore.tone]);
 
@@ -569,11 +631,17 @@ export function ResultsPanel({ isOpen, onClose, results, selectedSpecies, onSele
     if (items.length < 3 && aVerifierCount > 0) {
       items.push({ icon: "info", text: `${aVerifierCount} espèce${aVerifierCount > 1 ? "s" : ""} au statut à vérifier.` });
     }
+    if (items.length < 3 && potentialIssueSignals.count > 0) {
+      items.push({
+        icon: "info",
+        text: `${potentialIssueSignals.count} espèce${potentialIssueSignals.count > 1 ? "s" : ""} potentielle${potentialIssueSignals.count > 1 ? "s" : ""} contribue${potentialIssueSignals.count > 1 ? "nt" : ""} prudemment au niveau d’enjeu.`,
+      });
+    }
     if (items.length < 3) {
       items.push({ icon: "check", text: "Vérification terrain recommandée pour confirmer ce pré-diagnostic." });
     }
     return items.slice(0, 3);
-  }, [reglementaireCount, zonages, sortedSpecies, aVerifierCount]);
+  }, [reglementaireCount, zonages, sortedSpecies, aVerifierCount, potentialIssueSignals]);
 
   const toggleZonageDetails = (key: string) => {
     setExpandedZonages((prev) => {
@@ -939,7 +1007,7 @@ ${shareUrl ? `\nReproduire cette analyse : ${shareUrl}` : ""}`;
               </ul>
             </div>
 
-            {/* Section 3 — Espèces prioritaires (repliable) */}
+            {/* Section 3 — Enjeux liés aux espèces (repliable) */}
             <section className="rounded-xl border border-gray-200 bg-white overflow-hidden" data-testid="section-especes">
               <button
                 type="button"
@@ -950,13 +1018,13 @@ ${shareUrl ? `\nReproduire cette analyse : ${shareUrl}` : ""}`;
                 data-testid="button-section-especes"
               >
                 <span className="flex items-center gap-2 text-sm font-bold text-gray-800">
-                  <Leaf className="h-4 w-4 text-orange-600" /> Espèces avérées
+                  <Leaf className="h-4 w-4 text-orange-600" /> Enjeux liés aux espèces
                 </span>
                 <span className="flex items-center gap-2 text-[11px] text-gray-500 min-w-0">
                   <span className="truncate">
-                    {prioritySpeciesList.length === 0
-                      ? "Aucune espèce avérée"
-                      : `${prioritySpeciesList.length} espèce${prioritySpeciesList.length > 1 ? "s" : ""}${fortSpeciesCount > 0 ? `, dont ${fortSpeciesCount} à enjeu fort` : ""}`}
+                    {prioritySpeciesList.length === 0 && potentialIssueSignals.count === 0
+                      ? "Aucun signal d’enjeu lié aux espèces"
+                      : `${prioritySpeciesList.length} avérée${prioritySpeciesList.length > 1 ? "s" : ""} · ${potentialIssueSignals.count} potentielle${potentialIssueSignals.count > 1 ? "s" : ""}`}
                   </span>
                   {openSections.has("especes") ? <ChevronUp className="h-4 w-4 shrink-0" /> : <ChevronDown className="h-4 w-4 shrink-0" />}
                 </span>
@@ -964,7 +1032,11 @@ ${shareUrl ? `\nReproduire cette analyse : ${shareUrl}` : ""}`;
               {openSections.has("especes") && (
                 <div id="section-body-especes" className="px-4 pb-3 space-y-1.5 border-t border-gray-100 pt-3">
                   {prioritySpeciesList.length === 0 ? (
-                    <p className="text-xs text-gray-400 italic">Aucune espèce à enjeu détectée dans les données publiques.</p>
+                    <p className="text-xs text-gray-500 italic">
+                      {potentialIssueSignals.count > 0
+                        ? "Aucune espèce avérée à enjeu ; les signaux ci-dessous reposent uniquement sur des espèces potentielles à confirmer."
+                        : "Aucune espèce à enjeu détectée dans les données publiques."}
+                    </p>
                   ) : (
                     <SpeciesInventoryTable
                       species={prioritySpeciesList.slice(0, 3)}
@@ -994,6 +1066,14 @@ ${shareUrl ? `\nReproduire cette analyse : ${shareUrl}` : ""}`;
                       Voir toutes les {filteredTotal} espèces
                     </button>
                   </div>
+                  {potentialIssueSignals.count > 0 && (
+                    <div className="mt-2 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-[11px] leading-relaxed text-emerald-900">
+                      <strong>
+                        {potentialIssueSignals.count} espèce{potentialIssueSignals.count > 1 ? "s" : ""} potentielle{potentialIssueSignals.count > 1 ? "s" : ""} prise{potentialIssueSignals.count > 1 ? "s" : ""} en compte.
+                      </strong>{" "}
+                      Leur contribution reste prudente et plafonnée, car une compatibilité écologique ne constitue pas une preuve de présence.
+                    </div>
+                  )}
                 </div>
               )}
             </section>
@@ -1003,7 +1083,7 @@ ${shareUrl ? `\nReproduire cette analyse : ${shareUrl}` : ""}`;
               center={results.center}
               radius={results.radius}
               occurrences={results.occurrences}
-              result={potentialSpecies}
+              result={reconciledPotentialSpecies}
               loading={potentialSpeciesLoading}
               error={potentialSpeciesError}
               open={openSections.has("potentielles")}
