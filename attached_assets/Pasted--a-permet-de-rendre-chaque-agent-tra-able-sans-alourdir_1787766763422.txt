@@ -1,0 +1,54 @@
+ Ça permet de rendre chaque agent traçable sans alourdir la conversation. Je mettrais la source directement dans le message de l’agent, en petite ligne secondaire.
+
+Séquence proposée
+
+Ally
+Je lance l’analyse écologique du secteur et croise les différentes sources disponibles.
+
+Occurrences avérées
+42 occurrences recensées à partir des données naturalistes disponibles.
+Sources : SINP · bases naturalistes locales · données d’inventaires
+
+Zonages
+7 zonages identifiés : protections, inventaires et secteurs d’intérêt écologique.
+Sources : INPN · données réglementaires · référentiels territoriaux
+
+Habitats
+7 habitats identifiés, dont 3 présentent un potentiel écologique notable.
+Sources : cartographie des habitats · Corine Land Cover · référentiels écologiques
+
+Occurrences potentielles
+Le croisement des habitats et du contexte territorial fait émerger 17 occurrences potentiellement favorables.
+Sources mobilisées : Habitats · occurrences avérées · référentiels espèces
+
+Continuités écologiques
+3 continuités écologiques potentielles sont identifiées, dont un axe structurant au nord-est.
+Sources : TVB · occupation du sol · habitats · occurrences
+
+Enjeux
+4 secteurs présentent une convergence d’indices écologiques significative.
+Sources mobilisées : ensemble des analyses précédentes
+
+Ally
+Je croise maintenant ces résultats pour hiérarchiser les enjeux et qualifier leur niveau de confiance.
+
+Ally — Synthèse
+Le secteur nord-est concentre les principaux indices : habitats favorables, occurrences avérées à proximité et continuité écologique potentielle.
+
+Ally
+→ Enjeu potentiel fort · confiance 86 %
+Fondé sur 4 sources d’analyse convergentes
+
+Utilisateur
+Pourquoi ce secteur est-il considéré comme prioritaire ?
+
+Ally
+Plusieurs indicateurs convergent : qualité des habitats, proximité d’occurrences connues et rôle potentiel dans la continuité écologique.
+
+Utilisateur
+Montre-moi les éléments.
+
+Ally
+J’affiche les habitats, occurrences, zonages et continuités associés directement sur la carte.
+
+L’idée UX intéressante serait que les sources soient discrètes mais cliquables : l’utilisateur peut rester dans la conversation, ou ouvrir « Sources » pour voir précisément quelles données ont été utilisées par chaque agent.
