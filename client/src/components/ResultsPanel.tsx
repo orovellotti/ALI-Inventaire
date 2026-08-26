@@ -15,6 +15,7 @@ import type {
   PotentialSpeciesResult,
   PotentialSpeciesStatus,
 } from "@shared/types";
+import { reconcilePotentialSpecies } from "@/lib/potentialSpecies";
 import { zonageKey } from "@/lib/zonageMap";
 import type { ZonagesData, ZonageItem } from "@/lib/zonages";
 
@@ -118,11 +119,14 @@ interface ResultsPanelProps {
   toponym?: string;
   zonages: ZonagesData | null;
   zonagesLoading: boolean;
+  potentialSpecies: PotentialSpeciesResult | null;
+  potentialSpeciesLoading: boolean;
+  potentialSpeciesError: boolean;
   selectedZonageId?: string | null;
   onSelectZonage?: (id: string | null) => void;
 }
 
-export function ResultsPanel({ isOpen, onClose, results, selectedSpecies, onSelectSpecies, activeTaxonFilters, onToggleTaxonFilter, onToggleAllTaxonFilters, excludeMarine, onToggleExcludeMarine, includeINaturalist, onToggleIncludeINaturalist, toponym, zonages, zonagesLoading, selectedZonageId, onSelectZonage }: ResultsPanelProps) {
+export function ResultsPanel({ isOpen, onClose, results, selectedSpecies, onSelectSpecies, activeTaxonFilters, onToggleTaxonFilter, onToggleAllTaxonFilters, excludeMarine, onToggleExcludeMarine, includeINaturalist, onToggleIncludeINaturalist, toponym, zonages, zonagesLoading, potentialSpecies, potentialSpeciesLoading, potentialSpeciesError, selectedZonageId, onSelectZonage }: ResultsPanelProps) {
   const [view, setView] = useState<PanelView>("diagnostic");
   const [openSections, setOpenSections] = useState<Set<SectionKey>>(new Set());
   const [showCalcDetail, setShowCalcDetail] = useState(false);
@@ -997,6 +1001,9 @@ ${shareUrl ? `\n🔗 Reproduire cette analyse : ${shareUrl}` : ""}`;
               center={results.center}
               radius={results.radius}
               occurrences={results.occurrences}
+              result={potentialSpecies}
+              loading={potentialSpeciesLoading}
+              error={potentialSpeciesError}
               open={openSections.has("potentielles")}
               onToggle={() => toggleSection("potentielles")}
             />
@@ -2398,77 +2405,25 @@ function PotentialSpeciesSection({
   center,
   radius,
   occurrences,
+  result,
+  loading,
+  error,
   open,
   onToggle,
 }: {
   center: [number, number];
   radius: number;
   occurrences: Occurrence[];
+  result: PotentialSpeciesResult | null;
+  loading: boolean;
+  error: boolean;
   open: boolean;
   onToggle: () => void;
 }) {
-  const [result, setResult] = useState<PotentialSpeciesResult | null>(null);
-  const [resultKey, setResultKey] = useState("");
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState(false);
-  const requestKey = useMemo(
-    () =>
-      `${center[0].toFixed(5)}|${center[1].toFixed(5)}|${radius}|${occurrences
-        .map(
-          (occurrence) =>
-            `${occurrence.key}:${occurrence.source}:${occurrence.scientificName}:${occurrence.decimalLatitude}:${occurrence.decimalLongitude}`,
-        )
-        .sort()
-        .join(",")}`,
-    [center[0], center[1], radius, occurrences],
+  const currentResult = useMemo(
+    () => reconcilePotentialSpecies(result, occurrences, center, radius),
+    [result, occurrences, center, radius],
   );
-  const currentResult = resultKey === requestKey ? result : null;
-
-  useEffect(() => {
-    // Calcul externe volontairement différé jusqu'à l'ouverture de la section.
-    if (!open || (resultKey === requestKey && result)) {
-      setLoading(false);
-      return;
-    }
-    const controller = new AbortController();
-    setLoading(true);
-    setError(false);
-    fetch("/api/potential-species", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      signal: controller.signal,
-      body: JSON.stringify({
-        lat: center[0],
-        lng: center[1],
-        radius,
-        occurrences: occurrences.map((occurrence) => ({
-          key: occurrence.key,
-          scientificName: occurrence.scientificName,
-          decimalLatitude: occurrence.decimalLatitude,
-          decimalLongitude: occurrence.decimalLongitude,
-          source: occurrence.source,
-        })).filter((occurrence) => occurrence.source === "gbif" || occurrence.source === "inaturalist"),
-      }),
-    })
-      .then(async (response) => {
-        if (!response.ok) {
-          const body = await response.json().catch(() => null);
-          throw new Error(body?.error || "Évaluation indisponible");
-        }
-        return response.json() as Promise<PotentialSpeciesResult>;
-      })
-      .then((data) => {
-        setResult(data);
-        setResultKey(requestKey);
-      })
-      .catch((requestError) => {
-        if (requestError?.name !== "AbortError") setError(true);
-      })
-      .finally(() => {
-        if (!controller.signal.aborted) setLoading(false);
-      });
-    return () => controller.abort();
-  }, [open, requestKey, resultKey, result, center[0], center[1], radius, occurrences]);
 
   const potential = currentResult?.species.filter((item) => !item.observed) ?? [];
   const observed = currentResult?.species.filter((item) => item.observed) ?? [];
@@ -2477,7 +2432,7 @@ function PotentialSpeciesSection({
     : error
       ? "Évaluation indisponible"
       : !currentResult
-        ? "Ouvrir pour calculer"
+        ? "Calcul lancé avec l’inventaire"
         : currentResult.species.length === 0
           ? `${currentResult.znieff?.speciesCount ?? 0} espèce${(currentResult.znieff?.speciesCount ?? 0) > 1 ? "s" : ""} documentée${(currentResult.znieff?.speciesCount ?? 0) > 1 ? "s" : ""} en ZNIEFF`
           : `${currentResult.potentialCount} espèce${currentResult.potentialCount > 1 ? "s" : ""} potentielle${currentResult.potentialCount > 1 ? "s" : ""}, ${currentResult.observedCount} espèce${currentResult.observedCount > 1 ? "s" : ""} avérée${currentResult.observedCount > 1 ? "s" : ""}${currentResult.znieff?.speciesCount ? ` · ${currentResult.znieff.speciesCount} documentée${currentResult.znieff.speciesCount > 1 ? "s" : ""} en ZNIEFF` : ""}`;

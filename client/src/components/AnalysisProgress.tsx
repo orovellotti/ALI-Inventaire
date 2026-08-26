@@ -88,6 +88,9 @@ export function AnalysisProgress({
   zonagesLoading,
   zonagesReady,
   zonageFeatureCount,
+  potentialSpeciesLoading,
+  potentialSpeciesReady,
+  potentialSpeciesCount,
 }: {
   active: boolean;
   includeINaturalist: boolean;
@@ -95,6 +98,9 @@ export function AnalysisProgress({
   zonagesLoading: boolean;
   zonagesReady: boolean;
   zonageFeatureCount: number;
+  potentialSpeciesLoading: boolean;
+  potentialSpeciesReady: boolean;
+  potentialSpeciesCount: number;
 }) {
   const steps = useMemo(
     () => buildSteps(includeINaturalist, areaCount),
@@ -223,25 +229,45 @@ export function AnalysisProgress({
         </div>
 
         {!done && (
-          <div className="mt-3 flex items-center gap-2 rounded-lg bg-sky-50 px-3 py-2 text-[11px] font-medium text-sky-800">
-            {zonagesLoading ? (
-              <>
-                <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin" />
-                Recherche des zonages IGN / PatriNat…
-              </>
-            ) : zonagesReady ? (
-              <>
-                <Check className="h-3.5 w-3.5 shrink-0 text-teal-600" />
-                {zonageFeatureCount > 0
-                  ? `${zonageFeatureCount} emprise${zonageFeatureCount > 1 ? "s" : ""} affichée${zonageFeatureCount > 1 ? "s" : ""} sur la carte`
-                  : "Aucune emprise de zonage trouvée dans l’aire"}
-              </>
-            ) : (
-              <>
-                <Layers3 className="h-3.5 w-3.5 shrink-0" />
-                Zonages indisponibles, recherche des espèces poursuivie
-              </>
-            )}
+          <div className="mt-3 space-y-1.5">
+            <div className="flex items-center gap-2 rounded-lg bg-sky-50 px-3 py-2 text-[11px] font-medium text-sky-800">
+              {zonagesLoading ? (
+                <>
+                  <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin" />
+                  Recherche des zonages IGN / PatriNat…
+                </>
+              ) : zonagesReady ? (
+                <>
+                  <Check className="h-3.5 w-3.5 shrink-0 text-teal-600" />
+                  {zonageFeatureCount > 0
+                    ? `${zonageFeatureCount} emprise${zonageFeatureCount > 1 ? "s" : ""} affichée${zonageFeatureCount > 1 ? "s" : ""} sur la carte`
+                    : "Aucune emprise de zonage trouvée dans l’aire"}
+                </>
+              ) : (
+                <>
+                  <Layers3 className="h-3.5 w-3.5 shrink-0" />
+                  Zonages indisponibles, recherche des espèces poursuivie
+                </>
+              )}
+            </div>
+            <div className="flex items-center gap-2 rounded-lg bg-emerald-50 px-3 py-2 text-[11px] font-medium text-emerald-800">
+              {potentialSpeciesLoading ? (
+                <>
+                  <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin" />
+                  Calcul des espèces potentielles…
+                </>
+              ) : potentialSpeciesReady ? (
+                <>
+                  <Check className="h-3.5 w-3.5 shrink-0 text-emerald-600" />
+                  {potentialSpeciesCount} espèce{potentialSpeciesCount > 1 ? "s" : ""} potentielle{potentialSpeciesCount > 1 ? "s" : ""} identifiée{potentialSpeciesCount > 1 ? "s" : ""}
+                </>
+              ) : (
+                <>
+                  <Leaf className="h-3.5 w-3.5 shrink-0" />
+                  Espèces potentielles temporairement indisponibles
+                </>
+              )}
+            </div>
           </div>
         )}
 

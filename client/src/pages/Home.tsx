@@ -11,6 +11,8 @@ import { searchPlace, reverseGeocode } from "@/lib/geocoding";
 import { parseShapefile, ProjectPolygon } from "@/lib/shapefile";
 import { toZonageMapFeatures } from "@/lib/zonageMap";
 import { fetchZonages, type ZonagesData } from "@/lib/zonages";
+import { fetchPotentialSpecies } from "@/lib/potentialSpecies";
+import type { PotentialSpeciesResult } from "@shared/types";
 import { useToast } from "@/hooks/use-toast";
 import { Leaf, HelpCircle, Bot, BookOpen } from "lucide-react";
 import { Link } from "wouter";
@@ -104,6 +106,9 @@ export default function Home() {
   const [zonages, setZonages] = useState<ZonagesData | null>(null);
   const [zonagesLoading, setZonagesLoading] = useState(false);
   const zonageFeatures = useMemo(() => toZonageMapFeatures(zonages), [zonages]);
+  const [potentialSpecies, setPotentialSpecies] = useState<PotentialSpeciesResult | null>(null);
+  const [potentialSpeciesLoading, setPotentialSpeciesLoading] = useState(false);
+  const [potentialSpeciesError, setPotentialSpeciesError] = useState(false);
   const [selectedZonageId, setSelectedZonageId] = useState<string | null>(null);
   const [isLoadingShapefile, setIsLoadingShapefile] = useState(false);
   const [locationKey, setLocationKey] = useState(0);
@@ -111,13 +116,19 @@ export default function Home() {
 
   const inventoryRequestId = useRef(0);
   const zonagesAbortController = useRef<AbortController | null>(null);
+  const potentialSpeciesAbortController = useRef<AbortController | null>(null);
   const resetForNewLocation = useCallback(() => {
     inventoryRequestId.current++;
     zonagesAbortController.current?.abort();
     zonagesAbortController.current = null;
+    potentialSpeciesAbortController.current?.abort();
+    potentialSpeciesAbortController.current = null;
     setResults(null);
     setZonages(null);
     setZonagesLoading(false);
+    setPotentialSpecies(null);
+    setPotentialSpeciesLoading(false);
+    setPotentialSpeciesError(false);
     setSelectedSpecies(null);
     setSelectedZonageId(null);
     setIsPanelOpen(false);
@@ -176,6 +187,9 @@ export default function Home() {
     zonagesAbortController.current?.abort();
     const zonagesController = new AbortController();
     zonagesAbortController.current = zonagesController;
+    potentialSpeciesAbortController.current?.abort();
+    const potentialController = new AbortController();
+    potentialSpeciesAbortController.current = potentialController;
     setResults(null);
     setSelectedSpecies(null);
     setIsPanelOpen(false);
@@ -183,6 +197,9 @@ export default function Home() {
     setZonages(null);
     setSelectedZonageId(null);
     setZonagesLoading(true);
+    setPotentialSpecies(null);
+    setPotentialSpeciesLoading(true);
+    setPotentialSpeciesError(false);
 
     // Les zonages partent dès le clic, en parallèle de GBIF/iNaturalist.
     // Leur échec reste non bloquant : l'inventaire d'espèces s'ouvre quand même.
@@ -207,6 +224,29 @@ export default function Home() {
         if (requestId === inventoryRequestId.current) setZonagesLoading(false);
       });
 
+    // La compatibilité écologique part elle aussi dès le clic. Les occurrences
+    // reçues ensuite serviront uniquement à distinguer avérées et potentielles.
+    void fetchPotentialSpecies(
+      referenceCircle.center[0],
+      referenceCircle.center[1],
+      referenceCircle.radius,
+      potentialController.signal,
+    )
+      .then((data) => {
+        if (requestId === inventoryRequestId.current) setPotentialSpecies(data);
+      })
+      .catch((error: unknown) => {
+        if (
+          requestId === inventoryRequestId.current &&
+          !(error instanceof DOMException && error.name === "AbortError")
+        ) {
+          setPotentialSpeciesError(true);
+        }
+      })
+      .finally(() => {
+        if (requestId === inventoryRequestId.current) setPotentialSpeciesLoading(false);
+      });
+
     setIsAnalyzing(true);
     try {
       const data = await searchGBIFMultiCircle(circles, { includeINaturalist });
@@ -220,8 +260,11 @@ export default function Home() {
     } catch (error) {
       if (requestId !== inventoryRequestId.current) return;
       zonagesController.abort();
+      potentialController.abort();
       setZonages(null);
       setZonagesLoading(false);
+      setPotentialSpecies(null);
+      setPotentialSpeciesLoading(false);
       toast({
         title: "Erreur",
         description: "Impossible de récupérer les données GBIF.",
@@ -429,6 +472,9 @@ export default function Home() {
         toponym={currentToponym}
         zonages={zonages}
         zonagesLoading={zonagesLoading}
+        potentialSpecies={potentialSpecies}
+        potentialSpeciesLoading={potentialSpeciesLoading}
+        potentialSpeciesError={potentialSpeciesError}
         selectedZonageId={selectedZonageId}
         onSelectZonage={setSelectedZonageId}
       />
@@ -440,6 +486,9 @@ export default function Home() {
         zonagesLoading={zonagesLoading}
         zonagesReady={zonages !== null}
         zonageFeatureCount={zonageFeatures.length}
+        potentialSpeciesLoading={potentialSpeciesLoading}
+        potentialSpeciesReady={potentialSpecies !== null}
+        potentialSpeciesCount={potentialSpecies?.potentialCount ?? 0}
       />
 
       <AboutDialog open={showAbout} onOpenChange={setShowAbout} />
