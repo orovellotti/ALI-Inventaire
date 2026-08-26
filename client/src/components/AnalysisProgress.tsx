@@ -177,6 +177,12 @@ export function AnalysisProgress({
           0%, 100% { transform: rotate(-6deg) scale(1); }
           50% { transform: rotate(6deg) scale(1.08); }
         }
+        @media (prefers-reduced-motion: reduce) {
+          [data-ifx-motion] {
+            animation: none !important;
+            transition: none !important;
+          }
+        }
       `}</style>
       <div
         className="pointer-events-auto mx-4 w-full max-w-sm rounded-2xl border border-teal-100 bg-white/90 p-5 shadow-xl backdrop-blur"
@@ -191,6 +197,7 @@ export function AnalysisProgress({
               <span
                 key={i}
                 className="absolute inset-0 rounded-full border-2 border-teal-500"
+                data-ifx-motion
                 style={{
                   animation: `ifx-ring ${pulseSpeed * 1.6}s ease-out ${i * (pulseSpeed * 0.8)}s infinite`,
                 }}
@@ -202,6 +209,7 @@ export function AnalysisProgress({
               ) : (
                 <Leaf
                   className="h-5 w-5"
+                  data-ifx-motion
                   style={{ animation: `ifx-leaf ${pulseSpeed}s ease-in-out infinite` }}
                 />
               )}
@@ -224,6 +232,7 @@ export function AnalysisProgress({
         <div className="mt-4 h-1.5 overflow-hidden rounded-full bg-teal-100">
           <div
             className="h-full rounded-full bg-teal-600 transition-[width] duration-300 ease-out"
+            data-ifx-motion
             style={{ width: `${progress}%` }}
           />
         </div>
@@ -282,6 +291,7 @@ export function AnalysisProgress({
                 ) : state === "current" ? (
                   <span
                     className="h-2 w-2 shrink-0 rounded-full bg-teal-600"
+                    data-ifx-motion
                     style={{ animation: `ifx-leaf ${pulseSpeed}s ease-in-out infinite` }}
                   />
                 ) : (

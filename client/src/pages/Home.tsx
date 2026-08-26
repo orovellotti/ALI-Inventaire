@@ -16,6 +16,16 @@ import type { PotentialSpeciesResult } from "@shared/types";
 import { useToast } from "@/hooks/use-toast";
 import { Leaf, HelpCircle, Bot, BookOpen } from "lucide-react";
 import { Link } from "wouter";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 function createDefaultCircles(center: [number, number]): BufferCircle[] {
   return STUDY_AREAS.map(area => ({
@@ -112,6 +122,9 @@ export default function Home() {
   const [selectedZonageId, setSelectedZonageId] = useState<string | null>(null);
   const [isLoadingShapefile, setIsLoadingShapefile] = useState(false);
   const [locationKey, setLocationKey] = useState(0);
+  const [pendingLocationChange, setPendingLocationChange] = useState<
+    { kind: "map"; center: [number, number] } | { kind: "reset" } | null
+  >(null);
   const { toast } = useToast();
 
   const inventoryRequestId = useRef(0);
@@ -276,8 +289,7 @@ export default function Home() {
   };
 
   const reverseGeocodeRequestId = useRef(0);
-  const handleMapClick = (lat: number, lng: number) => {
-    if (projectPolygon) return;
+  const applyMapCenter = useCallback((lat: number, lng: number) => {
     const newCenter: [number, number] = [lat, lng];
     setCenter(newCenter);
     setCircles(prev => prev.map(c => ({ ...c, center: newCenter })));
@@ -288,6 +300,26 @@ export default function Home() {
       if (requestId !== reverseGeocodeRequestId.current) return;
       if (result?.shortName) setCurrentToponym(result.shortName);
     });
+  }, [resetForNewLocation]);
+
+  const handleMapClick = (lat: number, lng: number) => {
+    if (projectPolygon) return;
+    if (results || isAnalyzing) {
+      setPendingLocationChange({ kind: "map", center: [lat, lng] });
+      return;
+    }
+    applyMapCenter(lat, lng);
+  };
+
+  const confirmLocationChange = () => {
+    const pending = pendingLocationChange;
+    setPendingLocationChange(null);
+    if (!pending) return;
+    if (pending.kind === "map") {
+      applyMapCenter(pending.center[0], pending.center[1]);
+    } else {
+      resetForNewLocation();
+    }
   };
 
   const handleRadiusChange = useCallback((id: string, newRadius: number) => {
@@ -411,7 +443,7 @@ export default function Home() {
   }, [toast]);
 
   return (
-    <div className="relative w-full h-screen overflow-hidden bg-gray-100">
+    <div className="relative h-[100dvh] min-h-[100dvh] w-full overflow-hidden bg-gray-100">
       
       <Map 
         center={center} 
@@ -500,12 +532,38 @@ export default function Home() {
         onSelectPoint={handleSelectLieuDitPoint}
       />
 
+      <AlertDialog
+        open={pendingLocationChange !== null}
+        onOpenChange={(open) => { if (!open) setPendingLocationChange(null); }}
+      >
+        <AlertDialogContent className="z-[4000] max-w-md">
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              {pendingLocationChange?.kind === "map" ? "Déplacer le centre de l’étude ?" : "Commencer une nouvelle analyse ?"}
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              Les résultats actuellement affichés seront fermés et devront être recalculés pour la nouvelle emprise.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Conserver les résultats</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmLocationChange} className="bg-teal-700 hover:bg-teal-800">
+              {pendingLocationChange?.kind === "map" ? "Déplacer le centre" : "Nouvelle analyse"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
       <div className="absolute top-6 left-6 z-[1000] flex items-center gap-2">
         <button 
           type="button"
           className="flex items-center gap-2 bg-white/80 backdrop-blur px-3 py-2 rounded-lg cursor-pointer hover:bg-white transition-colors shadow-sm"
-          onClick={resetForNewLocation}
-          aria-label="Réinitialiser la vue"
+          onClick={() => {
+            if (results || isAnalyzing) setPendingLocationChange({ kind: "reset" });
+            else resetForNewLocation();
+          }}
+          aria-label="Commencer une nouvelle analyse"
+          title="Commencer une nouvelle analyse"
           data-testid="button-reset"
         >
           <div className="bg-teal-600 p-1.5 rounded-md">

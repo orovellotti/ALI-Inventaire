@@ -411,6 +411,8 @@ export function Map({ center, circles, results, onMapClick, selectedSpecies, onS
           className="flex items-center gap-1.5 text-xs px-3 py-2 rounded-lg bg-white/95 backdrop-blur shadow-md border border-gray-200 text-gray-700 hover:bg-gray-50 font-medium"
           data-testid="button-toggle-layers"
           title="Choisir le fond de carte et les couches écologiques"
+          aria-expanded={layerPanelOpen}
+          aria-controls="map-layer-options"
         >
           <Layers className="h-3.5 w-3.5 text-teal-600" />
           <span>Affichage de la carte</span>
@@ -423,7 +425,7 @@ export function Map({ center, circles, results, onMapClick, selectedSpecies, onS
         </button>
 
         {layerPanelOpen && (
-          <div className="mt-1 w-72 bg-white/98 backdrop-blur rounded-lg shadow-xl border border-gray-200 overflow-hidden">
+          <div id="map-layer-options" className="mt-1 w-72 bg-white/98 backdrop-blur rounded-lg shadow-xl border border-gray-200 overflow-hidden">
             <div className="px-3 pt-2.5 pb-1.5 border-b border-gray-100">
               <p className="text-[10px] font-bold uppercase tracking-wider text-gray-500">Choisir une carte de fond</p>
             </div>
@@ -447,6 +449,7 @@ export function Map({ center, circles, results, onMapClick, selectedSpecies, onS
                           baseLayer === id ? "bg-teal-50 text-teal-800 font-semibold" : "text-gray-700 hover:bg-gray-50"
                         }`}
                         data-testid={`button-basemap-${id}`}
+                        aria-pressed={baseLayer === id}
                       >
                         <span>{l.label}</span>
                         {baseLayer === id && <span className="text-teal-600">●</span>}
@@ -482,6 +485,7 @@ export function Map({ center, circles, results, onMapClick, selectedSpecies, onS
                             isActive ? "bg-white shadow-sm" : "hover:bg-white/60"
                           }`}
                           data-testid={`button-overlay-${id}`}
+                          aria-pressed={isActive}
                         >
                           <span
                             className="h-3 w-3 rounded-sm border border-gray-300 shrink-0 flex items-center justify-center"

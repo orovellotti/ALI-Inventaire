@@ -2,7 +2,7 @@ import { useState, useMemo, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { X, Download, FileText, AlertTriangle, AlertCircle, Leaf, Info, ChevronDown, ChevronUp, ImageOff, Copy, Check, ExternalLink, BookOpen, Shield, ShieldAlert, MapPin, Tag, Calendar, Link, Flag, Layers, Filter, Table, Sparkles, Loader2, Share2, Mail, MoreHorizontal, Settings2, Search, ChevronLeft, ListChecks, ClipboardList, LayoutGrid, ChevronRight, Gauge } from "lucide-react";
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuCheckboxItem } from "@/components/ui/dropdown-menu";
 import { InventoryResult, Occurrence, getIucnLabel, getIucnFullLabel, getPatrimonialite, ConfidenceScore, TAXON_GROUPS, getTaxonGroupId, isMarineSpecies } from "@/lib/gbif";
@@ -1056,13 +1056,7 @@ ${shareUrl ? `\nReproduire cette analyse : ${shareUrl}` : ""}`;
                       <button
                         type="button"
                         key={`top-z-${key}`}
-                        onClick={() => {
-                          if (hasGeometry && onSelectZonage) {
-                            onSelectZonage(isSelectedOnMap ? null : key);
-                          } else {
-                            setView("zonages");
-                          }
-                        }}
+                        onClick={() => setView("zonages")}
                         className={`w-full flex items-center gap-2 rounded-lg border bg-white px-3 py-2 text-left transition-colors hover:bg-gray-50 ${
                           isSelectedOnMap ? "border-teal-400 ring-1 ring-teal-300" : "border-gray-200"
                         }`}
@@ -1072,7 +1066,7 @@ ${shareUrl ? `\nReproduire cette analyse : ${shareUrl}` : ""}`;
                         <span className="min-w-0 flex-1">
                           <span className="block text-xs font-semibold text-gray-800 truncate">{z.name}</span>
                           <span className="block text-[10px] text-gray-500 truncate">
-                            {z.type} · {hasGeometry ? (isSelectedOnMap ? "Affiché sur la carte" : "Cliquer pour voir sur la carte") : "Dans l'aire d'étude"}
+                            {z.type} · ouvrir les détails
                           </span>
                         </span>
                         {hasGeometry && (
@@ -1204,14 +1198,21 @@ ${shareUrl ? `\nReproduire cette analyse : ${shareUrl}` : ""}`;
           </div>
 
           {/* ══════════ POPUP DÉTAILLÉE — ESPÈCES ══════════ */}
-          <Dialog open={view === "especes"} onOpenChange={(open) => { if (!open) setView("diagnostic"); }}>
-            <DialogContent className="flex h-[92vh] w-[calc(100vw-1rem)] max-w-6xl flex-col gap-0 overflow-hidden p-0">
+          <Dialog open={view === "especes"} onOpenChange={(open) => {
+            if (!open) {
+              setView("diagnostic");
+              onSelectSpecies(null);
+            }
+          }}>
+            <DialogContent className="flex h-[calc(100dvh-1rem)] w-[calc(100vw-1rem)] max-w-6xl flex-col gap-0 overflow-hidden p-0 sm:h-[92dvh]">
               <DialogHeader className="shrink-0 border-b border-gray-100 px-5 py-4 pr-12">
                 <DialogTitle className="flex items-center gap-2 text-base text-gray-900">
                   <Leaf className="h-4 w-4 text-teal-600" />
                   Résultats des espèces
                 </DialogTitle>
-                <p className="text-xs text-gray-500">Comparez les taxons et ouvrez une ligne pour consulter ses preuves et recommandations.</p>
+                <DialogDescription className="text-xs text-gray-500">
+                  {toponym || "Emprise sélectionnée"} · rayon de référence {results.radius} m · {includeINaturalist ? "GBIF et iNaturalist" : "GBIF"} · données marines {excludeMarine ? "exclues" : "incluses"}
+                </DialogDescription>
               </DialogHeader>
               <ScrollArea className="min-h-0 flex-1">
                 <div className="space-y-4 p-4 sm:p-5" data-testid="panel-especes">
@@ -1244,8 +1245,10 @@ ${shareUrl ? `\nReproduire cette analyse : ${shareUrl}` : ""}`;
             </div>
 
             <div className="relative">
+              <label htmlFor="species-search" className="sr-only">Rechercher une espèce dans les résultats</label>
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
               <input
+                id="species-search"
                 type="text"
                 value={speciesQuery}
                 onChange={(e) => setSpeciesQuery(e.target.value)}
@@ -1259,6 +1262,8 @@ ${shareUrl ? `\nReproduire cette analyse : ${shareUrl}` : ""}`;
               <button
                 type="button"
                 onClick={() => setShowFilters(!showFilters)}
+                aria-expanded={showFilters}
+                aria-controls="taxon-filter-options"
                 className="w-full flex items-center justify-between px-4 py-3 hover:bg-gray-100/50 transition-colors"
                 data-testid="button-toggle-taxon-filters"
               >
@@ -1277,7 +1282,8 @@ ${shareUrl ? `\nReproduire cette analyse : ${shareUrl}` : ""}`;
               </button>
 
               {showFilters && (
-                <div className="px-4 pb-3 space-y-2">
+                <div id="taxon-filter-options" className="px-4 pb-3 space-y-2">
+                  <p className="text-[10px] text-gray-500">Ces filtres s’appliquent au tableau, à la carte et aux exports.</p>
                   <button
                     type="button"
                     onClick={() => onToggleAllTaxonFilters(presentGroups.map(g => g.id))}
@@ -1327,7 +1333,21 @@ ${shareUrl ? `\nReproduire cette analyse : ${shareUrl}` : ""}`;
                 <span>{especesList.length} espèce{especesList.length > 1 ? "s" : ""}</span>
               </div>
               {especesList.length === 0 ? (
-                <p className="text-sm text-gray-400 italic px-1 py-4 text-center">Aucune espèce ne correspond aux filtres.</p>
+                <div className="flex flex-col items-center gap-2 px-1 py-5 text-center">
+                  <p className="text-sm text-gray-500">Aucune espèce ne correspond à la recherche et aux filtres actifs.</p>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      setSpeciesQuery("");
+                      if (!isAllActive) onToggleAllTaxonFilters(presentGroups.map(g => g.id));
+                    }}
+                    className="h-8 text-xs"
+                  >
+                    Réinitialiser les filtres
+                  </Button>
+                </div>
               ) : (
                 <SpeciesInventoryTable
                   species={especesList}
@@ -1343,14 +1363,21 @@ ${shareUrl ? `\nReproduire cette analyse : ${shareUrl}` : ""}`;
           </Dialog>
 
           {/* ══════════ POPUP DÉTAILLÉE — ZONAGES ══════════ */}
-          <Dialog open={view === "zonages"} onOpenChange={(open) => { if (!open) setView("diagnostic"); }}>
-            <DialogContent className="flex h-[92vh] w-[calc(100vw-1rem)] max-w-5xl flex-col gap-0 overflow-hidden p-0">
+          <Dialog open={view === "zonages"} onOpenChange={(open) => {
+            if (!open) {
+              setView("diagnostic");
+              onSelectZonage?.(null);
+            }
+          }}>
+            <DialogContent className="flex h-[calc(100dvh-1rem)] w-[calc(100vw-1rem)] max-w-5xl flex-col gap-0 overflow-hidden p-0 sm:h-[92dvh]">
               <DialogHeader className="shrink-0 border-b border-gray-100 px-5 py-4 pr-12">
                 <DialogTitle className="flex items-center gap-2 text-base text-gray-900">
                   <Layers className="h-4 w-4 text-teal-600" />
                   Résultats des zonages
                 </DialogTitle>
-                <p className="text-xs text-gray-500">Consultez les protections, inventaires et périmètres environnementaux de l’aire d’étude.</p>
+                <DialogDescription className="text-xs text-gray-500">
+                  {toponym || "Emprise sélectionnée"} · aire d’étude {zonages?.radius ?? results.radius} m · source IGN / PatriNat
+                </DialogDescription>
               </DialogHeader>
               <ScrollArea className="min-h-0 flex-1">
                 <div className="space-y-4 p-4 sm:p-5" data-testid="panel-zonages-tab">
@@ -1380,40 +1407,47 @@ ${shareUrl ? `\nReproduire cette analyse : ${shareUrl}` : ""}`;
                 const isSelectedOnMap = selectedZonageId === key;
                 return (
                   <div
-                    key={key}
+                    key={`${key}-${idx}`}
                     data-zonage-key={key}
                     className={`rounded-lg border bg-white overflow-hidden ${
                       isSelectedOnMap ? "border-teal-400 ring-1 ring-teal-300" : "border-gray-200"
                     }`}
                   >
-                    <button
-                      type="button"
-                      onClick={() => {
-                        toggleZonageDetails(key);
-                        if (hasGeometry && onSelectZonage) {
-                          onSelectZonage(isSelectedOnMap ? null : key);
-                        }
-                      }}
-                      aria-expanded={expanded}
-                      className="w-full flex items-center gap-2 px-3 py-2.5 text-left hover:bg-gray-50 transition-colors focus-visible:ring-2 focus-visible:ring-teal-400 focus-visible:outline-none"
-                      data-testid={`zoning-row-${idx}`}
-                    >
+                    <div className="flex items-stretch">
+                      <button
+                        type="button"
+                        onClick={() => toggleZonageDetails(key)}
+                        aria-expanded={expanded}
+                        aria-controls={`zonage-details-${idx}`}
+                        className="flex min-w-0 flex-1 items-center gap-2 px-3 py-2.5 text-left hover:bg-gray-50 transition-colors focus-visible:ring-2 focus-visible:ring-teal-400 focus-visible:outline-none"
+                        data-testid={`zoning-row-${idx}`}
+                      >
                       <span className={`shrink-0 text-[9px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded border ${badge.cls}`}>
                         {badge.label}
                       </span>
                       <span className="min-w-0 flex-1">
                         <span className="block text-xs font-semibold text-gray-800 truncate">{z.name}</span>
-                        <span className="block text-[10px] text-gray-500 truncate">
-                          {z.type} · {hasGeometry ? (isSelectedOnMap ? "Affiché sur la carte" : "Cliquer pour voir sur la carte") : "Dans l'aire d'étude"}
-                        </span>
+                        <span className="block text-[10px] text-gray-500 truncate">{z.type} · ouvrir pour consulter les détails</span>
                       </span>
-                      {hasGeometry && (
-                        <MapPin className={`h-3.5 w-3.5 shrink-0 ${isSelectedOnMap ? "text-teal-600" : "text-gray-300"}`} />
-                      )}
                       {expanded ? <ChevronUp className="h-3.5 w-3.5 text-gray-400 shrink-0" /> : <ChevronDown className="h-3.5 w-3.5 text-gray-400 shrink-0" />}
-                    </button>
+                      </button>
+                      {hasGeometry && onSelectZonage && (
+                        <button
+                          type="button"
+                          onClick={() => onSelectZonage(isSelectedOnMap ? null : key)}
+                          aria-pressed={isSelectedOnMap}
+                          className={`flex shrink-0 items-center gap-1 border-l px-3 text-[11px] font-semibold transition-colors focus-visible:ring-2 focus-visible:ring-teal-400 focus-visible:outline-none ${
+                            isSelectedOnMap ? "bg-teal-50 text-teal-700" : "text-gray-600 hover:bg-gray-50"
+                          }`}
+                          aria-label={`${isSelectedOnMap ? "Masquer" : "Afficher"} ${z.name} sur la carte`}
+                        >
+                          <MapPin className="h-3.5 w-3.5" />
+                          <span className="hidden sm:inline">{isSelectedOnMap ? "Affiché" : "Voir sur la carte"}</span>
+                        </button>
+                      )}
+                    </div>
                     {expanded && (
-                      <div className="px-3 pb-3 pt-1 border-t border-gray-100 space-y-1.5 text-[11px] text-gray-600">
+                      <div id={`zonage-details-${idx}`} className="px-3 pb-3 pt-1 border-t border-gray-100 space-y-1.5 text-[11px] text-gray-600">
                         <div><span className="font-semibold">Type :</span> {z.type}</div>
                         <div><span className="font-semibold">Catégorie :</span> {z.categoryLabel}</div>
                         {!hasGeometry && (
@@ -1537,6 +1571,9 @@ ${shareUrl ? `\nReproduire cette analyse : ${shareUrl}` : ""}`;
               <FileText className="h-5 w-5" />
               Note écologique
             </DialogTitle>
+            <DialogDescription>
+              Synthèse du pré-diagnostic à relire et valider avant utilisation.
+            </DialogDescription>
           </DialogHeader>
           {reformattedReport && (
             <div className="mt-3 flex items-center gap-2 text-xs text-teal-700 bg-teal-50 border border-teal-200 px-3 py-1.5 rounded-md">
