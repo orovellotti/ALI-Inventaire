@@ -755,6 +755,10 @@ ${shareUrl ? `\nReproduire cette analyse : ${shareUrl}` : ""}`;
     }
   };
 
+  useEffect(() => {
+    if (!isOpen) setView("diagnostic");
+  }, [isOpen]);
+
   if (!isOpen || !results) return null;
 
   const sourcesLabel = `GBIF${includeINaturalist ? " · iNaturalist" : ""} · UICN · ALI/TAXREF · IGN/INPN`;
@@ -876,7 +880,7 @@ ${shareUrl ? `\nReproduire cette analyse : ${shareUrl}` : ""}`;
 
         <ScrollArea className="flex-1 px-5 py-4">
           {/* ══════════ VUE DIAGNOSTIC (page unique à divulgation progressive) ══════════ */}
-          <div className={view === "diagnostic" ? "space-y-4" : "hidden"} data-testid="panel-overview">
+          <div className="space-y-4" data-testid="panel-overview">
             {/* Niveau d'enjeu global */}
             <div
               className={`rounded-xl border p-4 ${
@@ -1199,16 +1203,18 @@ ${shareUrl ? `\nReproduire cette analyse : ${shareUrl}` : ""}`;
             </section>
           </div>
 
-          {/* ══════════ VUE DÉTAILLÉE — ESPÈCES ══════════ */}
-          <div className={view === "especes" ? "space-y-4" : "hidden"} data-testid="panel-especes">
-            <button
-              type="button"
-              onClick={() => setView("diagnostic")}
-              className="flex items-center gap-1 text-xs font-semibold text-teal-700 hover:underline focus-visible:ring-2 focus-visible:ring-teal-400 focus-visible:outline-none rounded"
-              data-testid="button-back-from-especes"
-            >
-              <ChevronLeft className="h-3.5 w-3.5" /> Retour au diagnostic
-            </button>
+          {/* ══════════ POPUP DÉTAILLÉE — ESPÈCES ══════════ */}
+          <Dialog open={view === "especes"} onOpenChange={(open) => { if (!open) setView("diagnostic"); }}>
+            <DialogContent className="flex h-[92vh] w-[calc(100vw-1rem)] max-w-6xl flex-col gap-0 overflow-hidden p-0">
+              <DialogHeader className="shrink-0 border-b border-gray-100 px-5 py-4 pr-12">
+                <DialogTitle className="flex items-center gap-2 text-base text-gray-900">
+                  <Leaf className="h-4 w-4 text-teal-600" />
+                  Résultats des espèces
+                </DialogTitle>
+                <p className="text-xs text-gray-500">Comparez les taxons et ouvrez une ligne pour consulter ses preuves et recommandations.</p>
+              </DialogHeader>
+              <ScrollArea className="min-h-0 flex-1">
+                <div className="space-y-4 p-4 sm:p-5" data-testid="panel-especes">
             <div className="rounded-lg border border-gray-200 bg-gray-50/60 px-3 py-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-gray-600" data-testid="species-summary">
               <span><strong className="text-gray-900">{filteredTotal}</strong> espèce{filteredTotal > 1 ? "s" : ""} avérée{filteredTotal > 1 ? "s" : ""}</span>
               <span><strong className="text-orange-700">{prioritySpeciesList.length}</strong> prioritaire{prioritySpeciesList.length > 1 ? "s" : ""}</span>
@@ -1331,18 +1337,23 @@ ${shareUrl ? `\nReproduire cette analyse : ${shareUrl}` : ""}`;
                 />
               )}
             </div>
-          </div>
+                </div>
+              </ScrollArea>
+            </DialogContent>
+          </Dialog>
 
-          {/* ══════════ VUE DÉTAILLÉE — ZONAGES ══════════ */}
-          <div className={view === "zonages" ? "space-y-4" : "hidden"} data-testid="panel-zonages-tab">
-            <button
-              type="button"
-              onClick={() => setView("diagnostic")}
-              className="flex items-center gap-1 text-xs font-semibold text-teal-700 hover:underline focus-visible:ring-2 focus-visible:ring-teal-400 focus-visible:outline-none rounded"
-              data-testid="button-back-from-zonages"
-            >
-              <ChevronLeft className="h-3.5 w-3.5" /> Retour au diagnostic
-            </button>
+          {/* ══════════ POPUP DÉTAILLÉE — ZONAGES ══════════ */}
+          <Dialog open={view === "zonages"} onOpenChange={(open) => { if (!open) setView("diagnostic"); }}>
+            <DialogContent className="flex h-[92vh] w-[calc(100vw-1rem)] max-w-5xl flex-col gap-0 overflow-hidden p-0">
+              <DialogHeader className="shrink-0 border-b border-gray-100 px-5 py-4 pr-12">
+                <DialogTitle className="flex items-center gap-2 text-base text-gray-900">
+                  <Layers className="h-4 w-4 text-teal-600" />
+                  Résultats des zonages
+                </DialogTitle>
+                <p className="text-xs text-gray-500">Consultez les protections, inventaires et périmètres environnementaux de l’aire d’étude.</p>
+              </DialogHeader>
+              <ScrollArea className="min-h-0 flex-1">
+                <div className="space-y-4 p-4 sm:p-5" data-testid="panel-zonages-tab">
             {zonages && zonages.count > 0 && (
               <div className="rounded-lg border border-gray-200 bg-gray-50/60 px-3 py-2 text-xs text-gray-600 leading-relaxed" data-testid="text-zonages-summary">
                 {zonages.count} zonage{zonages.count > 1 ? "s" : ""} dans l'aire d'étude (rayon {zonages.radius} m) — les plus importants d'abord.
@@ -1436,7 +1447,10 @@ ${shareUrl ? `\nReproduire cette analyse : ${shareUrl}` : ""}`;
             {!zonagesLoading && (!zonages || zonages.count === 0) && (
               <p className="text-sm text-gray-400 italic">Aucun zonage environnemental recensé dans l'aire d'étude. Vous pouvez élargir le rayon d'analyse.</p>
             )}
-          </div>
+                </div>
+              </ScrollArea>
+            </DialogContent>
+          </Dialog>
 
           <p className="mt-4 px-1 text-[11px] text-gray-400 leading-snug flex gap-1.5 items-start">
             <Info className="h-3 w-3 shrink-0 mt-0.5" />
