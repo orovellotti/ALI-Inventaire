@@ -698,7 +698,7 @@ ${aiAnalysis.natura2000.map(z => { const desig = (z.species ?? []).filter(s => s
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 Données : GBIF • iNaturalist • UICN • IGN/INPN
 Inventaire flash — indication rapide, ne remplace pas un inventaire terrain.
-${shareUrl ? `\n🔗 Reproduire cette analyse : ${shareUrl}` : ""}`;
+${shareUrl ? `\nReproduire cette analyse : ${shareUrl}` : ""}`;
   }, [results, sortedSpecies, activeTaxonFilters, presentGroups, isAllActive, aiAnalysis, toponym, zonages, riskScore]);
 
   const reportSubject = useMemo(() => {
@@ -962,14 +962,12 @@ ${shareUrl ? `\n🔗 Reproduire cette analyse : ${shareUrl}` : ""}`;
                   {prioritySpeciesList.length === 0 ? (
                     <p className="text-xs text-gray-400 italic">Aucune espèce à enjeu détectée dans les données publiques.</p>
                   ) : (
-                    prioritySpeciesList.slice(0, 3).map((occ, idx) => (
-                      <CompactSpeciesRow
-                        key={`prio-${occ.scientificName}-${idx}`}
-                        occ={occ}
-                        isSelected={selectedSpecies === occ.scientificName}
-                        onSelect={() => onSelectSpecies(selectedSpecies === occ.scientificName ? null : occ.scientificName)}
-                      />
-                    ))
+                    <SpeciesInventoryTable
+                      species={prioritySpeciesList.slice(0, 3)}
+                      selectedSpecies={selectedSpecies}
+                      onSelectSpecies={onSelectSpecies}
+                      centerCoords={results.center}
+                    />
                   )}
                   <div className="flex flex-col gap-1 pt-1">
                     {prioritySpeciesList.length > 0 && (
@@ -1299,7 +1297,8 @@ ${shareUrl ? `\n🔗 Reproduire cette analyse : ${shareUrl}` : ""}`;
                         >
                           <div className="flex items-center justify-between">
                             <span className="text-xs font-bold text-gray-800 flex items-center gap-1">
-                              <span>{group.icon}</span> {group.label}
+                              <span>{group.icon}</span>
+                              <span>{group.label}</span>
                             </span>
                             <span className="text-sm font-bold text-teal-700">{count}</span>
                           </div>
@@ -1323,48 +1322,13 @@ ${shareUrl ? `\n🔗 Reproduire cette analyse : ${shareUrl}` : ""}`;
               </div>
               {especesList.length === 0 ? (
                 <p className="text-sm text-gray-400 italic px-1 py-4 text-center">Aucune espèce ne correspond aux filtres.</p>
-              ) : speciesScope === "prioritaires" ? (
-                <div className="space-y-3">
-                  {especesList.map((occ, idx) => (
-                    <div key={`${occ.scientificName}-${idx}`} data-species-item={occ.scientificName}>
-                      <SpeciesCard
-                        occ={occ}
-                        isSelected={selectedSpecies === occ.scientificName}
-                        onSelect={() => onSelectSpecies(selectedSpecies === occ.scientificName ? null : occ.scientificName)}
-                        centerCoords={results.center}
-                      />
-                      <div className="mt-1 ml-1 flex items-start gap-1.5 text-[11px] text-gray-600" data-testid={`action-${occ.scientificName}`}>
-                        <ClipboardList className="h-3 w-3 shrink-0 mt-0.5 text-teal-600" />
-                        <span><span className="font-semibold">Action recommandée :</span> {occ.isInvasive ? "Espèce exotique envahissante : prévoir une gestion/limitation, sans valeur patrimoniale de conservation." : occ.enjeuLevel === "a_confirmer" ? `Groupe protégé — statut national non vérifié : ${recommendedAction(getTaxonGroupId(occ))} Comparer avec les listes TAXREF régionales.` : recommendedAction(getTaxonGroupId(occ))}</span>
-                      </div>
-                    </div>
-                  ))}
-                </div>
               ) : (
-                especesList.map((occ, idx) => (
-                  <div key={`${occ.scientificName}-${idx}`} data-species-item={occ.scientificName}>
-                    {selectedSpecies === occ.scientificName ? (
-                      <div className="py-1.5">
-                        <SpeciesCard
-                          occ={occ}
-                          isSelected
-                          onSelect={() => onSelectSpecies(null)}
-                          centerCoords={results.center}
-                        />
-                        <div className="mt-1 ml-1 flex items-start gap-1.5 text-[11px] text-gray-600" data-testid={`action-${occ.scientificName}`}>
-                          <ClipboardList className="h-3 w-3 shrink-0 mt-0.5 text-teal-600" />
-                          <span><span className="font-semibold">Action recommandée :</span> {occ.isInvasive ? "Espèce exotique envahissante : prévoir une gestion/limitation, sans valeur patrimoniale de conservation." : occ.enjeuLevel === "a_confirmer" ? `Groupe protégé — statut national non vérifié : ${recommendedAction(getTaxonGroupId(occ))} Comparer avec les listes TAXREF régionales.` : recommendedAction(getTaxonGroupId(occ))}</span>
-                        </div>
-                      </div>
-                    ) : (
-                      <CompactSpeciesRow
-                        occ={occ}
-                        isSelected={false}
-                        onSelect={() => onSelectSpecies(occ.scientificName)}
-                      />
-                    )}
-                  </div>
-                ))
+                <SpeciesInventoryTable
+                  species={especesList}
+                  selectedSpecies={selectedSpecies}
+                  onSelectSpecies={onSelectSpecies}
+                  centerCoords={results.center}
+                />
               )}
             </div>
           </div>
@@ -1688,63 +1652,68 @@ const ENJEU_LEVEL_BADGE: Record<string, { label: string; color: string }> = {
   faible:      { label: "Faible",      color: "bg-green-100 text-green-700 border-green-200" },
 };
 
-function CompactSpeciesRow({ occ, isSelected, onSelect }: { occ: Occurrence; isSelected: boolean; onSelect: () => void }) {
+function SpeciesInventoryTable({ species, selectedSpecies, onSelectSpecies, centerCoords }: {
+  species: Occurrence[];
+  selectedSpecies: string | null;
+  onSelectSpecies: (name: string | null) => void;
+  centerCoords: [number, number];
+}) {
+  return (
+    <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-[0_1px_2px_rgba(38,63,58,0.06)]">
+      <div className="overflow-x-auto">
+        <table className="w-full min-w-[620px] border-collapse text-left" data-testid="species-inventory-table">
+          <caption className="sr-only">Inventaire des espèces : taxon, groupe, enjeu, statuts et dernière observation</caption>
+          <thead className="border-b border-slate-200 bg-slate-50 text-[9px] font-bold uppercase tracking-[0.11em] text-slate-500">
+            <tr>
+              <th scope="col" className="w-[36%] px-3 py-2.5">Taxon</th>
+              <th scope="col" className="px-2 py-2.5">Groupe</th>
+              <th scope="col" className="px-2 py-2.5">Enjeu</th>
+              <th scope="col" className="px-2 py-2.5">Statut</th>
+              <th scope="col" className="px-2 py-2.5 text-right">Données</th>
+              <th scope="col" className="w-8 px-2 py-2.5"><span className="sr-only">Détails</span></th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-slate-100">
+            {species.map((occ, index) => {
+              const selected = selectedSpecies === occ.scientificName;
+              return (
+                <SpeciesTableRow
+                  key={`${occ.scientificName}-${index}`}
+                  occ={occ}
+                  selected={selected}
+                  onSelect={() => onSelectSpecies(selected ? null : occ.scientificName)}
+                  centerCoords={centerCoords}
+                />
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+function SpeciesTableRow({ occ, selected, onSelect, centerCoords }: { occ: Occurrence; selected: boolean; onSelect: () => void; centerCoords: [number, number] }) {
   const patri = getPatrimonialite(occ.iucnStatus, occ.alertLevel, occ.isInvasive);
   const group = TAXON_GROUPS.find((g) => g.id === getTaxonGroupId(occ));
-  const hasVern = !!occ.vernacularName;
-  const notEval = isNotEvaluated(occ.iucnStatus);
   const enjeuBadge = occ.enjeuLevel ? ENJEU_LEVEL_BADGE[occ.enjeuLevel] : null;
   return (
-    <button
-      type="button"
-      onClick={onSelect}
-      className={`w-full text-left flex items-center gap-2 px-3 py-2 rounded-lg border transition-all ${
-        isSelected ? "bg-teal-50 border-teal-300 ring-1 ring-teal-300" : "bg-white border-gray-100 hover:bg-gray-50"
-      }`}
-      data-testid={`species-row-${occ.scientificName}`}
-    >
-      <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-1.5">
-          <span className="text-sm font-medium text-gray-900 truncate">{hasVern ? occ.vernacularName : occ.scientificName}</span>
-          {notEval && (!occ.aliStatuses || occ.aliStatuses.length === 0) && (
-            <Info className="h-3 w-3 text-gray-400 shrink-0" aria-label="Statut UICN non évalué mondialement" />
-          )}
-          {occ.enjeuWarnings && occ.enjeuWarnings.length > 0 && (
-            <span title={occ.enjeuWarnings.join(" · ")}>
-              <AlertTriangle className="h-3 w-3 text-yellow-500 shrink-0" />
-            </span>
-          )}
-        </div>
-        {hasVern && <div className="text-[11px] text-gray-500 italic truncate">{occ.scientificName}</div>}
-        <div className="mt-1 flex flex-wrap items-center gap-1">
-          {group && <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-gray-100 text-gray-600">{group.icon} {group.label}</span>}
-          {/* Niveau d'enjeu territorial si enrichi, sinon patrimonialité heuristique */}
-          {enjeuBadge ? (
-            <span className={`text-[9px] px-1.5 py-0.5 rounded-full border ${enjeuBadge.color}`} title="Enjeu fondé sur les statuts territoriaux (ALI/TAXREF)">
-              {enjeuBadge.label}
-            </span>
-          ) : (
-            <span className={`text-[9px] px-1.5 py-0.5 rounded-full border ${patri.color}`} title="Patrimonialité estimée (heuristique)">
-              ~{patri.label}
-            </span>
-          )}
-          {/* Top statut territorial */}
-          {occ.aliStatuses && occ.aliStatuses.length > 0 && occ.aliStatuses[0] && (
-            <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-gray-50 text-gray-600 border border-gray-200 truncate max-w-[100px]" title={`${occ.aliStatuses[0].category}${occ.aliStatuses[0].scope ? ` — ${occ.aliStatuses[0].scope}` : ""}`}>
-              {occ.aliStatuses[0].value}{occ.aliStatuses[0].scope ? ` · ${occ.aliStatuses[0].scope}` : ""}
-            </span>
-          )}
-          {!occ.aliStatuses && (
-            <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-gray-50 text-gray-500 border border-gray-200" title={getIucnFullLabel(occ.iucnStatus)}>
-              {getIucnLabel(occ.iucnStatus)}{occ.iucnStatus ? " · mondiale" : ""}
-            </span>
-          )}
-          {occ.lastObservationYear && <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-gray-50 text-gray-500 border border-gray-200">{occ.lastObservationYear}</span>}
-          {occ.source && <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-gray-50 text-gray-400 border border-gray-200">{occ.source === "inaturalist" ? "iNat" : "GBIF"}</span>}
-        </div>
-      </div>
-      <ChevronRight className="h-4 w-4 text-gray-300 shrink-0" />
-    </button>
+    <>
+      <tr data-species-item={occ.scientificName} className={`group transition-colors ${selected ? "bg-teal-50/80" : "hover:bg-teal-50/40"}`}>
+        <td className="px-3 py-2.5">
+          <button type="button" onClick={onSelect} className="block max-w-full text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500 focus-visible:ring-offset-2 rounded" data-testid={`species-row-${occ.scientificName}`}>
+            <span className="block truncate text-xs font-semibold text-slate-800">{occ.vernacularName || occ.scientificName}</span>
+            {occ.vernacularName && <span className="block truncate text-[10px] italic text-slate-500">{occ.scientificName}</span>}
+          </button>
+        </td>
+        <td className="px-2 py-2.5 text-[10px] font-medium text-slate-600">{group?.label || "Autres"}</td>
+        <td className="px-2 py-2.5"><span className={`inline-flex rounded border px-1.5 py-0.5 text-[9px] font-bold ${enjeuBadge?.color || patri.color}`} title={enjeuBadge ? "Enjeu fondé sur les statuts territoriaux (ALI/TAXREF)" : "Patrimonialité estimée (heuristique)"}>{enjeuBadge?.label || `~${patri.label}`}</span></td>
+        <td className="px-2 py-2.5"><span className="text-[10px] font-semibold text-slate-600" title={getIucnFullLabel(occ.iucnStatus)}>{occ.aliStatuses?.[0]?.value || getIucnLabel(occ.iucnStatus)}</span>{occ.frenchProtected && <Shield className="ml-1 inline h-3 w-3 text-amber-600" aria-label="Groupe protégé en France" />}</td>
+        <td className="px-2 py-2.5 text-right text-[10px] tabular-nums text-slate-500">{occ.lastObservationYear || "—"}<span className="ml-1 text-slate-300">{occ.observationCount ? `×${occ.observationCount}` : ""}</span></td>
+        <td className="px-2 py-2.5"><button type="button" onClick={onSelect} aria-expanded={selected} aria-label={`${selected ? "Masquer" : "Afficher"} les détails de ${occ.scientificName}`} className="rounded p-1 text-slate-400 transition-colors hover:bg-teal-100 hover:text-teal-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500">{selected ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}</button></td>
+      </tr>
+      {selected && <tr className="bg-teal-50/50"><td colSpan={6} className="px-3 pb-3"><div className="border-l-2 border-teal-500 pl-3"><SpeciesCard occ={occ} isSelected onSelect={onSelect} centerCoords={centerCoords} /><div className="mt-2 flex gap-1.5 text-[11px] text-slate-600" data-testid={`action-${occ.scientificName}`}><ClipboardList className="mt-0.5 h-3 w-3 shrink-0 text-teal-700" /><span><strong>Action recommandée :</strong> {occ.isInvasive ? "Espèce exotique envahissante : prévoir une gestion/limitation, sans valeur patrimoniale de conservation." : occ.enjeuLevel === "a_confirmer" ? `Groupe protégé — statut national non vérifié : ${recommendedAction(getTaxonGroupId(occ))} Comparer avec les listes TAXREF régionales.` : recommendedAction(getTaxonGroupId(occ))}</span></div></div></td></tr>}
+    </>
   );
 }
 
@@ -1891,18 +1860,18 @@ function SpeciesCard({ occ, isSelected, onSelect, centerCoords }: { occ: Occurre
               title="Groupe protégé en France (heuristique — statut national à vérifier par inventaire)"
               data-testid={`badge-french-protected-${occ.scientificName}`}
             >
-              🇫🇷 Groupe protégé
+                Groupe protégé
             </span>
           )}
           {/* Habitat */}
           {occ.habitatType === "marine" && (
             <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-blue-50 text-blue-600 border border-blue-200">
-              🌊 Marin
+              Marin
             </span>
           )}
           {taxonGroup && (
             <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-gray-100 text-gray-600">
-              {taxonGroup.icon} {taxonGroup.label}
+              {taxonGroup.label}
             </span>
           )}
         </div>
@@ -2113,80 +2082,67 @@ const POTENTIAL_STATUS_STYLE: Record<
 
 function PotentialSpeciesRow({
   item,
+  expanded,
+  onToggle,
 }: {
   item: PotentialSpeciesItem;
+  expanded: boolean;
+  onToggle: () => void;
 }) {
   const style = POTENTIAL_STATUS_STYLE[item.status];
   return (
-    <li
-      className="rounded-lg border border-gray-200 bg-white p-3 space-y-2"
-      data-testid={`potential-species-${item.scientificName}`}
-    >
-      <div className="flex items-start justify-between gap-2">
-        <div className="min-w-0">
-          <div className="flex flex-wrap items-center gap-1.5">
-            {item.observed && (
-              <span className="text-[9px] font-bold uppercase tracking-wide rounded border border-teal-200 bg-teal-50 px-1.5 py-0.5 text-teal-700">
-                Avérée
-              </span>
-            )}
-            <span className="font-semibold italic text-xs text-gray-800">
-              {item.scientificName}
-            </span>
-          </div>
-          {item.speciesGroup && (
-            <span className="mt-0.5 block text-[10px] text-gray-400">
-              {SPECIES_GROUP_FR[item.speciesGroup] ?? item.speciesGroup}
-            </span>
-          )}
-        </div>
-        <span
-          className={`shrink-0 rounded border px-1.5 py-0.5 text-[9px] font-bold ${style.badge}`}
-        >
-          {item.status}
-        </span>
-      </div>
+    <>
+      <tr className={`align-middle transition-colors ${expanded ? "bg-emerald-50/70" : "hover:bg-emerald-50/40"}`} data-testid={`potential-species-${item.scientificName}`}>
+        <td className="px-3 py-2.5">
+          <button type="button" onClick={onToggle} className="block max-w-full text-left rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500">
+            <span className="block truncate text-[11px] font-semibold italic text-slate-800">{item.scientificName}</span>
+            <span className="mt-0.5 block truncate text-[9px] text-slate-500">{SPECIES_GROUP_FR[item.speciesGroup] ?? item.speciesGroup}</span>
+          </button>
+        </td>
+        <td className="px-2 py-2.5">{item.observed ? <span className="inline-flex rounded border border-teal-200 bg-teal-50 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide text-teal-800">Avérée</span> : <span className="text-[10px] font-medium text-slate-500">Potentielle</span>}</td>
+        <td className="px-2 py-2.5"><span className={`inline-flex rounded border px-1.5 py-0.5 text-[9px] font-bold ${style.badge}`}>{item.status}</span></td>
+        <td className="px-2 py-2.5"><div className="flex items-center gap-1.5"><div className="h-1.5 w-12 overflow-hidden rounded-full bg-slate-100" role="meter" aria-label={`Score de compatibilité de ${item.scientificName}`} aria-valuemin={0} aria-valuemax={100} aria-valuenow={item.score ?? undefined} aria-valuetext={item.score === null ? "Non évalué" : `${item.score} sur 100`}><div className={`h-full rounded-full ${style.bar}`} style={{ width: `${item.score ?? 0}%` }} /></div><span className="text-[10px] font-bold tabular-nums text-slate-700">{item.score === null ? "—" : item.score}</span></div></td>
+        <td className="px-2 py-2.5 text-[10px] font-medium text-slate-600">{item.confidence}</td>
+        <td className="px-2 py-2.5">
+          <button type="button" onClick={onToggle} aria-expanded={expanded} aria-label={`${expanded ? "Masquer" : "Afficher"} les éléments de compatibilité de ${item.scientificName}`} className="rounded p-1 text-slate-400 transition-colors hover:bg-emerald-100 hover:text-emerald-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500">
+            {expanded ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
+          </button>
+        </td>
+      </tr>
+      {expanded && (
+        <tr className="bg-emerald-50/40">
+          <td colSpan={6} className="px-3 pb-3">
+            <div className="grid gap-3 border-l-2 border-emerald-400 pl-3 text-[10px] text-slate-600 sm:grid-cols-2">
+              <div>
+                <div className="mb-1 font-bold uppercase tracking-wide text-slate-500">Éléments de compatibilité</div>
+                <ul className="space-y-1">
+                  {item.reasons.length > 0 ? item.reasons.map((reason, index) => <li key={`${reason}-${index}`}>• {reason}</li>) : <li>Aucun élément détaillé disponible.</li>}
+                </ul>
+              </div>
+              <div className="space-y-1">
+                <div><strong>Sites :</strong> {item.sites.length > 0 ? item.sites.map((site) => site.name).join(", ") : "—"}</div>
+                <div><strong>Habitats :</strong> {item.habitats.length > 0 ? item.habitats.map((habitat) => habitat.code).join(", ") : "—"}</div>
+              </div>
+            </div>
+          </td>
+        </tr>
+      )}
+    </>
+  );
+}
 
-      <div className="grid grid-cols-[1fr_auto] items-center gap-x-3 gap-y-1">
-        <span className="text-[10px] font-semibold text-gray-600">
-          Score de compatibilité
-        </span>
-        <span className="text-[11px] font-bold text-gray-700">
-          {item.score === null ? "—" : `${item.score}/100`}
-        </span>
-        <div
-          className="h-1.5 overflow-hidden rounded-full bg-gray-100"
-          role="meter"
-          aria-label={`Score de compatibilité de ${item.scientificName}`}
-          aria-valuemin={0}
-          aria-valuemax={100}
-          aria-valuenow={item.score ?? undefined}
-          aria-valuetext={
-            item.score === null ? "Non évalué" : `${item.score} sur 100`
-          }
-        >
-          <div
-            className={`h-full rounded-full ${style.bar}`}
-            style={{ width: `${item.score ?? 0}%` }}
-          />
-        </div>
-        <span className="text-[10px] text-gray-500">
-          Confiance : <strong>{item.confidence}</strong>
-        </span>
+function PotentialSpeciesTable({ items, testId }: { items: PotentialSpeciesItem[]; testId: string }) {
+  const [expandedSpecies, setExpandedSpecies] = useState<string | null>(null);
+  return (
+    <div className="overflow-hidden rounded-lg border border-slate-200 bg-white">
+      <div className="overflow-x-auto">
+        <table className="w-full min-w-[620px] border-collapse text-left" data-testid={testId}>
+          <caption className="sr-only">Tableau des espèces attendues et de leur indice de compatibilité</caption>
+          <thead className="border-b border-slate-200 bg-slate-50 text-[9px] font-bold uppercase tracking-[0.1em] text-slate-500"><tr><th className="px-3 py-2">Taxon</th><th className="px-2 py-2">Signal</th><th className="px-2 py-2">Compatibilité</th><th className="px-2 py-2">Indice</th><th className="px-2 py-2">Confiance</th><th className="w-8 px-2 py-2"><span className="sr-only">Détails</span></th></tr></thead>
+          <tbody className="divide-y divide-slate-100">{items.map((item) => <PotentialSpeciesRow key={item.scientificName} item={item} expanded={expandedSpecies === item.scientificName} onToggle={() => setExpandedSpecies((current) => current === item.scientificName ? null : item.scientificName)} />)}</tbody>
+        </table>
       </div>
-
-      <ul className="space-y-1">
-        {item.reasons.map((reason, index) => (
-          <li
-            key={`${reason}-${index}`}
-            className="flex items-start gap-1.5 text-[10px] leading-snug text-gray-600"
-          >
-            <span className="mt-1 h-1 w-1 shrink-0 rounded-full bg-gray-400" />
-            <span>{reason}</span>
-          </li>
-        ))}
-      </ul>
-    </li>
+    </div>
   );
 }
 
@@ -2549,14 +2505,7 @@ function PotentialSpeciesSection({
                   </span>
                 </div>
                 {potential.length > 0 ? (
-                  <ul className="space-y-2" data-testid="list-potential-species">
-                    {potential.map((item) => (
-                      <PotentialSpeciesRow
-                        key={`potential-${item.scientificName}`}
-                        item={item}
-                      />
-                    ))}
-                  </ul>
+                  <PotentialSpeciesTable items={potential} testId="list-potential-species" />
                 ) : (
                   <p className="text-[11px] italic text-gray-500">
                     Aucune espèce potentielle dans le référentiel
@@ -2579,14 +2528,7 @@ function PotentialSpeciesSection({
                   dans l’inventaire GBIF ou d’un signal iNaturalist dans l’aire.
                 </p>
                 {observed.length > 0 ? (
-                  <ul className="space-y-2" data-testid="list-observed-potential-species">
-                    {observed.map((item) => (
-                      <PotentialSpeciesRow
-                        key={`observed-${item.scientificName}`}
-                        item={item}
-                      />
-                    ))}
-                  </ul>
+                  <PotentialSpeciesTable items={observed} testId="list-observed-potential-species" />
                 ) : (
                   <p className="text-[11px] italic text-gray-500">
                     Aucune occurrence réelle ne correspond aux espèces
