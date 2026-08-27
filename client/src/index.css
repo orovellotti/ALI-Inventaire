@@ -216,6 +216,33 @@
   gap: 1.25rem;
 }
 
+.results-text-mode [data-testid="panel-overview"] > * {
+  width: 100% !important;
+  max-width: none !important;
+  margin-left: 0 !important;
+  margin-right: 0 !important;
+  padding-left: 0 !important;
+  padding-right: 0 !important;
+}
+
+.results-text-mode [data-testid="message-user-request"],
+.results-text-mode [data-testid="message-ally"] {
+  margin-left: 0 !important;
+  padding-left: 0 !important;
+  border-radius: 0 !important;
+}
+
+.results-text-mode [data-testid="panel-overview"] section,
+.results-text-mode [data-testid="panel-overview"] article {
+  margin-left: 0 !important;
+  margin-right: 0 !important;
+}
+
+.results-text-mode [data-testid="panel-overview"] ol,
+.results-text-mode [data-testid="panel-overview"] ul {
+  margin-left: 0;
+}
+
 .results-text-mode [data-testid="message-ally"],
 .results-text-mode [data-testid="message-user-request"] {
   font-size: 0.9375rem !important;
