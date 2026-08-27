@@ -13,3 +13,4 @@
 - [ZNIEFF documentary evidence](znieff-documentary-evidence.md) — PatriNat zone-scale species are documentary signals, never occurrences or Natura/EEA score inputs; preserve D/E/A semantics.
 - [iNaturalist species counts](inaturalist-species-counts.md) — species_counts is a centre/radius taxon aggregate, not individual coordinates; never describe it as point-level re-filtering.
 - [EEA SDI download filtering](eea-sdi-download-filtering.md) — SDI public share pages can return 403 to Node’s default fetch profile; use browser-like content negotiation.
+- [Local analysis history](analysis-history-storage.md) — conversation snapshots stay browser-local in IndexedDB, capped at 20; restoring one must not rerun scientific APIs.

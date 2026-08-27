@@ -1,9 +1,9 @@
-import { useState, useMemo, useEffect, useRef } from "react";
+import { useState, useMemo, useEffect, useRef, type ReactNode } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { X, Download, FileText, AlertTriangle, AlertCircle, Leaf, Info, ChevronDown, ChevronUp, ImageOff, Copy, Check, ExternalLink, BookOpen, Shield, ShieldAlert, MapPin, Tag, Calendar, Link, Flag, Layers, Filter, Table, Sparkles, Loader2, Share2, Mail, MoreHorizontal, Settings2, Search, ChevronLeft, ListChecks, ClipboardList, LayoutGrid, ChevronRight, Gauge } from "lucide-react";
+import { X, Download, FileText, AlertTriangle, AlertCircle, Leaf, Info, ChevronDown, ChevronUp, ImageOff, Copy, Check, ExternalLink, BookOpen, Shield, ShieldAlert, MapPin, Tag, Calendar, Link, Flag, Layers, Filter, Table, Sparkles, Loader2, Share2, Mail, MoreHorizontal, Settings2, Search, ChevronLeft, ListChecks, ClipboardList, LayoutGrid, ChevronRight, Gauge, History, Plus, Pencil, Trash2 } from "lucide-react";
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuCheckboxItem } from "@/components/ui/dropdown-menu";
 import { InventoryResult, Occurrence, getIucnLabel, getIucnFullLabel, getPatrimonialite, ConfidenceScore, TAXON_GROUPS, getTaxonGroupId, isMarineSpecies } from "@/lib/gbif";
 import { findSINPPlatforms, SINPPlatform } from "@/lib/sinp";
@@ -19,6 +19,7 @@ import type {
 import { reconcilePotentialSpecies } from "@/lib/potentialSpecies";
 import { zonageKey } from "@/lib/zonageMap";
 import type { ZonagesData, ZonageItem } from "@/lib/zonages";
+import type { AnalysisConversation } from "@/lib/analysisHistory";
 
 interface NaturaSpeciesItem {
   name: string;
@@ -125,9 +126,18 @@ interface ResultsPanelProps {
   potentialSpeciesError: boolean;
   selectedZonageId?: string | null;
   onSelectZonage?: (id: string | null) => void;
+  composer?: ReactNode;
+  conversations?: AnalysisConversation[];
+  activeConversationId?: string | null;
+  historyError?: string | null;
+  requestSummary?: string;
+  onSelectConversation?: (id: string) => void;
+  onNewConversation?: () => void;
+  onRenameConversation?: (id: string, title: string) => void;
+  onDeleteConversation?: (id: string) => void;
 }
 
-export function ResultsPanel({ isOpen, isAnalyzing = false, areaCount = 1, onClose, results, selectedSpecies, onSelectSpecies, activeTaxonFilters, onToggleTaxonFilter, onToggleAllTaxonFilters, excludeMarine, onToggleExcludeMarine, includeINaturalist, onToggleIncludeINaturalist, toponym, zonages, zonagesLoading, potentialSpecies, potentialSpeciesLoading, potentialSpeciesError, selectedZonageId, onSelectZonage }: ResultsPanelProps) {
+export function ResultsPanel({ isOpen, isAnalyzing = false, areaCount = 1, onClose, results, selectedSpecies, onSelectSpecies, activeTaxonFilters, onToggleTaxonFilter, onToggleAllTaxonFilters, excludeMarine, onToggleExcludeMarine, includeINaturalist, onToggleIncludeINaturalist, toponym, zonages, zonagesLoading, potentialSpecies, potentialSpeciesLoading, potentialSpeciesError, selectedZonageId, onSelectZonage, composer, conversations = [], activeConversationId = null, historyError, requestSummary, onSelectConversation, onNewConversation, onRenameConversation, onDeleteConversation }: ResultsPanelProps) {
   const [openSections, setOpenSections] = useState<Set<SectionKey>>(new Set());
   const [showCalcDetail, setShowCalcDetail] = useState(false);
   const [assistantOpen, setAssistantOpen] = useState(false);
@@ -140,6 +150,10 @@ export function ResultsPanel({ isOpen, isAnalyzing = false, areaCount = 1, onClo
   const [reformatting, setReformatting] = useState(false);
   const [reformatError, setReformatError] = useState<string | null>(null);
   const [showFilters, setShowFilters] = useState(true);
+  const [historyOpen, setHistoryOpen] = useState(false);
+  const [editingConversationId, setEditingConversationId] = useState<string | null>(null);
+  const [editingTitle, setEditingTitle] = useState("");
+  const [deleteConversationId, setDeleteConversationId] = useState<string | null>(null);
   const [aiAnalysis, setAiAnalysis] = useState<{ species: { scientificName: string; vernacularName?: string; group: string; level: string; reason: string; sources?: string[]; inInventory?: boolean; evidenceClass?: string; evidenceLabel?: string; score?: number; scoreLabel?: string; isInvasive?: boolean }[]; natura2000?: { type: string; name: string; url: string | null; code?: string | null; species?: { name: string; designating: boolean; grade?: string | null }[]; habitats?: { code: string; description: string; cover: number | null }[] }[]; generatedAt: string } | null>(null);
   const [panelWidth, setPanelWidth] = useState<number>(() => {
     if (typeof window === "undefined") return 600;
@@ -147,6 +161,19 @@ export function ResultsPanel({ isOpen, isAnalyzing = false, areaCount = 1, onClo
     return Number.isFinite(saved) && saved >= 360 ? saved : 600;
   });
   const isResizingRef = useRef(false);
+
+  useEffect(() => {
+    if (!historyOpen) return;
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setHistoryOpen(false);
+        setEditingConversationId(null);
+        setDeleteConversationId(null);
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [historyOpen]);
 
   useEffect(() => {
     function onMove(e: MouseEvent) {
@@ -832,6 +859,54 @@ ${shareUrl ? `\nReproduire cette analyse : ${shareUrl}` : ""}`;
   const fortSpeciesCount = enjeuxBuckets.critique.length + enjeuxBuckets.fort.length;
   const prefersReducedMotion =
     typeof window !== "undefined" && window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+  const statusLabels: Record<AnalysisConversation["status"], string> = {
+    draft: "Brouillon", running: "En cours", partial: "Partiel", complete: "Terminé", failed: "Échec",
+  };
+  const activeConversation = conversations.find((conversation) => conversation.id === activeConversationId);
+  const activeConversationFailed = activeConversation?.status === "failed";
+  const historyDrawer = historyOpen && (
+    <motion.div
+      initial={{ opacity: 0, x: 18 }} animate={{ opacity: 1, x: 0 }}
+      className="absolute inset-y-0 right-0 z-30 flex w-full max-w-[360px] flex-col border-l border-slate-200 bg-[#fbfcfa] shadow-2xl"
+      role="dialog" aria-modal="true" aria-label="Historique des analyses" data-testid="history-drawer"
+    >
+      <div className="flex items-center justify-between border-b border-slate-200 px-4 py-3">
+        <div><h3 className="text-sm font-bold text-slate-800">Historique</h3><p className="text-[10px] text-slate-500">Vos 20 dernières analyses</p></div>
+        <Button variant="ghost" size="icon" onClick={() => setHistoryOpen(false)} aria-label="Fermer l'historique" className="h-8 w-8 rounded-full"><X className="h-4 w-4" /></Button>
+      </div>
+      <div className="min-h-0 flex-1 overflow-y-auto p-3">
+        <Button onClick={() => { onNewConversation?.(); setHistoryOpen(false); }} className="mb-3 h-9 w-full justify-center gap-2 bg-teal-700 text-xs text-white hover:bg-teal-800" data-testid="button-new-conversation"><Plus className="h-3.5 w-3.5" />Nouvelle conversation</Button>
+        {historyError && <p className="mb-2 rounded-lg bg-amber-50 px-2.5 py-2 text-[10px] text-amber-700">{historyError}</p>}
+        {[...conversations].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)).slice(0, 20).map((conversation) => {
+          const active = conversation.id === activeConversationId;
+          const date = new Date(conversation.updatedAt).toLocaleString("fr-FR", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" });
+          return (
+            <div key={conversation.id} className={`mb-2 rounded-xl border p-2.5 ${active ? "border-teal-400 bg-teal-50/70" : "border-slate-200 bg-white"}`} aria-current={active ? "page" : undefined}>
+              {editingConversationId === conversation.id ? (
+                <input autoFocus value={editingTitle} onChange={(e) => setEditingTitle(e.target.value)}
+                  onBlur={() => { const title = editingTitle.trim(); if (title) onRenameConversation?.(conversation.id, title); setEditingConversationId(null); }}
+                  onKeyDown={(e) => { if (e.key === "Enter") e.currentTarget.blur(); if (e.key === "Escape") setEditingConversationId(null); }}
+                  className="mb-1 h-7 w-full rounded-md border border-teal-300 px-2 text-xs outline-none" aria-label="Renommer la conversation" />
+              ) : (
+                <button type="button" onClick={() => { onSelectConversation?.(conversation.id); setHistoryOpen(false); }} className="w-full text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-400" aria-label={`Sélectionner ${conversation.title}`}>
+                  <p className="truncate text-xs font-bold text-slate-800">{conversation.title || "Analyse sans titre"}</p>
+                  <p className="mt-1 flex items-center gap-1 truncate text-[10px] text-slate-500"><MapPin className="h-3 w-3" />{conversation.parameters.toponym || "Lieu non renseigné"} <span>·</span> {date}</p>
+                  <span className={`mt-1 inline-flex rounded-full px-1.5 py-0.5 text-[9px] font-semibold ${conversation.status === "complete" ? "bg-emerald-100 text-emerald-700" : conversation.status === "failed" ? "bg-red-100 text-red-700" : "bg-slate-100 text-slate-600"}`}>{statusLabels[conversation.status]}</span>
+                </button>
+              )}
+              <div className="mt-1 flex justify-end gap-1">
+                <button type="button" onClick={() => { setEditingConversationId(conversation.id); setEditingTitle(conversation.title); }} className="rounded p-1 text-slate-400 hover:bg-slate-100 hover:text-teal-700" aria-label={`Renommer ${conversation.title}`}><Pencil className="h-3 w-3" /></button>
+                {deleteConversationId === conversation.id ? (
+                  <button type="button" onClick={() => { onDeleteConversation?.(conversation.id); setDeleteConversationId(null); }} className="rounded px-1.5 text-[10px] font-bold text-red-700 hover:bg-red-50" aria-label="Confirmer la suppression">Confirmer</button>
+                ) : <button type="button" onClick={() => setDeleteConversationId(conversation.id)} className="rounded p-1 text-slate-400 hover:bg-red-50 hover:text-red-700" aria-label={`Supprimer ${conversation.title}`}><Trash2 className="h-3 w-3" /></button>}
+              </div>
+            </div>
+          );
+        })}
+        {!conversations.length && <p className="py-8 text-center text-xs text-slate-400">Aucune analyse enregistrée.</p>}
+      </div>
+    </motion.div>
+  );
 
   if (!results) {
     return (
@@ -852,20 +927,32 @@ ${shareUrl ? `\nReproduire cette analyse : ${shareUrl}` : ""}`;
           />
           <header className="flex items-start justify-between gap-3 border-b border-gray-100 bg-white/70 px-5 py-4">
             <div className="min-w-0">
-              <h2 className="text-lg font-bold tracking-tight text-gray-900">Analyse en cours</h2>
+              <h2 className="text-lg font-bold tracking-tight text-gray-900">{isAnalyzing ? "Analyse en cours" : "Nouvelle analyse"}</h2>
               {toponym && (
                 <p className="mt-1 flex items-center gap-1 truncate text-xs font-semibold text-teal-700">
                   <MapPin className="h-3 w-3 shrink-0" />
                   <span className="truncate">{toponym}</span>
                 </p>
               )}
+              {historyError && <p className="mt-1 text-[10px] text-amber-700" role="status">{historyError}</p>}
             </div>
-            <Button variant="ghost" size="icon" onClick={onClose} className="h-8 w-8 rounded-full" aria-label="Réduire le panneau">
+             <div className="flex items-center gap-1">
+             <Button variant="outline" size="sm" onClick={() => setHistoryOpen(true)} className="h-8 gap-1 px-2 text-xs" aria-label="Ouvrir l'historique"><History className="h-3.5 w-3.5" /> Historique</Button>
+             <Button variant="ghost" size="icon" onClick={onClose} className="h-8 w-8 rounded-full" aria-label="Réduire le panneau">
               <X className="h-4 w-4" />
             </Button>
+             </div>
           </header>
           <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4 sm:px-5">
-            <AnalysisProgress
+             {!isAnalyzing && !activeConversationFailed && <div className="mb-4 rounded-xl border-l-2 border-emerald-600 bg-emerald-50/50 p-3 text-xs text-emerald-900"><strong>Ally</strong><span className="ml-1 text-emerald-700">coordinatrice</span><p className="mt-1 leading-5">Bonjour. Je suis prête à croiser les observations, les zonages et les signaux écologiques de votre site.</p></div>}
+             {requestSummary && (isAnalyzing || activeConversationFailed) && <div className="mb-4 ml-auto max-w-[88%] rounded-2xl rounded-br-sm bg-teal-700 px-3 py-2 text-xs text-white" data-testid="message-user-request">{requestSummary}</div>}
+             {activeConversationFailed && !isAnalyzing && (
+               <div className="mb-4 rounded-xl border-l-2 border-red-500 bg-red-50 p-3 text-xs text-red-900" role="status">
+                 <strong>Ally</strong><span className="ml-1 text-red-700">coordinatrice</span>
+                 <p className="mt-1 leading-5">Cette analyse n’a pas pu être finalisée. Vous pouvez la relancer avec les mêmes paramètres ci-dessous.</p>
+               </div>
+             )}
+             {isAnalyzing && <AnalysisProgress
               active={isAnalyzing}
               embedded
               includeINaturalist={!!includeINaturalist}
@@ -876,8 +963,10 @@ ${shareUrl ? `\nReproduire cette analyse : ${shareUrl}` : ""}`;
               potentialSpeciesLoading={potentialSpeciesLoading}
               potentialSpeciesReady={potentialSpecies !== null}
               potentialSpeciesCount={potentialSpecies?.potentialCount ?? 0}
-            />
+             />}
+             {!isAnalyzing && composer}
           </div>
+           {historyDrawer}
         </motion.aside>
       </AnimatePresence>
     );
@@ -912,15 +1001,16 @@ ${shareUrl ? `\nReproduire cette analyse : ${shareUrl}` : ""}`;
               )}
             </div>
             <div className="flex items-center gap-1 shrink-0">
-              <Button
+                 <Button
                 variant="outline"
                 size="sm"
-                onClick={onClose}
+                 onClick={() => { onNewConversation?.(); }}
                 className="h-8 px-2.5 text-xs border-gray-200 text-gray-600 gap-1"
-                data-testid="button-change-site"
+                 data-testid="button-new-conversation"
               >
-                <MapPin className="h-3 w-3" /> Changer le site
+                 <Plus className="h-3 w-3" /> Nouvelle conversation
               </Button>
+               <Button variant="outline" size="sm" onClick={() => setHistoryOpen(true)} className="h-8 gap-1 px-2 text-xs border-gray-200" aria-label="Ouvrir l'historique" data-testid="button-history"><History className="h-3 w-3" /> Historique</Button>
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button variant="ghost" size="icon" className="hover:bg-gray-100 rounded-full h-8 w-8" data-testid="button-panel-settings" title="Sources & options" aria-label="Sources et options">
@@ -987,9 +1077,11 @@ ${shareUrl ? `\nReproduire cette analyse : ${shareUrl}` : ""}`;
           </div>
         </div>
 
-        <ScrollArea className="flex-1 px-5 py-4">
+         <ScrollArea className="flex-1 px-5 py-4">
           {/* ══════════ VUE DIAGNOSTIC (page unique à divulgation progressive) ══════════ */}
-          <div className="space-y-4" data-testid="panel-overview">
+           <div className="space-y-4" data-testid="panel-overview">
+             {requestSummary && <div className="ml-auto max-w-[88%] rounded-2xl rounded-br-sm bg-teal-700 px-3 py-2 text-xs text-white" data-testid="message-user-request">{requestSummary}</div>}
+             {historyError && <p className="text-[10px] text-amber-700" role="status">{historyError}</p>}
             <div className="flex items-start gap-2 border-l-2 border-emerald-600 pl-3" data-testid="message-ally">
               <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-emerald-700 text-[10px] font-bold text-white">AL</span>
               <div><p className="text-xs font-bold text-emerald-900">Ally <span className="font-normal text-emerald-700">coordinatrice</span></p><p className="mt-0.5 text-[11px] leading-4 text-emerald-800">J’ai croisé les observations, les zonages et les signaux de potentiel écologique pour ce pré-diagnostic traçable.</p></div>
@@ -1455,6 +1547,7 @@ ${shareUrl ? `\nReproduire cette analyse : ${shareUrl}` : ""}`;
             Indication rapide basée sur GBIF, iNaturalist et UICN — ne remplace pas un inventaire terrain.
           </p>
         </ScrollArea>
+         {historyDrawer}
 
         {/* Assistant IA contextuel */}
         <AnimatePresence>

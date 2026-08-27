@@ -1,0 +1,133 @@
+Je veux aller plus loin : **supprimer la logique de dashboard classique** et transformer Inventaire Flash en une interface **entièrement conversationnelle**.
+
+L’interface doit fonctionner comme un **assistant biodiversité qui construit progressivement son diagnostic**.
+
+### Principe central
+
+La conversation est l’interface principale.
+
+Au lieu d’afficher en permanence des cartes, indicateurs et accordéons, l’assistant répond avec du texte court puis, lorsque cela apporte réellement de l’information, fait apparaître **un composant riche directement dans la conversation** :
+
+* carte interactive ;
+* tableau ;
+* synthèse structurée ;
+* liste d’espèces ;
+* comparaison ;
+* graphique éventuel.
+
+Exemple :
+
+**Assistant**
+
+> J’ai analysé le site. Trois éléments méritent votre attention : 10 espèces à enjeu fort, 3 zonages environnementaux et une sensibilité importante sur la partie littorale.
+
+Puis proposer des suggestions :
+`Voir les espèces`
+`Comprendre les zonages`
+`Voir les zones sensibles`
+`Comment arrives-tu à cette conclusion ?`
+
+---
+
+### La carte devient une réponse
+
+La carte ne doit plus nécessairement occuper 50 % de l’écran en permanence.
+
+Elle apparaît **dans la conversation lorsqu’elle permet de répondre à une question**.
+
+Exemple :
+
+Utilisateur :
+
+> Où sont les principaux enjeux ?
+
+Assistant :
+
+> Les observations les plus sensibles sont concentrées au nord-ouest du site, avec un second enjeu lié au zonage littoral.
+
+Puis afficher une **grande carte interactive** montrant exactement ces éléments.
+
+Sous la carte :
+
+`Explorer cette zone` · `Voir les espèces concernées` · `Masquer les observations communes`
+
+---
+
+### Même logique pour les tableaux
+
+Utilisateur :
+
+> Quelles sont les espèces les plus importantes ?
+
+Assistant :
+
+> Sur les 47 espèces retrouvées autour du site, 10 présentent un enjeu notable. Voici celles qui doivent être examinées en priorité.
+
+Faire apparaître un tableau :
+
+| Espèce   | Enjeu | Protection | Distance | Données |
+| -------- | ----- | ---------- | -------- | ------- |
+| Espèce A | Fort  | Protégée   | 180 m    | 12 obs. |
+| Espèce B | Fort  | Protégée   | 420 m    | 7 obs.  |
+| Espèce C | Moyen | —          | 650 m    | 22 obs. |
+
+Le tableau doit être interactif : cliquer sur une espèce peut faire apparaître sa localisation sur une carte ou demander à l’assistant de l’expliquer.
+
+---
+
+### Principe d’inférence active
+
+L’assistant ne doit pas afficher toutes les données disponibles.
+
+Il doit déterminer :
+
+**Quelle information supplémentaire permettrait le mieux de réduire l’incertitude ou d’améliorer la décision ?**
+
+Par exemple :
+
+> Le principal point d’incertitude concerne les habitats présents directement sur la parcelle. Les données publiques permettent d’identifier les enjeux périphériques, mais pas de confirmer leur présence sur le site.
+
+Puis :
+
+`Examiner les habitats`
+`Voir les données disponibles`
+`Que faudrait-il vérifier sur le terrain ?`
+
+L’expérience doit donc suivre :
+
+**Question → analyse → synthèse → preuve visuelle → prochaine question/action**
+
+et non :
+
+**Dashboard → 25 indicateurs → utilisateur qui doit comprendre seul.**
+
+### Écran initial
+
+Je veux quelque chose de très minimal :
+
+**Inventaire Flash**
+
+> J’ai terminé une première analyse biodiversité du site de Vitrolles.
+
+> **À retenir :** le site présente plusieurs enjeux potentiels, principalement liés aux espèces protégées et à sa proximité avec des zonages sensibles.
+
+Puis éventuellement trois éléments très légers :
+
+**10** espèces à enjeu
+**3** zonages
+**Confiance élevée**
+
+Et en dessous une zone de conversation :
+
+**Posez une question sur ce site…**
+
+Suggestions :
+
+`Quels sont les principaux risques ?`
+`Montre-moi les enjeux sur la carte`
+`Quelles espèces sont concernées ?`
+`Puis-je construire ici ?`
+
+Le résultat recherché est proche d'un **ChatGPT spécialisé en biodiversité**, capable de faire apparaître dynamiquement **cartes, tableaux et visualisations comme partie intégrante de ses réponses**.
+
+La conversation doit être le produit. Les cartes, tableaux et indicateurs deviennent des **outils de réponse de l’assistant**, et non l’architecture principale de l’interface.

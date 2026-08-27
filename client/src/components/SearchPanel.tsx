@@ -12,6 +12,7 @@ import { BufferCircle, STUDY_AREAS, PROJECT_PRESETS, ProjectPreset } from "@/lib
 import type { ProjectPolygon } from "@/lib/shapefile";
 
 interface SearchPanelProps {
+  embedded?: boolean;
   onGoToPlace: (query: string) => void;
   onLaunchAnalysis: () => void;
   isSearching: boolean;
@@ -31,6 +32,7 @@ interface SearchPanelProps {
 }
 
 export function SearchPanel({
+  embedded = false,
   onGoToPlace, onLaunchAnalysis, isSearching, isAnalyzing,
   circles, onToggleCircle, onRadiusChange,
   activePresetId, onApplyPreset,
@@ -50,12 +52,14 @@ export function SearchPanel({
       <motion.div
         initial={{ y: -20, opacity: 0 }}
         animate={{ y: 0, opacity: 1 }}
-        className="absolute top-6 left-1/2 -translate-x-1/2 z-[1000]"
+        className={embedded ? "w-full" : "absolute top-6 left-1/2 -translate-x-1/2 z-[1000]"}
       >
         <button
           type="button"
           onClick={onExpand}
-          className="glass-panel flex items-center gap-2 px-4 py-2 rounded-full shadow-md text-sm font-medium text-gray-700 hover:text-teal-700 hover:shadow-lg transition-all"
+          className={embedded
+            ? "w-full flex items-center gap-2 px-4 py-2 rounded-xl border border-black/5 bg-white/80 shadow-sm text-sm font-medium text-gray-700 hover:text-teal-700 transition-all"
+            : "glass-panel flex items-center gap-2 px-4 py-2 rounded-full shadow-md text-sm font-medium text-gray-700 hover:text-teal-700 hover:shadow-lg transition-all"}
           data-testid="button-expand-search"
         >
           <Search className="h-4 w-4" />
@@ -89,9 +93,11 @@ export function SearchPanel({
     <motion.div
       initial={{ y: -20, opacity: 0 }}
       animate={{ y: 0, opacity: 1 }}
-      className="absolute top-6 left-1/2 -translate-x-1/2 z-[1000] w-[92%] max-w-md"
+      className={embedded ? "w-full" : "absolute top-6 left-1/2 -translate-x-1/2 z-[1000] w-[92%] max-w-md"}
     >
-      <div className="glass-panel p-3 rounded-2xl flex flex-col gap-2.5">
+      <div className={embedded
+        ? "w-full rounded-2xl border border-teal-950/10 bg-[#f8faf5] p-3 shadow-sm flex flex-col gap-2.5"
+        : "glass-panel p-3 rounded-2xl flex flex-col gap-2.5"}>
 
         {/* === Étape 1 : Localisation === */}
         <div className="relative flex items-center gap-1.5 bg-white/70 rounded-xl ring-1 ring-black/5 focus-within:ring-2 focus-within:ring-teal-400 transition-all pl-3 pr-1.5 py-1">

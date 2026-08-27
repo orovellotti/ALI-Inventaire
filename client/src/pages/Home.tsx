@@ -12,8 +12,17 @@ import { toZonageMapFeatures } from "@/lib/zonageMap";
 import { fetchZonages, type ZonagesData } from "@/lib/zonages";
 import { fetchPotentialSpecies } from "@/lib/potentialSpecies";
 import type { PotentialSpeciesResult } from "@shared/types";
+import {
+  createAnalysisConversationId,
+  deleteAnalysisConversation,
+  listAnalysisConversations,
+  renameAnalysisConversation,
+  saveAnalysisConversation,
+  type AnalysisConversation,
+  type AnalysisConversationStatus,
+} from "@/lib/analysisHistory";
 import { useToast } from "@/hooks/use-toast";
-import { Leaf, HelpCircle, Bot, BookOpen } from "lucide-react";
+import { Leaf, HelpCircle, Bot, BookOpen, MessageSquare } from "lucide-react";
 import { Link } from "wouter";
 import {
   AlertDialog,
@@ -78,7 +87,7 @@ export default function Home() {
   const [results, setResults] = useState<InventoryResult | null>(null);
   const [isSearching, setIsSearching] = useState(false);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
-  const [isPanelOpen, setIsPanelOpen] = useState(false);
+  const [isPanelOpen, setIsPanelOpen] = useState(true);
   const [panelWidth, setPanelWidth] = useState<number>(() => {
     try {
       const saved = Number(localStorage.getItem("resultsPanelWidth"));
@@ -121,6 +130,12 @@ export default function Home() {
   const [selectedZonageId, setSelectedZonageId] = useState<string | null>(null);
   const [isLoadingShapefile, setIsLoadingShapefile] = useState(false);
   const [locationKey, setLocationKey] = useState(0);
+  const [analysisFailed, setAnalysisFailed] = useState(false);
+  const [zonagesError, setZonagesError] = useState(false);
+  const [conversations, setConversations] = useState<AnalysisConversation[]>([]);
+  const [activeConversationId, setActiveConversationId] = useState<string | null>(null);
+  const [historyReady, setHistoryReady] = useState(false);
+  const [historyError, setHistoryError] = useState<string | null>(null);
   const [pendingLocationChange, setPendingLocationChange] = useState<
     { kind: "map"; center: [number, number] } | { kind: "reset" } | null
   >(null);
@@ -129,6 +144,7 @@ export default function Home() {
   const inventoryRequestId = useRef(0);
   const zonagesAbortController = useRef<AbortController | null>(null);
   const potentialSpeciesAbortController = useRef<AbortController | null>(null);
+  const suppressNextHistorySave = useRef(false);
   const resetForNewLocation = useCallback(() => {
     inventoryRequestId.current++;
     zonagesAbortController.current?.abort();
@@ -141,12 +157,89 @@ export default function Home() {
     setPotentialSpecies(null);
     setPotentialSpeciesLoading(false);
     setPotentialSpeciesError(false);
+    setAnalysisFailed(false);
+    setZonagesError(false);
     setSelectedSpecies(null);
     setSelectedZonageId(null);
-    setIsPanelOpen(false);
+    setActiveConversationId(null);
+    setIsPanelOpen(true);
     setIsAnalyzing(false);
     setLocationKey(k => k + 1);
   }, []);
+
+  const restoreConversation = useCallback((conversation: AnalysisConversation) => {
+    inventoryRequestId.current++;
+    zonagesAbortController.current?.abort();
+    potentialSpeciesAbortController.current?.abort();
+    zonagesAbortController.current = null;
+    potentialSpeciesAbortController.current = null;
+    suppressNextHistorySave.current = true;
+    setActiveConversationId(conversation.id);
+    setCenter(conversation.parameters.center);
+    setCircles(conversation.parameters.circles);
+    setCurrentToponym(conversation.parameters.toponym);
+    setActivePresetId(conversation.parameters.activePresetId);
+    setActiveTaxonFilters(new Set(conversation.parameters.activeTaxonFilters));
+    setExcludeMarine(conversation.parameters.excludeMarine);
+    setIncludeINaturalist(conversation.parameters.includeINaturalist);
+    setProjectPolygon(conversation.parameters.projectPolygon);
+    setResults(conversation.results.inventory);
+    setZonages(conversation.results.zonages);
+    setPotentialSpecies(conversation.results.potentialSpecies);
+    setZonagesLoading(false);
+    setPotentialSpeciesLoading(false);
+    setPotentialSpeciesError(Boolean(conversation.agentErrors.potentialSpecies));
+    setZonagesError(Boolean(conversation.agentErrors.zonages));
+    setAnalysisFailed(conversation.status === "failed");
+    setSelectedSpecies(null);
+    setSelectedZonageId(null);
+    setIsAnalyzing(false);
+    setIsPanelOpen(true);
+    setLocationKey((key) => key + 1);
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    listAnalysisConversations()
+      .then((saved) => {
+        if (cancelled) return;
+        const normalized = saved.map((conversation) => {
+          if (conversation.status !== "running") return conversation;
+          const hasInventory = conversation.results.inventory !== null;
+          return {
+            ...conversation,
+            status: hasInventory ? "partial" as const : "failed" as const,
+            agentErrors: {
+              ...conversation.agentErrors,
+              ...(!hasInventory
+                ? { inventory: "Cette analyse a été interrompue avant la réponse de l'agent Occurrences." }
+                : {}),
+              ...(hasInventory && !conversation.results.zonages
+                ? { zonages: "Cette étape a été interrompue avant sa finalisation." }
+                : {}),
+              ...(hasInventory && !conversation.results.potentialSpecies
+                ? { potentialSpecies: "Cette étape a été interrompue avant sa finalisation." }
+                : {}),
+            },
+          };
+        });
+        setConversations(normalized);
+        if (normalized[0]) restoreConversation(normalized[0]);
+        normalized
+          .filter((conversation, index) => saved[index]?.status === "running")
+          .forEach((conversation) => void saveAnalysisConversation(conversation));
+      })
+      .catch((error: unknown) => {
+        if (cancelled) return;
+        setHistoryError(error instanceof Error ? error.message : "L'historique local est indisponible.");
+      })
+      .finally(() => {
+        if (!cancelled) setHistoryReady(true);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [restoreConversation]);
 
   const handleGoToPlace = async (query: string) => {
     setIsSearching(true);
@@ -196,6 +289,35 @@ export default function Home() {
     const requestId = ++inventoryRequestId.current;
     const referenceCircle =
       enabledCircles.find((circle) => circle.id === "immediate") ?? enabledCircles[0];
+    const conversationId = createAnalysisConversationId();
+    const now = new Date().toISOString();
+    const initialConversation: AnalysisConversation = {
+      version: 1,
+      id: conversationId,
+      title: currentToponym.split(",")[0].trim() || "Nouvelle analyse",
+      status: "running",
+      parameters: {
+        toponym: currentToponym,
+        center,
+        circles,
+        activePresetId,
+        activeTaxonFilters: Array.from(activeTaxonFilters),
+        excludeMarine,
+        includeINaturalist,
+        projectPolygon,
+      },
+      results: {
+        inventory: null,
+        zonages: null,
+        potentialSpecies: null,
+      },
+      agentErrors: {},
+      createdAt: now,
+      updatedAt: now,
+    };
+    setActiveConversationId(conversationId);
+    setConversations((previous) => [initialConversation, ...previous].slice(0, 20));
+    setHistoryError(null);
     zonagesAbortController.current?.abort();
     const zonagesController = new AbortController();
     zonagesAbortController.current = zonagesController;
@@ -212,6 +334,15 @@ export default function Home() {
     setPotentialSpecies(null);
     setPotentialSpeciesLoading(true);
     setPotentialSpeciesError(false);
+    setAnalysisFailed(false);
+    setZonagesError(false);
+    setIsAnalyzing(true);
+
+    try {
+      await saveAnalysisConversation(initialConversation);
+    } catch (error) {
+      setHistoryError(error instanceof Error ? error.message : "L'analyse n'a pas pu être ajoutée à l'historique.");
+    }
 
     // Les zonages partent dès le clic, en parallèle de GBIF/iNaturalist.
     // Leur échec reste non bloquant : l'inventaire d'espèces s'ouvre quand même.
@@ -222,7 +353,10 @@ export default function Home() {
       zonagesController.signal,
     )
       .then((data) => {
-        if (requestId === inventoryRequestId.current) setZonages(data);
+        if (requestId === inventoryRequestId.current) {
+          setZonages(data);
+          setZonagesError(false);
+        }
       })
       .catch((error: unknown) => {
         if (
@@ -230,6 +364,7 @@ export default function Home() {
           !(error instanceof DOMException && error.name === "AbortError")
         ) {
           setZonages(null);
+          setZonagesError(true);
         }
       })
       .finally(() => {
@@ -245,7 +380,10 @@ export default function Home() {
       potentialController.signal,
     )
       .then((data) => {
-        if (requestId === inventoryRequestId.current) setPotentialSpecies(data);
+        if (requestId === inventoryRequestId.current) {
+          setPotentialSpecies(data);
+          setPotentialSpeciesError(false);
+        }
       })
       .catch((error: unknown) => {
         if (
@@ -259,11 +397,11 @@ export default function Home() {
         if (requestId === inventoryRequestId.current) setPotentialSpeciesLoading(false);
       });
 
-    setIsAnalyzing(true);
     try {
       const data = await searchGBIFMultiCircle(circles, { includeINaturalist });
       if (requestId !== inventoryRequestId.current) return;
       setResults(data);
+      setAnalysisFailed(false);
       setIsPanelOpen(true);
       toast({
         title: "Inventaire terminé",
@@ -277,6 +415,7 @@ export default function Home() {
       setZonagesLoading(false);
       setPotentialSpecies(null);
       setPotentialSpeciesLoading(false);
+      setAnalysisFailed(true);
       toast({
         title: "Erreur",
         description: "Impossible de récupérer les données GBIF.",
@@ -441,6 +580,124 @@ export default function Home() {
     });
   }, [toast]);
 
+  useEffect(() => {
+    if (!historyReady || !activeConversationId) return;
+    if (suppressNextHistorySave.current) {
+      suppressNextHistorySave.current = false;
+      return;
+    }
+
+    const existing = conversations.find((conversation) => conversation.id === activeConversationId);
+    if (!existing) return;
+    const status: AnalysisConversationStatus =
+      isAnalyzing || zonagesLoading || potentialSpeciesLoading
+        ? "running"
+        : analysisFailed
+          ? "failed"
+          : results
+            ? potentialSpeciesError || zonagesError || potentialSpecies?.partial || Boolean(zonages?.errors.length)
+              ? "partial"
+              : "complete"
+            : "draft";
+    const updated: AnalysisConversation = {
+      ...existing,
+      status,
+      parameters: {
+        toponym: currentToponym,
+        center,
+        circles,
+        activePresetId,
+        activeTaxonFilters: Array.from(activeTaxonFilters),
+        excludeMarine,
+        includeINaturalist,
+        projectPolygon,
+      },
+      results: {
+        inventory: results,
+        zonages,
+        potentialSpecies,
+      },
+      agentErrors: {
+        ...(analysisFailed ? { inventory: "L'agent Occurrences n'a pas pu terminer l'inventaire." } : {}),
+        ...(zonagesError ? { zonages: "L'agent Zonages n'a pas pu récupérer les emprises." } : {}),
+        ...(potentialSpeciesError ? { potentialSpecies: "L'agent Potentiel écologique est indisponible." } : {}),
+      },
+      updatedAt: new Date().toISOString(),
+    };
+
+    setConversations((previous) =>
+      [updated, ...previous.filter((conversation) => conversation.id !== updated.id)]
+        .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
+        .slice(0, 20),
+    );
+    void saveAnalysisConversation(updated)
+      .then(() => setHistoryError(null))
+      .catch((error: unknown) => {
+        setHistoryError(error instanceof Error ? error.message : "L'analyse n'a pas pu être enregistrée.");
+      });
+  }, [
+    activeConversationId,
+    activePresetId,
+    activeTaxonFilters,
+    analysisFailed,
+    center,
+    circles,
+    currentToponym,
+    excludeMarine,
+    historyReady,
+    includeINaturalist,
+    isAnalyzing,
+    potentialSpecies,
+    potentialSpeciesError,
+    potentialSpeciesLoading,
+    projectPolygon,
+    results,
+    zonages,
+    zonagesError,
+    zonagesLoading,
+  ]);
+
+  const handleSelectConversation = useCallback((id: string) => {
+    const conversation = conversations.find((item) => item.id === id);
+    if (conversation) restoreConversation(conversation);
+  }, [conversations, restoreConversation]);
+
+  const handleNewConversation = useCallback(() => {
+    resetForNewLocation();
+  }, [resetForNewLocation]);
+
+  const handleRenameConversation = useCallback(async (id: string, title: string) => {
+    try {
+      const renamed = await renameAnalysisConversation(id, title.trim());
+      setConversations((previous) =>
+        previous.map((conversation) => conversation.id === id ? renamed : conversation)
+          .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)),
+      );
+      setHistoryError(null);
+    } catch (error) {
+      setHistoryError(error instanceof Error ? error.message : "La conversation n'a pas pu être renommée.");
+    }
+  }, []);
+
+  const handleDeleteConversation = useCallback(async (id: string) => {
+    try {
+      await deleteAnalysisConversation(id);
+      setConversations((previous) => previous.filter((conversation) => conversation.id !== id));
+      if (id === activeConversationId) resetForNewLocation();
+      setHistoryError(null);
+    } catch (error) {
+      setHistoryError(error instanceof Error ? error.message : "La conversation n'a pas pu être supprimée.");
+    }
+  }, [activeConversationId, resetForNewLocation]);
+
+  const requestSummary = useMemo(() => {
+    const enabled = circles.filter((circle) => circle.enabled);
+    const areaLabel = enabled
+      .map((circle) => `${circle.label.replace("Aire d'étude ", "")} (${circle.radius >= 1000 ? `${circle.radius / 1000} km` : `${circle.radius} m`})`)
+      .join(", ");
+    return `Analyser ${currentToponym} sur ${enabled.length} aire${enabled.length > 1 ? "s" : ""} — ${areaLabel}. Sources : GBIF${includeINaturalist ? " et iNaturalist" : ""}${projectPolygon ? `, emprise « ${projectPolygon.name} »` : ""}.`;
+  }, [circles, currentToponym, includeINaturalist, projectPolygon]);
+
   return (
     <div className="relative h-[100dvh] min-h-[100dvh] w-full overflow-hidden bg-gray-100">
       
@@ -467,24 +724,18 @@ export default function Home() {
         }}
       />
 
-      <SearchPanel 
-        onGoToPlace={handleGoToPlace}
-        onLaunchAnalysis={handleLaunchAnalysis}
-        isSearching={isSearching}
-        isAnalyzing={isAnalyzing}
-        circles={circles}
-        onToggleCircle={handleToggleCircleWithPreset}
-        onRadiusChange={handleRadiusChange}
-        activePresetId={activePresetId}
-        onApplyPreset={handleApplyPreset}
-        onShapefileLoad={handleShapefileLoad}
-        onShapefileClear={handleShapefileClear}
-        projectPolygon={projectPolygon}
-        isLoadingShapefile={isLoadingShapefile}
-        onOpenLieuxDits={() => setShowLieuxDits(true)}
-        isCollapsed={isPanelOpen}
-        onExpand={() => setIsPanelOpen(false)}
-      />
+      {!isPanelOpen && (
+        <button
+          type="button"
+          onClick={() => setIsPanelOpen(true)}
+          className="absolute bottom-6 right-4 z-[1000] flex items-center gap-2 rounded-full bg-teal-700 px-4 py-2.5 text-sm font-semibold text-white shadow-lg transition-colors hover:bg-teal-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-400 focus-visible:ring-offset-2"
+          aria-label="Ouvrir la conversation d'analyse"
+          data-testid="button-open-conversation"
+        >
+          <MessageSquare className="h-4 w-4" />
+          Conversation
+        </button>
+      )}
 
       <ResultsPanel 
         key={locationKey}
@@ -510,6 +761,33 @@ export default function Home() {
         potentialSpeciesError={potentialSpeciesError}
         selectedZonageId={selectedZonageId}
         onSelectZonage={setSelectedZonageId}
+        composer={
+          <SearchPanel
+            embedded
+            onGoToPlace={handleGoToPlace}
+            onLaunchAnalysis={handleLaunchAnalysis}
+            isSearching={isSearching}
+            isAnalyzing={isAnalyzing}
+            circles={circles}
+            onToggleCircle={handleToggleCircleWithPreset}
+            onRadiusChange={handleRadiusChange}
+            activePresetId={activePresetId}
+            onApplyPreset={handleApplyPreset}
+            onShapefileLoad={handleShapefileLoad}
+            onShapefileClear={handleShapefileClear}
+            projectPolygon={projectPolygon}
+            isLoadingShapefile={isLoadingShapefile}
+            onOpenLieuxDits={() => setShowLieuxDits(true)}
+          />
+        }
+        conversations={conversations}
+        activeConversationId={activeConversationId}
+        historyError={historyError}
+        requestSummary={requestSummary}
+        onSelectConversation={handleSelectConversation}
+        onNewConversation={handleNewConversation}
+        onRenameConversation={handleRenameConversation}
+        onDeleteConversation={handleDeleteConversation}
       />
 
       <AboutDialog open={showAbout} onOpenChange={setShowAbout} />
@@ -531,7 +809,7 @@ export default function Home() {
               {pendingLocationChange?.kind === "map" ? "Déplacer le centre de l’étude ?" : "Commencer une nouvelle analyse ?"}
             </AlertDialogTitle>
             <AlertDialogDescription>
-              Les résultats actuellement affichés seront fermés et devront être recalculés pour la nouvelle emprise.
+              La conversation actuelle restera dans l'historique. Une nouvelle analyse sera préparée pour la nouvelle emprise.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -549,7 +827,10 @@ export default function Home() {
           className="flex items-center gap-2 bg-white/80 backdrop-blur px-3 py-2 rounded-lg cursor-pointer hover:bg-white transition-colors shadow-sm"
           onClick={() => {
             if (results || isAnalyzing) setPendingLocationChange({ kind: "reset" });
-            else resetForNewLocation();
+            else {
+              setIsPanelOpen(true);
+              resetForNewLocation();
+            }
           }}
           aria-label="Commencer une nouvelle analyse"
           title="Commencer une nouvelle analyse"
