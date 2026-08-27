@@ -160,7 +160,15 @@
 }
 
 .results-text-mode [class*="border-"] {
-  border-color: #d1d5db !important;
+  border-color: transparent !important;
+}
+
+.results-text-mode [class~="border"],
+.results-text-mode [class~="border-l"],
+.results-text-mode [class~="border-r"],
+.results-text-mode [class~="border-t"],
+.results-text-mode [class~="border-b"] {
+  border-color: transparent !important;
 }
 
 .results-text-mode [class*="shadow-"] {
@@ -171,7 +179,46 @@
 .results-text-mode li,
 .results-text-mode td,
 .results-text-mode th {
-  line-height: 1.55;
+  line-height: 1.65;
+}
+
+.results-text-mode [class~="text-[9px]"],
+.results-text-mode [class~="text-[10px]"],
+.results-text-mode [class~="text-[11px]"] {
+  font-size: 0.8125rem !important;
+}
+
+.results-text-mode [class~="text-xs"] {
+  font-size: 0.875rem !important;
+}
+
+.results-text-mode [class~="text-sm"] {
+  font-size: 0.9375rem !important;
+}
+
+.results-text-mode h2 {
+  font-size: 1.375rem;
+  line-height: 1.3;
+}
+
+.results-text-mode h3 {
+  font-size: 1.0625rem;
+  line-height: 1.4;
+}
+
+.results-text-mode td,
+.results-text-mode th {
+  padding-top: 0.75rem !important;
+  padding-bottom: 0.75rem !important;
+}
+
+.results-text-mode [data-testid="panel-overview"] {
+  gap: 1.25rem;
+}
+
+.results-text-mode [data-testid="message-ally"],
+.results-text-mode [data-testid="message-user-request"] {
+  font-size: 0.9375rem !important;
 }
 
 .results-text-mode button,

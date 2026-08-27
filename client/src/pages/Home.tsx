@@ -694,7 +694,7 @@ export default function Home() {
         excludeMarine={excludeMarine}
         projectPolygon={projectPolygon}
         panelOpen={isPanelOpen}
-        panelWidth={600}
+        panelWidth={680}
         zonageFeatures={zonageFeatures}
         selectedZonageId={selectedZonageId}
         onSelectZonage={(id) => {

@@ -925,7 +925,7 @@ ${shareUrl ? `\nReproduire cette analyse : ${shareUrl}` : ""}`;
   return (
     <AnimatePresence>
       <div
-        className="results-text-mode fixed right-0 z-[2000] flex flex-col bg-white shadow-2xl inset-x-0 bottom-0 h-[80vh] rounded-t-2xl border-t border-gray-300 md:inset-x-auto md:top-0 md:bottom-auto md:h-full md:w-[600px] md:max-w-[95vw] md:rounded-none md:border-t-0 md:border-l"
+        className="results-text-mode fixed right-0 z-[2000] flex flex-col bg-white shadow-2xl inset-x-0 bottom-0 h-[80vh] rounded-t-2xl border-t border-gray-300 md:inset-x-auto md:top-0 md:bottom-auto md:h-full md:w-[680px] md:max-w-[95vw] md:rounded-none md:border-t-0 md:border-l"
       >
         <div className="px-5 pt-4 pb-3 border-b border-gray-100 bg-white/50">
           <div className="flex justify-between items-start gap-2">
