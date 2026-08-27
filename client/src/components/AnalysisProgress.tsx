@@ -108,6 +108,7 @@ export function AnalysisProgress({
   const [done, setDone] = useState(false);
   const [stepIndex, setStepIndex] = useState(0);
   const [progress, setProgress] = useState(0);
+  const [elapsedSeconds, setElapsedSeconds] = useState(0);
   const [openSourceDetail, setOpenSourceDetail] = useState<"ally" | "occurrences" | "zonages" | "potential" | null>(null);
   const startRef = useRef(0);
 
@@ -118,6 +119,7 @@ export function AnalysisProgress({
       setDone(false);
       setStepIndex(0);
       setProgress(0);
+      setElapsedSeconds(0);
       setOpenSourceDetail(null);
       startRef.current = Date.now();
       return;
@@ -139,6 +141,7 @@ export function AnalysisProgress({
     const totalPlanned = steps.reduce((sum, s) => sum + s.duration, 0);
     const interval = setInterval(() => {
       const elapsed = Date.now() - startRef.current;
+      setElapsedSeconds(Math.floor(elapsed / 1000));
       let acc = 0;
       let idx = steps.length - 1;
       for (let i = 0; i < steps.length; i++) {
@@ -272,14 +275,19 @@ export function AnalysisProgress({
           <div className="min-w-0 flex-1">
             <div className="flex items-center justify-between gap-3">
               <p className="text-sm font-semibold tracking-tight text-[#19362d]">
-                Ally
+                {done ? "Analyse terminée" : "Ally réfléchit et coordonne ses agents"}
               </p>
               {!done && <EffortMeter effort={currentEffort} />}
             </div>
             <p className="mt-1 text-[13px] leading-5 text-[#36584b]" data-ifx-motion style={{ animation: "ifx-arrive 260ms ease-out both" }}>
-              {done ? "J’ai terminé le croisement. J’ouvre vos résultats…" : "Je coordonne les analyses en parallèle."}
+              {done ? "J’ai terminé le croisement. J’ouvre vos résultats…" : `Analyse active depuis ${elapsedSeconds} s.`}
             </p>
-            {!done && <p className="mt-0.5 text-xs leading-4 text-[#6b7d73]">{steps[stepIndex].label}</p>}
+            {!done && (
+              <>
+                <p className="mt-0.5 text-xs font-medium leading-4 text-[#4b6559]">{steps[stepIndex].label}</p>
+                <p className="mt-1 text-[11px] leading-4 text-[#6b7d73]">{steps[stepIndex].detail}</p>
+              </>
+            )}
           </div>
         </div>
 

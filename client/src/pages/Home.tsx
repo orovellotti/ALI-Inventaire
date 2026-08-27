@@ -719,7 +719,7 @@ export default function Home() {
       <ResultsPanel 
         key={locationKey}
         isOpen={isPanelOpen} 
-        isAnalyzing={isAnalyzing}
+        isAnalyzing={isAnalyzing || zonagesLoading || potentialSpeciesLoading}
         areaCount={circles.filter((c) => c.enabled).length}
         onClose={() => setIsPanelOpen(false)} 
         results={results}

@@ -925,7 +925,7 @@ ${shareUrl ? `\nReproduire cette analyse : ${shareUrl}` : ""}`;
   return (
     <AnimatePresence>
       <div
-        className="fixed right-0 z-[2000] bg-white/95 backdrop-blur-xl shadow-2xl border-white/20 flex flex-col inset-x-0 bottom-0 h-[80vh] rounded-t-2xl border-t md:inset-x-auto md:top-0 md:bottom-auto md:h-full md:w-[600px] md:max-w-[95vw] md:rounded-none md:border-t-0 md:border-l"
+        className="results-text-mode fixed right-0 z-[2000] flex flex-col bg-white shadow-2xl inset-x-0 bottom-0 h-[80vh] rounded-t-2xl border-t border-gray-300 md:inset-x-auto md:top-0 md:bottom-auto md:h-full md:w-[600px] md:max-w-[95vw] md:rounded-none md:border-t-0 md:border-l"
       >
         <div className="px-5 pt-4 pb-3 border-b border-gray-100 bg-white/50">
           <div className="flex justify-between items-start gap-2">
@@ -1020,6 +1020,20 @@ ${shareUrl ? `\nReproduire cette analyse : ${shareUrl}` : ""}`;
            <div className="space-y-4" data-testid="panel-overview">
              {requestSummary && <div className="ml-auto max-w-[88%] rounded-2xl rounded-br-sm bg-teal-700 px-3 py-2 text-xs text-white" data-testid="message-user-request">{requestSummary}</div>}
              {historyError && <p className="text-[10px] text-amber-700" role="status">{historyError}</p>}
+              {isAnalyzing && (
+                <AnalysisProgress
+                  active
+                  embedded
+                  includeINaturalist={!!includeINaturalist}
+                  areaCount={areaCount}
+                  zonagesLoading={zonagesLoading}
+                  zonagesReady={zonages !== null}
+                  zonageFeatureCount={zonages?.count ?? 0}
+                  potentialSpeciesLoading={potentialSpeciesLoading}
+                  potentialSpeciesReady={potentialSpecies !== null}
+                  potentialSpeciesCount={potentialSpecies?.potentialCount ?? 0}
+                />
+              )}
             <div className="flex items-start gap-2 border-l-2 border-emerald-600 pl-3" data-testid="message-ally">
               <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-emerald-700 text-[10px] font-bold text-white">AL</span>
               <div><p className="text-xs font-bold text-emerald-900">Ally <span className="font-normal text-emerald-700">coordinatrice</span></p><p className="mt-0.5 text-[11px] leading-4 text-emerald-800">J’ai croisé les observations, les zonages et les signaux de potentiel écologique pour ce pré-diagnostic traçable.</p></div>

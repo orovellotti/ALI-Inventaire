@@ -145,3 +145,41 @@
 .dark .glass-panel {
   @apply bg-black/90 backdrop-blur-xl border border-white/10 shadow-lg;
 }
+
+/* Lecture sobre des résultats : aucune couleur ne porte l'information. */
+.results-text-mode,
+.results-text-mode [class*="bg-"] {
+  background-color: #ffffff !important;
+  background-image: none !important;
+}
+
+.results-text-mode,
+.results-text-mode [class*="text-"],
+.results-text-mode svg {
+  color: #1f2937 !important;
+}
+
+.results-text-mode [class*="border-"] {
+  border-color: #d1d5db !important;
+}
+
+.results-text-mode [class*="shadow-"] {
+  box-shadow: none !important;
+}
+
+.results-text-mode p,
+.results-text-mode li,
+.results-text-mode td,
+.results-text-mode th {
+  line-height: 1.55;
+}
+
+.results-text-mode button,
+.results-text-mode a {
+  text-decoration-color: #4b5563;
+}
+
+.results-text-mode button:hover,
+.results-text-mode a:hover {
+  background-color: #f3f4f6 !important;
+}
