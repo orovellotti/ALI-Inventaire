@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { X, Download, FileText, AlertTriangle, AlertCircle, Leaf, Info, ChevronDown, ChevronUp, ImageOff, Copy, Check, ExternalLink, BookOpen, Shield, ShieldAlert, MapPin, Tag, Calendar, Link, Flag, Layers, Filter, Table, Sparkles, Loader2, Share2, Mail, MoreHorizontal, Settings2, Search, ChevronLeft, ListChecks, ClipboardList, LayoutGrid, ChevronRight, Gauge, History, Plus, Pencil, Trash2 } from "lucide-react";
+import { X, Download, FileText, AlertTriangle, AlertCircle, Leaf, Info, ChevronDown, ChevronUp, ImageOff, Copy, Check, ExternalLink, BookOpen, Shield, ShieldAlert, MapPin, Tag, Calendar, Link, Flag, Layers, Database, Bot, Filter, Table, Sparkles, Loader2, Share2, Mail, MoreHorizontal, Settings2, Search, ChevronLeft, ListChecks, ClipboardList, LayoutGrid, ChevronRight, Gauge, History, Plus, Pencil, Trash2 } from "lucide-react";
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuCheckboxItem } from "@/components/ui/dropdown-menu";
 import { InventoryResult, Occurrence, getIucnLabel, getIucnFullLabel, getPatrimonialite, ConfidenceScore, TAXON_GROUPS, getTaxonGroupId, isMarineSpecies } from "@/lib/gbif";
 import { findSINPPlatforms, SINPPlatform } from "@/lib/sinp";
@@ -874,11 +874,12 @@ ${shareUrl ? `\nReproduire cette analyse : ${shareUrl}` : ""}`;
     return (
         <aside
           className="conversation-panel fixed right-0 z-[2000] flex flex-col bg-white inset-x-0 bottom-0 h-[80vh] rounded-t-2xl border-t md:inset-x-auto md:top-0 md:bottom-auto md:h-full md:w-[680px] md:max-w-[95vw] md:rounded-none md:border-l md:border-t-0"
-          aria-label="Analyse biodiversité en cours"
+          aria-label="Conversation Inventaire Flash"
         >
-          <header className="flex items-start justify-between gap-3 border-b border-gray-100 bg-white/70 px-5 py-4">
+          <header className="flex items-start justify-between gap-3 border-b border-gray-100 bg-white px-5 py-4">
             <div className="min-w-0">
-              <h2 className="text-lg font-bold tracking-tight text-gray-900">{isAnalyzing ? "Analyse en cours" : "Nouvelle analyse"}</h2>
+              <h2 className="text-lg font-bold tracking-tight text-gray-900">Inventaire Flash</h2>
+              <p className="text-[11px] text-gray-500 leading-tight">Assistant biodiversité conversationnel</p>
               {toponym && (
                 <p className="mt-1 flex items-center gap-1 truncate text-xs font-semibold text-teal-700">
                   <MapPin className="h-3 w-3 shrink-0" />
@@ -888,13 +889,14 @@ ${shareUrl ? `\nReproduire cette analyse : ${shareUrl}` : ""}`;
               {historyError && <p className="mt-1 text-[10px] text-amber-700" role="status">{historyError}</p>}
             </div>
              <div className="flex items-center gap-1">
+              <Button variant="outline" size="sm" onClick={() => onNewConversation?.()} className="h-8 gap-1 px-2 text-xs" aria-label="Nouvelle conversation"><Plus className="h-3.5 w-3.5" /> Nouvelle</Button>
              <Button variant="outline" size="sm" onClick={() => setHistoryOpen(true)} className="h-8 gap-1 px-2 text-xs" aria-label="Ouvrir l'historique"><History className="h-3.5 w-3.5" /> Historique</Button>
              <Button variant="ghost" size="icon" onClick={onClose} className="h-8 w-8 rounded-full" aria-label="Réduire le panneau">
               <X className="h-4 w-4" />
             </Button>
              </div>
           </header>
-          <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4 sm:px-5">
+          <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4" data-testid="conversation-feed">
              {!isAnalyzing && !activeConversationFailed && <div className="mb-4 rounded-xl border-l-2 border-emerald-600 bg-emerald-50/50 p-3 text-xs text-emerald-900"><strong>Ali</strong><span className="ml-1 text-emerald-700">coordinateur</span><p className="mt-1 leading-5">Bonjour. Je suis prêt à croiser les observations, les zonages et les signaux écologiques de votre site.</p></div>}
              {requestSummary && (isAnalyzing || activeConversationFailed) && <div className="mb-4 ml-auto max-w-[88%] rounded-2xl rounded-br-sm bg-teal-700 px-3 py-2 text-xs text-white" data-testid="message-user-request">{requestSummary}</div>}
              {activeConversationFailed && !isAnalyzing && (
@@ -931,7 +933,7 @@ ${shareUrl ? `\nReproduire cette analyse : ${shareUrl}` : ""}`;
           <div className="flex justify-between items-start gap-2">
             <div className="min-w-0">
               <h2 className="text-lg font-bold text-gray-900 tracking-tight truncate">Inventaire Flash</h2>
-              <p className="text-[11px] text-gray-500 leading-tight">Diagnostic biodiversité d'un site</p>
+              <p className="text-[11px] text-gray-500 leading-tight">Assistant biodiversité conversationnel</p>
               {toponym && (
                 <p className="mt-1 text-xs font-semibold text-teal-700 flex items-center gap-1 truncate" data-testid="text-site-name">
                   <MapPin className="h-3 w-3 shrink-0" /> <span className="truncate">{toponym}</span>
@@ -946,7 +948,7 @@ ${shareUrl ? `\nReproduire cette analyse : ${shareUrl}` : ""}`;
                 className="h-8 px-2.5 text-xs border-gray-200 text-gray-600 gap-1"
                  data-testid="button-new-conversation"
               >
-                 <Plus className="h-3 w-3" /> Nouvelle conversation
+                  <Plus className="h-3 w-3" /> Nouvelle
               </Button>
                <Button variant="outline" size="sm" onClick={() => setHistoryOpen(true)} className="h-8 gap-1 px-2 text-xs border-gray-200" aria-label="Ouvrir l'historique" data-testid="button-history"><History className="h-3 w-3" /> Historique</Button>
               <DropdownMenu>
@@ -1037,25 +1039,30 @@ ${shareUrl ? `\nReproduire cette analyse : ${shareUrl}` : ""}`;
              <div className="py-2" data-testid="analysis-transcript">
                <h3 className="font-bold">Travail réalisé par les agents</h3>
                <ol className="mt-3 space-y-3">
-                 <li>
-                   <strong>Ali — coordination</strong>
-                   <p>Demande comprise, périmètre vérifié et analyse répartie entre les agents spécialisés.</p>
+                 <li className="grid grid-cols-[20px_1fr] gap-3">
+                   <Bot className="mt-1 h-4 w-4" aria-hidden="true" />
+                   <div><strong>Ali — coordination</strong>
+                   <p>Demande comprise, périmètre vérifié et analyse répartie entre les agents spécialisés.</p></div>
                  </li>
-                 <li>
-                   <strong>Agent Occurrences — terminé</strong>
-                   <p>{results.stats.speciesCount} espèce{results.stats.speciesCount > 1 ? "s" : ""} consolidée{results.stats.speciesCount > 1 ? "s" : ""} à partir de {results.stats.total} donnée{results.stats.total > 1 ? "s" : ""} retenue{results.stats.total > 1 ? "s" : ""}.</p>
+                 <li className="grid grid-cols-[20px_1fr] gap-3">
+                   <Database className="mt-1 h-4 w-4" aria-hidden="true" />
+                   <div><strong>Agent Occurrences — terminé</strong>
+                   <p>{results.stats.speciesCount} espèce{results.stats.speciesCount > 1 ? "s" : ""} consolidée{results.stats.speciesCount > 1 ? "s" : ""} à partir de {results.stats.total} donnée{results.stats.total > 1 ? "s" : ""} retenue{results.stats.total > 1 ? "s" : ""}.</p></div>
                  </li>
-                 <li>
-                   <strong>Agent Zonages — {zonagesLoading ? "en cours" : zonages ? "terminé" : "indisponible"}</strong>
-                   <p>{zonagesLoading ? "Consultation des référentiels territoriaux en cours." : zonages ? `${zonages.count} zonage${zonages.count > 1 ? "s" : ""} identifié${zonages.count > 1 ? "s" : ""} autour du site.` : "Aucun résultat de zonage n’a pu être ajouté à cette analyse."}</p>
+                 <li className="grid grid-cols-[20px_1fr] gap-3">
+                   <Layers className="mt-1 h-4 w-4" aria-hidden="true" />
+                   <div><strong>Agent Zonages — {zonagesLoading ? "en cours" : zonages ? "terminé" : "indisponible"}</strong>
+                   <p>{zonagesLoading ? "Consultation des référentiels territoriaux en cours." : zonages ? `${zonages.count} zonage${zonages.count > 1 ? "s" : ""} identifié${zonages.count > 1 ? "s" : ""} autour du site.` : "Aucun résultat de zonage n’a pu être ajouté à cette analyse."}</p></div>
                  </li>
-                 <li>
-                   <strong>Agent Potentiel écologique — {potentialSpeciesLoading ? "en cours" : potentialSpecies ? "terminé" : potentialSpeciesError ? "indisponible" : "en attente"}</strong>
-                   <p>{potentialSpeciesLoading ? "Comparaison des espèces, habitats et sites documentés en cours." : potentialSpecies ? `${potentialSpecies.potentialCount} espèce${potentialSpecies.potentialCount > 1 ? "s" : ""} potentielle${potentialSpecies.potentialCount > 1 ? "s" : ""} examinée${potentialSpecies.potentialCount > 1 ? "s" : ""}.` : "Le potentiel écologique n’a pas encore produit de résultat exploitable."}</p>
+                 <li className="grid grid-cols-[20px_1fr] gap-3">
+                   <Leaf className="mt-1 h-4 w-4" aria-hidden="true" />
+                   <div><strong>Agent Potentiel écologique — {potentialSpeciesLoading ? "en cours" : potentialSpecies ? "terminé" : potentialSpeciesError ? "indisponible" : "en attente"}</strong>
+                   <p>{potentialSpeciesLoading ? "Comparaison des espèces, habitats et sites documentés en cours." : potentialSpecies ? `${potentialSpecies.potentialCount} espèce${potentialSpecies.potentialCount > 1 ? "s" : ""} potentielle${potentialSpecies.potentialCount > 1 ? "s" : ""} examinée${potentialSpecies.potentialCount > 1 ? "s" : ""}.` : "Le potentiel écologique n’a pas encore produit de résultat exploitable."}</p></div>
                  </li>
-                 <li>
-                   <strong>Ali — synthèse</strong>
-                   <p>{isAnalyzing ? "Je poursuis le croisement des réponses reçues." : "Les réponses ont été croisées pour produire le diagnostic présenté ci-dessous."}</p>
+                 <li className="grid grid-cols-[20px_1fr] gap-3">
+                   <Check className="mt-1 h-4 w-4" aria-hidden="true" />
+                   <div><strong>Ali — synthèse</strong>
+                   <p>{isAnalyzing ? "Je poursuis le croisement des réponses reçues." : "Les réponses ont été croisées pour produire le diagnostic présenté ci-dessous."}</p></div>
                  </li>
                </ol>
              </div>
