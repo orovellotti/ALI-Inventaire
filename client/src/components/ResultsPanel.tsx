@@ -873,7 +873,7 @@ ${shareUrl ? `\nReproduire cette analyse : ${shareUrl}` : ""}`;
   if (!results) {
     return (
         <aside
-          className="fixed right-0 z-[2000] flex flex-col bg-white/95 shadow-2xl backdrop-blur-xl inset-x-0 bottom-0 h-[80vh] rounded-t-2xl border-t md:inset-x-auto md:top-0 md:bottom-auto md:h-full md:w-[600px] md:max-w-[95vw] md:rounded-none md:border-l md:border-t-0"
+          className="conversation-panel fixed right-0 z-[2000] flex flex-col bg-white inset-x-0 bottom-0 h-[80vh] rounded-t-2xl border-t md:inset-x-auto md:top-0 md:bottom-auto md:h-full md:w-[680px] md:max-w-[95vw] md:rounded-none md:border-l md:border-t-0"
           aria-label="Analyse biodiversité en cours"
         >
           <header className="flex items-start justify-between gap-3 border-b border-gray-100 bg-white/70 px-5 py-4">
@@ -895,11 +895,11 @@ ${shareUrl ? `\nReproduire cette analyse : ${shareUrl}` : ""}`;
              </div>
           </header>
           <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4 sm:px-5">
-             {!isAnalyzing && !activeConversationFailed && <div className="mb-4 rounded-xl border-l-2 border-emerald-600 bg-emerald-50/50 p-3 text-xs text-emerald-900"><strong>Ally</strong><span className="ml-1 text-emerald-700">coordinatrice</span><p className="mt-1 leading-5">Bonjour. Je suis prête à croiser les observations, les zonages et les signaux écologiques de votre site.</p></div>}
+             {!isAnalyzing && !activeConversationFailed && <div className="mb-4 rounded-xl border-l-2 border-emerald-600 bg-emerald-50/50 p-3 text-xs text-emerald-900"><strong>Ali</strong><span className="ml-1 text-emerald-700">coordinateur</span><p className="mt-1 leading-5">Bonjour. Je suis prêt à croiser les observations, les zonages et les signaux écologiques de votre site.</p></div>}
              {requestSummary && (isAnalyzing || activeConversationFailed) && <div className="mb-4 ml-auto max-w-[88%] rounded-2xl rounded-br-sm bg-teal-700 px-3 py-2 text-xs text-white" data-testid="message-user-request">{requestSummary}</div>}
              {activeConversationFailed && !isAnalyzing && (
                <div className="mb-4 rounded-xl border-l-2 border-red-500 bg-red-50 p-3 text-xs text-red-900" role="status">
-                 <strong>Ally</strong><span className="ml-1 text-red-700">coordinatrice</span>
+                 <strong>Ali</strong><span className="ml-1 text-red-700">coordinateur</span>
                  <p className="mt-1 leading-5">Cette analyse n’a pas pu être finalisée. Vous pouvez la relancer avec les mêmes paramètres ci-dessous.</p>
                </div>
              )}
@@ -925,7 +925,7 @@ ${shareUrl ? `\nReproduire cette analyse : ${shareUrl}` : ""}`;
   return (
     <AnimatePresence>
       <div
-        className="results-text-mode fixed right-0 z-[2000] flex flex-col bg-white shadow-2xl inset-x-0 bottom-0 h-[80vh] rounded-t-2xl border-t border-gray-300 md:inset-x-auto md:top-0 md:bottom-auto md:h-full md:w-[680px] md:max-w-[95vw] md:rounded-none md:border-t-0 md:border-l"
+        className="conversation-panel results-text-mode fixed right-0 z-[2000] flex flex-col bg-white inset-x-0 bottom-0 h-[80vh] rounded-t-2xl border-t border-gray-300 md:inset-x-auto md:top-0 md:bottom-auto md:h-full md:w-[680px] md:max-w-[95vw] md:rounded-none md:border-t-0 md:border-l"
       >
         <div className="px-5 pt-4 pb-3 border-b border-gray-100 bg-white/50">
           <div className="flex justify-between items-start gap-2">
@@ -1034,9 +1034,34 @@ ${shareUrl ? `\nReproduire cette analyse : ${shareUrl}` : ""}`;
                   potentialSpeciesCount={potentialSpecies?.potentialCount ?? 0}
                 />
               )}
+             <div className="py-2" data-testid="analysis-transcript">
+               <h3 className="font-bold">Travail réalisé par les agents</h3>
+               <ol className="mt-3 space-y-3">
+                 <li>
+                   <strong>Ali — coordination</strong>
+                   <p>Demande comprise, périmètre vérifié et analyse répartie entre les agents spécialisés.</p>
+                 </li>
+                 <li>
+                   <strong>Agent Occurrences — terminé</strong>
+                   <p>{results.stats.speciesCount} espèce{results.stats.speciesCount > 1 ? "s" : ""} consolidée{results.stats.speciesCount > 1 ? "s" : ""} à partir de {results.stats.total} donnée{results.stats.total > 1 ? "s" : ""} retenue{results.stats.total > 1 ? "s" : ""}.</p>
+                 </li>
+                 <li>
+                   <strong>Agent Zonages — {zonagesLoading ? "en cours" : zonages ? "terminé" : "indisponible"}</strong>
+                   <p>{zonagesLoading ? "Consultation des référentiels territoriaux en cours." : zonages ? `${zonages.count} zonage${zonages.count > 1 ? "s" : ""} identifié${zonages.count > 1 ? "s" : ""} autour du site.` : "Aucun résultat de zonage n’a pu être ajouté à cette analyse."}</p>
+                 </li>
+                 <li>
+                   <strong>Agent Potentiel écologique — {potentialSpeciesLoading ? "en cours" : potentialSpecies ? "terminé" : potentialSpeciesError ? "indisponible" : "en attente"}</strong>
+                   <p>{potentialSpeciesLoading ? "Comparaison des espèces, habitats et sites documentés en cours." : potentialSpecies ? `${potentialSpecies.potentialCount} espèce${potentialSpecies.potentialCount > 1 ? "s" : ""} potentielle${potentialSpecies.potentialCount > 1 ? "s" : ""} examinée${potentialSpecies.potentialCount > 1 ? "s" : ""}.` : "Le potentiel écologique n’a pas encore produit de résultat exploitable."}</p>
+                 </li>
+                 <li>
+                   <strong>Ali — synthèse</strong>
+                   <p>{isAnalyzing ? "Je poursuis le croisement des réponses reçues." : "Les réponses ont été croisées pour produire le diagnostic présenté ci-dessous."}</p>
+                 </li>
+               </ol>
+             </div>
             <div className="flex items-start gap-2 border-l-2 border-emerald-600 pl-3" data-testid="message-ally">
               <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-emerald-700 text-[10px] font-bold text-white">AL</span>
-              <div><p className="text-xs font-bold text-emerald-900">Ally <span className="font-normal text-emerald-700">coordinatrice</span></p><p className="mt-0.5 text-[11px] leading-4 text-emerald-800">J’ai croisé les observations, les zonages et les signaux de potentiel écologique pour ce pré-diagnostic traçable.</p></div>
+              <div><p className="text-xs font-bold text-emerald-900">Ali <span className="font-normal text-emerald-700">coordinateur</span></p><p className="mt-0.5 text-[11px] leading-4 text-emerald-800">J’ai croisé les observations, les zonages et les signaux de potentiel écologique pour ce pré-diagnostic traçable.</p></div>
             </div>
             {/* Niveau d'enjeu global */}
             <div
@@ -1488,7 +1513,7 @@ ${shareUrl ? `\nReproduire cette analyse : ${shareUrl}` : ""}`;
           <section className="flex items-start gap-2 border-l-2 border-emerald-600 pl-3" data-testid="message-ally-final">
             <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-emerald-700 text-[10px] font-bold text-white">AL</span>
             <div className="min-w-0">
-              <p className="text-xs font-bold text-emerald-900">Ally <span className="font-normal text-emerald-700">synthèse finale</span></p>
+              <p className="text-xs font-bold text-emerald-900">Ali <span className="font-normal text-emerald-700">synthèse finale</span></p>
               <p className="mt-0.5 text-[11px] leading-4 text-emerald-800">{autoSummary}</p>
               <p className="mt-1 text-[10px] leading-4 text-emerald-700">Les niveaux de preuve restent distincts : occurrence géolocalisée, compatibilité écologique et signal documentaire ne sont pas équivalents.</p>
             </div>

@@ -96,7 +96,7 @@ export function SearchPanel({
       className={embedded ? "w-full" : "absolute top-6 left-1/2 -translate-x-1/2 z-[1000] w-[92%] max-w-md"}
     >
       <div className={embedded
-        ? "w-full rounded-2xl border border-teal-950/10 bg-[#f8faf5] p-3 shadow-sm flex flex-col gap-2.5"
+        ? "search-text-mode w-full bg-white py-2 flex flex-col gap-4"
         : "glass-panel p-3 rounded-2xl flex flex-col gap-2.5"}>
 
         {/* === Étape 1 : Localisation === */}

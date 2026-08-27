@@ -275,7 +275,7 @@ export function AnalysisProgress({
           <div className="min-w-0 flex-1">
             <div className="flex items-center justify-between gap-3">
               <p className="text-sm font-semibold tracking-tight text-[#19362d]">
-                {done ? "Analyse terminée" : "Ally réfléchit et coordonne ses agents"}
+                {done ? "Analyse terminée" : "Ali réfléchit et coordonne ses agents"}
               </p>
               {!done && <EffortMeter effort={currentEffort} />}
             </div>
@@ -311,7 +311,7 @@ export function AnalysisProgress({
             <ol className="space-y-0.5 border-l border-dashed border-[#cbdacd] pl-3">
               <li className="relative py-1.5" data-ifx-motion style={{ animation: "ifx-arrive 260ms ease-out both" }}>
                 <span className="absolute -left-[17px] top-3.5 h-2 w-2 rounded-full bg-[#245746] ring-4 ring-[#f8faf5]" aria-hidden="true" />
-                <p className="text-[11px] font-bold text-[#244338]">Ally <span className="ml-1 font-normal text-[#7b8d83]">coordinatrice</span></p>
+                <p className="text-[11px] font-bold text-[#244338]">Ali <span className="ml-1 font-normal text-[#7b8d83]">coordinateur</span></p>
                 <p className="mt-0.5 text-xs leading-4 text-[#496358]">Je lance le croisement de vos données.</p>
                 <button
                   type="button"
@@ -353,7 +353,7 @@ export function AnalysisProgress({
               {stepIndex >= 2 && (
                 <li className="relative py-1.5" data-ifx-motion style={{ animation: "ifx-arrive 260ms ease-out both" }}>
                   <span className="absolute -left-[17px] top-3.5 h-2 w-2 rounded-full bg-[#245746] ring-4 ring-[#f8faf5]" aria-hidden="true" />
-                  <p className="text-[11px] font-bold text-[#244338]">Ally <span className="ml-1 font-normal text-[#7b8d83]">coordinatrice</span></p>
+                  <p className="text-[11px] font-bold text-[#244338]">Ali <span className="ml-1 font-normal text-[#7b8d83]">coordinateur</span></p>
                   <p className="mt-0.5 text-xs leading-4 text-[#496358]">Je consolide les données reçues avant l’affichage.</p>
                 </li>
               )}

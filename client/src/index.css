@@ -146,6 +146,51 @@
   @apply bg-black/90 backdrop-blur-xl border border-white/10 shadow-lg;
 }
 
+/* Langage visuel commun aux états recherche, analyse et résultats. */
+.conversation-panel,
+.conversation-panel [class*="bg-"] {
+  background-color: #ffffff !important;
+  background-image: none !important;
+}
+
+.conversation-panel,
+.conversation-panel [class*="text-"],
+.conversation-panel svg {
+  color: #1f2937 !important;
+}
+
+.conversation-panel [class*="border-"],
+.conversation-panel [class*="ring-"] {
+  border-color: transparent !important;
+  box-shadow: none !important;
+}
+
+.conversation-panel > header,
+.conversation-panel > div:first-child {
+  padding-left: 1.25rem;
+  padding-right: 1.25rem;
+}
+
+.conversation-panel h2 {
+  font-size: 1.375rem;
+  line-height: 1.3;
+}
+
+.conversation-panel h3 {
+  font-size: 1.0625rem;
+  line-height: 1.4;
+}
+
+.conversation-panel p,
+.conversation-panel li {
+  line-height: 1.65;
+}
+
+.conversation-panel button:hover,
+.conversation-panel a:hover {
+  background-color: #f3f4f6 !important;
+}
+
 /* Lecture sobre des résultats : aucune couleur ne porte l'information. */
 .results-text-mode,
 .results-text-mode [class*="bg-"] {
@@ -255,5 +300,48 @@
 
 .results-text-mode button:hover,
 .results-text-mode a:hover {
+  background-color: #f3f4f6 !important;
+}
+
+/* Le formulaire de recherche suit la même lecture simple que la conversation. */
+.search-text-mode,
+.search-text-mode [class*="bg-"] {
+  background-color: #ffffff !important;
+  background-image: none !important;
+}
+
+.search-text-mode,
+.search-text-mode [class*="text-"],
+.search-text-mode svg {
+  color: #1f2937 !important;
+}
+
+.search-text-mode [class*="border-"],
+.search-text-mode [class*="ring-"] {
+  border-color: transparent !important;
+  box-shadow: none !important;
+}
+
+.search-text-mode [class~="text-[10px]"],
+.search-text-mode [class~="text-[11px]"] {
+  font-size: 0.8125rem !important;
+}
+
+.search-text-mode [class~="text-sm"] {
+  font-size: 0.9375rem !important;
+}
+
+.search-text-mode button,
+.search-text-mode input {
+  min-height: 2.75rem;
+}
+
+.search-text-mode > * {
+  width: 100%;
+  margin-left: 0 !important;
+  margin-right: 0 !important;
+}
+
+.search-text-mode button:hover {
   background-color: #f3f4f6 !important;
 }
