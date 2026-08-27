@@ -4,7 +4,6 @@ import { SearchPanel } from "@/components/SearchPanel";
 import { ResultsPanel } from "@/components/ResultsPanel";
 import { AboutDialog } from "@/components/AboutDialog";
 import { ApiDialog } from "@/components/ApiDialog";
-import { AnalysisProgress } from "@/components/AnalysisProgress";
 import { LieuxDitsDialog } from "@/components/LieuxDitsDialog";
 import { searchGBIFMultiCircle, InventoryResult, BufferCircle, STUDY_AREAS, ProjectPreset, TAXON_GROUPS, getTaxonGroupId } from "@/lib/gbif";
 import { searchPlace, reverseGeocode } from "@/lib/geocoding";
@@ -205,7 +204,7 @@ export default function Home() {
     potentialSpeciesAbortController.current = potentialController;
     setResults(null);
     setSelectedSpecies(null);
-    setIsPanelOpen(false);
+    setIsPanelOpen(true);
     setLocationKey((key) => key + 1);
     setZonages(null);
     setSelectedZonageId(null);
@@ -490,6 +489,8 @@ export default function Home() {
       <ResultsPanel 
         key={locationKey}
         isOpen={isPanelOpen} 
+        isAnalyzing={isAnalyzing}
+        areaCount={circles.filter((c) => c.enabled).length}
         onClose={() => setIsPanelOpen(false)} 
         results={results}
         selectedSpecies={selectedSpecies}
@@ -509,18 +510,6 @@ export default function Home() {
         potentialSpeciesError={potentialSpeciesError}
         selectedZonageId={selectedZonageId}
         onSelectZonage={setSelectedZonageId}
-      />
-
-      <AnalysisProgress
-        active={isAnalyzing}
-        includeINaturalist={includeINaturalist}
-        areaCount={circles.filter((c) => c.enabled).length}
-        zonagesLoading={zonagesLoading}
-        zonagesReady={zonages !== null}
-        zonageFeatureCount={zonageFeatures.length}
-        potentialSpeciesLoading={potentialSpeciesLoading}
-        potentialSpeciesReady={potentialSpecies !== null}
-        potentialSpeciesCount={potentialSpecies?.potentialCount ?? 0}
       />
 
       <AboutDialog open={showAbout} onOpenChange={setShowAbout} />

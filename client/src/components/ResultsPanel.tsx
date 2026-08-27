@@ -9,6 +9,7 @@ import { InventoryResult, Occurrence, getIucnLabel, getIucnFullLabel, getPatrimo
 import { findSINPPlatforms, SINPPlatform } from "@/lib/sinp";
 import { exportCSV, exportExcel } from "@/lib/export";
 import { PrioritySpeciesInline } from "./PrioritySpeciesInline";
+import { AnalysisProgress } from "./AnalysisProgress";
 import html2canvas from "html2canvas";
 import type {
   PotentialSpeciesItem,
@@ -24,8 +25,6 @@ interface NaturaSpeciesItem {
   grade: "A" | "B" | "C" | "D" | null;
   sensitive: boolean;
 }
-/** Vue courante du panneau : diagnostic (page unique) ou l'une des deux vues détaillées. */
-type PanelView = "diagnostic" | "especes" | "zonages";
 /** Sections repliables du diagnostic. */
 type SectionKey = "especes" | "potentielles" | "zonages" | "pourquoi";
 
@@ -105,6 +104,8 @@ function isNotEvaluated(iucn: string | undefined): boolean {
 
 interface ResultsPanelProps {
   isOpen: boolean;
+  isAnalyzing?: boolean;
+  areaCount?: number;
   onClose: () => void;
   results: InventoryResult | null;
   selectedSpecies: string | null;
@@ -126,8 +127,7 @@ interface ResultsPanelProps {
   onSelectZonage?: (id: string | null) => void;
 }
 
-export function ResultsPanel({ isOpen, onClose, results, selectedSpecies, onSelectSpecies, activeTaxonFilters, onToggleTaxonFilter, onToggleAllTaxonFilters, excludeMarine, onToggleExcludeMarine, includeINaturalist, onToggleIncludeINaturalist, toponym, zonages, zonagesLoading, potentialSpecies, potentialSpeciesLoading, potentialSpeciesError, selectedZonageId, onSelectZonage }: ResultsPanelProps) {
-  const [view, setView] = useState<PanelView>("diagnostic");
+export function ResultsPanel({ isOpen, isAnalyzing = false, areaCount = 1, onClose, results, selectedSpecies, onSelectSpecies, activeTaxonFilters, onToggleTaxonFilter, onToggleAllTaxonFilters, excludeMarine, onToggleExcludeMarine, includeINaturalist, onToggleIncludeINaturalist, toponym, zonages, zonagesLoading, potentialSpecies, potentialSpeciesLoading, potentialSpeciesError, selectedZonageId, onSelectZonage }: ResultsPanelProps) {
   const [openSections, setOpenSections] = useState<Set<SectionKey>>(new Set());
   const [showCalcDetail, setShowCalcDetail] = useState(false);
   const [assistantOpen, setAssistantOpen] = useState(false);
@@ -175,7 +175,6 @@ export function ResultsPanel({ isOpen, onClose, results, selectedSpecies, onSele
   useEffect(() => {
     // Réinitialise l'état d'interface propre à un résultat lors d'une nouvelle analyse
     setAiAnalysis(null);
-    setView("diagnostic");
     setOpenSections(new Set());
     setShowCalcDetail(false);
     setExpandedZonages(new Set());
@@ -539,18 +538,14 @@ export function ResultsPanel({ isOpen, onClose, results, selectedSpecies, onSele
     typeof window !== "undefined" && window.matchMedia?.("(prefers-reduced-motion: reduce)").matches
   );
 
-  // Sélection d'une espèce depuis la carte : bascule sur la vue détaillée Espèces
-  // (portée adaptée) et fait défiler jusqu'à la fiche correspondante.
+  // Sélection d'une espèce depuis la carte : ouvre la pièce jointe Espèces
+  // et fait défiler jusqu'à la fiche correspondante.
   useEffect(() => {
     if (!selectedSpecies || !isOpen) return;
-    // Si l'espèce est déjà visible dans la vue détaillée courante, on se contente de défiler.
-    const alreadyVisible = view === "especes" && especesList.some((o) => o.scientificName === selectedSpecies);
-    if (!alreadyVisible) {
-      const isPriority = prioritySpeciesList.some((o) => o.scientificName === selectedSpecies);
-      setSpeciesScope(isPriority ? "prioritaires" : "toutes");
-      setView("especes");
-      setSpeciesQuery("");
-    }
+    const isPriority = prioritySpeciesList.some((o) => o.scientificName === selectedSpecies);
+    setSpeciesScope(isPriority ? "prioritaires" : "toutes");
+    setSpeciesQuery("");
+    setOpenSections((prev) => new Set(prev).add("especes"));
     // Attendre le rendu de la vue détaillée avant de faire défiler
     const t = window.setTimeout(() => {
       document
@@ -587,7 +582,7 @@ export function ResultsPanel({ isOpen, onClose, results, selectedSpecies, onSele
   useEffect(() => {
     if (!selectedZonageId) return;
     if (!flatZonages.some((z) => zonageKey(z) === selectedZonageId)) return;
-    setView("zonages");
+    setOpenSections((prev) => new Set(prev).add("zonages"));
     setExpandedZonages((prev) => {
       if (prev.has(selectedZonageId)) return prev;
       const next = new Set(prev);
@@ -823,11 +818,7 @@ ${shareUrl ? `\nReproduire cette analyse : ${shareUrl}` : ""}`;
     }
   };
 
-  useEffect(() => {
-    if (!isOpen) setView("diagnostic");
-  }, [isOpen]);
-
-  if (!isOpen || !results) return null;
+  if (!isOpen) return null;
 
   const sourcesLabel = `GBIF${includeINaturalist ? " · iNaturalist" : ""} · UICN · ALI/TAXREF · IGN/INPN`;
 
@@ -841,6 +832,56 @@ ${shareUrl ? `\nReproduire cette analyse : ${shareUrl}` : ""}`;
   const fortSpeciesCount = enjeuxBuckets.critique.length + enjeuxBuckets.fort.length;
   const prefersReducedMotion =
     typeof window !== "undefined" && window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+
+  if (!results) {
+    return (
+      <AnimatePresence>
+        <motion.aside
+          initial={{ x: "100%" }}
+          animate={{ x: 0 }}
+          exit={{ x: "100%" }}
+          transition={prefersReducedMotion ? { duration: 0 } : { type: "spring", damping: 25, stiffness: 200 }}
+          className="fixed right-0 z-[2000] flex flex-col bg-white/95 shadow-2xl backdrop-blur-xl inset-x-0 bottom-0 h-[80vh] rounded-t-2xl border-t md:inset-x-auto md:top-0 md:bottom-auto md:h-full md:max-w-[95vw] md:rounded-none md:border-l md:border-t-0"
+          style={typeof window !== "undefined" && window.innerWidth >= 768 ? { width: panelWidth } : undefined}
+          aria-label="Analyse biodiversité en cours"
+        >
+          <div
+            onMouseDown={startResize}
+            className="absolute left-0 top-0 z-10 hidden h-full w-1.5 cursor-ew-resize transition-colors hover:bg-teal-400/40 active:bg-teal-500/60 md:block"
+            aria-hidden="true"
+          />
+          <header className="flex items-start justify-between gap-3 border-b border-gray-100 bg-white/70 px-5 py-4">
+            <div className="min-w-0">
+              <h2 className="text-lg font-bold tracking-tight text-gray-900">Analyse en cours</h2>
+              {toponym && (
+                <p className="mt-1 flex items-center gap-1 truncate text-xs font-semibold text-teal-700">
+                  <MapPin className="h-3 w-3 shrink-0" />
+                  <span className="truncate">{toponym}</span>
+                </p>
+              )}
+            </div>
+            <Button variant="ghost" size="icon" onClick={onClose} className="h-8 w-8 rounded-full" aria-label="Réduire le panneau">
+              <X className="h-4 w-4" />
+            </Button>
+          </header>
+          <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4 sm:px-5">
+            <AnalysisProgress
+              active={isAnalyzing}
+              embedded
+              includeINaturalist={!!includeINaturalist}
+              areaCount={areaCount}
+              zonagesLoading={zonagesLoading}
+              zonagesReady={zonages !== null}
+              zonageFeatureCount={zonages?.count ?? 0}
+              potentialSpeciesLoading={potentialSpeciesLoading}
+              potentialSpeciesReady={potentialSpecies !== null}
+              potentialSpeciesCount={potentialSpecies?.potentialCount ?? 0}
+            />
+          </div>
+        </motion.aside>
+      </AnimatePresence>
+    );
+  }
 
   return (
     <AnimatePresence>
@@ -949,6 +990,10 @@ ${shareUrl ? `\nReproduire cette analyse : ${shareUrl}` : ""}`;
         <ScrollArea className="flex-1 px-5 py-4">
           {/* ══════════ VUE DIAGNOSTIC (page unique à divulgation progressive) ══════════ */}
           <div className="space-y-4" data-testid="panel-overview">
+            <div className="flex items-start gap-2 border-l-2 border-emerald-600 pl-3" data-testid="message-ally">
+              <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-emerald-700 text-[10px] font-bold text-white">AL</span>
+              <div><p className="text-xs font-bold text-emerald-900">Ally <span className="font-normal text-emerald-700">coordinatrice</span></p><p className="mt-0.5 text-[11px] leading-4 text-emerald-800">J’ai croisé les observations, les zonages et les signaux de potentiel écologique pour ce pré-diagnostic traçable.</p></div>
+            </div>
             {/* Niveau d'enjeu global */}
             <div
               className={`rounded-xl border p-4 ${
@@ -1007,167 +1052,22 @@ ${shareUrl ? `\nReproduire cette analyse : ${shareUrl}` : ""}`;
               </ul>
             </div>
 
-            {/* Section 3 — Enjeux liés aux espèces (repliable) */}
-            <section className="rounded-xl border border-gray-200 bg-white overflow-hidden" data-testid="section-especes">
-              <button
-                type="button"
-                onClick={() => toggleSection("especes")}
-                aria-expanded={openSections.has("especes")}
-                aria-controls="section-body-especes"
-                className="w-full flex items-center justify-between gap-2 px-4 py-3 hover:bg-gray-50 transition-colors focus-visible:ring-2 focus-visible:ring-teal-400 focus-visible:outline-none"
-                data-testid="button-section-especes"
-              >
-                <span className="flex items-center gap-2 text-sm font-bold text-gray-800">
-                  <Leaf className="h-4 w-4 text-orange-600" /> Enjeux liés aux espèces
-                </span>
-                <span className="flex items-center gap-2 text-[11px] text-gray-500 min-w-0">
-                  <span className="truncate">
-                    {prioritySpeciesList.length === 0 && potentialIssueSignals.count === 0
-                      ? "Aucun signal d’enjeu lié aux espèces"
-                      : `${prioritySpeciesList.length} avérée${prioritySpeciesList.length > 1 ? "s" : ""} · ${potentialIssueSignals.count} potentielle${potentialIssueSignals.count > 1 ? "s" : ""}`}
-                  </span>
-                  {openSections.has("especes") ? <ChevronUp className="h-4 w-4 shrink-0" /> : <ChevronDown className="h-4 w-4 shrink-0" />}
-                </span>
-              </button>
-              {openSections.has("especes") && (
-                <div id="section-body-especes" className="px-4 pb-3 space-y-1.5 border-t border-gray-100 pt-3">
-                  {prioritySpeciesList.length === 0 ? (
-                    <p className="text-xs text-gray-500 italic">
-                      {potentialIssueSignals.count > 0
-                        ? "Aucune espèce avérée à enjeu ; les signaux ci-dessous reposent uniquement sur des espèces potentielles à confirmer."
-                        : "Aucune espèce à enjeu détectée dans les données publiques."}
-                    </p>
-                  ) : (
-                    <SpeciesInventoryTable
-                      species={prioritySpeciesList.slice(0, 3)}
-                      selectedSpecies={selectedSpecies}
-                      onSelectSpecies={onSelectSpecies}
-                      centerCoords={results.center}
-                    />
-                  )}
-                  <div className="flex flex-col gap-1 pt-1">
-                    {prioritySpeciesList.length > 0 && (
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => { setSpeciesScope("prioritaires"); setSpeciesQuery(""); setView("especes"); }}
-                        className="w-full h-9 text-xs border-gray-200 text-gray-700"
-                        data-testid="button-view-priority-species"
-                      >
-                        Voir les {prioritySpeciesList.length} espèce{prioritySpeciesList.length > 1 ? "s" : ""} avérée{prioritySpeciesList.length > 1 ? "s" : ""} <ChevronRight className="h-3.5 w-3.5 ml-1" />
-                      </Button>
-                    )}
-                    <button
-                      type="button"
-                      onClick={() => { setSpeciesScope("toutes"); setSpeciesQuery(""); setView("especes"); }}
-                      className="text-[11px] text-teal-700 font-semibold hover:underline self-start px-1"
-                      data-testid="button-view-all-species"
-                    >
-                      Voir toutes les {filteredTotal} espèces
-                    </button>
-                  </div>
-                  {potentialIssueSignals.count > 0 && (
-                    <div className="mt-2 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-[11px] leading-relaxed text-emerald-900">
-                      <strong>
-                        {potentialIssueSignals.count} espèce{potentialIssueSignals.count > 1 ? "s" : ""} potentielle{potentialIssueSignals.count > 1 ? "s" : ""} prise{potentialIssueSignals.count > 1 ? "s" : ""} en compte.
-                      </strong>{" "}
-                      Leur contribution reste prudente et plafonnée, car une compatibilité écologique ne constitue pas une preuve de présence.
-                    </div>
-                  )}
-                </div>
-              )}
-            </section>
-
             {/* Section 4 — Espèces potentiellement présentes (repliable) */}
-            <PotentialSpeciesSection
-              center={results.center}
-              radius={results.radius}
-              occurrences={results.occurrences}
-              result={reconciledPotentialSpecies}
-              loading={potentialSpeciesLoading}
-              error={potentialSpeciesError}
-              open={openSections.has("potentielles")}
-              onToggle={() => toggleSection("potentielles")}
-            />
-
-            {/* Section 5 — Zonages concernés (repliable) */}
-            <section className="rounded-xl border border-gray-200 bg-white overflow-hidden" data-testid="section-zonages">
-              <button
-                type="button"
-                onClick={() => toggleSection("zonages")}
-                aria-expanded={openSections.has("zonages")}
-                aria-controls="section-body-zonages"
-                className="w-full flex items-center justify-between gap-2 px-4 py-3 hover:bg-gray-50 transition-colors focus-visible:ring-2 focus-visible:ring-teal-400 focus-visible:outline-none"
-                data-testid="button-section-zonages"
-              >
-                <span className="flex items-center gap-2 text-sm font-bold text-gray-800">
-                  <Layers className="h-4 w-4 text-teal-600" /> Zonages concernés
-                </span>
-                <span className="flex items-center gap-2 text-[11px] text-gray-500 min-w-0">
-                  <span className="truncate">
-                    {zonagesLoading
-                      ? "Chargement…"
-                      : flatZonages.length === 0
-                      ? "Aucun zonage recensé"
-                      : `${flatZonages.length} zonage${flatZonages.length > 1 ? "s" : ""}${reglementaireCount > 0 ? `, dont ${reglementaireCount} réglementaire${reglementaireCount > 1 ? "s" : ""}` : ""}`}
-                  </span>
-                  {openSections.has("zonages") ? <ChevronUp className="h-4 w-4 shrink-0" /> : <ChevronDown className="h-4 w-4 shrink-0" />}
-                </span>
-              </button>
-              {openSections.has("zonages") && (
-                <div id="section-body-zonages" className="px-4 pb-3 space-y-1.5 border-t border-gray-100 pt-3">
-                  {zonagesLoading && (
-                    <div className="flex items-center gap-2 text-xs text-gray-400 py-2 justify-center">
-                      <Loader2 className="h-4 w-4 animate-spin" /> Chargement des zonages…
-                    </div>
-                  )}
-                  {!zonagesLoading && flatZonages.length === 0 && (
-                    <p className="text-xs text-gray-400 italic">Aucun zonage environnemental recensé dans l'aire d'étude.</p>
-                  )}
-                  {flatZonages.slice(0, 3).map((z, idx) => {
-                    const badge = ZONAGE_CATEGORY_BADGE[z.groupCategory] || ZONAGE_CATEGORY_BADGE.autre;
-                    const key = zonageKey(z);
-                    const hasGeometry = !!(
-                      z.geometry &&
-                      ((z.geometry.polygons?.length ?? 0) > 0 || z.geometry.rings.length > 0)
-                    );
-                    const isSelectedOnMap = selectedZonageId === key;
-                    return (
-                      <button
-                        type="button"
-                        key={`top-z-${key}`}
-                        onClick={() => setView("zonages")}
-                        className={`w-full flex items-center gap-2 rounded-lg border bg-white px-3 py-2 text-left transition-colors hover:bg-gray-50 ${
-                          isSelectedOnMap ? "border-teal-400 ring-1 ring-teal-300" : "border-gray-200"
-                        }`}
-                        data-testid={`top-zonage-${idx}`}
-                      >
-                        <span className={`shrink-0 text-[9px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded border ${badge.cls}`}>{badge.label}</span>
-                        <span className="min-w-0 flex-1">
-                          <span className="block text-xs font-semibold text-gray-800 truncate">{z.name}</span>
-                          <span className="block text-[10px] text-gray-500 truncate">
-                            {z.type} · ouvrir les détails
-                          </span>
-                        </span>
-                        {hasGeometry && (
-                          <MapPin className={`h-3.5 w-3.5 shrink-0 ${isSelectedOnMap ? "text-teal-600" : "text-gray-300"}`} />
-                        )}
-                      </button>
-                    );
-                  })}
-                  {flatZonages.length > 0 && (
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setView("zonages")}
-                      className="w-full h-9 text-xs border-gray-200 text-gray-700"
-                      data-testid="button-view-all-zonages"
-                    >
-                      Voir les {flatZonages.length} zonage{flatZonages.length > 1 ? "s" : ""} <ChevronRight className="h-3.5 w-3.5 ml-1" />
-                    </Button>
-                  )}
-                </div>
-              )}
+            <section className="space-y-2" data-testid="message-agent-potential">
+              <div className="flex items-start gap-2 border-l-2 border-lime-600 pl-3">
+                <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-lime-700 text-[10px] font-bold text-white">AP</span>
+                <div><p className="text-xs font-bold text-lime-900">Agent Potentiel écologique</p><p className="mt-0.5 text-[11px] leading-4 text-lime-800">Je distingue la compatibilité écologique d’une preuve d’observation. Mes résultats restent des signaux à confirmer.</p></div>
+              </div>
+              <PotentialSpeciesSection
+                center={results.center}
+                radius={results.radius}
+                occurrences={results.occurrences}
+                result={reconciledPotentialSpecies}
+                loading={potentialSpeciesLoading}
+                error={potentialSpeciesError}
+                open={openSections.has("potentielles")}
+                onToggle={() => toggleSection("potentielles")}
+              />
             </section>
 
             {/* Section 5 — Niveau d'enjeu, qualité et limites (repliable) */}
@@ -1277,25 +1177,16 @@ ${shareUrl ? `\nReproduire cette analyse : ${shareUrl}` : ""}`;
             </section>
           </div>
 
-          {/* ══════════ POPUP DÉTAILLÉE — ESPÈCES ══════════ */}
-          <Dialog open={view === "especes"} onOpenChange={(open) => {
-            if (!open) {
-              setView("diagnostic");
-              onSelectSpecies(null);
-            }
-          }}>
-            <DialogContent className="flex h-[calc(100dvh-1rem)] w-[calc(100vw-1rem)] max-w-6xl flex-col gap-0 overflow-hidden p-0 sm:h-[92dvh]">
-              <DialogHeader className="shrink-0 border-b border-gray-100 px-5 py-4 pr-12">
-                <DialogTitle className="flex items-center gap-2 text-base text-gray-900">
-                  <Leaf className="h-4 w-4 text-teal-600" />
-                  Résultats des espèces
-                </DialogTitle>
-                <DialogDescription className="text-xs text-gray-500">
-                  {toponym || "Emprise sélectionnée"} · rayon de référence {results.radius} m · {includeINaturalist ? "GBIF et iNaturalist" : "GBIF"} · données marines {excludeMarine ? "exclues" : "incluses"}
-                </DialogDescription>
-              </DialogHeader>
-              <ScrollArea className="min-h-0 flex-1">
-                <div className="space-y-4 p-4 sm:p-5" data-testid="panel-especes">
+          {/* Message Agent Occurrences — pièce jointe dépliable */}
+          <section className="rounded-xl border border-teal-200 bg-teal-50/30 overflow-hidden" data-testid="message-agent-occurrences">
+            <button type="button" onClick={() => toggleSection("especes")} aria-expanded={openSections.has("especes")} aria-controls="attachment-especes" className="w-full flex items-center justify-between gap-3 px-4 py-3 text-left hover:bg-teal-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-400">
+              <span className="flex items-center gap-2"><span className="flex h-6 w-6 items-center justify-center rounded-full bg-teal-700 text-[10px] font-bold text-white">AO</span><span><span className="block text-xs font-bold text-teal-900">Agent Occurrences</span><span className="block text-[11px] text-teal-700">{filteredTotal} espèces consolidées · données géolocalisées</span></span></span>
+              {openSections.has("especes") ? <ChevronUp className="h-4 w-4 text-teal-700" /> : <ChevronDown className="h-4 w-4 text-teal-700" />}
+            </button>
+            {openSections.has("especes") && <div id="attachment-especes" className="space-y-4 border-t border-teal-200 bg-white p-4 sm:p-5" data-testid="panel-especes">
+            <p className="rounded-lg border border-teal-100 bg-teal-50/60 px-3 py-2 text-[11px] leading-relaxed text-teal-900">
+              <strong>Sources :</strong> {includeINaturalist ? "GBIF et iNaturalist" : "GBIF"}. Une occurrence publique confirme un signal dans l’aire étudiée, mais ne remplace ni une prospection exhaustive ni une validation terrain.
+            </p>
             <div className="rounded-lg border border-gray-200 bg-gray-50/60 px-3 py-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-gray-600" data-testid="species-summary">
               <span><strong className="text-gray-900">{filteredTotal}</strong> espèce{filteredTotal > 1 ? "s" : ""} avérée{filteredTotal > 1 ? "s" : ""}</span>
               <span><strong className="text-orange-700">{prioritySpeciesList.length}</strong> avérée{prioritySpeciesList.length > 1 ? "s" : ""}</span>
@@ -1437,30 +1328,16 @@ ${shareUrl ? `\nReproduire cette analyse : ${shareUrl}` : ""}`;
                 />
               )}
             </div>
-                </div>
-              </ScrollArea>
-            </DialogContent>
-          </Dialog>
+                </div>}
+          </section>
 
-          {/* ══════════ POPUP DÉTAILLÉE — ZONAGES ══════════ */}
-          <Dialog open={view === "zonages"} onOpenChange={(open) => {
-            if (!open) {
-              setView("diagnostic");
-              onSelectZonage?.(null);
-            }
-          }}>
-            <DialogContent className="flex h-[calc(100dvh-1rem)] w-[calc(100vw-1rem)] max-w-5xl flex-col gap-0 overflow-hidden p-0 sm:h-[92dvh]">
-              <DialogHeader className="shrink-0 border-b border-gray-100 px-5 py-4 pr-12">
-                <DialogTitle className="flex items-center gap-2 text-base text-gray-900">
-                  <Layers className="h-4 w-4 text-teal-600" />
-                  Résultats des zonages
-                </DialogTitle>
-                <DialogDescription className="text-xs text-gray-500">
-                  {toponym || "Emprise sélectionnée"} · aire d’étude {zonages?.radius ?? results.radius} m · source IGN / PatriNat
-                </DialogDescription>
-              </DialogHeader>
-              <ScrollArea className="min-h-0 flex-1">
-                <div className="space-y-4 p-4 sm:p-5" data-testid="panel-zonages-tab">
+          {/* Message Agent Zonages — pièce jointe dépliable */}
+          <section className="rounded-xl border border-sky-200 bg-sky-50/30 overflow-hidden" data-testid="message-agent-zonages">
+            <button type="button" onClick={() => toggleSection("zonages")} aria-expanded={openSections.has("zonages")} aria-controls="attachment-zonages" className="w-full flex items-center justify-between gap-3 px-4 py-3 text-left hover:bg-sky-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400">
+              <span className="flex items-center gap-2"><span className="flex h-6 w-6 items-center justify-center rounded-full bg-sky-700 text-[10px] font-bold text-white">AZ</span><span><span className="block text-xs font-bold text-sky-900">Agent Zonages</span><span className="block text-[11px] text-sky-700">{zonagesLoading ? "Recherche en cours…" : `${flatZonages.length} zonage${flatZonages.length > 1 ? "s" : ""} · IGN / PatriNat`}</span></span></span>
+              {openSections.has("zonages") ? <ChevronUp className="h-4 w-4 text-sky-700" /> : <ChevronDown className="h-4 w-4 text-sky-700" />}
+            </button>
+            {openSections.has("zonages") && <div id="attachment-zonages" className="space-y-4 border-t border-sky-200 bg-white p-4 sm:p-5" data-testid="panel-zonages-tab">
             {zonages && zonages.count > 0 && (
               <div className="rounded-lg border border-gray-200 bg-gray-50/60 px-3 py-2 text-xs text-gray-600 leading-relaxed" data-testid="text-zonages-summary">
                 {zonages.count} zonage{zonages.count > 1 ? "s" : ""} dans l'aire d'étude (rayon {zonages.radius} m) — les plus importants d'abord.
@@ -1561,10 +1438,17 @@ ${shareUrl ? `\nReproduire cette analyse : ${shareUrl}` : ""}`;
             {!zonagesLoading && (!zonages || zonages.count === 0) && (
               <p className="text-sm text-gray-400 italic">Aucun zonage environnemental recensé dans l'aire d'étude. Vous pouvez élargir le rayon d'analyse.</p>
             )}
-                </div>
-              </ScrollArea>
-            </DialogContent>
-          </Dialog>
+                </div>}
+          </section>
+
+          <section className="flex items-start gap-2 border-l-2 border-emerald-600 pl-3" data-testid="message-ally-final">
+            <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-emerald-700 text-[10px] font-bold text-white">AL</span>
+            <div className="min-w-0">
+              <p className="text-xs font-bold text-emerald-900">Ally <span className="font-normal text-emerald-700">synthèse finale</span></p>
+              <p className="mt-0.5 text-[11px] leading-4 text-emerald-800">{autoSummary}</p>
+              <p className="mt-1 text-[10px] leading-4 text-emerald-700">Les niveaux de preuve restent distincts : occurrence géolocalisée, compatibilité écologique et signal documentaire ne sont pas équivalents.</p>
+            </div>
+          </section>
 
           <p className="mt-4 px-1 text-[11px] text-gray-400 leading-snug flex gap-1.5 items-start">
             <Info className="h-3 w-3 shrink-0 mt-0.5" />
@@ -2467,7 +2351,7 @@ function ZnieffDocumentaryBlock({
       </div>
 
       {znieff.species.length > 0 ? (
-        <ul className="mt-2 max-h-[34rem] space-y-1.5 overflow-y-auto pr-1" data-testid="list-znieff-species">
+        <ul className="mt-2 space-y-1.5" data-testid="list-znieff-species">
           {visibleSpecies.map((item, index) => (
             <ZnieffSpeciesRow key={`${item.scientificName}-${index}`} item={item} index={index} />
           ))}

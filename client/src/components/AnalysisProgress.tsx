@@ -78,6 +78,7 @@ function EffortMeter({ effort }: { effort: Effort }) {
 
 export function AnalysisProgress({
   active,
+  embedded = false,
   includeINaturalist,
   areaCount,
   zonagesLoading,
@@ -88,6 +89,8 @@ export function AnalysisProgress({
   potentialSpeciesCount,
 }: {
   active: boolean;
+  /** Affiche le fil dans son panneau parent plutôt que dans une surcouche plein écran. */
+  embedded?: boolean;
   includeINaturalist: boolean;
   areaCount: number;
   zonagesLoading: boolean;
@@ -199,7 +202,13 @@ export function AnalysisProgress({
   ];
 
   return (
-    <div className="pointer-events-none absolute inset-0 z-[1200] flex items-end justify-center pb-5 sm:items-center sm:pb-0">
+    <div
+      className={
+        embedded
+          ? "w-full"
+          : "pointer-events-none absolute inset-0 z-[1200] flex items-end justify-center pb-5 sm:items-center sm:pb-0"
+      }
+    >
       <style>{`
         @keyframes ifx-eq {
           0%, 100% { height: 25%; }
@@ -225,7 +234,11 @@ export function AnalysisProgress({
         }
       `}</style>
       <div
-        className="pointer-events-auto mx-4 w-full max-w-md overflow-hidden rounded-[20px] border border-teal-950/10 bg-[#f8faf5]/95 shadow-[0_18px_50px_rgba(28,54,45,0.18)] backdrop-blur"
+        className={
+          embedded
+            ? "w-full overflow-hidden rounded-2xl border border-teal-950/10 bg-[#f8faf5] shadow-sm"
+            : "pointer-events-auto mx-4 w-full max-w-md overflow-hidden rounded-[20px] border border-teal-950/10 bg-[#f8faf5]/95 shadow-[0_18px_50px_rgba(28,54,45,0.18)] backdrop-blur"
+        }
         role="status"
         aria-live="polite"
         aria-atomic="true"
