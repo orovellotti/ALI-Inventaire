@@ -1682,7 +1682,21 @@ function SpeciesInventoryTable({ species, selectedSpecies, onSelectSpecies, cent
 }) {
   return (
     <div className={SPECIES_TABLE_FRAME}>
-      <div className="overflow-x-auto">
+      <div className="divide-y divide-slate-100 md:hidden" data-testid="species-inventory-list">
+        {species.map((occ, index) => {
+          const selected = selectedSpecies === occ.scientificName;
+          return (
+            <SpeciesInventoryCard
+              key={`${occ.scientificName}-${index}`}
+              occ={occ}
+              selected={selected}
+              onSelect={() => onSelectSpecies(selected ? null : occ.scientificName)}
+              centerCoords={centerCoords}
+            />
+          );
+        })}
+      </div>
+      <div className="hidden overflow-x-auto md:block">
         <table className={SPECIES_TABLE} data-testid="species-inventory-table">
           <caption className="sr-only">Inventaire des espèces : taxon, groupe, enjeu, statuts et dernière observation</caption>
           <thead className={SPECIES_TABLE_HEAD}>
@@ -1715,6 +1729,37 @@ function SpeciesInventoryTable({ species, selectedSpecies, onSelectSpecies, cent
   );
 }
 
+function SpeciesInventoryCard({ occ, selected, onSelect, centerCoords }: { occ: Occurrence; selected: boolean; onSelect: () => void; centerCoords: [number, number] }) {
+  const patri = getPatrimonialite(occ.iucnStatus, occ.alertLevel, occ.isInvasive);
+  const group = TAXON_GROUPS.find((g) => g.id === getTaxonGroupId(occ));
+  const enjeuBadge = occ.enjeuLevel ? ENJEU_LEVEL_BADGE[occ.enjeuLevel] : null;
+  return (
+    <article data-species-item={occ.scientificName} className={selected ? "bg-teal-50/80" : "bg-white"}>
+      <button
+        type="button"
+        onClick={onSelect}
+        aria-expanded={selected}
+        className="w-full px-3 py-3 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-teal-500"
+        data-testid={`species-row-${occ.scientificName}`}
+      >
+        <span className="flex items-start justify-between gap-2">
+          <span className="min-w-0">
+            <span className="block break-words text-xs font-semibold text-slate-800">{occ.vernacularName || occ.scientificName}</span>
+            {occ.vernacularName && <span className="block break-words text-[10px] italic text-slate-500">{occ.scientificName}</span>}
+          </span>
+          {selected ? <ChevronUp className="h-4 w-4 shrink-0 text-teal-700" /> : <ChevronDown className="h-4 w-4 shrink-0 text-slate-400" />}
+        </span>
+        <span className="mt-2 grid grid-cols-2 gap-x-3 gap-y-2">
+          <span><span className="block text-[9px] font-bold uppercase tracking-wide text-slate-400">Groupe</span><span className="text-[10px] font-medium text-slate-600">{group?.label || "Autres"}</span></span>
+          <span><span className="block text-[9px] font-bold uppercase tracking-wide text-slate-400">Enjeu</span><span className={`inline-flex rounded border px-1.5 py-0.5 text-[9px] font-bold ${enjeuBadge?.color || patri.color}`}>{enjeuBadge?.label || `~${patri.label}`}</span></span>
+          <span><span className="block text-[9px] font-bold uppercase tracking-wide text-slate-400">Statut</span><span className="text-[10px] font-semibold text-slate-600">{occ.aliStatuses?.[0]?.value || getIucnLabel(occ.iucnStatus)}{occ.frenchProtected && <Shield className="ml-1 inline h-3 w-3 text-amber-600" aria-label="Groupe protégé en France" />}</span></span>
+          <span><span className="block text-[9px] font-bold uppercase tracking-wide text-slate-400">Données</span><span className="text-[10px] tabular-nums text-slate-500">{occ.lastObservationYear || "—"}<span className="ml-1 text-slate-300">{occ.observationCount ? `×${occ.observationCount}` : ""}</span></span></span>
+        </span>
+      </button>
+      {selected && <div className="px-3 pb-3"><div className="border-l-2 border-teal-500 pl-2"><SpeciesCard occ={occ} isSelected onSelect={onSelect} centerCoords={centerCoords} /><div className="mt-2 flex gap-1.5 text-[11px] text-slate-600" data-testid={`action-${occ.scientificName}`}><ClipboardList className="mt-0.5 h-3 w-3 shrink-0 text-teal-700" /><span><strong>Action recommandée :</strong> {occ.isInvasive ? "Espèce exotique envahissante : prévoir une gestion/limitation, sans valeur patrimoniale de conservation." : occ.enjeuLevel === "a_confirmer" ? `Groupe protégé — statut national non vérifié : ${recommendedAction(getTaxonGroupId(occ))} Comparer avec les listes TAXREF régionales.` : recommendedAction(getTaxonGroupId(occ))}</span></div></div></div>}
+    </article>
+  );
+}
 function SpeciesTableRow({ occ, selected, onSelect, centerCoords }: { occ: Occurrence; selected: boolean; onSelect: () => void; centerCoords: [number, number] }) {
   const patri = getPatrimonialite(occ.iucnStatus, occ.alertLevel, occ.isInvasive);
   const group = TAXON_GROUPS.find((g) => g.id === getTaxonGroupId(occ));
@@ -2164,19 +2209,34 @@ function PotentialSpeciesTable({ items, testId }: { items: PotentialSpeciesItem[
   const [expandedSpecies, setExpandedSpecies] = useState<string | null>(null);
   return (
     <div className={SPECIES_TABLE_FRAME}>
-      <div className="overflow-x-auto">
+      <div className="divide-y divide-slate-100 md:hidden" data-testid={`${testId}-list`}>
+        {items.map((item) => {
+          const expanded = expandedSpecies === item.scientificName;
+          const style = POTENTIAL_STATUS_STYLE[item.status];
+          const onToggle = () => setExpandedSpecies((current) => current === item.scientificName ? null : item.scientificName);
+          return (
+            <article key={item.scientificName} className={expanded ? "bg-emerald-50/70" : "bg-white"} data-testid={`potential-species-${item.scientificName}`}>
+              <button type="button" onClick={onToggle} aria-expanded={expanded} className="w-full px-3 py-3 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-emerald-500">
+                <span className="flex items-start justify-between gap-2">
+                  <span className="min-w-0"><span className="block break-words text-[11px] font-semibold italic text-slate-800">{item.scientificName}</span><span className="mt-0.5 block text-[9px] text-slate-500">{SPECIES_GROUP_FR[item.speciesGroup] ?? item.speciesGroup}</span></span>
+                  {expanded ? <ChevronUp className="h-4 w-4 shrink-0 text-emerald-700" /> : <ChevronDown className="h-4 w-4 shrink-0 text-slate-400" />}
+                </span>
+                <span className="mt-2 grid grid-cols-2 gap-x-3 gap-y-2">
+                  <span><span className="block text-[9px] font-bold uppercase tracking-wide text-slate-400">Signal</span>{item.observed ? <span className="inline-flex rounded border border-teal-200 bg-teal-50 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide text-teal-800">Avérée</span> : <span className="text-[10px] font-medium text-slate-500">Potentielle</span>}</span>
+                  <span><span className="block text-[9px] font-bold uppercase tracking-wide text-slate-400">Compatibilité</span><span className={`inline-flex rounded border px-1.5 py-0.5 text-[9px] font-bold ${style.badge}`}>{item.status}</span></span>
+                  <span><span className="block text-[9px] font-bold uppercase tracking-wide text-slate-400">Indice</span><span className="flex items-center gap-1.5"><span className="h-1.5 w-12 overflow-hidden rounded-full bg-slate-100" role="meter" aria-label={`Score de compatibilité de ${item.scientificName}`} aria-valuemin={0} aria-valuemax={100} aria-valuenow={item.score ?? undefined} aria-valuetext={item.score === null ? "Non évalué" : `${item.score} sur 100`}><span className={`block h-full rounded-full ${style.bar}`} style={{ width: `${item.score ?? 0}%` }} /></span><span className="text-[10px] font-bold tabular-nums text-slate-700">{item.score === null ? "—" : item.score}</span></span></span>
+                  <span><span className="block text-[9px] font-bold uppercase tracking-wide text-slate-400">Confiance</span><span className="text-[10px] font-medium text-slate-600">{item.confidence}</span></span>
+                </span>
+              </button>
+              {expanded && <div className="grid gap-3 border-l-2 border-emerald-400 px-3 pb-3 pl-3 text-[10px] text-slate-600"><div><div className="mb-1 font-bold uppercase tracking-wide text-slate-500">Éléments de compatibilité</div><ul className="space-y-1">{item.reasons.length > 0 ? item.reasons.map((reason, index) => <li key={`${reason}-${index}`}>• {reason}</li>) : <li>Aucun élément détaillé disponible.</li>}</ul></div><div className="space-y-1"><div><strong>Sites :</strong> {item.sites.length > 0 ? item.sites.map((site) => site.name).join(", ") : "—"}</div><div><strong>Habitats :</strong> {item.habitats.length > 0 ? item.habitats.map((habitat) => habitat.code).join(", ") : "—"}</div></div></div>}
+            </article>
+          );
+        })}
+      </div>
+      <div className="hidden overflow-x-auto md:block">
         <table className={SPECIES_TABLE} data-testid={testId}>
-          <caption className="sr-only">Espèces potentielles : taxon, groupe, enjeu, statut et indice de compatibilité</caption>
-          <thead className={SPECIES_TABLE_HEAD}>
-            <tr>
-              <th scope="col" className="w-[36%] px-3 py-2.5">Taxon</th>
-              <th scope="col" className="px-2 py-2.5">Groupe</th>
-              <th scope="col" className="px-2 py-2.5">Enjeu</th>
-              <th scope="col" className="px-2 py-2.5">Statut</th>
-              <th scope="col" className="px-2 py-2.5 text-right">Données</th>
-              <th scope="col" className="w-8 px-2 py-2.5"><span className="sr-only">Détails</span></th>
-            </tr>
-          </thead>
+          <caption className="sr-only">Tableau des espèces attendues et de leur indice de compatibilité</caption>
+          <thead className={SPECIES_TABLE_HEAD}><tr><th className="px-3 py-2">Taxon</th><th className="px-2 py-2">Signal</th><th className="px-2 py-2">Compatibilité</th><th className="px-2 py-2">Indice</th><th className="px-2 py-2">Confiance</th><th className="w-8 px-2 py-2"><span className="sr-only">Détails</span></th></tr></thead>
           <tbody className="divide-y divide-slate-100">{items.map((item) => <PotentialSpeciesRow key={item.scientificName} item={item} expanded={expandedSpecies === item.scientificName} onToggle={() => setExpandedSpecies((current) => current === item.scientificName ? null : item.scientificName)} />)}</tbody>
         </table>
       </div>
