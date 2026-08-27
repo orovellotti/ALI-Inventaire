@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Check, ChevronDown, ChevronUp, Database, Layers3, Leaf, Loader2 } from "lucide-react";
+import { Check, ChevronDown, ChevronUp, Database, Layers3, Leaf } from "lucide-react";
 
 type Effort = 1 | 2 | 3;
 
@@ -105,7 +105,7 @@ export function AnalysisProgress({
   const [done, setDone] = useState(false);
   const [stepIndex, setStepIndex] = useState(0);
   const [progress, setProgress] = useState(0);
-  const [openAgentDetail, setOpenAgentDetail] = useState<"occurrences" | "zonages" | "potential" | null>(null);
+  const [openSourceDetail, setOpenSourceDetail] = useState<"ally" | "occurrences" | "zonages" | "potential" | null>(null);
   const startRef = useRef(0);
 
   // Démarrage / fin pilotés par `active`.
@@ -115,7 +115,7 @@ export function AnalysisProgress({
       setDone(false);
       setStepIndex(0);
       setProgress(0);
-      setOpenAgentDetail(null);
+      setOpenSourceDetail(null);
       startRef.current = Date.now();
       return;
     }
@@ -159,57 +159,42 @@ export function AnalysisProgress({
   const currentEffort: Effort = done ? 1 : steps[stepIndex].effort;
   const pulseSpeed = EFFORT_SPEED[currentEffort];
   const observationsSearching = !done && stepIndex < 2;
-  const agents = [
+  const sourceMessages = [
     {
       id: "occurrences" as const,
-      marker: "AO",
       name: "Agent Occurrences",
       icon: Database,
       tone: "text-[#2f705a]",
-      markerTone: "bg-[#dceee1] text-[#27614d]",
-      status: observationsSearching ? "En recherche" : "Croisement en cours",
-      activity: observationsSearching
-        ? `Je consulte ${includeINaturalist ? "GBIF et iNaturalist" : "GBIF"} pour rechercher les espèces observées.`
-        : "J’ai terminé la consultation et je transmets mes résultats à Ally.",
+      message: observationsSearching
+        ? "Je consulte les occurrences disponibles."
+        : "Je recoupe les occurrences avec l’inventaire.",
       detail: `Sources : ${includeINaturalist ? "GBIF et iNaturalist" : "GBIF"}.`,
-      working: true,
-      ready: false,
     },
     {
       id: "zonages" as const,
-      marker: "AZ",
       name: "Agent Zonages",
       icon: Layers3,
       tone: "text-[#50718a]",
-      markerTone: "bg-[#e1edf2] text-[#466d85]",
-      status: zonagesLoading ? "En recherche" : zonagesReady ? "Terminé" : "Indisponible",
-      activity: zonagesLoading
-        ? "Je consulte IGN et PatriNat pour repérer les zonages qui concernent l’aire."
+      message: zonagesLoading
+        ? "Je recherche les zonages autour de l’aire d’étude."
         : zonagesReady
           ? zonageFeatureCount > 0
-            ? `J’ai trouvé ${zonageFeatureCount} emprise${zonageFeatureCount > 1 ? "s" : ""} de zonage.`
-            : "Je n’ai trouvé aucune emprise de zonage dans cette aire."
-          : "Je ne peux pas consulter les zonages pour le moment ; les autres agents continuent.",
+            ? `J’ai trouvé ${zonageFeatureCount} emprise${zonageFeatureCount > 1 ? "s" : ""}.`
+            : "Je n’ai trouvé aucune emprise dans l’aire."
+          : "Je ne peux pas récupérer les zonages ; l’inventaire continue.",
       detail: "Sources : IGN / PatriNat.",
-      working: zonagesLoading,
-      ready: zonagesReady,
     },
     {
       id: "potential" as const,
-      marker: "AP",
       name: "Agent Potentiel écologique",
       icon: Leaf,
       tone: "text-[#6f7650]",
-      markerTone: "bg-[#eff0dc] text-[#696f45]",
-      status: potentialSpeciesLoading ? "En calcul" : potentialSpeciesReady ? "Terminé" : "Indisponible",
-      activity: potentialSpeciesLoading
-        ? "Je croise le contexte écologique avec les espèces avérées pour identifier les espèces potentielles."
+      message: potentialSpeciesLoading
+        ? "Je calcule les espèces potentielles."
         : potentialSpeciesReady
-          ? `J’ai identifié ${potentialSpeciesCount} espèce${potentialSpeciesCount > 1 ? "s" : ""} potentielle${potentialSpeciesCount > 1 ? "s" : ""} à examiner.`
-          : "Je ne peux pas évaluer les espèces potentielles pour le moment.",
+          ? `J’ai identifié ${potentialSpeciesCount} espèce${potentialSpeciesCount > 1 ? "s" : ""} potentielle${potentialSpeciesCount > 1 ? "s" : ""}.`
+          : "Le calcul des espèces potentielles est indisponible ; l’inventaire continue.",
       detail: "Calcul lancé pour l’aire d’étude.",
-      working: potentialSpeciesLoading,
-      ready: potentialSpeciesReady,
     },
   ];
 
@@ -279,9 +264,9 @@ export function AnalysisProgress({
               {!done && <EffortMeter effort={currentEffort} />}
             </div>
             <p className="mt-1 text-[13px] leading-5 text-[#36584b]" data-ifx-motion style={{ animation: "ifx-arrive 260ms ease-out both" }}>
-              {done ? "J’ai terminé le croisement. J’ouvre vos résultats…" : steps[stepIndex].label}
+              {done ? "J’ai terminé le croisement. J’ouvre vos résultats…" : "Je coordonne les analyses en parallèle."}
             </p>
-            {!done && <p className="mt-0.5 text-xs leading-4 text-[#6b7d73]">{steps[stepIndex].detail}</p>}
+            {!done && <p className="mt-0.5 text-xs leading-4 text-[#6b7d73]">{steps[stepIndex].label}</p>}
           </div>
         </div>
 
@@ -301,56 +286,57 @@ export function AnalysisProgress({
 
         {!done && (
           <div className="px-5 py-3.5">
-            <p className="mb-2 text-[10px] font-bold uppercase tracking-[0.14em] text-[#789084]">Analyses coordonnées en parallèle</p>
-            <ul className="space-y-1.5">
-              {agents.map((agent) => {
+            <p className="mb-2 text-[10px] font-bold uppercase tracking-[0.14em] text-[#789084]">Fil d’analyse</p>
+            <ol className="space-y-0.5 border-l border-dashed border-[#cbdacd] pl-3">
+              <li className="relative py-1.5" data-ifx-motion style={{ animation: "ifx-arrive 260ms ease-out both" }}>
+                <span className="absolute -left-[17px] top-3.5 h-2 w-2 rounded-full bg-[#245746] ring-4 ring-[#f8faf5]" aria-hidden="true" />
+                <p className="text-[11px] font-bold text-[#244338]">Ally <span className="ml-1 font-normal text-[#7b8d83]">coordinatrice</span></p>
+                <p className="mt-0.5 text-xs leading-4 text-[#496358]">Je lance le croisement de vos données.</p>
+                <button
+                  type="button"
+                  onClick={() => setOpenSourceDetail((open) => open === "ally" ? null : "ally")}
+                  className="mt-1 flex items-center gap-1 text-[10px] font-medium text-[#62766b] transition-colors hover:text-[#245746] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#4e8a73] focus-visible:ring-offset-1"
+                  aria-expanded={openSourceDetail === "ally"}
+                  aria-controls="source-detail-ally"
+                >
+                  Détail de l’analyse
+                  {openSourceDetail === "ally" ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
+                </button>
+                {openSourceDetail === "ally" && <p id="source-detail-ally" className="mt-1 text-[10px] leading-4 text-[#687c71]">{areaCount} aire{areaCount > 1 ? "s" : ""} d’étude active{areaCount > 1 ? "s" : ""}.</p>}
+              </li>
+              {stepIndex >= 1 && sourceMessages.map((agent, index) => {
                 const Icon = agent.icon;
-                const detailOpen = openAgentDetail === agent.id;
+                const detailOpen = openSourceDetail === agent.id;
                 return (
-                  <li key={agent.id} className="rounded-xl border border-[#dfe8de] bg-[#fbfcf8] px-3 py-2.5">
-                    <div className="flex items-start gap-2.5">
-                      <span className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-lg font-mono text-[10px] font-bold ${agent.markerTone}`} aria-hidden="true">
-                        {agent.marker}
-                      </span>
-                      <div className="min-w-0 flex-1">
-                        <div className="flex items-center justify-between gap-2">
-                          <div className="flex min-w-0 items-center gap-1.5">
-                            <Icon className={`h-3.5 w-3.5 shrink-0 ${agent.tone}`} aria-hidden="true" />
-                            <span className="truncate text-xs font-semibold text-[#36584b]">{agent.name}</span>
-                          </div>
-                          <span className="flex shrink-0 items-center gap-1 text-[10px] font-medium text-[#72847b]">
-                            {agent.working ? (
-                              <Loader2 className={`h-3 w-3 animate-spin ${agent.tone}`} data-ifx-motion aria-hidden="true" />
-                            ) : agent.ready ? (
-                              <Check className={`h-3 w-3 ${agent.tone}`} aria-hidden="true" />
-                            ) : (
-                              <span className="h-1.5 w-1.5 rounded-full bg-[#9aa89f]" aria-hidden="true" />
-                            )}
-                            {agent.status}
-                          </span>
-                        </div>
-                        <p className="mt-0.5 text-[11px] leading-4 text-[#66796e]">{agent.activity}</p>
-                        <button
-                          type="button"
-                          onClick={() => setOpenAgentDetail((open) => open === agent.id ? null : agent.id)}
-                          className="mt-1 flex items-center gap-1 text-[10px] font-medium text-[#62766b] transition-colors hover:text-[#245746] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#4e8a73] focus-visible:ring-offset-1"
-                          aria-expanded={detailOpen}
-                          aria-controls={`agent-detail-${agent.id}`}
-                        >
-                          Détail de la source
-                          {detailOpen ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
-                        </button>
-                        {detailOpen && (
-                          <p id={`agent-detail-${agent.id}`} className="mt-1 rounded-md bg-[#f2f6ef] px-2 py-1 text-[10px] leading-4 text-[#5d7166]">
-                            {agent.detail}
-                          </p>
-                        )}
-                      </div>
+                  <li key={agent.id} className="relative py-1.5" data-ifx-motion style={{ animation: `ifx-arrive 260ms ease-out ${80 + index * 70}ms both` }}>
+                    <span className="absolute -left-[17px] top-3.5 h-2 w-2 rounded-full bg-[#799a89] ring-4 ring-[#f8faf5]" aria-hidden="true" />
+                    <div className="flex items-center gap-1.5">
+                      <Icon className={`h-3.5 w-3.5 shrink-0 ${agent.tone}`} aria-hidden="true" />
+                      <p className="text-[11px] font-bold text-[#36584b]">{agent.name}</p>
                     </div>
+                    <p className="mt-0.5 text-xs leading-4 text-[#496358]">{agent.message}</p>
+                    <button
+                      type="button"
+                      onClick={() => setOpenSourceDetail((open) => open === agent.id ? null : agent.id)}
+                      className="mt-1 flex items-center gap-1 text-[10px] font-medium text-[#62766b] transition-colors hover:text-[#245746] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#4e8a73] focus-visible:ring-offset-1"
+                      aria-expanded={detailOpen}
+                      aria-controls={`source-detail-${agent.id}`}
+                    >
+                      Détail de la source
+                      {detailOpen ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
+                    </button>
+                    {detailOpen && <p id={`source-detail-${agent.id}`} className="mt-1 text-[10px] leading-4 text-[#687c71]">{agent.detail}</p>}
                   </li>
                 );
               })}
-            </ul>
+              {stepIndex >= 2 && (
+                <li className="relative py-1.5" data-ifx-motion style={{ animation: "ifx-arrive 260ms ease-out both" }}>
+                  <span className="absolute -left-[17px] top-3.5 h-2 w-2 rounded-full bg-[#245746] ring-4 ring-[#f8faf5]" aria-hidden="true" />
+                  <p className="text-[11px] font-bold text-[#244338]">Ally <span className="ml-1 font-normal text-[#7b8d83]">coordinatrice</span></p>
+                  <p className="mt-0.5 text-xs leading-4 text-[#496358]">Je consolide les données reçues avant l’affichage.</p>
+                </li>
+              )}
+            </ol>
           </div>
         )}
       </div>
