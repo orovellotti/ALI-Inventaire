@@ -155,13 +155,6 @@ export function ResultsPanel({ isOpen, isAnalyzing = false, areaCount = 1, onClo
   const [editingTitle, setEditingTitle] = useState("");
   const [deleteConversationId, setDeleteConversationId] = useState<string | null>(null);
   const [aiAnalysis, setAiAnalysis] = useState<{ species: { scientificName: string; vernacularName?: string; group: string; level: string; reason: string; sources?: string[]; inInventory?: boolean; evidenceClass?: string; evidenceLabel?: string; score?: number; scoreLabel?: string; isInvasive?: boolean }[]; natura2000?: { type: string; name: string; url: string | null; code?: string | null; species?: { name: string; designating: boolean; grade?: string | null }[]; habitats?: { code: string; description: string; cover: number | null }[] }[]; generatedAt: string } | null>(null);
-  const [panelWidth, setPanelWidth] = useState<number>(() => {
-    if (typeof window === "undefined") return 600;
-    const saved = Number(localStorage.getItem("resultsPanelWidth"));
-    return Number.isFinite(saved) && saved >= 360 ? saved : 600;
-  });
-  const isResizingRef = useRef(false);
-
   useEffect(() => {
     if (!historyOpen) return;
     const onKey = (event: KeyboardEvent) => {
@@ -174,30 +167,6 @@ export function ResultsPanel({ isOpen, isAnalyzing = false, areaCount = 1, onClo
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [historyOpen]);
-
-  useEffect(() => {
-    function onMove(e: MouseEvent) {
-      if (!isResizingRef.current) return;
-      const newWidth = Math.max(360, Math.min(window.innerWidth - 80, window.innerWidth - e.clientX));
-      setPanelWidth(newWidth);
-    }
-    function onUp() {
-      if (!isResizingRef.current) return;
-      isResizingRef.current = false;
-      document.body.style.cursor = "";
-      document.body.style.userSelect = "";
-      try {
-        localStorage.setItem("resultsPanelWidth", String(panelWidth));
-        window.dispatchEvent(new CustomEvent("if:panel-width-changed"));
-      } catch {}
-    }
-    window.addEventListener("mousemove", onMove);
-    window.addEventListener("mouseup", onUp);
-    return () => {
-      window.removeEventListener("mousemove", onMove);
-      window.removeEventListener("mouseup", onUp);
-    };
-  }, [panelWidth]);
 
   useEffect(() => {
     // Réinitialise l'état d'interface propre à un résultat lors d'une nouvelle analyse
@@ -252,13 +221,6 @@ export function ResultsPanel({ isOpen, isAnalyzing = false, areaCount = 1, onClo
       explainTriggerRef.current?.focus();
     };
   }, [assistantOpen]);
-
-  const startResize = (e: React.MouseEvent) => {
-    e.preventDefault();
-    isResizingRef.current = true;
-    document.body.style.cursor = "ew-resize";
-    document.body.style.userSelect = "none";
-  };
 
   const marineCount = useMemo(() => {
     if (!results) return 0;
@@ -910,21 +872,10 @@ ${shareUrl ? `\nReproduire cette analyse : ${shareUrl}` : ""}`;
 
   if (!results) {
     return (
-      <AnimatePresence>
-        <motion.aside
-          initial={{ x: "100%" }}
-          animate={{ x: 0 }}
-          exit={{ x: "100%" }}
-          transition={prefersReducedMotion ? { duration: 0 } : { type: "spring", damping: 25, stiffness: 200 }}
-          className="fixed right-0 z-[2000] flex flex-col bg-white/95 shadow-2xl backdrop-blur-xl inset-x-0 bottom-0 h-[80vh] rounded-t-2xl border-t md:inset-x-auto md:top-0 md:bottom-auto md:h-full md:max-w-[95vw] md:rounded-none md:border-l md:border-t-0"
-          style={typeof window !== "undefined" && window.innerWidth >= 768 ? { width: panelWidth } : undefined}
+        <aside
+          className="fixed right-0 z-[2000] flex flex-col bg-white/95 shadow-2xl backdrop-blur-xl inset-x-0 bottom-0 h-[80vh] rounded-t-2xl border-t md:inset-x-auto md:top-0 md:bottom-auto md:h-full md:w-[600px] md:max-w-[95vw] md:rounded-none md:border-l md:border-t-0"
           aria-label="Analyse biodiversité en cours"
         >
-          <div
-            onMouseDown={startResize}
-            className="absolute left-0 top-0 z-10 hidden h-full w-1.5 cursor-ew-resize transition-colors hover:bg-teal-400/40 active:bg-teal-500/60 md:block"
-            aria-hidden="true"
-          />
           <header className="flex items-start justify-between gap-3 border-b border-gray-100 bg-white/70 px-5 py-4">
             <div className="min-w-0">
               <h2 className="text-lg font-bold tracking-tight text-gray-900">{isAnalyzing ? "Analyse en cours" : "Nouvelle analyse"}</h2>
@@ -967,28 +918,15 @@ ${shareUrl ? `\nReproduire cette analyse : ${shareUrl}` : ""}`;
              {!isAnalyzing && composer}
           </div>
            {historyDrawer}
-        </motion.aside>
-      </AnimatePresence>
+        </aside>
     );
   }
 
   return (
     <AnimatePresence>
-      <motion.div
-        initial={{ x: "100%" }}
-        animate={{ x: 0 }}
-        exit={{ x: "100%" }}
-        transition={prefersReducedMotion ? { duration: 0 } : { type: "spring", damping: 25, stiffness: 200 }}
-        className="fixed right-0 z-[2000] bg-white/95 backdrop-blur-xl shadow-2xl border-white/20 flex flex-col inset-x-0 bottom-0 h-[80vh] rounded-t-2xl border-t md:inset-x-auto md:top-0 md:bottom-auto md:h-full md:max-w-[95vw] md:rounded-none md:border-t-0 md:border-l"
-        style={typeof window !== "undefined" && window.innerWidth >= 768 ? { width: panelWidth } : undefined}
+      <div
+        className="fixed right-0 z-[2000] bg-white/95 backdrop-blur-xl shadow-2xl border-white/20 flex flex-col inset-x-0 bottom-0 h-[80vh] rounded-t-2xl border-t md:inset-x-auto md:top-0 md:bottom-auto md:h-full md:w-[600px] md:max-w-[95vw] md:rounded-none md:border-t-0 md:border-l"
       >
-        <div
-          onMouseDown={startResize}
-          onDoubleClick={() => { setPanelWidth(600); try { localStorage.setItem("resultsPanelWidth", "600"); window.dispatchEvent(new CustomEvent("if:panel-width-changed")); } catch {} }}
-          title="Glisser pour redimensionner — double-clic pour réinitialiser"
-          className="hidden md:block absolute top-0 left-0 h-full w-1.5 -ml-0.5 cursor-ew-resize z-10 hover:bg-teal-400/40 active:bg-teal-500/60 transition-colors"
-          data-testid="handle-resize-panel"
-        />
         <div className="px-5 pt-4 pb-3 border-b border-gray-100 bg-white/50">
           <div className="flex justify-between items-start gap-2">
             <div className="min-w-0">
@@ -1619,7 +1557,7 @@ ${shareUrl ? `\nReproduire cette analyse : ${shareUrl}` : ""}`;
             )}
           </Button>
         </div>
-      </motion.div>
+      </div>
 
       <Dialog open={showReportPreview} onOpenChange={setShowReportPreview}>
         <DialogContent className="max-w-4xl w-[90vw] max-h-[85vh] flex flex-col z-[3000]">
