@@ -22,33 +22,33 @@ const EFFORT_SPEED: Record<Effort, number> = {
 function buildSteps(includeINaturalist: boolean, areaCount: number): Step[] {
   const steps: Step[] = [
     {
-      label: "Je lance le croisement de vos données",
+      label: "Je prépare votre aire d’étude avant de consulter mes agents.",
       detail:
         areaCount > 1
-          ? `${areaCount} aires d’étude seront analysées en parallèle`
-          : "Votre aire d’étude est prête à être interrogée",
+          ? `Je vais analyser ${areaCount} aires en parallèle.`
+          : "Je vérifie le périmètre et les paramètres de recherche.",
       duration: 900,
       effort: 1,
     },
     {
-      label: "J’interroge les occurrences observées",
+      label: "Je consulte maintenant plusieurs sources en parallèle.",
       detail: includeINaturalist
-        ? "GBIF et iNaturalist sont consultés en parallèle"
-        : "GBIF est consulté pour les occurrences disponibles",
+        ? "Mes agents interrogent GBIF, iNaturalist et les référentiels territoriaux."
+        : "Mes agents interrogent GBIF et les référentiels territoriaux.",
       duration: 6800,
       effort: 3,
     },
   ];
   steps.push(
     {
-      label: "Je recoupe les données reçues",
-      detail: "Les résultats sont consolidés avant l’affichage",
+      label: "Je rassemble les réponses de mes agents.",
+      detail: "Je distingue les observations, les zonages et les espèces potentielles.",
       duration: 2400,
       effort: 2,
     },
     {
-      label: "Je prépare votre inventaire",
-      detail: "Les résultats vont s’ouvrir dès que le croisement est prêt",
+      label: "Je vérifie la cohérence des résultats.",
+      detail: "Encore un instant, je prépare une synthèse traçable.",
       duration: 6000,
       effort: 1,
     },
@@ -159,18 +159,6 @@ export function AnalysisProgress({
   const currentEffort: Effort = done ? 1 : steps[stepIndex].effort;
   const pulseSpeed = EFFORT_SPEED[currentEffort];
   const observationsSearching = !done && stepIndex < 2;
-  const zonageLabel = zonagesLoading
-    ? "Recherche des zonages en cours"
-    : zonagesReady
-      ? zonageFeatureCount > 0
-        ? `${zonageFeatureCount} emprise${zonageFeatureCount > 1 ? "s" : ""} trouvée${zonageFeatureCount > 1 ? "s" : ""}`
-        : "Aucune emprise trouvée"
-      : "Zonages indisponibles";
-  const potentialLabel = potentialSpeciesLoading
-    ? "Calcul des espèces potentielles en cours"
-    : potentialSpeciesReady
-      ? `${potentialSpeciesCount} espèce${potentialSpeciesCount > 1 ? "s" : ""} potentielle${potentialSpeciesCount > 1 ? "s" : ""}`
-      : "Espèces potentielles indisponibles";
   const agents = [
     {
       id: "occurrences" as const,
@@ -180,7 +168,9 @@ export function AnalysisProgress({
       tone: "text-[#2f705a]",
       markerTone: "bg-[#dceee1] text-[#27614d]",
       status: observationsSearching ? "En recherche" : "Croisement en cours",
-      activity: observationsSearching ? "Interroge les occurrences disponibles" : "Prépare les données pour l’inventaire",
+      activity: observationsSearching
+        ? `Je consulte ${includeINaturalist ? "GBIF et iNaturalist" : "GBIF"} pour rechercher les espèces observées.`
+        : "J’ai terminé la consultation et je transmets mes résultats à Ally.",
       detail: `Sources : ${includeINaturalist ? "GBIF et iNaturalist" : "GBIF"}.`,
       working: true,
       ready: false,
@@ -193,7 +183,13 @@ export function AnalysisProgress({
       tone: "text-[#50718a]",
       markerTone: "bg-[#e1edf2] text-[#466d85]",
       status: zonagesLoading ? "En recherche" : zonagesReady ? "Terminé" : "Indisponible",
-      activity: zonageLabel,
+      activity: zonagesLoading
+        ? "Je consulte IGN et PatriNat pour repérer les zonages qui concernent l’aire."
+        : zonagesReady
+          ? zonageFeatureCount > 0
+            ? `J’ai trouvé ${zonageFeatureCount} emprise${zonageFeatureCount > 1 ? "s" : ""} de zonage.`
+            : "Je n’ai trouvé aucune emprise de zonage dans cette aire."
+          : "Je ne peux pas consulter les zonages pour le moment ; les autres agents continuent.",
       detail: "Sources : IGN / PatriNat.",
       working: zonagesLoading,
       ready: zonagesReady,
@@ -206,7 +202,11 @@ export function AnalysisProgress({
       tone: "text-[#6f7650]",
       markerTone: "bg-[#eff0dc] text-[#696f45]",
       status: potentialSpeciesLoading ? "En calcul" : potentialSpeciesReady ? "Terminé" : "Indisponible",
-      activity: potentialLabel,
+      activity: potentialSpeciesLoading
+        ? "Je croise le contexte écologique avec les espèces avérées pour identifier les espèces potentielles."
+        : potentialSpeciesReady
+          ? `J’ai identifié ${potentialSpeciesCount} espèce${potentialSpeciesCount > 1 ? "s" : ""} potentielle${potentialSpeciesCount > 1 ? "s" : ""} à examiner.`
+          : "Je ne peux pas évaluer les espèces potentielles pour le moment.",
       detail: "Calcul lancé pour l’aire d’étude.",
       working: potentialSpeciesLoading,
       ready: potentialSpeciesReady,
@@ -279,9 +279,9 @@ export function AnalysisProgress({
               {!done && <EffortMeter effort={currentEffort} />}
             </div>
             <p className="mt-1 text-[13px] leading-5 text-[#36584b]" data-ifx-motion style={{ animation: "ifx-arrive 260ms ease-out both" }}>
-              {done ? "J’ai terminé le croisement. Ouverture des résultats…" : "Je coordonne trois analyses en parallèle."}
+              {done ? "J’ai terminé le croisement. J’ouvre vos résultats…" : steps[stepIndex].label}
             </p>
-            {!done && <p className="mt-0.5 text-xs leading-4 text-[#6b7d73]">{steps[stepIndex].label}</p>}
+            {!done && <p className="mt-0.5 text-xs leading-4 text-[#6b7d73]">{steps[stepIndex].detail}</p>}
           </div>
         </div>
 
