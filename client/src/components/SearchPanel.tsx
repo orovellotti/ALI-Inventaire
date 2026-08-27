@@ -98,6 +98,12 @@ export function SearchPanel({
       <div className={embedded
         ? "search-text-mode w-full bg-white py-2 flex flex-col gap-4"
         : "glass-panel p-3 rounded-2xl flex flex-col gap-2.5"}>
+        {embedded && (
+          <div className="flex items-center gap-2 text-sm font-bold">
+            <Search className="h-4 w-4" aria-hidden="true" />
+            Votre demande
+          </div>
+        )}
 
         {/* === Étape 1 : Localisation === */}
         <div className="relative flex items-center gap-1.5 bg-white/70 rounded-xl ring-1 ring-black/5 focus-within:ring-2 focus-within:ring-teal-400 transition-all pl-3 pr-1.5 py-1">
@@ -215,7 +221,7 @@ export function SearchPanel({
               </div>
               <div className="text-[10px] text-gray-500 truncate flex items-center gap-1.5">
                 {activePreset && activePreset.id !== "custom" && (
-                  <span>{activePreset.icon} {activePreset.label}</span>
+                  <span>{activePreset.label}</span>
                 )}
                 {activePreset?.id === "custom" && <span>Personnalisé</span>}
                 <span className="text-gray-300">•</span>
@@ -256,7 +262,6 @@ export function SearchPanel({
                           }`}
                           data-testid={`preset-${preset.id}`}
                         >
-                          <span>{preset.icon}</span>
                           <span className="font-medium">{preset.label}</span>
                         </button>
                       ))}

@@ -674,7 +674,7 @@ export default function Home() {
     const areaLabel = enabled
       .map((circle) => `${circle.label.replace("Aire d'étude ", "")} (${circle.radius >= 1000 ? `${circle.radius / 1000} km` : `${circle.radius} m`})`)
       .join(", ");
-    return `Analyser ${currentToponym} sur ${enabled.length} aire${enabled.length > 1 ? "s" : ""} — ${areaLabel}. Sources : GBIF${includeINaturalist ? " et iNaturalist" : ""}${projectPolygon ? `, emprise « ${projectPolygon.name} »` : ""}.`;
+    return `J’ai analysé ${currentToponym} sur ${enabled.length} aire${enabled.length > 1 ? "s" : ""} — ${areaLabel}, avec les sources GBIF${includeINaturalist ? " et iNaturalist" : ""}${projectPolygon ? ` et l’emprise « ${projectPolygon.name} »` : ""}.`;
   }, [circles, currentToponym, includeINaturalist, projectPolygon]);
 
   return (

@@ -897,12 +897,13 @@ ${shareUrl ? `\nReproduire cette analyse : ${shareUrl}` : ""}`;
              </div>
           </header>
           <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4" data-testid="conversation-feed">
-             {!isAnalyzing && !activeConversationFailed && <div className="mb-4 rounded-xl border-l-2 border-emerald-600 bg-emerald-50/50 p-3 text-xs text-emerald-900"><strong>Ali</strong><span className="ml-1 text-emerald-700">coordinateur</span><p className="mt-1 leading-5">Bonjour. Je suis prêt à croiser les observations, les zonages et les signaux écologiques de votre site.</p></div>}
-             {requestSummary && (isAnalyzing || activeConversationFailed) && <div className="mb-4 ml-auto max-w-[88%] rounded-2xl rounded-br-sm bg-teal-700 px-3 py-2 text-xs text-white" data-testid="message-user-request">{requestSummary}</div>}
+             {!isAnalyzing && !activeConversationFailed && <div className="conversation-message mb-5"><Bot className="mt-1 h-5 w-5" aria-hidden="true" /><div><p><strong>Ali</strong> <span>coordinateur</span></p><p>Bonjour. Je suis prêt à croiser les observations, les zonages et les signaux écologiques de votre site.</p></div></div>}
+             {requestSummary && (isAnalyzing || activeConversationFailed) && <div className="conversation-message mb-5" data-testid="message-user-request"><Search className="mt-1 h-5 w-5" aria-hidden="true" /><div><p><strong>Votre demande</strong></p><p>{requestSummary}</p></div></div>}
              {activeConversationFailed && !isAnalyzing && (
-               <div className="mb-4 rounded-xl border-l-2 border-red-500 bg-red-50 p-3 text-xs text-red-900" role="status">
-                 <strong>Ali</strong><span className="ml-1 text-red-700">coordinateur</span>
-                 <p className="mt-1 leading-5">Cette analyse n’a pas pu être finalisée. Vous pouvez la relancer avec les mêmes paramètres ci-dessous.</p>
+               <div className="conversation-message mb-5" role="status">
+                 <Bot className="mt-1 h-5 w-5" aria-hidden="true" />
+                 <div><p><strong>Ali</strong> <span>coordinateur</span></p>
+                 <p>Cette analyse n’a pas pu être finalisée. Vous pouvez la relancer avec les mêmes paramètres ci-dessous.</p></div>
                </div>
              )}
              {isAnalyzing && <AnalysisProgress
@@ -926,8 +927,9 @@ ${shareUrl ? `\nReproduire cette analyse : ${shareUrl}` : ""}`;
 
   return (
     <AnimatePresence>
-      <div
+      <aside
         className="conversation-panel results-text-mode fixed right-0 z-[2000] flex flex-col bg-white inset-x-0 bottom-0 h-[80vh] rounded-t-2xl border-t border-gray-300 md:inset-x-auto md:top-0 md:bottom-auto md:h-full md:w-[680px] md:max-w-[95vw] md:rounded-none md:border-t-0 md:border-l"
+        aria-label="Conversation Inventaire Flash"
       >
         <div className="px-5 pt-4 pb-3 border-b border-gray-100 bg-white/50">
           <div className="flex justify-between items-start gap-2">
@@ -1020,7 +1022,7 @@ ${shareUrl ? `\nReproduire cette analyse : ${shareUrl}` : ""}`;
          <ScrollArea className="flex-1 px-5 py-4">
           {/* ══════════ VUE DIAGNOSTIC (page unique à divulgation progressive) ══════════ */}
            <div className="space-y-4" data-testid="panel-overview">
-             {requestSummary && <div className="ml-auto max-w-[88%] rounded-2xl rounded-br-sm bg-teal-700 px-3 py-2 text-xs text-white" data-testid="message-user-request">{requestSummary}</div>}
+             {requestSummary && <div className="conversation-message" data-testid="message-user-request"><Search className="mt-1 h-5 w-5" aria-hidden="true" /><div><p><strong>Votre demande</strong></p><p>{requestSummary}</p></div></div>}
              {historyError && <p className="text-[10px] text-amber-700" role="status">{historyError}</p>}
               {isAnalyzing && (
                 <AnalysisProgress
@@ -1067,7 +1069,7 @@ ${shareUrl ? `\nReproduire cette analyse : ${shareUrl}` : ""}`;
                </ol>
              </div>
             <div className="flex items-start gap-2 border-l-2 border-emerald-600 pl-3" data-testid="message-ally">
-              <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-emerald-700 text-[10px] font-bold text-white">AL</span>
+               <Bot className="mt-0.5 h-5 w-5 shrink-0" aria-hidden="true" />
               <div><p className="text-xs font-bold text-emerald-900">Ali <span className="font-normal text-emerald-700">coordinateur</span></p><p className="mt-0.5 text-[11px] leading-4 text-emerald-800">J’ai croisé les observations, les zonages et les signaux de potentiel écologique pour ce pré-diagnostic traçable.</p></div>
             </div>
             {/* Niveau d'enjeu global */}
@@ -1131,7 +1133,7 @@ ${shareUrl ? `\nReproduire cette analyse : ${shareUrl}` : ""}`;
             {/* Section 4 — Espèces potentiellement présentes (repliable) */}
             <section className="space-y-2" data-testid="message-agent-potential">
               <div className="flex items-start gap-2 border-l-2 border-lime-600 pl-3">
-                <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-lime-700 text-[10px] font-bold text-white">AP</span>
+                <Leaf className="mt-0.5 h-5 w-5 shrink-0" aria-hidden="true" />
                 <div><p className="text-xs font-bold text-lime-900">Agent Potentiel écologique</p><p className="mt-0.5 text-[11px] leading-4 text-lime-800">Je distingue la compatibilité écologique d’une preuve d’observation. Mes résultats restent des signaux à confirmer.</p></div>
               </div>
               <PotentialSpeciesSection
@@ -1256,7 +1258,7 @@ ${shareUrl ? `\nReproduire cette analyse : ${shareUrl}` : ""}`;
           {/* Message Agent Occurrences — pièce jointe dépliable */}
           <section className="rounded-xl border border-teal-200 bg-teal-50/30 overflow-hidden" data-testid="message-agent-occurrences">
             <button type="button" onClick={() => toggleSection("especes")} aria-expanded={openSections.has("especes")} aria-controls="attachment-especes" className="w-full flex items-center justify-between gap-3 px-4 py-3 text-left hover:bg-teal-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-400">
-              <span className="flex items-center gap-2"><span className="flex h-6 w-6 items-center justify-center rounded-full bg-teal-700 text-[10px] font-bold text-white">AO</span><span><span className="block text-xs font-bold text-teal-900">Agent Occurrences</span><span className="block text-[11px] text-teal-700">{filteredTotal} espèces consolidées · données géolocalisées</span></span></span>
+              <span className="flex items-center gap-2"><Database className="h-5 w-5 shrink-0" aria-hidden="true" /><span><span className="block text-xs font-bold text-teal-900">Agent Occurrences</span><span className="block text-[11px] text-teal-700">{filteredTotal} espèces consolidées · données géolocalisées</span></span></span>
               {openSections.has("especes") ? <ChevronUp className="h-4 w-4 text-teal-700" /> : <ChevronDown className="h-4 w-4 text-teal-700" />}
             </button>
             {openSections.has("especes") && <div id="attachment-especes" className="space-y-4 border-t border-teal-200 bg-white p-4 sm:p-5" data-testid="panel-especes">
@@ -1410,7 +1412,7 @@ ${shareUrl ? `\nReproduire cette analyse : ${shareUrl}` : ""}`;
           {/* Message Agent Zonages — pièce jointe dépliable */}
           <section className="rounded-xl border border-sky-200 bg-sky-50/30 overflow-hidden" data-testid="message-agent-zonages">
             <button type="button" onClick={() => toggleSection("zonages")} aria-expanded={openSections.has("zonages")} aria-controls="attachment-zonages" className="w-full flex items-center justify-between gap-3 px-4 py-3 text-left hover:bg-sky-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400">
-              <span className="flex items-center gap-2"><span className="flex h-6 w-6 items-center justify-center rounded-full bg-sky-700 text-[10px] font-bold text-white">AZ</span><span><span className="block text-xs font-bold text-sky-900">Agent Zonages</span><span className="block text-[11px] text-sky-700">{zonagesLoading ? "Recherche en cours…" : `${flatZonages.length} zonage${flatZonages.length > 1 ? "s" : ""} · IGN / PatriNat`}</span></span></span>
+              <span className="flex items-center gap-2"><Layers className="h-5 w-5 shrink-0" aria-hidden="true" /><span><span className="block text-xs font-bold text-sky-900">Agent Zonages</span><span className="block text-[11px] text-sky-700">{zonagesLoading ? "Recherche en cours…" : `${flatZonages.length} zonage${flatZonages.length > 1 ? "s" : ""} · IGN / PatriNat`}</span></span></span>
               {openSections.has("zonages") ? <ChevronUp className="h-4 w-4 text-sky-700" /> : <ChevronDown className="h-4 w-4 text-sky-700" />}
             </button>
             {openSections.has("zonages") && <div id="attachment-zonages" className="space-y-4 border-t border-sky-200 bg-white p-4 sm:p-5" data-testid="panel-zonages-tab">
@@ -1518,7 +1520,7 @@ ${shareUrl ? `\nReproduire cette analyse : ${shareUrl}` : ""}`;
           </section>
 
           <section className="flex items-start gap-2 border-l-2 border-emerald-600 pl-3" data-testid="message-ally-final">
-            <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-emerald-700 text-[10px] font-bold text-white">AL</span>
+            <Bot className="mt-0.5 h-5 w-5 shrink-0" aria-hidden="true" />
             <div className="min-w-0">
               <p className="text-xs font-bold text-emerald-900">Ali <span className="font-normal text-emerald-700">synthèse finale</span></p>
               <p className="mt-0.5 text-[11px] leading-4 text-emerald-800">{autoSummary}</p>
@@ -1603,7 +1605,7 @@ ${shareUrl ? `\nReproduire cette analyse : ${shareUrl}` : ""}`;
             )}
           </Button>
         </div>
-      </div>
+      </aside>
 
       <Dialog open={showReportPreview} onOpenChange={setShowReportPreview}>
         <DialogContent className="max-w-4xl w-[90vw] max-h-[85vh] flex flex-col z-[3000]">
@@ -2284,15 +2286,28 @@ function PotentialSpeciesRow({
 
 function PotentialSpeciesTable({ items, testId }: { items: PotentialSpeciesItem[]; testId: string }) {
   const [expandedSpecies, setExpandedSpecies] = useState<string | null>(null);
+  const uniqueItems = useMemo(() => {
+    const byTaxon = new Map<string, PotentialSpeciesItem>();
+    for (const item of items) {
+      const key = `${item.scientificName.normalize("NFKC").trim().toLowerCase()}::${item.speciesGroup}`;
+      if (!byTaxon.has(key)) byTaxon.set(key, item);
+    }
+    return Array.from(byTaxon.values());
+  }, [items]);
+
+  const itemKey = (item: PotentialSpeciesItem) =>
+    `${item.scientificName.normalize("NFKC").trim().toLowerCase()}::${item.speciesGroup}`;
+
   return (
     <div className={SPECIES_TABLE_FRAME}>
       <div className="divide-y divide-slate-100 md:hidden" data-testid={`${testId}-list`}>
-        {items.map((item) => {
-          const expanded = expandedSpecies === item.scientificName;
+        {uniqueItems.map((item) => {
+          const key = itemKey(item);
+          const expanded = expandedSpecies === key;
           const style = POTENTIAL_STATUS_STYLE[item.status];
-          const onToggle = () => setExpandedSpecies((current) => current === item.scientificName ? null : item.scientificName);
+          const onToggle = () => setExpandedSpecies((current) => current === key ? null : key);
           return (
-            <article key={item.scientificName} className={expanded ? "bg-emerald-50/70" : "bg-white"} data-testid={`potential-species-${item.scientificName}`}>
+            <article key={key} className={expanded ? "bg-emerald-50/70" : "bg-white"} data-testid={`potential-species-${item.scientificName}`}>
               <button type="button" onClick={onToggle} aria-expanded={expanded} className="w-full px-3 py-3 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-emerald-500">
                 <span className="flex items-start justify-between gap-2">
                   <span className="min-w-0"><span className="block break-words text-[11px] font-semibold italic text-slate-800">{item.scientificName}</span><span className="mt-0.5 block text-[9px] text-slate-500">{SPECIES_GROUP_FR[item.speciesGroup] ?? item.speciesGroup}</span></span>
@@ -2314,7 +2329,10 @@ function PotentialSpeciesTable({ items, testId }: { items: PotentialSpeciesItem[
         <table className={SPECIES_TABLE} data-testid={testId}>
           <caption className="sr-only">Tableau des espèces attendues et de leur indice de compatibilité</caption>
           <thead className={SPECIES_TABLE_HEAD}><tr><th className="px-3 py-2">Taxon</th><th className="px-2 py-2">Signal</th><th className="px-2 py-2">Compatibilité</th><th className="px-2 py-2">Indice</th><th className="px-2 py-2">Confiance</th><th className="w-8 px-2 py-2"><span className="sr-only">Détails</span></th></tr></thead>
-          <tbody className="divide-y divide-slate-100">{items.map((item) => <PotentialSpeciesRow key={item.scientificName} item={item} expanded={expandedSpecies === item.scientificName} onToggle={() => setExpandedSpecies((current) => current === item.scientificName ? null : item.scientificName)} />)}</tbody>
+          <tbody className="divide-y divide-slate-100">{uniqueItems.map((item) => {
+            const key = itemKey(item);
+            return <PotentialSpeciesRow key={key} item={item} expanded={expandedSpecies === key} onToggle={() => setExpandedSpecies((current) => current === key ? null : key)} />;
+          })}</tbody>
         </table>
       </div>
     </div>
@@ -2897,9 +2915,9 @@ function SINPPanel({ center }: { center: [number, number] }) {
             <div key={platform.code} className="bg-white/70 rounded-lg p-3">
               <span className="text-xs font-bold text-indigo-800 block mb-2">{platform.region}</span>
               <div className="space-y-1.5">
-                {platform.links.map((link) => (
+                {platform.links.map((link, linkIndex) => (
                   <a
-                    key={link.url}
+                    key={`${platform.code}::${link.url || link.label}::${linkIndex}`}
                     href={link.url}
                     target="_blank"
                     rel="noopener noreferrer"

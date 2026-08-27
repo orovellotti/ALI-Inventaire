@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Check, ChevronDown, ChevronUp, Database, Layers3, Leaf } from "lucide-react";
+import { Bot, Check, ChevronDown, ChevronUp, Database, Layers3, Leaf } from "lucide-react";
 
 type Effort = 1 | 2 | 3;
 
@@ -264,7 +264,7 @@ export function AnalysisProgress({
               {done ? (
                 <Check className="h-5 w-5" />
               ) : (
-                <Leaf
+                <Bot
                   className="h-5 w-5"
                   data-ifx-motion
                   style={{ animation: `ifx-leaf ${pulseSpeed}s ease-in-out infinite` }}
@@ -311,7 +311,7 @@ export function AnalysisProgress({
             <ol className="space-y-0.5 border-l border-dashed border-[#cbdacd] pl-3">
               <li className="relative py-1.5" data-ifx-motion style={{ animation: "ifx-arrive 260ms ease-out both" }}>
                 <span className="absolute -left-[17px] top-3.5 h-2 w-2 rounded-full bg-[#245746] ring-4 ring-[#f8faf5]" aria-hidden="true" />
-                <p className="text-[11px] font-bold text-[#244338]">Ali <span className="ml-1 font-normal text-[#7b8d83]">coordinateur</span></p>
+                <p className="flex items-center gap-1.5 text-[11px] font-bold text-[#244338]"><Bot className="h-3.5 w-3.5" aria-hidden="true" /> Ali <span className="font-normal text-[#7b8d83]">coordinateur</span></p>
                 <p className="mt-0.5 text-xs leading-4 text-[#496358]">Je lance le croisement de vos données.</p>
                 <button
                   type="button"
@@ -353,7 +353,7 @@ export function AnalysisProgress({
               {stepIndex >= 2 && (
                 <li className="relative py-1.5" data-ifx-motion style={{ animation: "ifx-arrive 260ms ease-out both" }}>
                   <span className="absolute -left-[17px] top-3.5 h-2 w-2 rounded-full bg-[#245746] ring-4 ring-[#f8faf5]" aria-hidden="true" />
-                  <p className="text-[11px] font-bold text-[#244338]">Ali <span className="ml-1 font-normal text-[#7b8d83]">coordinateur</span></p>
+                  <p className="flex items-center gap-1.5 text-[11px] font-bold text-[#244338]"><Bot className="h-3.5 w-3.5" aria-hidden="true" /> Ali <span className="font-normal text-[#7b8d83]">coordinateur</span></p>
                   <p className="mt-0.5 text-xs leading-4 text-[#496358]">Je consolide les données reçues avant l’affichage.</p>
                 </li>
               )}

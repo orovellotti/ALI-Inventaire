@@ -94,7 +94,8 @@ export async function searchINaturalist(
       if (speciesMap.has(scientificName)) continue;
 
       const iconic = taxon.iconic_taxon_name as string | undefined;
-      const mapping = (iconic && ICONIC_MAP[iconic]) || {};
+      const mapping: { kingdom?: string; phylum?: string; class?: string } =
+        iconic ? ICONIC_MAP[iconic] ?? {} : {};
 
       const consStatus =
         taxon?.conservation_status?.iucn_status_code ||

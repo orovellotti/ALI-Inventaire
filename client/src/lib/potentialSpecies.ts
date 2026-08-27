@@ -89,13 +89,44 @@ export function reconcilePotentialSpecies(
       ]),
   );
 
-  const species = result.species
+  const reconciledSpecies = result.species
     .map((item) => ({
       ...item,
       observed:
         observedNames.has(normalizeSpeciesName(item.scientificName)) ||
         observedNames.has(canonicalTaxonName(item.scientificName)),
-    }))
+    }));
+
+  // Une même espèce peut remonter plusieurs fois depuis des sites Natura 2000.
+  // La consolider ici garantit une identité React stable et évite de compter
+  // plusieurs fois le même taxon sans perdre ses éléments de preuve.
+  const speciesByTaxon = new Map<string, (typeof reconciledSpecies)[number]>();
+  for (const item of reconciledSpecies) {
+    const key = canonicalTaxonName(item.scientificName);
+    const existing = speciesByTaxon.get(key);
+    if (!existing) {
+      speciesByTaxon.set(key, item);
+      continue;
+    }
+
+    const sites = new Map(existing.sites.map((site) => [`${site.code}::${site.name}`, site]));
+    item.sites.forEach((site) => sites.set(`${site.code}::${site.name}`, site));
+    const habitats = new Map(existing.habitats.map((habitat) => [`${habitat.code}::${habitat.description}`, habitat]));
+    item.habitats.forEach((habitat) => habitats.set(`${habitat.code}::${habitat.description}`, habitat));
+
+    speciesByTaxon.set(key, {
+      ...existing,
+      observed: existing.observed || item.observed,
+      score: Math.max(existing.score ?? -1, item.score ?? -1) < 0
+        ? null
+        : Math.max(existing.score ?? -1, item.score ?? -1),
+      reasons: Array.from(new Set([...existing.reasons, ...item.reasons])),
+      sites: Array.from(sites.values()),
+      habitats: Array.from(habitats.values()),
+    });
+  }
+
+  const species = Array.from(speciesByTaxon.values())
     .sort(
       (a, b) =>
         Number(a.observed) - Number(b.observed) ||
