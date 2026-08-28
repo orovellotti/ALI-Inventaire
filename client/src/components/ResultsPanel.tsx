@@ -1597,6 +1597,27 @@ ${shareUrl ? `\nReproduire cette analyse : ${shareUrl}` : ""}`;
                 </div>}
           </section>
 
+          <section className="conversation-message" data-testid="message-ally-report-action">
+            <Bot className="mt-1 h-5 w-5" aria-hidden="true" />
+            <div>
+              <p><strong>Ali — suite de la pré-étude</strong></p>
+              <p>Les résultats sont prêts. Je peux maintenant les organiser dans une note écologique structurée et copiable.</p>
+              <Button
+                onClick={() => setShowReportPreview(true)}
+                className="mt-3 w-full justify-center gap-2 h-11 bg-[#1e594a] hover:bg-[#17483d] text-[#fffdf5] text-sm font-semibold shadow-md hover:shadow-lg ring-1 ring-[#c4a642]/40 transition-all"
+                data-testid="button-report-text"
+              >
+                <FileText className="h-4 w-4 text-[#dcc05b]" />
+                Générer la note écologique
+                {aiAnalysis && (
+                  <span className="ml-0.5 inline-flex items-center gap-0.5 rounded border border-[#dcc05b]/50 bg-[#dcc05b]/15 px-1 py-0.5 text-[9px] font-bold uppercase tracking-wider text-[#f2dc84]">
+                    <Sparkles className="h-2.5 w-2.5" /> IA
+                  </span>
+                )}
+              </Button>
+            </div>
+          </section>
+
           <p className="mt-4 px-1 text-[11px] text-gray-400 leading-snug flex gap-1.5 items-start">
             <Info className="h-3 w-3 shrink-0 mt-0.5" />
             Indication rapide basée sur GBIF, iNaturalist et UICN — ne remplace pas un inventaire terrain.
@@ -1659,21 +1680,6 @@ ${shareUrl ? `\nReproduire cette analyse : ${shareUrl}` : ""}`;
           )}
         </AnimatePresence>
 
-        <div className="px-5 py-3 border-t border-gray-100 bg-white/50 flex items-center gap-2">
-          <Button
-            onClick={() => setShowReportPreview(true)}
-            className="flex-1 justify-center gap-2 h-11 bg-[#1e594a] hover:bg-[#17483d] text-[#fffdf5] text-sm font-semibold shadow-md hover:shadow-lg ring-1 ring-[#c4a642]/40 transition-all"
-            data-testid="button-report-text"
-          >
-            <FileText className="h-4 w-4 text-[#dcc05b]" />
-            Générer la note écologique
-            {aiAnalysis && (
-              <span className="ml-0.5 inline-flex items-center gap-0.5 rounded border border-[#dcc05b]/50 bg-[#dcc05b]/15 px-1 py-0.5 text-[9px] font-bold uppercase tracking-wider text-[#f2dc84]">
-                <Sparkles className="h-2.5 w-2.5" /> IA
-              </span>
-            )}
-          </Button>
-        </div>
       </aside>
 
       <Dialog open={showReportPreview} onOpenChange={setShowReportPreview}>
