@@ -1046,7 +1046,11 @@ ${shareUrl ? `\nReproduire cette analyse : ${shareUrl}` : ""}`;
           </div>
         </div>
 
-         <ScrollArea className="min-h-0 flex-1 px-5 py-4" data-testid="results-scroll-area">
+         <div
+           className="min-h-0 flex-1 touch-pan-y overflow-y-auto overscroll-contain px-5 py-4"
+           data-testid="results-scroll-area"
+           onWheel={(event) => event.stopPropagation()}
+         >
           {/* ══════════ VUE DIAGNOSTIC (page unique à divulgation progressive) ══════════ */}
            <div className="space-y-4" data-testid="panel-overview">
              {requestSummary && <div className="conversation-message" data-testid="message-user-request"><Search className="mt-1 h-5 w-5" aria-hidden="true" /><div><p><strong>Votre demande</strong></p><p>{requestSummary}</p></div></div>}
@@ -1574,7 +1578,7 @@ ${shareUrl ? `\nReproduire cette analyse : ${shareUrl}` : ""}`;
             <Info className="h-3 w-3 shrink-0 mt-0.5" />
             Indication rapide basée sur GBIF, iNaturalist et UICN — ne remplace pas un inventaire terrain.
           </p>
-        </ScrollArea>
+        </div>
         {!isAnalyzing && composer && <div className="conversation-composer">{composer}</div>}
          {historyDrawer}
 
