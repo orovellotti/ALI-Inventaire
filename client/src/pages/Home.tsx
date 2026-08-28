@@ -34,6 +34,13 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 
 function createDefaultCircles(center: [number, number]): BufferCircle[] {
   return STUDY_AREAS.map(area => ({
@@ -91,6 +98,7 @@ export default function Home() {
   const [selectedSpecies, setSelectedSpecies] = useState<string | null>(null);
   const [showAbout, setShowAbout] = useState(false);
   const [showApi, setShowApi] = useState(false);
+  const [showHarness, setShowHarness] = useState(false);
   const [showLieuxDits, setShowLieuxDits] = useState(false);
   const [currentToponym, setCurrentToponym] = useState<string>(INITIAL_PLACE.name);
   const [activePresetId, setActivePresetId] = useState("custom");
@@ -691,7 +699,7 @@ export default function Home() {
           <span className="h-2 w-2 rounded-full bg-[#c4a642]" aria-hidden="true" /><span className="text-sm font-semibold text-[#315b4e]">Projet Lunaret</span><span className="text-xs text-[#7b8c83]">Pré-étude biodiversité · {currentToponym.split(",")[0]}</span>
         </div>
         <div className="ml-auto flex items-center gap-2">
-          <button type="button" onClick={() => setIsPanelOpen(false)} className="hidden items-center gap-2 rounded-xl border border-[#d5ddd2] bg-[#fffef9] px-3 py-2 text-xs font-semibold text-[#426158] shadow-sm transition-colors hover:bg-[#edf2e9] sm:flex" aria-label="Afficher le contexte cartographique" data-testid="button-context"><MapPin className="h-4 w-4 text-[#1e594a]" /> Contexte</button>
+          <button type="button" onClick={() => setShowHarness(true)} className="hidden items-center gap-2 rounded-xl border border-[#d5ddd2] bg-[#fffef9] px-3 py-2 text-xs font-semibold text-[#426158] shadow-sm transition-colors hover:bg-[#edf2e9] sm:flex" aria-label="Découvrir le harnais de l’agent" data-testid="button-harness"><Bot className="h-4 w-4 text-[#1e594a]" /> Harnais</button>
           <button type="button" onClick={() => { const text = requestSummary || `Pré-étude biodiversité — ${currentToponym}`; if (navigator.share) void navigator.share({ title: "ALi Inventaire", text }); else void navigator.clipboard?.writeText(text); }} className="flex items-center gap-2 rounded-xl border border-[#d5ddd2] bg-[#fffef9] px-3 py-2 text-xs font-semibold text-[#426158] shadow-sm transition-colors hover:bg-[#edf2e9]" aria-label="Partager cette étude" data-testid="button-share"><Share2 className="h-4 w-4 text-[#1e594a]" /> <span className="hidden sm:inline">Partager</span></button>
         </div>
       </header>
@@ -789,6 +797,54 @@ export default function Home() {
 
       <AboutDialog open={showAbout} onOpenChange={setShowAbout} />
       <ApiDialog open={showApi} onOpenChange={setShowApi} />
+      <Dialog open={showHarness} onOpenChange={setShowHarness}>
+        <DialogContent className="z-[4000] max-h-[85vh] max-w-xl overflow-y-auto border-[#d9ddd1] bg-[#fffef9] text-[#426158] shadow-[0_24px_70px_rgba(23,72,61,.2)]">
+          <DialogHeader>
+            <div className="mb-3 flex h-11 w-11 items-center justify-center rounded-xl bg-[#1e594a] text-[#dcc05b]">
+              <Bot className="h-5 w-5" aria-hidden="true" />
+            </div>
+            <DialogTitle className="font-serif text-2xl font-semibold text-[#17483d]">
+              Le harnais d’ALi
+            </DialogTitle>
+            <DialogDescription className="text-sm leading-6 text-[#557067]">
+              Le harnais est le cadre qui organise le travail d’ALi, ses agents spécialisés,
+              leurs sources et les règles appliquées à chaque pré-étude.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="grid gap-3 text-sm">
+            <section className="rounded-xl border border-[#dfe3da] bg-[#faf9f3] p-4">
+              <h3 className="font-semibold text-[#17483d]">Coordination</h3>
+              <p className="mt-1 leading-6">
+                ALi comprend la demande, vérifie le périmètre, répartit l’analyse et rassemble
+                les réponses dans un diagnostic traçable.
+              </p>
+            </section>
+            <section className="rounded-xl border border-[#dfe3da] bg-[#faf9f3] p-4">
+              <h3 className="font-semibold text-[#17483d]">Agents spécialisés</h3>
+              <p className="mt-1 leading-6">
+                Les agents Occurrences, Zonages et Potentiel écologique examinent chacun leur
+                domaine avant qu’ALi ne croise leurs conclusions.
+              </p>
+            </section>
+            <section className="rounded-xl border border-[#dfe3da] bg-[#faf9f3] p-4">
+              <h3 className="font-semibold text-[#17483d]">Sources mobilisées</h3>
+              <p className="mt-1 leading-6">
+                Le harnais interroge notamment GBIF, iNaturalist, IGN/PatriNat, INPN,
+                UICN et ALI/TAXREF selon les besoins de l’analyse.
+              </p>
+            </section>
+            <section className="rounded-xl border border-[#dfe3da] bg-[#faf9f3] p-4">
+              <h3 className="font-semibold text-[#17483d]">Garde-fous scientifiques</h3>
+              <p className="mt-1 leading-6">
+                ALi distingue les données connues, les présences potentielles et les présences
+                confirmées sur le terrain. La pré-étude signale ses incertitudes et ne remplace
+                jamais une expertise écologique de terrain.
+              </p>
+            </section>
+          </div>
+        </DialogContent>
+      </Dialog>
       <LieuxDitsDialog
         open={showLieuxDits}
         onOpenChange={setShowLieuxDits}
