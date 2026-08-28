@@ -856,14 +856,15 @@ ${shareUrl ? `\nReproduire cette analyse : ${shareUrl}` : ""}`;
   const historyDrawer = historyOpen && (
     <motion.div
       initial={{ opacity: 0, x: 18 }} animate={{ opacity: 1, x: 0 }}
-      className="absolute inset-y-0 right-0 z-30 flex w-full max-w-[360px] flex-col border-l border-slate-200 bg-[#fbfcfa] shadow-2xl"
+      className="absolute inset-y-0 right-0 z-30 flex h-full max-h-full w-full max-w-[360px] flex-col overflow-hidden border-l border-slate-200 bg-[#fbfcfa] shadow-2xl"
       role="dialog" aria-modal="true" aria-label="Historique des analyses" data-testid="history-drawer"
+      onWheel={(event) => event.stopPropagation()}
     >
-      <div className="flex items-center justify-between border-b border-slate-200 px-4 py-3">
+      <div className="flex shrink-0 items-center justify-between border-b border-slate-200 px-4 py-3">
         <div><h3 className="text-sm font-bold text-slate-800">Historique</h3><p className="text-[10px] text-slate-500">Vos 20 dernières analyses</p></div>
         <Button variant="ghost" size="icon" onClick={() => setHistoryOpen(false)} aria-label="Fermer l'historique" className="h-8 w-8 rounded-full"><X className="h-4 w-4" /></Button>
       </div>
-      <div className="min-h-0 flex-1 overflow-y-auto p-3">
+      <div className="h-0 min-h-0 flex-1 touch-pan-y overflow-y-auto overscroll-contain p-3" data-testid="history-scroll-area">
         <Button onClick={() => { onNewConversation?.(); setHistoryOpen(false); }} className="mb-3 h-9 w-full justify-center gap-2 bg-teal-700 text-xs text-white hover:bg-teal-800" data-testid="button-new-conversation"><Plus className="h-3.5 w-3.5" />Nouvelle conversation</Button>
         {historyError && <p className="mb-2 rounded-lg bg-amber-50 px-2.5 py-2 text-[10px] text-amber-700">{historyError}</p>}
         {[...conversations].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)).slice(0, 20).map((conversation) => {
