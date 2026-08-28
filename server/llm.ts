@@ -330,7 +330,36 @@ Tu connais les statuts UICN, espèces protégées en France, ZNIEFF déterminant
 Les espèces exotiques envahissantes (EEE : Agave, Yucca, Opuntia, Carpobrotus, Reynoutria, Buddleja, Robinia, Ambrosia, Trachemys, Myocastor, Vespa velutina, etc.) ne sont JAMAIS des enjeux de conservation : leur statut UICN reflète leur aire d'origine, pas un enjeu local. Ne leur attribue pas de niveau « fort » ou « majeur » ; le cas échéant signale-les comme EEE (préoccupation de gestion, pas de patrimonialité).
 Tu réponds en français, concis, opérationnel.`;
 
-const REFORMAT_SYSTEM_PROMPT = `Tu es un écologue rédacteur de notes de pré-diagnostic écologique. Tu rédiges en français professionnel, clair, synthétique, dans un ton neutre et factuel. Tu ne parles jamais d'« étude d'impact » ou « EIE » : il s'agit uniquement d'un pré-diagnostic rapide.`;
+const REFORMAT_SYSTEM_PROMPT = `Tu es un écologue senior spécialisé dans la rédaction des volets naturels d'étude d'impact en France.
+
+Tu transformes exclusivement les données reçues d'ALi Inventaire et de son harnais en une pré-VNEI documentaire professionnelle. Le document est une trame à compléter, jamais une étude réglementaire définitive ni un document validé par un écologue.
+
+RÈGLES SCIENTIFIQUES ABSOLUES
+- N'invente aucune espèce, occurrence, source, URL, citation juridique, géométrie, pression de projet ou résultat absent des données reçues.
+- Distingue toujours : donnée connue dans l'aire bibliographique, présence potentielle par compatibilité écologique, présence confirmée sur le terrain.
+- Une occurrence dans un rayon d'étude ne prouve pas la présence dans l'emprise.
+- Une absence de donnée ne signifie jamais absence d'espèce.
+- Ne classe jamais un taxon en enjeu fort uniquement parce qu'il est UICN « Non évalué », « Données insuffisantes » ou sans statut.
+- Une espèce exotique envahissante est un enjeu de gestion, pas automatiquement un enjeu patrimonial.
+- Une ZNIEFF est un inventaire patrimonial, pas une protection réglementaire.
+- Ne calcule aucun impact définitif sans description des travaux, pressions, calendrier et emprise exacte.
+- N'aborde la compensation qu'après l'évitement et la réduction, et seulement si des impacts résiduels significatifs sont documentés.
+- Toute donnée manquante doit être signalée explicitement au lieu d'être complétée par supposition.
+
+HARNAIS D'ALi
+Le harnais coordonne l'analyse, répartit le travail entre les agents Occurrences, Zonages et Potentiel écologique, consolide leurs réponses et applique les garde-fous scientifiques. Il mobilise uniquement les sources citées dans les données reçues. Décris cette orchestration dans la méthodologie et le registre des sources sans inventer de MCP ou d'agent absent.
+
+HIÉRARCHIE DES SOURCES
+Privilégie les textes réglementaires vérifiés, référentiels institutionnels français, DREAL/OFB/PatriNat/INPN, SINP, publications reconnues, bases internationales puis données contributives. Les inférences écologiques viennent toujours après les observations documentées.
+
+VOCABULAIRE
+Utilise : état initial, aires d'étude, enjeu local de conservation, espèce patrimoniale ou protégée seulement si le statut est fourni, habitat d'espèce, fonctionnalité écologique, sensibilité, impact potentiel, séquence éviter-réduire-compenser, niveau de confiance et suffisance des prospections.
+
+STATUT DU DOCUMENT
+Nom obligatoire : « Pré-VNEI documentaire à compléter par des investigations de terrain ».
+Lorsque le projet est insuffisamment décrit, produis un état initial bibliographique enrichi et une analyse des sensibilités. Marque les chapitres impacts et ERC comme provisoires ou non évaluables.
+
+Rédige en français professionnel, neutre, traçable et proportionné.`;
 
 function selectRelevantSpecies(occurrences: Occurrence[]): Occurrence[] {
   const uniqueByName = new Map<string, Occurrence>();
@@ -461,23 +490,63 @@ Règles :
 }
 
 function buildReformatPrompt(rawReport: string): string {
-  return `Voici les données brutes d'un inventaire flash. Reformule-les en une **note de synthèse partageable** (mail, rapport interne) en français.
+  return `Construis la pré-VNEI documentaire à partir des seules données brutes ci-dessous.
 
-Structure attendue :
-1. **Contexte** (1-2 phrases) : lieu, date, coordonnées, et **rappelle explicitement la taille du périmètre analysé** (ex : « rayon de 2 000 m autour du point », ou si plusieurs aires : « 3 cercles concentriques de 500 m, 2 000 m et 6 000 m »). Précise les **sources des occurrences : GBIF (Global Biodiversity Information Facility) et iNaturalist** (observations citoyennes vérifiées, grade « research »).
-2. **Synthèse des enjeux** (2-4 phrases narratives) : chiffres clés et espèces les plus marquantes — citer en priorité les noms vernaculaires français.
-3. **Espèces à enjeux** : liste à puces concise, regroupée par niveau (Forts / Moyens), max 10 espèces par groupe.
-4. **Recommandations rapides** (2-3 points opérationnels). Pour **chaque recommandation, cite le fondement factuel** qui l'a inspirée (ex : « présence de 3 espèces classées VU sur la liste rouge UICN France → … », « 12 espèces d'oiseaux dont 4 inscrites à l'Annexe I de la Directive Oiseaux 2009/147/CE → … », « score de confiance modéré (62/100) lié au faible nombre d'observations récentes → compléter par … », « ZNIEFF déterminantes signalées dans l'analyse IA → vérifier auprès du SINP régional… »). N'invente jamais de référentiel ; appuie-toi uniquement sur ce qui apparaît dans les données brutes.
-5. **Limites & sources** (1-2 phrases) : pré-diagnostic indicatif, **ne remplace pas un inventaire terrain**. Données issues de **GBIF + iNaturalist + UICN** ; statuts réglementaires cités quand l'analyse IA les a explicités.
+Produis un document principal en Markdown avec ce plan proportionné :
 
-Règles strictes :
-- Garde le lien Google Maps et le lien de partage tels quels en bas.
-- Si une analyse IA est présente dans les données, intègre ses conclusions dans la synthèse ET cite ses sources (référentiels officiels listés dans le bloc « Sources »).
-- N'invente aucune espèce, aucun statut, aucun référentiel absent des données brutes.
-- Format texte brut, lisible directement dans un mail/chat (pas de Markdown lourd, juste tirets et sauts de ligne).
-- 250-400 mots maximum.
+# Pré-VNEI documentaire à compléter par des investigations de terrain
+- Localisation, date, version et statut du document
 
-Données brutes :
+## Diagnostic préalable de qualité et de complétude
+- confiance du pré-diagnostic bibliographique ;
+- complétude pour une VNEI réglementaire ;
+- motif principal de l'incomplétude.
+
+## Cinq informations manquantes prioritaires
+Sépare ce qui bloque l'analyse des impacts de ce qui bloque la validation des enjeux.
+
+## Résumé non technique
+Présente le contexte, les principaux enjeux documentaires, les sensibilités, les mesures prioritaires et la conclusion provisoire.
+
+## 1. Objet, contexte et statut du document
+## 2. Présentation du projet et informations disponibles
+## 3. Cadre réglementaire et procédures potentielles
+Ne cite aucun article absent des données. Indique « impossible à déterminer avec les données disponibles » si nécessaire.
+## 4. Méthodologie et harnais d'ALi
+Décris la coordination, les agents mobilisés, les sources réellement utilisées, les filtres, la consolidation et les garde-fous.
+## 5. Contexte écologique et aires d'étude
+## 6. Zonages environnementaux
+## 7. Données bibliographiques et consultations
+Distingue observations documentaires, potentialités et confirmations terrain.
+## 8. Habitats naturels et flore
+## 9. Faune
+## 10. Fonctionnalités écologiques
+## 11. Synthèse et hiérarchisation des enjeux
+## 12. Effets et impacts potentiels
+Marque cette section provisoire ou non évaluable si les pressions du projet sont absentes.
+## 13. Effets cumulés
+## 14. Mesures d'évitement et de réduction
+Ne propose que des orientations proportionnées et factuellement justifiées.
+## 15. Impacts résiduels et compensation éventuelle
+Ne conclus pas en l'absence d'impacts bruts évaluables.
+## 16. Programme d'investigations complémentaires
+Propose uniquement les groupes biologiques pertinents, avec périodes et objectifs.
+## 17. Données manquantes, limites et contrôles à faire valider
+## 18. Registre des sources et du harnais
+Pour chaque source réellement citée : organisme, ressource, périmètre, utilisation et limites disponibles.
+## 19. Conclusion et niveau de complétude
+## Annexes disponibles
+
+Contraintes de sortie :
+- conserve les liens fournis ;
+- cite les noms vernaculaires lorsqu'ils sont disponibles ;
+- ne transforme jamais une occurrence bibliographique en présence certaine dans l'emprise ;
+- toute affirmation structurante doit renvoyer à une source présente dans les données ;
+- utilise « non documenté », « non évaluable » ou « à confirmer » plutôt que d'inventer ;
+- ne produis pas de JSON dans cette réponse : l'interface attend ici le document Markdown lisible ;
+- vise un document utile et structuré, sans remplissage artificiel.
+
+Données brutes et registre du harnais :
 ─────────
 ${rawReport}
 ─────────`;

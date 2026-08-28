@@ -770,14 +770,37 @@ ${zonages.groups.map(g => `${g.label} (${g.count})\n${g.zonages.map(z => `• ${
 ↳ Zonages intersectant l'aire d'étude — source IGN Géoplateforme / INPN (PatriNat).
 ` : "";
 
-    return `🌿 INVENTAIRE FLASH — Pré-diagnostic écologique
-${toponym ? `📍 ${toponym}\n` : ""}🗓 ${new Date().toLocaleDateString("fr-FR")}
-📌 ${lat}, ${lng} — rayon ${results.radius} m
-🗺 ${mapsLink}
-${!isAllActive ? `🔎 Filtres : ${activeGroupLabels}\n` : ""}
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-SYNTHÈSE
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    return `ALi INVENTAIRE
+PRÉ-VNEI DOCUMENTAIRE À COMPLÉTER PAR DES INVESTIGATIONS DE TERRAIN
+Version 1 — ${new Date().toLocaleDateString("fr-FR")}
+
+LOCALISATION ET PÉRIMÈTRE
+${toponym ? `Site : ${toponym}\n` : ""}Coordonnées : ${lat}, ${lng}
+Aire bibliographique interrogée : rayon de ${results.radius} m autour du point
+Carte : ${mapsLink}
+${!isAllActive ? `Filtres taxonomiques actifs : ${activeGroupLabels}\n` : ""}
+
+HARNAIS D'ALi — ORCHESTRATION RÉELLEMENT MOBILISÉE
+- Coordination : ALi comprend la demande, vérifie le périmètre, répartit l'analyse et consolide les réponses.
+- Agent Occurrences : consolidation et déduplication des données naturalistes disponibles dans l'aire bibliographique.
+- Agent Zonages : interrogation et qualification des zonages environnementaux autour du site.
+- Agent Potentiel écologique : croisement prudent entre espèces documentées, habitats et contexte territorial.
+- Sources effectivement mobilisées par cette analyse : GBIF${includeINaturalist ? ", iNaturalist" : ""}, UICN, ALI/TAXREF, IGN Géoplateforme, PatriNat et INPN${aiAnalysis?.natura2000?.length ? ", données Natura 2000 et formulaires standards disponibles" : ""}.
+- Garde-fou 1 : une donnée connue dans l'aire bibliographique n'est pas une présence confirmée dans l'emprise.
+- Garde-fou 2 : une présence potentielle issue d'une compatibilité écologique doit être vérifiée sur le terrain.
+- Garde-fou 3 : seule une prospection adaptée peut confirmer une présence sur le terrain.
+- Garde-fou 4 : l'absence de donnée publique ne permet pas de conclure à l'absence d'une espèce.
+- Garde-fou 5 : les espèces exotiques envahissantes relèvent d'un enjeu de gestion et non automatiquement d'un enjeu patrimonial.
+- Limite d'orchestration : aucun MCP, document utilisateur ou référentiel non cité ci-dessus ne doit être présenté comme mobilisé.
+
+DONNÉES MANQUANTES À SIGNALER DANS LA PRÉ-VNEI
+- Emprise parcellaire et emprise exacte des travaux : non documentées si seule l'aire circulaire est fournie.
+- Description détaillée, dimensions et méthodes des travaux : non documentées.
+- Calendrier de chantier et phase d'exploitation : non documentés.
+- Pressions du projet et variantes d'implantation : non documentées.
+- Inventaires naturalistes saisonniers et cartographie de terrain des habitats : non disponibles.
+
+SYNTHÈSE DES DONNÉES DISPONIBLES
 ${results.stats.rawNameCount != null ? `${results.stats.rawNameCount} noms taxonomiques collectés — ${results.stats.speciesCount} taxons valides après consolidation${results.stats.duplicatesRemoved ? ` (${results.stats.duplicatesRemoved} doublon${results.stats.duplicatesRemoved > 1 ? "s" : ""} fusionné${results.stats.duplicatesRemoved > 1 ? "s" : ""})` : ""}` : `${totalInReport} taxons recensés (GBIF + iNaturalist)`}
 ${highCount + mediumCount} espèces sensibles (enjeux forts ou moyens)
 Indice de confiance des données : ${conf.total}/100 — ${confLabel}
@@ -810,11 +833,14 @@ ${aiAnalysis.natura2000.map(z => { const desig = (z.species ?? []).filter(s => s
 ` : ""}
 ⚠ Synthèse IA — à valider par un écologue.
 ` : ""}${zonagesSection}
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-Données : GBIF • iNaturalist • UICN • IGN/INPN
-Inventaire flash — indication rapide, ne remplace pas un inventaire terrain.
+SOURCES SYNTHÉTIQUES
+GBIF${includeINaturalist ? " • iNaturalist" : ""} • UICN • ALI/TAXREF • IGN Géoplateforme • PatriNat/INPN
+
+STATUT ET LIMITES
+Pré-VNEI documentaire produite par le harnais d'ALi à partir des seules sources indiquées.
+Ce document constitue un état initial bibliographique et une analyse de sensibilités. Il ne remplace ni des inventaires de terrain, ni une VNEI réglementaire, ni la validation d'un écologue.
 ${shareUrl ? `\nReproduire cette analyse : ${shareUrl}` : ""}`;
-  }, [results, sortedSpecies, activeTaxonFilters, presentGroups, isAllActive, aiAnalysis, toponym, zonages, riskScore]);
+  }, [results, sortedSpecies, activeTaxonFilters, presentGroups, isAllActive, aiAnalysis, toponym, zonages, riskScore, includeINaturalist]);
 
   const reportSubject = useMemo(() => {
     if (!results) return "ALi Inventaire";
@@ -823,6 +849,11 @@ ${shareUrl ? `\nReproduire cette analyse : ${shareUrl}` : ""}`;
   }, [results, toponym, sortedSpecies]);
 
   const activeReportText = reformattedReport || reportText;
+
+  useEffect(() => {
+    setReformattedReport(null);
+    setReformatError(null);
+  }, [reportText]);
 
   const handleCopyReport = () => {
     navigator.clipboard.writeText(activeReportText);
@@ -1607,7 +1638,10 @@ ${shareUrl ? `\nReproduire cette analyse : ${shareUrl}` : ""}`;
               <p><strong>Ali — suite de la pré-étude</strong></p>
               <p>Les résultats sont prêts. Je peux maintenant les organiser dans une note écologique structurée et copiable.</p>
               <Button
-                onClick={() => setShowReportPreview(true)}
+                onClick={() => {
+                  setShowReportPreview(true);
+                  void handleReformatReport();
+                }}
                 className="mt-3 w-full justify-center gap-2 h-11 bg-[#1e594a] hover:bg-[#17483d] text-[#fffdf5] text-sm font-semibold shadow-md hover:shadow-lg ring-1 ring-[#c4a642]/40 transition-all"
                 data-testid="button-report-text"
               >
@@ -1691,16 +1725,16 @@ ${shareUrl ? `\nReproduire cette analyse : ${shareUrl}` : ""}`;
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <FileText className="h-5 w-5" />
-              Note écologique
+              Pré-VNEI documentaire
             </DialogTitle>
             <DialogDescription>
-              Synthèse du pré-diagnostic à relire et valider avant utilisation.
+              Document structuré par le harnais d’ALi, à compléter par des investigations de terrain et à faire valider par un écologue.
             </DialogDescription>
           </DialogHeader>
           {reformattedReport && (
             <div className="mt-3 flex items-center gap-2 text-xs text-teal-700 bg-teal-50 border border-teal-200 px-3 py-1.5 rounded-md">
               <Sparkles className="h-3.5 w-3.5" />
-              <span className="font-medium">Note de synthèse reformulée par IA</span>
+              <span className="font-medium">Pré-VNEI structurée par le harnais d’ALi</span>
               <button
                 type="button"
                 onClick={() => setReformattedReport(null)}
@@ -1735,7 +1769,7 @@ ${shareUrl ? `\nReproduire cette analyse : ${shareUrl}` : ""}`;
                   data-testid="button-reformat-report"
                 >
                   {reformatting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
-                  {reformatting ? "Reformulation…" : "Reformuler avec IA"}
+                  {reformatting ? "Génération de la pré-VNEI…" : "Générer la pré-VNEI"}
                 </Button>
               )}
               <Button variant="outline" onClick={handleEmailReport} className="gap-2" data-testid="button-email-report">
@@ -1748,7 +1782,7 @@ ${shareUrl ? `\nReproduire cette analyse : ${shareUrl}` : ""}`;
               </Button>
               <Button
                 onClick={handleShareReport}
-                className="gap-2 bg-gradient-to-r from-indigo-600 to-blue-600 hover:from-indigo-700 hover:to-blue-700 text-white shadow-md"
+                className="gap-2 bg-[#1e594a] text-white shadow-md hover:bg-[#17483d]"
                 data-testid="button-share-report"
               >
                 <Share2 className="h-4 w-4" />
