@@ -18,3 +18,10 @@ id = "GkWMM0byIOS2_cXBMa9Kh"
 uri = "file://exports/Natura2000_especes_designatrices_end2024.csv"
 type = "table"
 title = "Natura 2000 — espèces désignatrices (Europe + France, fin 2024)"
+
+[[outputs]]
+id = "MXLAKKEFLl-0qXLGtN3fI"
+uri = "file://FONCTIONNEMENT_SOUHAITE.md"
+type = "text"
+title = "Fonctionnement souhaité — ALi Inventaire"
+description = "Spécification fonctionnelle complète du parcours conversationnel, de la pré-étude, des agents, des résultats et de la mission terrain."
