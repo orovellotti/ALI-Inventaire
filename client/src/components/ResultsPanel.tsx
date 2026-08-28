@@ -889,8 +889,8 @@ ${shareUrl ? `\nReproduire cette analyse : ${shareUrl}` : ""}`;
               {historyError && <p className="mt-1 text-[10px] text-amber-700" role="status">{historyError}</p>}
             </div>
              <div className="flex items-center gap-1">
-              <Button variant="outline" size="sm" onClick={() => onNewConversation?.()} className="h-8 gap-1 px-2 text-xs" aria-label="Nouvelle conversation"><Plus className="h-3.5 w-3.5" /> Nouvelle</Button>
-             <Button variant="outline" size="sm" onClick={() => setHistoryOpen(true)} className="h-8 gap-1 px-2 text-xs" aria-label="Ouvrir l'historique"><History className="h-3.5 w-3.5" /> Historique</Button>
+             <Button variant="outline" size="sm" onClick={() => onNewConversation?.()} className="h-8 gap-1 px-2 text-xs" aria-label="Nouvelle conversation" data-testid="button-new-conversation"><Plus className="h-3.5 w-3.5" /> Nouvelle</Button>
+             <Button variant="outline" size="sm" onClick={() => setHistoryOpen(true)} className="h-8 gap-1 px-2 text-xs" aria-label="Ouvrir l'historique" data-testid="button-history"><History className="h-3.5 w-3.5" /> Historique</Button>
              <Button variant="ghost" size="icon" onClick={onClose} className="h-8 w-8 rounded-full" aria-label="Réduire le panneau">
               <X className="h-4 w-4" />
             </Button>
@@ -918,8 +918,8 @@ ${shareUrl ? `\nReproduire cette analyse : ${shareUrl}` : ""}`;
               potentialSpeciesReady={potentialSpecies !== null}
               potentialSpeciesCount={potentialSpecies?.potentialCount ?? 0}
              />}
-             {!isAnalyzing && composer}
           </div>
+          {!isAnalyzing && composer && <div className="conversation-composer">{composer}</div>}
            {historyDrawer}
         </aside>
     );
@@ -1533,6 +1533,7 @@ ${shareUrl ? `\nReproduire cette analyse : ${shareUrl}` : ""}`;
             Indication rapide basée sur GBIF, iNaturalist et UICN — ne remplace pas un inventaire terrain.
           </p>
         </ScrollArea>
+        {!isAnalyzing && composer && <div className="conversation-composer">{composer}</div>}
          {historyDrawer}
 
         {/* Assistant IA contextuel */}

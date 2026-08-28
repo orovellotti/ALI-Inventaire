@@ -282,3 +282,53 @@
 .conversation-panel :is(h1, h2, h3, h4, p, li, label, button, input, textarea, th, td, a) {
   line-height: 1.55 !important;
 }
+
+/* Conversation terminal v2: semantic overrides for the dedicated shell. */
+.conversation-panel {
+  --thread-black: #090909;
+  --thread-raised: #111111;
+  --thread-line: #303030;
+  background: var(--thread-black) !important;
+  border: 0 !important;
+  border-top: 3px solid #fff !important;
+  border-left: 1px solid var(--thread-line) !important;
+  border-radius: 0 !important;
+}
+.conversation-panel header,
+.conversation-panel > div:first-child { background: var(--thread-black) !important; border-color: var(--thread-line) !important; }
+.conversation-panel header { min-height: 68px; padding: 12px 16px !important; }
+.conversation-panel button,
+.conversation-panel input { min-height: 44px !important; border-radius: 6px !important; }
+.conversation-panel button { background: transparent !important; }
+.conversation-panel button:hover { background: #1a1a1a !important; }
+.conversation-panel [data-testid="conversation-feed"] { padding: 22px 20px !important; }
+.conversation-panel .conversation-message,
+.conversation-panel [data-testid="message-ally"],
+.conversation-panel [data-testid="message-ally-final"] {
+  display: grid !important;
+  grid-template-columns: 22px minmax(0, 1fr) !important;
+  gap: 12px !important;
+  padding: 0 0 20px !important;
+  margin: 0 0 22px !important;
+  border: 0 !important;
+  border-bottom: 1px solid var(--thread-line) !important;
+}
+.conversation-panel .conversation-message > svg { width: 18px !important; height: 18px !important; margin-top: 2px !important; }
+.conversation-panel [data-testid="analysis-transcript"] { padding: 0 0 18px 34px !important; border-bottom: 1px solid var(--thread-line) !important; }
+.conversation-panel [data-testid="analysis-transcript"] h3 { margin-left: -34px !important; }
+.conversation-panel [data-testid="analysis-transcript"] ol { margin: 12px 0 0 -22px !important; padding-left: 22px !important; border-color: var(--thread-line) !important; }
+.conversation-panel [data-testid="analysis-transcript"] li { padding: 7px 0 !important; }
+.conversation-panel [data-testid^="message-agent-"],
+.conversation-panel [data-testid="card-issue-level"],
+.conversation-panel [data-testid="card-key-findings"],
+.conversation-panel [data-testid="panel-risk-score"] { background: var(--thread-raised) !important; border: 1px solid var(--thread-line) !important; border-radius: 6px !important; }
+.conversation-composer { flex: 0 0 auto; padding: 12px 16px 16px; border-top: 1px solid var(--thread-line); background: var(--thread-black); }
+.conversation-panel .conversation-composer .search-text-mode > div { background: var(--thread-raised) !important; border: 1px solid var(--thread-line) !important; border-radius: 6px !important; }
+.conversation-panel .conversation-composer .search-text-mode > button { background: #090909 !important; color: #fff !important; border: 2px solid #fff !important; }
+.conversation-panel .conversation-composer .search-text-mode > button * { color: #fff !important; }
+.conversation-panel [data-testid="analysis-progress"] { background: var(--thread-raised) !important; border-color: var(--thread-line) !important; border-radius: 6px !important; }
+@media (max-width: 767px) {
+  .conversation-panel.fixed { border: 0 !important; }
+  .conversation-composer { padding: 10px 12px calc(10px + env(safe-area-inset-bottom)); }
+  .conversation-panel [data-testid="conversation-feed"] { padding-inline: 14px !important; }
+}
