@@ -1124,7 +1124,7 @@ ${shareUrl ? `\nReproduire cette analyse : ${shareUrl}` : ""}`;
              </div>
             <div className="flex items-start gap-2 border-l-2 border-emerald-600 pl-3" data-testid="message-ally">
                <Bot className="mt-0.5 h-5 w-5 shrink-0" aria-hidden="true" />
-              <div><p className="text-xs font-bold text-emerald-900">Ali <span className="font-normal text-emerald-700">coordinateur</span></p><p className="mt-0.5 text-[11px] leading-4 text-emerald-800">J’ai croisé les observations, les zonages et les signaux de potentiel écologique pour ce pré-diagnostic traçable.</p></div>
+               <div><p className="text-sm font-bold text-emerald-900">Ali <span className="font-normal text-emerald-700">coordinateur</span></p><p className="mt-1 text-sm leading-6 text-emerald-800">J’ai croisé les observations, les zonages et les signaux de potentiel écologique pour ce pré-diagnostic traçable.</p></div>
             </div>
              <section ref={resultsSummaryRef} className="conversation-message" data-testid="message-ally-summary" aria-live="polite">
                <Bot className="mt-1 h-5 w-5" aria-hidden="true" />
