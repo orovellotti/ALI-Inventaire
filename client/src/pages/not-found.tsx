@@ -1,19 +1,19 @@
 import { Card, CardContent } from "@/components/ui/card";
-import { AlertCircle } from "lucide-react";
+import { ArrowLeft, Leaf } from "lucide-react";
+import { Link } from "wouter";
 
 export default function NotFound() {
   return (
-    <div className="min-h-screen w-full flex items-center justify-center bg-gray-50">
-      <Card className="w-full max-w-md mx-4">
-        <CardContent className="pt-6">
-          <div className="flex mb-4 gap-2">
-            <AlertCircle className="h-8 w-8 text-red-500" />
-            <h1 className="text-2xl font-bold text-gray-900">404 Page Not Found</h1>
+    <div className="flex min-h-[100dvh] w-full items-center justify-center bg-[#f8f7f0] p-5 text-[#17483d]">
+      <Card className="w-full max-w-md border-[#d9ddd1] bg-[#fffef9] shadow-[0_18px_50px_rgba(28,62,49,.08)]">
+        <CardContent className="p-8 pt-8">
+          <div className="mb-6 flex h-12 w-12 items-center justify-center rounded-2xl bg-[#1e594a] text-[#dcc05b]">
+            <Leaf className="h-6 w-6" />
           </div>
-
-          <p className="mt-4 text-sm text-gray-600">
-            Did you forget to add the page to the router?
-          </p>
+          <p className="font-mono text-[11px] font-medium uppercase tracking-[.15em] text-[#718679]">Erreur 404</p>
+          <h1 className="mt-2 font-serif text-3xl font-semibold tracking-[-.03em]">Ce sentier n’existe pas.</h1>
+          <p className="mt-3 text-sm leading-6 text-[#557067]">La page recherchée a peut-être été déplacée. Revenons à l’étude en cours.</p>
+          <Link href="/" className="mt-7 inline-flex items-center gap-2 rounded-full bg-[#1e594a] px-4 py-2.5 text-sm font-semibold text-[#fffdf5] transition-colors hover:bg-[#17483d]"><ArrowLeft className="h-4 w-4" /> Retour à la carte</Link>
         </CardContent>
       </Card>
     </div>

@@ -22,7 +22,7 @@ import {
   type AnalysisConversationStatus,
 } from "@/lib/analysisHistory";
 import { useToast } from "@/hooks/use-toast";
-import { Leaf, HelpCircle, Bot, BookOpen, MessageSquare } from "lucide-react";
+import { Leaf, HelpCircle, Bot, BookOpen, MessageSquare, MapPin, Share2 } from "lucide-react";
 import { Link } from "wouter";
 import {
   AlertDialog,
@@ -681,7 +681,20 @@ export default function Home() {
   }, [circles, currentToponym, includeINaturalist, projectPolygon]);
 
   return (
-    <div className="relative h-[100dvh] min-h-[100dvh] w-full overflow-hidden bg-gray-100">
+    <div className="relative h-[100dvh] min-h-[100dvh] w-full overflow-hidden bg-[#f8f7f0]">
+      <header className="ali-global-header absolute inset-x-0 top-0 z-[2500] flex h-[76px] items-center border-b border-[#dfe3d8] bg-[#faf9f3]/95 px-4 backdrop-blur-md sm:px-6">
+        <button type="button" onClick={() => { if (results || isAnalyzing) setPendingLocationChange({ kind: "reset" }); else { setIsPanelOpen(true); resetForNewLocation(); } }} className="flex items-center gap-3 text-left" aria-label="Commencer une nouvelle analyse" data-testid="global-brand">
+          <span className="flex h-10 w-10 items-center justify-center rounded-[12px] bg-[#1e594a] text-[#dcc05b]"><Leaf className="h-5 w-5" /></span>
+          <span className="leading-none"><strong className="block font-serif text-[22px] font-semibold tracking-[-.05em] text-[#17483d]">ALi</strong><small className="mt-1 block text-[9px] font-semibold uppercase tracking-[.19em] text-[#6b8076]">France · Pré-étude</small></span>
+        </button>
+        <div className="absolute left-1/2 hidden -translate-x-1/2 items-center gap-2 md:flex">
+          <span className="h-2 w-2 rounded-full bg-[#c4a642]" aria-hidden="true" /><span className="text-sm font-semibold text-[#315b4e]">Projet Lunaret</span><span className="text-xs text-[#7b8c83]">Pré-étude biodiversité · {currentToponym.split(",")[0]}</span>
+        </div>
+        <div className="ml-auto flex items-center gap-2">
+          <button type="button" onClick={() => setIsPanelOpen(false)} className="hidden items-center gap-2 rounded-xl border border-[#d5ddd2] bg-[#fffef9] px-3 py-2 text-xs font-semibold text-[#426158] shadow-sm transition-colors hover:bg-[#edf2e9] sm:flex" aria-label="Afficher le contexte cartographique" data-testid="button-context"><MapPin className="h-4 w-4 text-[#1e594a]" /> Contexte</button>
+          <button type="button" onClick={() => { const text = requestSummary || `Pré-étude biodiversité — ${currentToponym}`; if (navigator.share) void navigator.share({ title: "ALi Inventaire", text }); else void navigator.clipboard?.writeText(text); }} className="flex items-center gap-2 rounded-xl border border-[#d5ddd2] bg-[#fffef9] px-3 py-2 text-xs font-semibold text-[#426158] shadow-sm transition-colors hover:bg-[#edf2e9]" aria-label="Partager cette étude" data-testid="button-share"><Share2 className="h-4 w-4 text-[#1e594a]" /> <span className="hidden sm:inline">Partager</span></button>
+        </div>
+      </header>
       
       <Map 
         center={center} 
@@ -710,7 +723,7 @@ export default function Home() {
         <button
           type="button"
           onClick={() => setIsPanelOpen(true)}
-          className="absolute bottom-6 right-4 z-[1000] flex items-center gap-2 rounded-full bg-teal-700 px-4 py-2.5 text-sm font-semibold text-white shadow-lg transition-colors hover:bg-teal-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-400 focus-visible:ring-offset-2"
+          className="absolute bottom-6 right-4 z-[1000] flex items-center gap-2 rounded-full border border-[#1e594a] bg-[#1e594a] px-4 py-2.5 text-sm font-semibold text-[#fffdf5] shadow-[0_10px_25px_rgba(25,70,58,.18)] transition-colors hover:bg-[#17483d] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#c4a642] focus-visible:ring-offset-2"
           aria-label="Ouvrir la conversation d'analyse"
           data-testid="button-open-conversation"
         >
@@ -798,17 +811,17 @@ export default function Home() {
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Conserver les résultats</AlertDialogCancel>
-            <AlertDialogAction onClick={confirmLocationChange} className="bg-teal-700 hover:bg-teal-800">
+            <AlertDialogAction onClick={confirmLocationChange} className="bg-[#1e594a] text-[#fffdf5] hover:bg-[#17483d]">
               {pendingLocationChange?.kind === "map" ? "Déplacer le centre" : "Nouvelle analyse"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
 
-      <div className="absolute top-6 left-6 z-[1000] flex items-center gap-2">
+      <div className="absolute left-3 top-3 z-[1000] flex items-center gap-2 sm:left-5 sm:top-4">
         <button 
           type="button"
-          className="flex items-center gap-2 bg-white/80 backdrop-blur px-3 py-2 rounded-lg cursor-pointer hover:bg-white transition-colors shadow-sm"
+          className="flex items-center gap-2 rounded-xl border border-[#d9ddd1] bg-[#fffef9]/95 px-3 py-2 shadow-[0_4px_14px_rgba(29,70,57,.08)] backdrop-blur transition-colors hover:bg-[#fffef9]"
           onClick={() => {
             if (results || isAnalyzing) setPendingLocationChange({ kind: "reset" });
             else {
@@ -820,42 +833,43 @@ export default function Home() {
           title="Commencer une nouvelle analyse"
           data-testid="button-reset"
         >
-          <div className="bg-teal-600 p-1.5 rounded-md">
-            <Leaf className="h-4 w-4 text-white" />
+          <div className="rounded-[10px] bg-[#1e594a] p-1.5">
+            <Leaf className="h-4 w-4 text-[#dcc05b]" />
           </div>
-          <span className="font-bold text-gray-900 tracking-tight text-sm">Inventaire Flash</span>
+          <span className="font-serif text-lg font-semibold tracking-[-0.04em] text-[#17483d]">ALi</span>
+          <span className="hidden text-[9px] font-semibold uppercase tracking-[.18em] text-[#668075] sm:inline">France · Pré-étude</span>
         </button>
 
         <button
           type="button"
           onClick={() => setShowAbout(true)}
-          className="bg-white/80 backdrop-blur p-2 rounded-lg cursor-pointer hover:bg-white transition-colors shadow-sm"
+          className="rounded-xl border border-[#d9ddd1] bg-[#fffef9]/95 p-2 shadow-[0_4px_14px_rgba(29,70,57,.08)] backdrop-blur transition-colors hover:bg-[#fffef9]"
           aria-label="À propos de la méthodologie"
           data-testid="button-about"
         >
-          <HelpCircle className="h-4 w-4 text-gray-600" />
+          <HelpCircle className="h-4 w-4 text-[#557067]" />
         </button>
 
         <Link
           href="/methodologie"
-          className="flex items-center gap-1.5 rounded-lg bg-white/80 px-2.5 py-2 text-gray-700 shadow-sm backdrop-blur transition-colors hover:bg-white"
+          className="flex items-center gap-1.5 rounded-xl border border-[#d9ddd1] bg-[#fffef9]/95 px-2.5 py-2 text-[#426158] shadow-[0_4px_14px_rgba(29,70,57,.08)] backdrop-blur transition-colors hover:bg-[#fffef9]"
           aria-label="Lire la méthodologie"
           title="Lire la méthodologie"
         >
-          <BookOpen className="h-4 w-4 text-teal-600" />
+          <BookOpen className="h-4 w-4 text-[#1e594a]" />
           <span className="hidden text-xs font-semibold sm:inline">Méthode</span>
         </Link>
 
         <button
           type="button"
           onClick={() => setShowApi(true)}
-          className="flex items-center gap-1.5 bg-white/80 backdrop-blur px-2.5 py-2 rounded-lg cursor-pointer hover:bg-white transition-colors shadow-sm"
+          className="flex items-center gap-1.5 rounded-xl border border-[#d9ddd1] bg-[#fffef9]/95 px-2.5 py-2 shadow-[0_4px_14px_rgba(29,70,57,.08)] backdrop-blur transition-colors hover:bg-[#fffef9]"
           aria-label="MCP — connecter Claude ou ChatGPT à Inventaire Flash"
           data-testid="button-agent-ia"
           title="MCP — connecter Claude / ChatGPT (agent IA) à Inventaire Flash"
         >
-          <Bot className="h-4 w-4 text-teal-600" />
-          <span className="text-xs font-semibold text-gray-700">MCP</span>
+          <Bot className="h-4 w-4 text-[#1e594a]" />
+          <span className="text-xs font-semibold text-[#426158]">MCP</span>
         </button>
 
       </div>

@@ -754,9 +754,9 @@ ${shareUrl ? `\nReproduire cette analyse : ${shareUrl}` : ""}`;
   }, [results, sortedSpecies, activeTaxonFilters, presentGroups, isAllActive, aiAnalysis, toponym, zonages, riskScore]);
 
   const reportSubject = useMemo(() => {
-    if (!results) return "Inventaire Flash";
+    if (!results) return "ALi Inventaire";
     const place = toponym || `${results.center[0].toFixed(3)}, ${results.center[1].toFixed(3)}`;
-    return `Inventaire Flash — ${place} (${sortedSpecies.high.length + sortedSpecies.medium.length} espèces sensibles)`;
+    return `ALi Inventaire — ${place} (${sortedSpecies.high.length + sortedSpecies.medium.length} espèces sensibles)`;
   }, [results, toponym, sortedSpecies]);
 
   const activeReportText = reformattedReport || reportText;
@@ -874,11 +874,11 @@ ${shareUrl ? `\nReproduire cette analyse : ${shareUrl}` : ""}`;
     return (
         <aside
           className="conversation-panel fixed right-0 z-[2000] flex flex-col bg-white inset-x-0 bottom-0 h-[80vh] rounded-t-2xl border-t md:inset-x-auto md:top-0 md:bottom-auto md:h-full md:w-[680px] md:max-w-[95vw] md:rounded-none md:border-l md:border-t-0"
-          aria-label="Conversation Inventaire Flash"
+          aria-label="Conversation ALi Inventaire"
         >
           <header className="conversation-header flex items-start justify-between gap-3 border-b border-gray-100 bg-white px-5 py-4">
             <div className="min-w-0">
-              <h2 className="text-lg font-bold tracking-tight text-gray-900">Inventaire Flash</h2>
+              <h2 className="text-lg font-bold tracking-tight text-gray-900">ALi Inventaire</h2>
               <p className="text-[11px] text-gray-500 leading-tight">Assistant biodiversité conversationnel</p>
               {toponym && (
                 <p className="mt-1 flex items-center gap-1 truncate text-xs font-semibold text-teal-700">
@@ -928,12 +928,12 @@ ${shareUrl ? `\nReproduire cette analyse : ${shareUrl}` : ""}`;
     <AnimatePresence>
       <aside
         className="conversation-panel results-text-mode fixed right-0 z-[2000] flex flex-col bg-white inset-x-0 bottom-0 h-[80vh] rounded-t-2xl border-t border-gray-300 md:inset-x-auto md:top-0 md:bottom-auto md:h-full md:w-[680px] md:max-w-[95vw] md:rounded-none md:border-t-0 md:border-l"
-        aria-label="Conversation Inventaire Flash"
+        aria-label="Conversation ALi Inventaire"
       >
         <div className="conversation-header px-5 pt-4 pb-3 border-b border-gray-100 bg-white/50">
           <div className="flex justify-between items-start gap-2">
             <div className="min-w-0">
-              <h2 className="text-lg font-bold text-gray-900 tracking-tight truncate">Inventaire Flash</h2>
+              <h2 className="text-lg font-bold text-gray-900 tracking-tight truncate">ALi Inventaire</h2>
               <p className="text-[11px] text-gray-500 leading-tight">Assistant biodiversité conversationnel</p>
               {toponym && (
                 <p className="mt-1 text-xs font-semibold text-teal-700 flex items-center gap-1 truncate" data-testid="text-site-name">

@@ -15,3 +15,4 @@
 - [EEA SDI download filtering](eea-sdi-download-filtering.md) — SDI public share pages can return 403 to Node’s default fetch profile; use browser-like content negotiation.
 - [Local analysis history](analysis-history-storage.md) — conversation snapshots stay browser-local in IndexedDB, capped at 20; restoring one must not rerun scientific APIs.
 - [Ali dialogue UX](ali-dialogue-ux.md) — the left panel must advance as an actual scripted exchange, never as a conventional form merely styled like chat.
+- [ALi visual identity](ali-visual-identity.md) — use the light ivory, forest-green editorial shell with conversation first and the map as secondary context across the app.
