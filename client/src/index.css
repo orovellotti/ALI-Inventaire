@@ -43,6 +43,8 @@
 .conversation-panel p,.conversation-panel li { color:#426158!important; line-height:1.58!important; }
 .conversation-panel strong { color:#17483d!important; }
 .conversation-panel button { color:#285246!important; border-radius:12px!important; }
+.conversation-panel [data-testid="button-report-text"] { color:#fffdf5!important; }
+.conversation-panel [data-testid="button-report-text"] > svg { color:#dcc05b!important; }
 .conversation-panel button:hover { background:#edf2e9!important; }
 .conversation-panel button:focus-visible,.conversation-panel input:focus-visible { outline:2px solid #c4a642!important; outline-offset:2px; }
 .conversation-panel [class*="text-gray"],.conversation-panel [class*="text-slate"] { color:#557067!important; }
