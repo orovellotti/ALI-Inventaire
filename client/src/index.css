@@ -46,6 +46,7 @@
 .conversation-panel [data-testid="button-report-text"] { color:#fffdf5!important; }
 .conversation-panel [data-testid="button-report-text"] > svg { color:#dcc05b!important; }
 .conversation-panel button:hover { background:#edf2e9!important; }
+.conversation-panel [data-testid="button-report-text"]:hover { background:#17483d!important; color:#fffdf5!important; }
 .conversation-panel button:focus-visible,.conversation-panel input:focus-visible { outline:2px solid #c4a642!important; outline-offset:2px; }
 .conversation-panel [class*="text-gray"],.conversation-panel [class*="text-slate"] { color:#557067!important; }
 .conversation-panel [class*="bg-white"] { background-color:#fffef9!important; }
