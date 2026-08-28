@@ -537,6 +537,14 @@ export function ResultsPanel({ isOpen, isAnalyzing = false, areaCount = 1, onClo
     const scrollToLatestAgentMessage = () => {
       window.cancelAnimationFrame(frame);
       frame = window.requestAnimationFrame(() => {
+        if (results) {
+          feed.querySelector<HTMLElement>('[data-testid="message-ally"]')?.scrollIntoView({
+            behavior: prefersReducedMotionRef.current ? "auto" : "smooth",
+            block: "start",
+          });
+          return;
+        }
+
         const messages = feed.querySelectorAll<HTMLElement>(
           '.ali-message, [data-testid^="message-agent-"], [data-testid="message-ally"], [data-testid="message-ally-final"], [data-testid="analysis-progress"]'
         );
@@ -549,6 +557,10 @@ export function ResultsPanel({ isOpen, isAnalyzing = false, areaCount = 1, onClo
     };
 
     scrollToLatestAgentMessage();
+    if (results) {
+      return () => window.cancelAnimationFrame(frame);
+    }
+
     const observer = new MutationObserver(scrollToLatestAgentMessage);
     observer.observe(feed, { childList: true, subtree: true });
 
