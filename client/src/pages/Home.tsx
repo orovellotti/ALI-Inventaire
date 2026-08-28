@@ -743,6 +743,7 @@ export default function Home() {
         composer={
           <SearchPanel
             embedded
+            toponym={currentToponym}
             onGoToPlace={handleGoToPlace}
             onLaunchAnalysis={handleLaunchAnalysis}
             isSearching={isSearching}

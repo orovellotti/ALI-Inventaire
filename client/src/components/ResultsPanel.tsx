@@ -897,7 +897,6 @@ ${shareUrl ? `\nReproduire cette analyse : ${shareUrl}` : ""}`;
              </div>
           </header>
           <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4" data-testid="conversation-feed">
-             {!isAnalyzing && !activeConversationFailed && <div className="conversation-message mb-5"><Bot className="mt-1 h-5 w-5" aria-hidden="true" /><div><p><strong>Ali</strong> <span>coordinateur</span></p><p>Bonjour. Je suis prêt à croiser les observations, les zonages et les signaux écologiques de votre site.</p></div></div>}
              {requestSummary && (isAnalyzing || activeConversationFailed) && <div className="conversation-message mb-5" data-testid="message-user-request"><Search className="mt-1 h-5 w-5" aria-hidden="true" /><div><p><strong>Votre demande</strong></p><p>{requestSummary}</p></div></div>}
              {activeConversationFailed && !isAnalyzing && (
                <div className="conversation-message mb-5" role="status">
@@ -918,8 +917,8 @@ ${shareUrl ? `\nReproduire cette analyse : ${shareUrl}` : ""}`;
               potentialSpeciesReady={potentialSpecies !== null}
               potentialSpeciesCount={potentialSpecies?.potentialCount ?? 0}
              />}
+             {!isAnalyzing && composer && <div className="conversation-composer">{composer}</div>}
           </div>
-          {!isAnalyzing && composer && <div className="conversation-composer">{composer}</div>}
            {historyDrawer}
         </aside>
     );

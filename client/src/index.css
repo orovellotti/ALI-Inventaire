@@ -332,3 +332,52 @@
   .conversation-composer { padding: 10px 12px calc(10px + env(safe-area-inset-bottom)); }
   .conversation-panel [data-testid="conversation-feed"] { padding-inline: 14px !important; }
 }
+
+/* Pre-analysis dialogue: controls are answers within Ali's transcript, never a form dock. */
+.conversation-panel .conversation-composer { padding: 0 !important; border: 0 !important; background: transparent !important; }
+.conversation-panel .search-dialogue { display: flex; flex-direction: column; gap: 18px; padding: 2px 0 20px; }
+.conversation-panel .ali-message { display: grid; grid-template-columns: 22px minmax(0, 1fr); gap: 12px; padding: 0 0 18px; border-bottom: 1px solid var(--thread-line); }
+.conversation-panel .ali-message > svg { width: 18px; height: 18px; margin-top: 3px; }
+.conversation-panel .ali-message p { margin: 0 0 8px; }
+.conversation-panel .ali-message p:last-child { margin-bottom: 0; }
+.conversation-panel .ali-message strong { font-weight: 700; }
+.conversation-panel .user-response,
+.conversation-panel .response-actions { margin-left: 34px; max-width: 560px; }
+.conversation-panel .location-response { position: relative; display: grid; grid-template-columns: 18px minmax(0, 1fr) 44px 44px; gap: 6px; align-items: center; padding: 8px 8px 8px 12px; background: var(--thread-raised) !important; border: 1px solid var(--thread-line); border-radius: 6px; }
+.conversation-panel .location-response > svg { width: 17px; height: 17px; }
+.conversation-panel .location-response input { min-width: 0; padding: 0; background: transparent !important; border: 0 !important; }
+.conversation-panel .location-response input::placeholder { color: #aaa !important; opacity: 1; }
+.conversation-panel .location-response > button { padding: 0; border: 1px solid var(--thread-line) !important; display: grid; place-items: center; }
+.conversation-panel .location-response > button svg { width: 17px; height: 17px; }
+.conversation-panel .location-methods { position: absolute; z-index: 5; top: calc(100% + 6px); right: 0; display: grid; gap: 4px; width: min(350px, 100%); padding: 6px; border: 1px solid var(--thread-line); border-radius: 6px; background: #111 !important; }
+.conversation-panel .location-methods button { display: flex; gap: 9px; align-items: center; min-height: 44px; padding: 8px; text-align: left; }
+.conversation-panel .location-methods svg { width: 17px; height: 17px; flex: 0 0 auto; }
+.conversation-panel .site-confirmation { display: flex; align-items: center; gap: 8px; color: #eee !important; }
+.conversation-panel .site-confirmation svg { width: 15px; height: 15px; }
+.conversation-panel .site-confirmation button { min-height: 28px !important; margin-left: auto; padding: 4px !important; }
+.conversation-panel .site-confirmation button svg { width: 14px; height: 14px; }
+.conversation-panel .response-actions { display: grid; gap: 7px; }
+.conversation-panel .response-actions button,
+.conversation-panel .settings-response > button { display: flex; align-items: center; gap: 9px; width: 100%; padding: 10px 12px; border: 1px solid var(--thread-line) !important; text-align: left; }
+.conversation-panel .response-actions button svg,
+.conversation-panel .settings-response > button svg { width: 17px; height: 17px; flex: 0 0 auto; }
+.conversation-panel .response-actions button.selected,
+.conversation-panel .settings-detail button.selected { border-color: #fff !important; background: #202020 !important; }
+.conversation-panel .settings-response { margin-left: 34px; border: 1px solid var(--thread-line); border-radius: 6px; overflow: hidden; }
+.conversation-panel .settings-response > button span { flex: 1; }
+.conversation-panel .settings-response > button > svg:last-child { margin-left: auto; }
+.conversation-panel .settings-detail { overflow: hidden; padding: 12px; border-top: 1px solid var(--thread-line); }
+.conversation-panel .settings-detail > p { margin: 8px 0; font-weight: 600; }
+.conversation-panel .settings-detail > p svg { display: inline; width: 15px; height: 15px; vertical-align: -2px; }
+.conversation-panel .preset-list { display: flex; flex-wrap: wrap; gap: 6px; }
+.conversation-panel .preset-list button { min-height: 38px !important; padding: 6px 9px; border: 1px solid var(--thread-line) !important; }
+.conversation-panel .circle-control { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 5px; padding: 6px 0; border-bottom: 1px solid #222; }
+.conversation-panel .circle-control > button { display: flex; align-items: center; gap: 7px; padding: 7px; text-align: left; }
+.conversation-panel .circle-control > button svg { width: 14px; height: 14px; }
+.conversation-panel .circle-control [role="slider"] { background: #fff !important; }
+.conversation-panel .circle-control > div { grid-column: 1 / -1; padding: 8px 9px; }
+.conversation-panel .launch-response button { justify-content: center; border: 2px solid #fff !important; font-weight: 700; }
+@media (max-width: 767px) {
+  .conversation-panel .user-response, .conversation-panel .response-actions, .conversation-panel .settings-response { margin-left: 0; }
+  .conversation-panel .search-dialogue { padding-bottom: 10px; }
+}
