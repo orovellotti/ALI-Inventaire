@@ -526,6 +526,37 @@ export function ResultsPanel({ isOpen, isAnalyzing = false, areaCount = 1, onClo
   const prefersReducedMotionRef = useRef(
     typeof window !== "undefined" && window.matchMedia?.("(prefers-reduced-motion: reduce)").matches
   );
+  const conversationFeedRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    const feed = conversationFeedRef.current;
+    if (!feed) return;
+
+    let frame = 0;
+    const scrollToLatestAgentMessage = () => {
+      window.cancelAnimationFrame(frame);
+      frame = window.requestAnimationFrame(() => {
+        const messages = feed.querySelectorAll<HTMLElement>(
+          '.ali-message, [data-testid^="message-agent-"], [data-testid="message-ally"], [data-testid="message-ally-final"], [data-testid="analysis-progress"]'
+        );
+        const latestMessage = messages.item(messages.length - 1);
+        latestMessage?.scrollIntoView({
+          behavior: prefersReducedMotionRef.current ? "auto" : "smooth",
+          block: "start",
+        });
+      });
+    };
+
+    scrollToLatestAgentMessage();
+    const observer = new MutationObserver(scrollToLatestAgentMessage);
+    observer.observe(feed, { childList: true, subtree: true });
+
+    return () => {
+      observer.disconnect();
+      window.cancelAnimationFrame(frame);
+    };
+  }, [isOpen, isAnalyzing, results]);
 
   // Sélection d'une espèce depuis la carte : ouvre la pièce jointe Espèces
   // et fait défiler jusqu'à la fiche correspondante.
@@ -896,7 +927,7 @@ ${shareUrl ? `\nReproduire cette analyse : ${shareUrl}` : ""}`;
             </Button>
              </div>
           </header>
-          <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4" data-testid="conversation-feed">
+          <div ref={conversationFeedRef} className="min-h-0 flex-1 overflow-y-auto px-5 py-4" data-testid="conversation-feed">
              {requestSummary && (isAnalyzing || activeConversationFailed) && <div className="conversation-message mb-5" data-testid="message-user-request"><Search className="mt-1 h-5 w-5" aria-hidden="true" /><div><p><strong>Votre demande</strong></p><p>{requestSummary}</p></div></div>}
              {activeConversationFailed && !isAnalyzing && (
                <div className="conversation-message mb-5" role="status">
@@ -1020,7 +1051,7 @@ ${shareUrl ? `\nReproduire cette analyse : ${shareUrl}` : ""}`;
 
          <ScrollArea className="flex-1 px-5 py-4">
           {/* ══════════ VUE DIAGNOSTIC (page unique à divulgation progressive) ══════════ */}
-           <div className="space-y-4" data-testid="panel-overview">
+           <div ref={conversationFeedRef} className="space-y-4" data-testid="panel-overview">
              {requestSummary && <div className="conversation-message" data-testid="message-user-request"><Search className="mt-1 h-5 w-5" aria-hidden="true" /><div><p><strong>Votre demande</strong></p><p>{requestSummary}</p></div></div>}
              {historyError && <p className="text-[10px] text-amber-700" role="status">{historyError}</p>}
               {isAnalyzing && (
