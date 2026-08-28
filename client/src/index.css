@@ -116,11 +116,46 @@
   -webkit-mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.38a2 2 0 0 0-.73-2.73l-.15-.09a2 2 0 0 1-1-1.74v-.51a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z'/%3E%3Ccircle cx='12' cy='12' r='3'/%3E%3C/svg%3E") center/contain no-repeat;
   mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.38a2 2 0 0 0-.73-2.73l-.15-.09a2 2 0 0 1-1-1.74v-.51a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z'/%3E%3Ccircle cx='12' cy='12' r='3'/%3E%3C/svg%3E") center/contain no-repeat;
 }
-.conversation-panel [data-testid="panel-overview"] > [data-testid="message-agent-occurrences"]::after {
+.conversation-panel :is(
+  [data-testid="message-agent-occurrences"],
+  [data-testid="message-agent-zonages"]
+) {
+  position:relative;
+  width:calc(100% - 42px);
+  margin-left:42px;
+}
+.conversation-panel :is(
+  [data-testid="message-agent-occurrences"],
+  [data-testid="message-agent-zonages"]
+)::before {
+  content:"";
+  position:absolute;
+  top:10px;
+  left:-42px;
+  z-index:2;
+  width:28px;
+  height:28px;
+  border-radius:10px;
+  background:#1e594a;
+}
+.conversation-panel :is(
+  [data-testid="message-agent-occurrences"],
+  [data-testid="message-agent-zonages"]
+)::after {
+  content:"";
+  position:absolute;
+  top:16px;
+  left:-36px;
+  z-index:3;
+  width:16px;
+  height:16px;
+  background:#dcc05b;
+}
+.conversation-panel [data-testid="message-agent-occurrences"]::after {
   -webkit-mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cellipse cx='12' cy='5' rx='9' ry='3'/%3E%3Cpath d='M3 5v14c0 1.7 4 3 9 3s9-1.3 9-3V5M3 12c0 1.7 4 3 9 3s9-1.3 9-3'/%3E%3C/svg%3E") center/contain no-repeat;
   mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cellipse cx='12' cy='5' rx='9' ry='3'/%3E%3Cpath d='M3 5v14c0 1.7 4 3 9 3s9-1.3 9-3V5M3 12c0 1.7 4 3 9 3s9-1.3 9-3'/%3E%3C/svg%3E") center/contain no-repeat;
 }
-.conversation-panel [data-testid="panel-overview"] > [data-testid="message-agent-zonages"]::after {
+.conversation-panel [data-testid="message-agent-zonages"]::after {
   -webkit-mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m12.83 2.18a2 2 0 0 0-1.66 0L2.6 6.08a1 1 0 0 0 0 1.83l8.58 3.91a2 2 0 0 0 1.66 0l8.58-3.9a1 1 0 0 0 0-1.83zM22 12.5l-9.17 4.17a2 2 0 0 1-1.66 0L2 12.5M22 17.5l-9.17 4.17a2 2 0 0 1-1.66 0L2 17.5'/%3E%3C/svg%3E") center/contain no-repeat;
   mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m12.83 2.18a2 2 0 0 0-1.66 0L2.6 6.08a1 1 0 0 0 0 1.83l8.58 3.91a2 2 0 0 0 1.66 0l8.58-3.9a1 1 0 0 0 0-1.83zM22 12.5l-9.17 4.17a2 2 0 0 1-1.66 0L2 12.5M22 17.5l-9.17 4.17a2 2 0 0 1-1.66 0L2 17.5'/%3E%3C/svg%3E") center/contain no-repeat;
 }
@@ -147,7 +182,7 @@
 .leaflet-control-zoom a,.leaflet-popup-content-wrapper,.leaflet-popup-tip { background:#fffef9!important; color:#234f43!important; border-color:#d7ddd3!important; }.leaflet-control-attribution{background:rgba(255,254,249,.75)!important;color:#60756d!important;}
 #map-container:after { content:""; position:absolute; inset:0; pointer-events:none; z-index:350; background:rgba(232,229,205,.055); mix-blend-mode:multiply; }
 
-@media (max-width:767px) { .conversation-panel.fixed{inset:0!important;width:100%!important;height:100dvh!important;border-left:0!important}.conversation-panel header{padding:12px 14px!important}.conversation-panel [data-testid="conversation-feed"]{padding:21px 14px 30px!important}.conversation-panel .user-response,.conversation-panel .response-actions,.conversation-panel .settings-response{margin-left:0}.conversation-panel .conversation-message,.conversation-panel [data-testid="message-ally"],.conversation-panel .ali-message{grid-template-columns:28px minmax(0,1fr)!important;gap:9px!important}.conversation-panel .conversation-message>div,.conversation-panel [data-testid="message-ally"]>div,.conversation-panel .ali-message>div{padding:14px}.conversation-panel [data-testid="panel-overview"] > :is([data-testid="card-issue-level"],[data-testid="card-key-findings"],[data-testid="section-pourquoi"],[data-testid^="message-agent-"]){width:calc(100% - 37px);margin-left:37px}.conversation-panel [data-testid="panel-overview"] > :is([data-testid="card-issue-level"],[data-testid="card-key-findings"],[data-testid="section-pourquoi"],[data-testid^="message-agent-"])::before{left:-37px}.conversation-panel [data-testid="panel-overview"] > :is([data-testid="card-issue-level"],[data-testid="card-key-findings"],[data-testid="section-pourquoi"],[data-testid^="message-agent-"])::after{left:-31px}.conversation-panel [data-testid="button-history"]{width:42px;overflow:hidden;font-size:0!important}.conversation-panel [data-testid="button-history"] svg{margin:auto}}
+@media (max-width:767px) { .conversation-panel.fixed{inset:0!important;width:100%!important;height:100dvh!important;border-left:0!important}.conversation-panel header{padding:12px 14px!important}.conversation-panel [data-testid="conversation-feed"]{padding:21px 14px 30px!important}.conversation-panel .user-response,.conversation-panel .response-actions,.conversation-panel .settings-response{margin-left:0}.conversation-panel .conversation-message,.conversation-panel [data-testid="message-ally"],.conversation-panel .ali-message{grid-template-columns:28px minmax(0,1fr)!important;gap:9px!important}.conversation-panel .conversation-message>div,.conversation-panel [data-testid="message-ally"]>div,.conversation-panel .ali-message>div{padding:14px}.conversation-panel [data-testid="panel-overview"] > :is([data-testid="card-issue-level"],[data-testid="card-key-findings"],[data-testid="section-pourquoi"],[data-testid^="message-agent-"]),.conversation-panel :is([data-testid="message-agent-occurrences"],[data-testid="message-agent-zonages"]){width:calc(100% - 37px);margin-left:37px}.conversation-panel [data-testid="panel-overview"] > :is([data-testid="card-issue-level"],[data-testid="card-key-findings"],[data-testid="section-pourquoi"],[data-testid^="message-agent-"])::before,.conversation-panel :is([data-testid="message-agent-occurrences"],[data-testid="message-agent-zonages"])::before{left:-37px}.conversation-panel [data-testid="panel-overview"] > :is([data-testid="card-issue-level"],[data-testid="card-key-findings"],[data-testid="section-pourquoi"],[data-testid^="message-agent-"])::after,.conversation-panel :is([data-testid="message-agent-occurrences"],[data-testid="message-agent-zonages"])::after{left:-31px}.conversation-panel [data-testid="button-history"]{width:42px;overflow:hidden;font-size:0!important}.conversation-panel [data-testid="button-history"] svg{margin:auto}}
 @media (prefers-reduced-motion:reduce){*,*:before,*:after{animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important;scroll-behavior:auto!important}}
 
 /* Coque ALi : la conversation est le sujet, la carte devient son contexte. */
