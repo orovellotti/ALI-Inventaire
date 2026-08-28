@@ -527,6 +527,9 @@ export function ResultsPanel({ isOpen, isAnalyzing = false, areaCount = 1, onClo
     typeof window !== "undefined" && window.matchMedia?.("(prefers-reduced-motion: reduce)").matches
   );
   const conversationFeedRef = useRef<HTMLDivElement | null>(null);
+  const resultsFeedRef = useRef<HTMLDivElement | null>(null);
+  const resultsSummaryRef = useRef<HTMLElement | null>(null);
+  const positionedResultsRef = useRef<InventoryResult | null>(null);
 
   useEffect(() => {
     if (!isOpen || results) return;
@@ -552,6 +555,25 @@ export function ResultsPanel({ isOpen, isAnalyzing = false, areaCount = 1, onClo
       observer.disconnect();
       window.cancelAnimationFrame(frame);
     };
+  }, [isOpen, isAnalyzing, results]);
+
+  useEffect(() => {
+    if (!isOpen || isAnalyzing || !results || positionedResultsRef.current === results) return;
+    const feed = resultsFeedRef.current;
+    const summary = resultsSummaryRef.current;
+    if (!feed || !summary) return;
+
+    positionedResultsRef.current = results;
+    const frame = window.requestAnimationFrame(() => {
+      const feedTop = feed.getBoundingClientRect().top;
+      const summaryTop = summary.getBoundingClientRect().top;
+      feed.scrollTo({
+        top: Math.max(0, feed.scrollTop + summaryTop - feedTop - 16),
+        behavior: prefersReducedMotionRef.current ? "auto" : "smooth",
+      });
+    });
+
+    return () => window.cancelAnimationFrame(frame);
   }, [isOpen, isAnalyzing, results]);
 
   // Sélection d'une espèce depuis la carte : ouvre la pièce jointe Espèces
@@ -1047,6 +1069,7 @@ ${shareUrl ? `\nReproduire cette analyse : ${shareUrl}` : ""}`;
         </div>
 
          <div
+           ref={resultsFeedRef}
            className="min-h-0 flex-1 touch-pan-y overflow-y-auto overscroll-contain px-5 py-4"
            data-testid="results-scroll-area"
            onWheel={(event) => event.stopPropagation()}
@@ -1103,7 +1126,7 @@ ${shareUrl ? `\nReproduire cette analyse : ${shareUrl}` : ""}`;
                <Bot className="mt-0.5 h-5 w-5 shrink-0" aria-hidden="true" />
               <div><p className="text-xs font-bold text-emerald-900">Ali <span className="font-normal text-emerald-700">coordinateur</span></p><p className="mt-0.5 text-[11px] leading-4 text-emerald-800">J’ai croisé les observations, les zonages et les signaux de potentiel écologique pour ce pré-diagnostic traçable.</p></div>
             </div>
-             <section className="conversation-message" data-testid="message-ally-summary" aria-live="polite">
+             <section ref={resultsSummaryRef} className="conversation-message" data-testid="message-ally-summary" aria-live="polite">
                <Bot className="mt-1 h-5 w-5" aria-hidden="true" />
                <div>
                  <p><strong>Ali — résumé de la pré-étude</strong></p>
