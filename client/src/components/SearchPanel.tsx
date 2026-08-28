@@ -8,7 +8,7 @@ import { BufferCircle, PROJECT_PRESETS, ProjectPreset, STUDY_AREAS } from "@/lib
 import type { ProjectPolygon } from "@/lib/shapefile";
 
 interface SearchPanelProps {
-  embedded?: boolean; toponym: string; onGoToPlace: (query: string) => void; onLaunchAnalysis: () => void;
+  embedded?: boolean; toponym: string; locationReady: boolean; onGoToPlace: (query: string) => void; onLaunchAnalysis: () => void;
   isSearching: boolean; isAnalyzing: boolean; circles: BufferCircle[]; onToggleCircle: (id: string) => void;
   onRadiusChange: (id: string, radius: number) => void; activePresetId: string; onApplyPreset: (preset: ProjectPreset) => void;
   onShapefileLoad: (file: File) => void; onShapefileClear: () => void; projectPolygon: ProjectPolygon | null;
@@ -20,23 +20,18 @@ function AliMessage({ children }: { children: ReactNode }) {
 }
 
 export function SearchPanel(props: SearchPanelProps) {
-  const { embedded = false, toponym, onGoToPlace, onLaunchAnalysis, isSearching, isAnalyzing, circles, onToggleCircle, onRadiusChange, activePresetId, onApplyPreset, onShapefileLoad, onShapefileClear, projectPolygon, isLoadingShapefile, onOpenLieuxDits, isCollapsed, onExpand } = props;
+  const { embedded = false, toponym, locationReady, onGoToPlace, onLaunchAnalysis, isSearching, isAnalyzing, circles, onToggleCircle, onRadiusChange, activePresetId, onApplyPreset, onShapefileLoad, onShapefileClear, projectPolygon, isLoadingShapefile, onOpenLieuxDits, isCollapsed, onExpand } = props;
   const [query, setQuery] = useState("");
-  const [locationChosen, setLocationChosen] = useState(false);
   const [perimeterConfirmed, setPerimeterConfirmed] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [moreOpen, setMoreOpen] = useState(false);
   const [expandedCircle, setExpandedCircle] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const initialToponymRef = useRef(toponym);
   const enabledCount = circles.filter((circle) => circle.enabled).length;
 
   useEffect(() => {
-    if (projectPolygon || toponym !== initialToponymRef.current) {
-      setLocationChosen(true);
-      setPerimeterConfirmed(false);
-    }
-  }, [projectPolygon, toponym]);
+    if (locationReady) setPerimeterConfirmed(false);
+  }, [locationReady, toponym]);
   const locate = () => {
     if (!query.trim()) return;
     setPerimeterConfirmed(false);
@@ -68,7 +63,7 @@ export function SearchPanel(props: SearchPanelProps) {
       </motion.div>}</AnimatePresence>
       <input ref={fileInputRef} type="file" accept=".zip" onChange={(event) => { const file = event.target.files?.[0]; if (file) onShapefileLoad(file); event.target.value = ""; }} className="hidden" data-testid="input-shapefile" />
     </div>
-    {locationChosen && <>
+    {locationReady && <>
       <AliMessage>
         <p>J’ai localisé votre site.</p>
         <p className="site-confirmation"><MapPin /> {projectPolygon ? projectPolygon.name : toponym}</p>

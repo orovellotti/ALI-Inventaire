@@ -108,6 +108,7 @@ export default function Home() {
   const [potentialSpeciesError, setPotentialSpeciesError] = useState(false);
   const [selectedZonageId, setSelectedZonageId] = useState<string | null>(null);
   const [isLoadingShapefile, setIsLoadingShapefile] = useState(false);
+  const [isLocationReady, setIsLocationReady] = useState(false);
   const [locationKey, setLocationKey] = useState(0);
   const [analysisFailed, setAnalysisFailed] = useState(false);
   const [zonagesError, setZonagesError] = useState(false);
@@ -124,7 +125,7 @@ export default function Home() {
   const zonagesAbortController = useRef<AbortController | null>(null);
   const potentialSpeciesAbortController = useRef<AbortController | null>(null);
   const suppressNextHistorySave = useRef(false);
-  const resetForNewLocation = useCallback(() => {
+  const resetForNewLocation = useCallback((locationReady = false) => {
     inventoryRequestId.current++;
     zonagesAbortController.current?.abort();
     zonagesAbortController.current = null;
@@ -143,6 +144,7 @@ export default function Home() {
     setActiveConversationId(null);
     setIsPanelOpen(true);
     setIsAnalyzing(false);
+    setIsLocationReady(locationReady);
     setLocationKey(k => k + 1);
   }, []);
 
@@ -174,6 +176,7 @@ export default function Home() {
     setSelectedZonageId(null);
     setIsAnalyzing(false);
     setIsPanelOpen(true);
+    setIsLocationReady(true);
     setLocationKey((key) => key + 1);
   }, []);
 
@@ -229,7 +232,7 @@ export default function Home() {
         setCenter(newCenter);
         setCircles(prev => prev.map(c => ({ ...c, center: newCenter })));
         if (projectPolygon) setProjectPolygon(null);
-        resetForNewLocation();
+        resetForNewLocation(true);
         setCurrentToponym(place.display_name);
         toast({
           title: "Lieu trouvé",
@@ -410,7 +413,7 @@ export default function Home() {
     const newCenter: [number, number] = [lat, lng];
     setCenter(newCenter);
     setCircles(prev => prev.map(c => ({ ...c, center: newCenter })));
-    resetForNewLocation();
+    resetForNewLocation(true);
     setCurrentToponym(`Point ${lat.toFixed(4)}, ${lng.toFixed(4)}`);
     const requestId = ++reverseGeocodeRequestId.current;
     reverseGeocode(lat, lng).then(result => {
@@ -507,7 +510,7 @@ export default function Home() {
       const newCenter: [number, number] = polygon.centroid;
       setCenter(newCenter);
       setCircles(prev => prev.map(c => ({ ...c, center: newCenter })));
-      resetForNewLocation();
+      resetForNewLocation(true);
       setCurrentToponym(polygon.name);
       toast({
         title: "Shapefile chargé",
@@ -530,7 +533,7 @@ export default function Home() {
     const newCenter: [number, number] = polygon.centroid;
     setCenter(newCenter);
     setCircles(prev => prev.map(c => ({ ...c, center: newCenter })));
-    resetForNewLocation();
+    resetForNewLocation(true);
     setCurrentToponym(polygon.name);
     toast({
       title: "Lieu-dit chargé",
@@ -543,7 +546,7 @@ export default function Home() {
     setCenter(newCenter);
     setCircles(prev => prev.map(c => ({ ...c, center: newCenter })));
     if (projectPolygon) setProjectPolygon(null);
-    resetForNewLocation();
+    resetForNewLocation(true);
     setCurrentToponym(name);
     toast({
       title: "Lieu-dit localisé",
@@ -744,6 +747,7 @@ export default function Home() {
           <SearchPanel
             embedded
             toponym={currentToponym}
+            locationReady={isLocationReady}
             onGoToPlace={handleGoToPlace}
             onLaunchAnalysis={handleLaunchAnalysis}
             isSearching={isSearching}

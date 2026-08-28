@@ -876,7 +876,7 @@ ${shareUrl ? `\nReproduire cette analyse : ${shareUrl}` : ""}`;
           className="conversation-panel fixed right-0 z-[2000] flex flex-col bg-white inset-x-0 bottom-0 h-[80vh] rounded-t-2xl border-t md:inset-x-auto md:top-0 md:bottom-auto md:h-full md:w-[680px] md:max-w-[95vw] md:rounded-none md:border-l md:border-t-0"
           aria-label="Conversation Inventaire Flash"
         >
-          <header className="flex items-start justify-between gap-3 border-b border-gray-100 bg-white px-5 py-4">
+          <header className="conversation-header flex items-start justify-between gap-3 border-b border-gray-100 bg-white px-5 py-4">
             <div className="min-w-0">
               <h2 className="text-lg font-bold tracking-tight text-gray-900">Inventaire Flash</h2>
               <p className="text-[11px] text-gray-500 leading-tight">Assistant biodiversité conversationnel</p>
@@ -930,7 +930,7 @@ ${shareUrl ? `\nReproduire cette analyse : ${shareUrl}` : ""}`;
         className="conversation-panel results-text-mode fixed right-0 z-[2000] flex flex-col bg-white inset-x-0 bottom-0 h-[80vh] rounded-t-2xl border-t border-gray-300 md:inset-x-auto md:top-0 md:bottom-auto md:h-full md:w-[680px] md:max-w-[95vw] md:rounded-none md:border-t-0 md:border-l"
         aria-label="Conversation Inventaire Flash"
       >
-        <div className="px-5 pt-4 pb-3 border-b border-gray-100 bg-white/50">
+        <div className="conversation-header px-5 pt-4 pb-3 border-b border-gray-100 bg-white/50">
           <div className="flex justify-between items-start gap-2">
             <div className="min-w-0">
               <h2 className="text-lg font-bold text-gray-900 tracking-tight truncate">Inventaire Flash</h2>
