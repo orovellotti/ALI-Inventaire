@@ -529,7 +529,7 @@ export function ResultsPanel({ isOpen, isAnalyzing = false, areaCount = 1, onClo
   const conversationFeedRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
-    if (!isOpen) return;
+    if (!isOpen || results) return;
     const feed = conversationFeedRef.current;
     if (!feed) return;
 
@@ -537,30 +537,14 @@ export function ResultsPanel({ isOpen, isAnalyzing = false, areaCount = 1, onClo
     const scrollToLatestAgentMessage = () => {
       window.cancelAnimationFrame(frame);
       frame = window.requestAnimationFrame(() => {
-        if (results) {
-          feed.querySelector<HTMLElement>('[data-testid="message-ally"]')?.scrollIntoView({
-            behavior: prefersReducedMotionRef.current ? "auto" : "smooth",
-            block: "start",
-          });
-          return;
-        }
-
-        const messages = feed.querySelectorAll<HTMLElement>(
-          '.ali-message, [data-testid^="message-agent-"], [data-testid="message-ally"], [data-testid="message-ally-final"], [data-testid="analysis-progress"]'
-        );
-        const latestMessage = messages.item(messages.length - 1);
-        latestMessage?.scrollIntoView({
+        feed.scrollTo({
+          top: feed.scrollHeight,
           behavior: prefersReducedMotionRef.current ? "auto" : "smooth",
-          block: "start",
         });
       });
     };
 
     scrollToLatestAgentMessage();
-    if (results) {
-      return () => window.cancelAnimationFrame(frame);
-    }
-
     const observer = new MutationObserver(scrollToLatestAgentMessage);
     observer.observe(feed, { childList: true, subtree: true });
 
@@ -1063,7 +1047,7 @@ ${shareUrl ? `\nReproduire cette analyse : ${shareUrl}` : ""}`;
 
          <ScrollArea className="flex-1 px-5 py-4">
           {/* ══════════ VUE DIAGNOSTIC (page unique à divulgation progressive) ══════════ */}
-           <div ref={conversationFeedRef} className="space-y-4" data-testid="panel-overview">
+           <div className="space-y-4" data-testid="panel-overview">
              {requestSummary && <div className="conversation-message" data-testid="message-user-request"><Search className="mt-1 h-5 w-5" aria-hidden="true" /><div><p><strong>Votre demande</strong></p><p>{requestSummary}</p></div></div>}
              {historyError && <p className="text-[10px] text-amber-700" role="status">{historyError}</p>}
               {isAnalyzing && (
