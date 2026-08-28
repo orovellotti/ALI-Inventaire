@@ -1639,13 +1639,13 @@ ${shareUrl ? `\nReproduire cette analyse : ${shareUrl}` : ""}`;
         <div className="px-5 py-3 border-t border-gray-100 bg-white/50 flex items-center gap-2">
           <Button
             onClick={() => setShowReportPreview(true)}
-            className="flex-1 justify-center gap-2 h-11 bg-gradient-to-r from-indigo-600 to-blue-600 hover:from-indigo-700 hover:to-blue-700 text-white text-sm font-semibold shadow-md hover:shadow-lg ring-1 ring-indigo-500/30 transition-all"
+            className="flex-1 justify-center gap-2 h-11 bg-[#1e594a] hover:bg-[#17483d] text-[#fffdf5] text-sm font-semibold shadow-md hover:shadow-lg ring-1 ring-[#c4a642]/40 transition-all"
             data-testid="button-report-text"
           >
-            <FileText className="h-4 w-4" />
+            <FileText className="h-4 w-4 text-[#dcc05b]" />
             Générer la note écologique
             {aiAnalysis && (
-              <span className="ml-0.5 inline-flex items-center gap-0.5 text-[9px] font-bold uppercase tracking-wider px-1 py-0.5 rounded bg-white/20 border border-white/30">
+              <span className="ml-0.5 inline-flex items-center gap-0.5 rounded border border-[#dcc05b]/50 bg-[#dcc05b]/15 px-1 py-0.5 text-[9px] font-bold uppercase tracking-wider text-[#f2dc84]">
                 <Sparkles className="h-2.5 w-2.5" /> IA
               </span>
             )}
