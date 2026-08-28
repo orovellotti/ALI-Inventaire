@@ -1,0 +1,201 @@
+Parfait. Le bon parcours pour **ALi Inventaire** est donc :
+
+```mermaid
+flowchart TD
+    A["Choix du lieu"] --> B["Définition du périmètre"]
+    B --> C["Pré-étude biodiversité"]
+    C --> D["Pré-résultat cartographique"]
+    D --> E{"Données suffisantes ?"}
+    E -->|"À confirmer"| F["Proposition d’un inventaire terrain"]
+    E -->|"Oui"| G["Rapport de pré-étude"]
+    F --> H["Commande d’un naturaliste"]
+```
+
+Le pré-résultat ne doit pas être présenté comme un inventaire réel, mais comme une estimation fondée sur les données disponibles et destinée à préparer la mission de terrain.
+
+## Script conversationnel adapté
+
+### 1. Définition du lieu
+
+Bonjour, je suis ALi Inventaire.
+
+Je peux réaliser une première analyse de la biodiversité potentiellement présente sur votre site et identifier les vérifications à effectuer sur le terrain.
+
+Pour commencer, où se trouve le site à étudier ?
+
+Vous pouvez saisir une adresse, une commune, des coordonnées GPS, une parcelle cadastrale ou dessiner directement le périmètre sur la carte.
+
+Après sélection :
+
+J’ai localisé votre site.
+
+Périmètre analysé : 12,4 hectares
+Commune : Marseille
+Type de contexte : zone urbaine à proximité d’espaces végétalisés
+
+Le périmètre est-il correct ?
+
+Vous pouvez le confirmer ou le modifier directement sur la carte.
+
+### 2. Qualification du besoin
+
+Pour adapter la pré-étude, quelle est la nature de votre projet ?
+
+• aménagement ou construction ;
+• gestion d’un site existant ;
+• acquisition foncière ;
+• réponse à une obligation réglementaire ;
+• amélioration volontaire de la biodiversité ;
+• autre projet.
+
+Puis :
+
+À quel stade se trouve votre projet ?
+
+• étude d’opportunité ;
+• conception ;
+• préparation d’une autorisation ;
+• travaux prévus ;
+• gestion ou suivi d’un site existant.
+
+Cette information m’aidera à évaluer le niveau de précision nécessaire et l’urgence d’une intervention sur le terrain.
+
+## 3. Lancement de la pré-étude
+
+Je lance la pré-étude biodiversité du site.
+
+Plusieurs agents spécialisés vont analyser en parallèle :
+
+🗺️ les habitats et l’occupation du sol ;
+🦎 les espèces déjà observées à proximité ;
+🌿 les espèces potentiellement présentes ;
+🛡️ les zonages réglementaires et espaces protégés ;
+🔗 les continuités écologiques ;
+⚠️ les sensibilités possibles liées à votre projet.
+
+Cette analyse repose sur les données disponibles. Elle ne remplace pas un inventaire réalisé sur le terrain par un écologue.
+
+### Affichage pendant l’analyse
+
+| Analyse         | Information affichée                                       |
+| --------------- | ---------------------------------------------------------- |
+| Habitats        | « Identification des milieux présents… »                   |
+| Espèces connues | « Consultation des observations disponibles… »             |
+| Potentialités   | « Recherche des espèces susceptibles d’utiliser le site… » |
+| Réglementation  | « Vérification des zonages et protections… »               |
+| Terrain         | « Évaluation des données restant à confirmer… »            |
+
+## 4. Pré-résultat conversationnel
+
+La pré-étude est terminée.
+
+Le site présente une sensibilité biodiversité potentielle modérée à forte.
+
+J’ai identifié :
+
+• 4 types de milieux naturels ou semi-naturels ;
+• 27 espèces déjà observées dans le secteur ;
+• 8 espèces à enjeu potentiellement présentes ;
+• 2 continuités écologiques possibles ;
+• 3 secteurs nécessitant une vérification sur le terrain.
+
+Attention : une espèce potentiellement présente n’est pas une espèce effectivement observée. Seule une expertise de terrain permettra de confirmer sa présence, son utilisation du site et le niveau d’enjeu associé.
+
+L’interface pourrait afficher quatre indicateurs simples :
+
+| Indicateur                      | Pré-résultat |
+| ------------------------------- | ------------ |
+| Potentiel écologique            | Élevé        |
+| Qualité des données disponibles | Moyenne      |
+| Incertitude                     | Importante   |
+| Inventaire terrain conseillé    | Oui          |
+
+## 5. Explication du besoin de terrain
+
+Pourquoi une intervention de terrain est-elle recommandée ?
+
+Les données existantes indiquent un potentiel écologique, mais elles ne permettent pas de confirmer :
+
+• l’état réel des habitats ;
+• la présence actuelle des espèces à enjeu ;
+• les zones de reproduction, de repos ou d’alimentation ;
+• les impacts possibles de votre projet ;
+• les mesures à prévoir pour éviter ou réduire ces impacts.
+
+Je recommande donc une visite réalisée par un naturaliste.
+
+## 6. Préparation de la mission
+
+L’agent transforme les résultats en proposition concrète :
+
+D’après la pré-étude, je recommande une première intervention comprenant :
+
+• une visite générale du site ;
+• une cartographie des habitats ;
+• la recherche des espèces et indices de présence ;
+• une attention particulière portée aux oiseaux, reptiles et chauves-souris ;
+• un compte rendu avec photographies et recommandations.
+
+Période conseillée : avril à juin
+Durée estimée sur le terrain : une journée
+Profil recommandé : écologue généraliste avec compétence faune-flore
+
+Souhaitez-vous obtenir une proposition de mission ?
+
+Boutons :
+
+* `Demander une proposition`
+* `Préciser mon besoin`
+* `Télécharger la pré-étude`
+* `En parler à un expert`
+
+## 7. Passage à la commande
+
+Avant toute commande, ALi recueille les informations indispensables :
+
+Je vais préparer votre demande d’intervention.
+
+J’ai besoin de quelques informations complémentaires :
+
+• nom et coordonnées du demandeur ;
+• accessibilité du site ;
+• date souhaitée ;
+• contraintes de sécurité ou d’accès ;
+• documents disponibles sur le projet.
+
+Vous pourrez vérifier le périmètre, le contenu de la mission et le tarif avant de confirmer.
+
+Puis l’écran de synthèse :
+
+### Mission proposée
+
+* Site : parcelle et périmètre cartographiés
+* Objectif : confirmation des enjeux biodiversité
+* Intervention : visite écologique initiale
+* Durée estimée : une journée
+* Livrable : compte rendu cartographique
+* Période recommandée : avril à juin
+* Naturaliste recherché : écologue généraliste
+* Tarif : affiché ou soumis à devis
+
+Bouton principal :
+
+**`Commander l’intervention terrain`**
+
+Boutons secondaires :
+
+* `Demander un devis`
+* `Échanger avec un écologue`
+* `Modifier la mission`
+
+## Positionnement à conserver
+
+ALi Inventaire doit toujours distinguer trois niveaux :
+
+1. **Donnée connue** : une observation ou une information issue d’une source identifiable.
+2. **Présence potentielle** : une hypothèse calculée à partir des habitats, de la répartition et du contexte.
+3. **Présence confirmée** : une observation effectuée sur le terrain par un naturaliste.
+
+La promesse devient donc :
+
+> **Comprendre le potentiel biodiversité d’un site, identifier les incertitudes et commander la bonne expertise de terrain.**
