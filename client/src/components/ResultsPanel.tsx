@@ -1045,7 +1045,7 @@ ${shareUrl ? `\nReproduire cette analyse : ${shareUrl}` : ""}`;
           </div>
         </div>
 
-         <ScrollArea className="flex-1 px-5 py-4">
+         <ScrollArea className="min-h-0 flex-1 px-5 py-4" data-testid="results-scroll-area">
           {/* ══════════ VUE DIAGNOSTIC (page unique à divulgation progressive) ══════════ */}
            <div className="space-y-4" data-testid="panel-overview">
              {requestSummary && <div className="conversation-message" data-testid="message-user-request"><Search className="mt-1 h-5 w-5" aria-hidden="true" /><div><p><strong>Votre demande</strong></p><p>{requestSummary}</p></div></div>}
