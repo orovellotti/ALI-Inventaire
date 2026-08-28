@@ -149,7 +149,9 @@ export function ResultsPanel({ isOpen, isAnalyzing = false, areaCount = 1, onClo
   const [reformattedReport, setReformattedReport] = useState<string | null>(null);
   const [reformatting, setReformatting] = useState(false);
   const [reformatError, setReformatError] = useState<string | null>(null);
-  const [showFilters, setShowFilters] = useState(true);
+  const [showFilters, setShowFilters] = useState(false);
+  const [showAnalysisDetails, setShowAnalysisDetails] = useState(false);
+  const [showAllRecommendations, setShowAllRecommendations] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
   const [editingConversationId, setEditingConversationId] = useState<string | null>(null);
   const [editingTitle, setEditingTitle] = useState("");
@@ -676,6 +678,18 @@ export function ResultsPanel({ isOpen, isAnalyzing = false, areaCount = 1, onClo
     return items.slice(0, 3);
   }, [reglementaireCount, zonages, sortedSpecies, aVerifierCount, potentialIssueSignals]);
 
+  const recommendations = useMemo(() => {
+    const items = ["Réaliser un prédiagnostic écologique de terrain pour confirmer les sensibilités du site."];
+    items.push(
+      reglementaireCount > 0
+        ? "Vérifier les obligations réglementaires associées aux protections et zonages identifiés."
+        : "Vérifier la portée des zonages environnementaux recensés avant de définir le projet.",
+    );
+    items.push("Adapter le calendrier du projet aux périodes sensibles des groupes d’espèces concernés.");
+    items.push("Faire valider les conclusions et les mesures d’évitement par un écologue.");
+    return items;
+  }, [reglementaireCount]);
+
   const toggleZonageDetails = (key: string) => {
     setExpandedZonages((prev) => {
       const next = new Set(prev);
@@ -1092,62 +1106,49 @@ ${shareUrl ? `\nReproduire cette analyse : ${shareUrl}` : ""}`;
                   potentialSpeciesCount={potentialSpecies?.potentialCount ?? 0}
                 />
               )}
-             <div className="py-2" data-testid="analysis-transcript">
-               <h3 className="font-bold">Travail réalisé par les agents</h3>
-               <ol className="mt-3 space-y-3">
-                 <li className="grid grid-cols-[20px_1fr] gap-3">
-                   <Bot className="mt-1 h-4 w-4" aria-hidden="true" />
-                   <div><strong>Ali — coordination</strong>
-                   <p>Demande comprise, périmètre vérifié et analyse répartie entre les agents spécialisés.</p></div>
-                 </li>
-                 <li className="grid grid-cols-[20px_1fr] gap-3">
-                   <Database className="mt-1 h-4 w-4" aria-hidden="true" />
-                   <div><strong>Agent Occurrences — terminé</strong>
-                   <p>{results.stats.speciesCount} espèce{results.stats.speciesCount > 1 ? "s" : ""} consolidée{results.stats.speciesCount > 1 ? "s" : ""} à partir de {results.stats.total} donnée{results.stats.total > 1 ? "s" : ""} retenue{results.stats.total > 1 ? "s" : ""}.</p></div>
-                 </li>
-                 <li className="grid grid-cols-[20px_1fr] gap-3">
-                   <Layers className="mt-1 h-4 w-4" aria-hidden="true" />
-                   <div><strong>Agent Zonages — {zonagesLoading ? "en cours" : zonages ? "terminé" : "indisponible"}</strong>
-                   <p>{zonagesLoading ? "Consultation des référentiels territoriaux en cours." : zonages ? `${zonages.count} zonage${zonages.count > 1 ? "s" : ""} identifié${zonages.count > 1 ? "s" : ""} autour du site.` : "Aucun résultat de zonage n’a pu être ajouté à cette analyse."}</p></div>
-                 </li>
-                 <li className="grid grid-cols-[20px_1fr] gap-3">
-                   <Leaf className="mt-1 h-4 w-4" aria-hidden="true" />
-                   <div><strong>Agent Potentiel écologique — {potentialSpeciesLoading ? "en cours" : potentialSpecies ? "terminé" : potentialSpeciesError ? "indisponible" : "en attente"}</strong>
-                   <p>{potentialSpeciesLoading ? "Comparaison des espèces, habitats et sites documentés en cours." : potentialSpecies ? `${potentialSpecies.potentialCount} espèce${potentialSpecies.potentialCount > 1 ? "s" : ""} potentielle${potentialSpecies.potentialCount > 1 ? "s" : ""} examinée${potentialSpecies.potentialCount > 1 ? "s" : ""}.` : "Le potentiel écologique n’a pas encore produit de résultat exploitable."}</p></div>
-                 </li>
-                 <li className="grid grid-cols-[20px_1fr] gap-3">
-                   <Check className="mt-1 h-4 w-4" aria-hidden="true" />
-                   <div><strong>Ali — synthèse</strong>
-                   <p>{isAnalyzing ? "Je poursuis le croisement des réponses reçues." : "Les réponses ont été croisées pour produire le diagnostic présenté ci-dessous."}</p></div>
-                 </li>
-               </ol>
-             </div>
-            <div className="flex items-start gap-2 border-l-2 border-emerald-600 pl-3" data-testid="message-ally">
-               <Bot className="mt-0.5 h-5 w-5 shrink-0" aria-hidden="true" />
-               <div><p className="text-sm font-bold text-emerald-900">Ali <span className="font-normal text-emerald-700">coordinateur</span></p><p className="mt-1 text-sm leading-6 text-emerald-800">J’ai croisé les observations, les zonages et les signaux de potentiel écologique pour ce pré-diagnostic traçable.</p></div>
-            </div>
+             {!isAnalyzing && (
+               <section className="analysis-complete-summary" data-testid="analysis-complete-summary">
+                 <div className="flex items-center gap-3">
+                   <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-[#1e594a] text-[#dcc05b]"><Check className="h-5 w-5" /></span>
+                   <div className="min-w-0 flex-1">
+                     <p className="font-semibold text-[#234f43]">Analyse terminée</p>
+                     <p className="text-[#60756d]">7 agents mobilisés · {results.stats.speciesCount} espèces analysées · {zonages?.count ?? 0} zonages vérifiés</p>
+                   </div>
+                 </div>
+                 <button type="button" className="mt-2 flex min-h-11 items-center gap-1.5 text-sm font-semibold" onClick={() => setShowAnalysisDetails((value) => !value)} aria-expanded={showAnalysisDetails} aria-controls="analysis-transcript">
+                   Voir les détails {showAnalysisDetails ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                 </button>
+                 {showAnalysisDetails && (
+                   <div className="pt-2" id="analysis-transcript" data-testid="analysis-transcript">
+                     <ol className="space-y-3">
+                       <li><strong>Ali — coordination</strong><p>Demande comprise, périmètre vérifié et analyse répartie entre les agents spécialisés.</p></li>
+                       <li><strong>Agent Occurrences</strong><p>{results.stats.speciesCount} espèces consolidées à partir de {results.stats.total} données retenues.</p></li>
+                       <li><strong>Agent Zonages</strong><p>{zonagesLoading ? "Consultation des référentiels en cours." : `${zonages?.count ?? 0} zonage${(zonages?.count ?? 0) > 1 ? "s" : ""} vérifié${(zonages?.count ?? 0) > 1 ? "s" : ""}.`}</p></li>
+                       <li><strong>Agent Potentiel écologique</strong><p>{potentialSpeciesLoading ? "Croisement écologique en cours." : `${potentialSpecies?.potentialCount ?? 0} espèce${(potentialSpecies?.potentialCount ?? 0) > 1 ? "s" : ""} potentielle${(potentialSpecies?.potentialCount ?? 0) > 1 ? "s" : ""} examinée${(potentialSpecies?.potentialCount ?? 0) > 1 ? "s" : ""}.`}</p></li>
+                     </ol>
+                   </div>
+                 )}
+               </section>
+             )}
              <section ref={resultsSummaryRef} className="conversation-message" data-testid="message-ally-summary" aria-live="polite">
                <Bot className="mt-1 h-5 w-5" aria-hidden="true" />
                <div>
-                 <p><strong>Ali — résumé de la pré-étude</strong></p>
-                 <p>{autoSummary}</p>
+                 <p><strong>Synthèse de la pré-étude</strong></p>
+                 <p>Le potentiel écologique du site est <strong>{globalLevel.label.toLowerCase()}</strong>. {keyFindings.slice(0, 2).map((finding) => finding.text).join(" ")} Une vérification de terrain reste nécessaire avant toute décision de projet.</p>
                  <div className="mt-3 flex flex-wrap gap-2" aria-label="Chiffres clés de la pré-étude">
                    <span className="rounded-full border border-[#d9e1d6] bg-[#edf2e9] px-2.5 py-1 text-[11px] font-semibold text-[#315b4e]">
                      {results.stats.speciesCount} taxon{results.stats.speciesCount > 1 ? "s" : ""} connu{results.stats.speciesCount > 1 ? "s" : ""}
                    </span>
                    <span className="rounded-full border border-[#d9e1d6] bg-[#edf2e9] px-2.5 py-1 text-[11px] font-semibold text-[#315b4e]">
-                     {results.stats.sensitiveCount} sensible{results.stats.sensitiveCount > 1 ? "s" : ""}
+                     {results.stats.sensitiveCount} sensibilité{results.stats.sensitiveCount > 1 ? "s" : ""}
                    </span>
                    <span className="rounded-full border border-[#d9e1d6] bg-[#edf2e9] px-2.5 py-1 text-[11px] font-semibold text-[#315b4e]">
                      {zonagesLoading ? "Zonages en cours" : `${zonages?.count ?? 0} zonage${(zonages?.count ?? 0) > 1 ? "s" : ""}`}
                    </span>
                    <span className="rounded-full border border-[#d9e1d6] bg-[#edf2e9] px-2.5 py-1 text-[11px] font-semibold text-[#315b4e]">
-                     Enjeu potentiel {globalLevel.label.toLowerCase()}
+                     {recommendations.length} recommandations
                    </span>
                  </div>
-                 <p className="mt-3 text-[11px]">
-                   Ce résultat reste indicatif : une vérification de terrain est recommandée avant toute décision de projet.
-                 </p>
                </div>
              </section>
             {/* Niveau d'enjeu global */}
@@ -1160,9 +1161,10 @@ ${shareUrl ? `\nReproduire cette analyse : ${shareUrl}` : ""}`;
                   : "border-green-200 bg-green-50/70"
               }`}
               data-testid="card-issue-level"
+               data-level={globalLevel.level}
             >
               <div className="flex items-center justify-between gap-2">
-                <div className="text-[10px] font-bold uppercase tracking-wider text-gray-500">Enjeu potentiel du site</div>
+                 <div className="font-bold text-gray-700">Potentiel écologique du site</div>
                 {zonagesLoading && <Loader2 className="h-3.5 w-3.5 animate-spin text-gray-400" aria-label="Chargement des zonages" />}
               </div>
               <div
@@ -1192,20 +1194,22 @@ ${shareUrl ? `\nReproduire cette analyse : ${shareUrl}` : ""}`;
               </p>
             </div>
 
-            {/* À retenir */}
+            {/* Recommandations prioritaires */}
             <div className="rounded-xl border border-gray-200 bg-white p-4" data-testid="card-key-findings">
-              <div className="text-xs font-bold text-gray-700 uppercase tracking-wide mb-2">À retenir</div>
-              <ul className="space-y-1.5">
-                {keyFindings.map((f, i) => (
-                  <li key={i} className="flex items-start gap-2 text-xs text-gray-700">
-                    {f.icon === "shield" && <Shield className="h-3.5 w-3.5 shrink-0 mt-0.5 text-red-600" />}
-                    {f.icon === "alert" && <AlertTriangle className="h-3.5 w-3.5 shrink-0 mt-0.5 text-orange-600" />}
-                    {f.icon === "info" && <Info className="h-3.5 w-3.5 shrink-0 mt-0.5 text-sky-600" />}
-                    {f.icon === "check" && <Check className="h-3.5 w-3.5 shrink-0 mt-0.5 text-teal-600" />}
-                    <span>{f.text}</span>
+              <div className="mb-3 font-bold text-[#234f43]">Recommandations prioritaires</div>
+              <ol className="space-y-2">
+                {recommendations.slice(0, 3).map((recommendation, index) => (
+                  <li key={recommendation} className="flex items-start gap-3 text-gray-700">
+                    <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-[#edf2e9] text-xs font-bold text-[#315b4e]">{index + 1}</span>
+                    <span>{recommendation}</span>
                   </li>
                 ))}
-              </ul>
+              </ol>
+              <button type="button" className="mt-3 flex min-h-11 items-center gap-1.5 text-sm font-semibold" onClick={() => setShowAllRecommendations((value) => !value)} aria-expanded={showAllRecommendations}>
+                {showAllRecommendations ? "Masquer les recommandations complémentaires" : "Voir toutes les recommandations"}
+                {showAllRecommendations ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+              </button>
+              {showAllRecommendations && <p className="border-t border-[#d9e1d6] pt-3">{recommendations[3]}</p>}
             </div>
 
             {/* Section 4 — Espèces potentiellement présentes (repliable) */}
@@ -1237,7 +1241,7 @@ ${shareUrl ? `\nReproduire cette analyse : ${shareUrl}` : ""}`;
                 data-testid="button-section-pourquoi"
               >
                 <span className="flex items-center gap-2 text-sm font-bold text-gray-800">
-                  <Gauge className="h-4 w-4 text-indigo-600" /> Niveau d’enjeu, qualité et limites
+                   <Gauge className="h-4 w-4 text-indigo-600" /> Méthode, qualité et sources
                 </span>
                 <span className="flex items-center gap-2 text-[11px] text-gray-500 min-w-0">
                   <span className="truncate">{riskScore.factors.length} facteur{riskScore.factors.length > 1 ? "s" : ""} · sources publiques</span>

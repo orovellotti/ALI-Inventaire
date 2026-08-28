@@ -1,0 +1,171 @@
+Améliore l’UX du panneau conversationnel présenté en appliquant les changements suivants, sans modifier la logique métier existante.
+
+Objectif principal
+Transformer l’interface actuelle, qui ressemble à un journal technique d’exécution, en une conversation claire, progressive et orientée vers le résultat.
+
+1. Simplifier le déroulement de l’analyse
+
+Remplacer la succession de messages techniques :
+
+* « AI — coordination »
+* « Agent Occurrences — terminé »
+* « Agent Zonages — terminé »
+* « Agent Potentiel écologique — terminé »
+* « AI — synthèse »
+
+par un seul composant compact de progression.
+
+Pendant l’analyse, afficher par exemple :
+
+« Analyse écologique en cours… »
+« 4 étapes sur 7 terminées »
+
+Ajouter une barre de progression discrète.
+
+Quand l’analyse est terminée, afficher :
+
+« Analyse terminée »
+« 7 agents mobilisés · 439 espèces analysées · 7 zonages vérifiés »
+
+Ajouter un lien ou bouton secondaire « Voir les détails » qui ouvre un accordéon contenant les étapes techniques. Cet accordéon doit être fermé par défaut.
+
+2. Donner immédiatement la priorité au résultat
+
+Après la demande de l’utilisateur, l’ordre d’affichage doit être :
+
+1. Progression compacte de l’analyse
+2. Résumé du diagnostic
+3. Niveau de potentiel du site
+4. Recommandations principales
+5. Sources et détails techniques repliables
+6. Action principale
+
+Ne pas afficher les traces techniques entre la demande et le résultat final.
+
+3. Fusionner les messages de synthèse
+
+Regrouper les blocs « AI coordinateur » et « AI — résumé de la pré-étude » dans une seule réponse de l’assistant.
+
+Structure proposée :
+
+Titre : « Synthèse de la pré-étude »
+
+Texte court de deux ou trois phrases maximum présentant :
+
+* le niveau de potentiel écologique ;
+* les principaux facteurs de sensibilité ;
+* la conclusion opérationnelle.
+
+Puis afficher les chiffres clés sous forme de petits indicateurs :
+
+* 439 espèces recensées
+* 20 sensibilités ou interactions identifiées
+* 7 zonages analysés
+* 5 recommandations
+
+Éviter les longs paragraphes et limiter la largeur des lignes pour faciliter la lecture.
+
+4. Renforcer la hiérarchie du diagnostic
+
+Créer un bloc principal clairement identifiable :
+
+« Potentiel écologique du site : FORT »
+
+Utiliser une couleur d’état cohérente :
+
+* Fort : rouge ou orange foncé
+* Moyen : orange
+* Faible : vert ou gris
+
+La couleur doit servir d’indicateur, sans colorer tout le composant. Utiliser plutôt un badge, une bordure latérale ou une icône.
+
+Sous le niveau, afficher au maximum trois raisons principales, avec une formulation courte :
+
+* Proximité immédiate d’un espace protégé
+* Présence potentielle d’espèces sensibles
+* Plusieurs zonages environnementaux actifs
+
+5. Simplifier les recommandations
+
+Afficher d’abord les trois recommandations prioritaires sous forme de liste directement visible.
+
+Exemple :
+
+1. Réaliser un prédiagnostic écologique de terrain
+2. Vérifier les enjeux réglementaires liés aux zonages
+3. Adapter le calendrier du projet aux périodes sensibles
+
+Placer les recommandations complémentaires dans un accordéon « Voir toutes les recommandations ».
+
+6. Regrouper les informations secondaires
+
+Conserver les sections suivantes sous forme d’accordéons fermés par défaut :
+
+* Espèces potentielles
+* Milieux d’enjeux, qualités et limites
+* Occurrences
+* Zonages
+* Méthode et sources utilisées
+
+Chaque titre doit indiquer la quantité de données disponible, par exemple :
+
+« Espèces potentielles — 439 »
+« Zonages — 7 »
+
+Éviter d’afficher plusieurs sous-titres techniques lorsque les informations peuvent être regroupées.
+
+7. Clarifier l’action principale
+
+Conserver un seul bouton principal en bas du résultat :
+
+« Générer la note écologique »
+
+Ce bouton doit être :
+
+* visuellement dominant ;
+* affiché après les recommandations ;
+* éventuellement fixé en bas du panneau lorsque l’utilisateur fait défiler la page ;
+* accompagné d’une courte indication : « Document structuré à partir de cette pré-étude ».
+
+Les actions secondaires, comme exporter, partager ou consulter les sources, doivent être plus discrètes et ne pas concurrencer ce bouton.
+
+8. Améliorer le style visuel
+
+Alléger l’interface :
+
+* réduire le nombre de bordures visibles ;
+* augmenter légèrement les espaces entre les grandes sections ;
+* réduire les espaces à l’intérieur des petits composants ;
+* utiliser un fond neutre pour la conversation ;
+* réserver le vert aux actions et validations ;
+* réserver l’orange ou le rouge aux alertes écologiques ;
+* uniformiser les rayons de bordure ;
+* utiliser une seule famille d’icônes ;
+* renforcer légèrement la taille et le contraste des titres.
+
+Les messages de l’utilisateur et ceux de l’assistant doivent être clairement différenciés, sans multiplier les couleurs.
+
+9. Comportement responsive
+
+Sur mobile :
+
+* conserver une seule colonne ;
+* afficher les indicateurs clés sur deux colonnes ;
+* éviter les textes trop petits ;
+* rendre le bouton principal pleine largeur ;
+* fermer les accordéons par défaut ;
+* maintenir une zone tactile d’au moins 44 px pour les boutons.
+
+10. Critères de validation
+
+La nouvelle interface est réussie si :
+
+* le diagnostic principal est compréhensible en moins de cinq secondes ;
+* les informations techniques ne dominent plus l’écran ;
+* le niveau « Fort » et ses causes sont immédiatement visibles ;
+* l’utilisateur identifie facilement la prochaine action ;
+* les détails restent accessibles sans surcharger la conversation ;
+* aucune donnée ni fonctionnalité existante n’est supprimée ;
+* seuls la présentation, la hiérarchie et les mécanismes d’ouverture/fermeture sont modifiés.
+
+Commence par analyser les composants existants et réutilise le système de design déjà présent. Implémente ensuite ces changements directement dans l’interface, en conservant les données et les appels actuels.

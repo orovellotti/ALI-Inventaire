@@ -239,124 +239,64 @@ export function AnalysisProgress({
       <div
         className={
           embedded
-            ? "w-full overflow-hidden rounded-2xl border border-teal-950/10 bg-[#f8faf5] shadow-sm"
-            : "pointer-events-auto mx-4 w-full max-w-md overflow-hidden rounded-[20px] border border-teal-950/10 bg-[#f8faf5]/95 shadow-[0_18px_50px_rgba(28,54,45,0.18)] backdrop-blur"
+            ? "w-full overflow-hidden rounded-2xl border border-[#d9e1d6] bg-[#fffefb]"
+            : "pointer-events-auto mx-4 w-full max-w-md overflow-hidden rounded-[20px] border border-[#d9e1d6] bg-[#fffefb]/95 shadow-[0_18px_50px_rgba(28,54,45,0.18)] backdrop-blur"
         }
         role="status"
         aria-live="polite"
-        aria-atomic="true"
         data-testid="analysis-progress"
       >
-        <div className="border-b border-[#d8e2d5] px-5 pb-4 pt-5">
-          <div className="flex items-start gap-3.5">
-            <div className="relative mt-0.5 flex h-11 w-11 shrink-0 items-center justify-center">
-            {[0, 1].map((i) => (
-              <span
-                key={i}
-                className="absolute inset-0 rounded-full border border-[#5c8877]"
-                data-ifx-motion
-                style={{
-                  animation: `ifx-ring ${pulseSpeed * 1.6}s ease-out ${i * (pulseSpeed * 0.8)}s infinite`,
-                }}
-              />
-            ))}
-            <span className="flex h-8 w-8 items-center justify-center rounded-full bg-[#245746] text-[#f4f7ee] shadow-sm">
-              {done ? (
-                <Check className="h-5 w-5" />
-              ) : (
-                <Bot
-                  className="h-5 w-5"
-                  data-ifx-motion
-                  style={{ animation: `ifx-leaf ${pulseSpeed}s ease-in-out infinite` }}
-                />
-              )}
+        <div className="px-5 py-4">
+          <div className="flex items-center gap-3">
+            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-[#1e594a] text-[#dcc05b]">
+              {done ? <Check className="h-5 w-5" /> : <Bot className="h-5 w-5" />}
             </span>
-          </div>
-          <div className="min-w-0 flex-1">
-            <div className="flex items-center justify-between gap-3">
-              <p className="text-sm font-semibold tracking-tight text-[#19362d]">
-                {done ? "Analyse terminée" : "Ali réfléchit et coordonne ses agents"}
+            <div className="min-w-0 flex-1">
+              <p className="font-semibold text-[#19362d]">
+                {done ? "Analyse terminée" : "Analyse écologique en cours…"}
               </p>
-              {!done && <EffortMeter effort={currentEffort} />}
+              <p className="mt-0.5 text-[#60756d]">
+                {done
+                  ? `7 agents mobilisés · ${zonageFeatureCount} zonage${zonageFeatureCount > 1 ? "s" : ""} vérifié${zonageFeatureCount > 1 ? "s" : ""}`
+                  : `${Math.min(6, Math.max(1, Math.floor(progress / 15) + 1))} étapes sur 7 terminées`}
+              </p>
             </div>
-            <p className="mt-1 text-[13px] leading-5 text-[#36584b]" data-ifx-motion style={{ animation: "ifx-arrive 260ms ease-out both" }}>
-              {done ? "J’ai terminé le croisement. J’ouvre vos résultats…" : `Analyse active depuis ${elapsedSeconds} s.`}
-            </p>
-            {!done && (
-              <>
-                <p className="mt-0.5 text-xs font-medium leading-4 text-[#4b6559]">{steps[stepIndex].label}</p>
-                <p className="mt-1 text-[11px] leading-4 text-[#6b7d73]">{steps[stepIndex].detail}</p>
-              </>
-            )}
+            {!done && <span className="tabular-nums text-[#60756d]">{progress}%</span>}
           </div>
-        </div>
-
-          <div className="mt-4 flex items-center gap-3">
-            <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-[#dce8dc]">
-          <div
-                className="h-full rounded-full bg-[#2f7660] transition-[width] duration-300 ease-out"
-            data-ifx-motion
-            style={{ width: `${progress}%` }}
-          />
-            </div>
-            <span className="w-8 text-right font-mono text-[10px] font-semibold tabular-nums text-[#587166]">
-              {progress}%
-            </span>
+          <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-[#e5eee4]">
+            <div
+              className="h-full rounded-full bg-[#28705a] transition-[width] duration-300"
+              data-ifx-motion
+              style={{ width: `${progress}%` }}
+            />
           </div>
+          <button
+            type="button"
+            onClick={() => setOpenSourceDetail((open) => open === "ally" ? null : "ally")}
+            className="mt-3 flex min-h-11 items-center gap-1.5 text-sm font-semibold text-[#315b4e]"
+            aria-expanded={openSourceDetail === "ally"}
+            aria-controls="analysis-technical-details"
+          >
+            Voir les détails
+            {openSourceDetail === "ally" ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+          </button>
         </div>
-
-        {!done && (
-          <div className="px-5 py-3.5">
-            <p className="mb-2 text-[10px] font-bold uppercase tracking-[0.14em] text-[#789084]">Fil d’analyse</p>
-            <ol className="space-y-0.5 border-l border-dashed border-[#cbdacd] pl-3">
-              <li className="relative py-1.5" data-ifx-motion style={{ animation: "ifx-arrive 260ms ease-out both" }}>
-                <span className="absolute -left-[17px] top-3.5 h-2 w-2 rounded-full bg-[#245746] ring-4 ring-[#f8faf5]" aria-hidden="true" />
-                <p className="flex items-center gap-1.5 text-[11px] font-bold text-[#244338]"><Bot className="h-3.5 w-3.5" aria-hidden="true" /> Ali <span className="font-normal text-[#7b8d83]">coordinateur</span></p>
-                <p className="mt-0.5 text-xs leading-4 text-[#496358]">Je lance le croisement de vos données.</p>
-                <button
-                  type="button"
-                  onClick={() => setOpenSourceDetail((open) => open === "ally" ? null : "ally")}
-                  className="mt-1 flex items-center gap-1 text-[10px] font-medium text-[#62766b] transition-colors hover:text-[#245746] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#4e8a73] focus-visible:ring-offset-1"
-                  aria-expanded={openSourceDetail === "ally"}
-                  aria-controls="source-detail-ally"
-                >
-                  Détail de l’analyse
-                  {openSourceDetail === "ally" ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
-                </button>
-                {openSourceDetail === "ally" && <p id="source-detail-ally" className="mt-1 text-[10px] leading-4 text-[#687c71]">{areaCount} aire{areaCount > 1 ? "s" : ""} d’étude active{areaCount > 1 ? "s" : ""}.</p>}
+        {openSourceDetail === "ally" && (
+          <div id="analysis-technical-details" className="border-t border-[#d9e1d6] px-5 py-4">
+            <ol className="space-y-3">
+              <li className="flex gap-2">
+                <Bot className="mt-0.5 h-4 w-4 shrink-0 text-[#315b4e]" />
+                <div><strong>Ali — coordination</strong><p>{steps[stepIndex].label}</p></div>
               </li>
-              {stepIndex >= 1 && sourceMessages.map((agent, index) => {
+              {sourceMessages.map((agent) => {
                 const Icon = agent.icon;
-                const detailOpen = openSourceDetail === agent.id;
                 return (
-                  <li key={agent.id} className="relative py-1.5" data-ifx-motion style={{ animation: `ifx-arrive 260ms ease-out ${80 + index * 70}ms both` }}>
-                    <span className="absolute -left-[17px] top-3.5 h-2 w-2 rounded-full bg-[#799a89] ring-4 ring-[#f8faf5]" aria-hidden="true" />
-                    <div className="flex items-center gap-1.5">
-                      <Icon className={`h-3.5 w-3.5 shrink-0 ${agent.tone}`} aria-hidden="true" />
-                      <p className="text-[11px] font-bold text-[#36584b]">{agent.name}</p>
-                    </div>
-                    <p className="mt-0.5 text-xs leading-4 text-[#496358]">{agent.message}</p>
-                    <button
-                      type="button"
-                      onClick={() => setOpenSourceDetail((open) => open === agent.id ? null : agent.id)}
-                      className="mt-1 flex items-center gap-1 text-[10px] font-medium text-[#62766b] transition-colors hover:text-[#245746] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#4e8a73] focus-visible:ring-offset-1"
-                      aria-expanded={detailOpen}
-                      aria-controls={`source-detail-${agent.id}`}
-                    >
-                      Détail de la source
-                      {detailOpen ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
-                    </button>
-                    {detailOpen && <p id={`source-detail-${agent.id}`} className="mt-1 text-[10px] leading-4 text-[#687c71]">{agent.detail}</p>}
+                  <li key={agent.id} className="flex gap-2">
+                    <Icon className="mt-0.5 h-4 w-4 shrink-0 text-[#315b4e]" />
+                    <div><strong>{agent.name}</strong><p>{agent.message} {agent.detail}</p></div>
                   </li>
                 );
               })}
-              {stepIndex >= 2 && (
-                <li className="relative py-1.5" data-ifx-motion style={{ animation: "ifx-arrive 260ms ease-out both" }}>
-                  <span className="absolute -left-[17px] top-3.5 h-2 w-2 rounded-full bg-[#245746] ring-4 ring-[#f8faf5]" aria-hidden="true" />
-                  <p className="flex items-center gap-1.5 text-[11px] font-bold text-[#244338]"><Bot className="h-3.5 w-3.5" aria-hidden="true" /> Ali <span className="font-normal text-[#7b8d83]">coordinateur</span></p>
-                  <p className="mt-0.5 text-xs leading-4 text-[#496358]">Je consolide les données reçues avant l’affichage.</p>
-                </li>
-              )}
             </ol>
           </div>
         )}

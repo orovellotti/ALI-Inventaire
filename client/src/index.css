@@ -176,6 +176,24 @@
 }
 .conversation-panel [data-testid="analysis-progress"] [class*="bg-"] { background-color:#e5eee4!important; }.conversation-panel [data-testid="analysis-progress"] [class*="bg-"][style*="width"] { background-color:#28705a!important; }
 .conversation-panel [data-testid="analysis-transcript"] { padding:2px 0 18px 34px!important; border-left:1px dashed #bdd0bd; }.conversation-panel [data-testid="analysis-transcript"] h3{font-family:"DM Sans",sans-serif!important;font-size:11px!important;text-transform:uppercase;letter-spacing:.12em}.conversation-panel [data-testid="analysis-transcript"] li{padding:6px 0}
+.conversation-panel [data-testid="analysis-complete-summary"] {
+  padding:15px 17px;
+  border:1px solid #d9e1d6;
+  border-radius:17px;
+  background:#fffefb;
+}
+.conversation-panel [data-testid="card-issue-level"] {
+  border-left-width:4px!important;
+}
+.conversation-panel [data-testid="card-issue-level"][data-level="fort"] {
+  border-left-color:#b94f3d!important;
+}
+.conversation-panel [data-testid="card-issue-level"][data-level="modere"] {
+  border-left-color:#c98228!important;
+}
+.conversation-panel [data-testid="card-issue-level"][data-level="faible"] {
+  border-left-color:#52756a!important;
+}
 .conversation-panel table { border-color:#dae2d8!important; }.conversation-panel th{background:#edf2e9!important;color:#315b4e!important;}.conversation-panel td{border-color:#e3e8df!important;}
 
 /* Results use one restrained type scale and one visual language. */
@@ -256,6 +274,15 @@
 #map-container:after { content:""; position:absolute; inset:0; pointer-events:none; z-index:350; background:rgba(232,229,205,.055); mix-blend-mode:multiply; }
 
 @media (max-width:767px) { .conversation-panel.fixed{inset:0!important;width:100%!important;height:100dvh!important;border-left:0!important}.conversation-panel header{padding:12px 14px!important}.conversation-panel [data-testid="conversation-feed"]{padding:21px 14px 30px!important}.conversation-panel .user-response,.conversation-panel .response-actions,.conversation-panel .settings-response{margin-left:0}.conversation-panel .conversation-message,.conversation-panel [data-testid="message-ally"],.conversation-panel .ali-message{grid-template-columns:28px minmax(0,1fr)!important;gap:9px!important}.conversation-panel .conversation-message>div,.conversation-panel [data-testid="message-ally"]>div,.conversation-panel .ali-message>div{padding:14px}.conversation-panel [data-testid="panel-overview"] > :is([data-testid="card-issue-level"],[data-testid="card-key-findings"],[data-testid="section-pourquoi"],[data-testid^="message-agent-"]),.conversation-panel :is([data-testid="message-agent-occurrences"],[data-testid="message-agent-zonages"]){width:calc(100% - 37px);margin-left:37px}.conversation-panel [data-testid="panel-overview"] > :is([data-testid="card-issue-level"],[data-testid="card-key-findings"],[data-testid="section-pourquoi"],[data-testid^="message-agent-"])::before,.conversation-panel :is([data-testid="message-agent-occurrences"],[data-testid="message-agent-zonages"])::before{left:-37px}.conversation-panel [data-testid="panel-overview"] > :is([data-testid="card-issue-level"],[data-testid="card-key-findings"],[data-testid="section-pourquoi"],[data-testid^="message-agent-"])::after,.conversation-panel :is([data-testid="message-agent-occurrences"],[data-testid="message-agent-zonages"])::after{left:-31px}.conversation-panel [data-testid="button-history"]{width:42px;overflow:hidden;font-size:0!important}.conversation-panel [data-testid="button-history"] svg{margin:auto}}
+@media (max-width:767px) {
+  .conversation-panel [data-testid="message-ally-summary"] [aria-label="Chiffres clés de la pré-étude"] > span {
+    width:calc(50% - 4px);
+    text-align:center;
+  }
+  .conversation-panel [data-testid="results-scroll-area"] button {
+    min-height:44px;
+  }
+}
 @media (prefers-reduced-motion:reduce){*,*:before,*:after{animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important;scroll-behavior:auto!important}}
 
 /* Coque ALi : la conversation est le sujet, la carte devient son contexte. */
