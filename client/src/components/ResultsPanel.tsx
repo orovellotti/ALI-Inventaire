@@ -1098,6 +1098,30 @@ ${shareUrl ? `\nReproduire cette analyse : ${shareUrl}` : ""}`;
                <Bot className="mt-0.5 h-5 w-5 shrink-0" aria-hidden="true" />
               <div><p className="text-xs font-bold text-emerald-900">Ali <span className="font-normal text-emerald-700">coordinateur</span></p><p className="mt-0.5 text-[11px] leading-4 text-emerald-800">J’ai croisé les observations, les zonages et les signaux de potentiel écologique pour ce pré-diagnostic traçable.</p></div>
             </div>
+             <section className="conversation-message" data-testid="message-ally-summary" aria-live="polite">
+               <Bot className="mt-1 h-5 w-5" aria-hidden="true" />
+               <div>
+                 <p><strong>Ali — résumé de la pré-étude</strong></p>
+                 <p>{autoSummary}</p>
+                 <div className="mt-3 flex flex-wrap gap-2" aria-label="Chiffres clés de la pré-étude">
+                   <span className="rounded-full border border-[#d9e1d6] bg-[#edf2e9] px-2.5 py-1 text-[11px] font-semibold text-[#315b4e]">
+                     {results.stats.speciesCount} taxon{results.stats.speciesCount > 1 ? "s" : ""} connu{results.stats.speciesCount > 1 ? "s" : ""}
+                   </span>
+                   <span className="rounded-full border border-[#d9e1d6] bg-[#edf2e9] px-2.5 py-1 text-[11px] font-semibold text-[#315b4e]">
+                     {results.stats.sensitiveCount} sensible{results.stats.sensitiveCount > 1 ? "s" : ""}
+                   </span>
+                   <span className="rounded-full border border-[#d9e1d6] bg-[#edf2e9] px-2.5 py-1 text-[11px] font-semibold text-[#315b4e]">
+                     {zonagesLoading ? "Zonages en cours" : `${zonages?.count ?? 0} zonage${(zonages?.count ?? 0) > 1 ? "s" : ""}`}
+                   </span>
+                   <span className="rounded-full border border-[#d9e1d6] bg-[#edf2e9] px-2.5 py-1 text-[11px] font-semibold text-[#315b4e]">
+                     Enjeu potentiel {globalLevel.label.toLowerCase()}
+                   </span>
+                 </div>
+                 <p className="mt-3 text-[11px]">
+                   Ce résultat reste indicatif : une vérification de terrain est recommandée avant toute décision de projet.
+                 </p>
+               </div>
+             </section>
             {/* Niveau d'enjeu global */}
             <div
               className={`rounded-xl border p-4 ${
@@ -1543,15 +1567,6 @@ ${shareUrl ? `\nReproduire cette analyse : ${shareUrl}` : ""}`;
               <p className="text-sm text-gray-400 italic">Aucun zonage environnemental recensé dans l'aire d'étude. Vous pouvez élargir le rayon d'analyse.</p>
             )}
                 </div>}
-          </section>
-
-          <section className="flex items-start gap-2 border-l-2 border-emerald-600 pl-3" data-testid="message-ally-final">
-            <Bot className="mt-0.5 h-5 w-5 shrink-0" aria-hidden="true" />
-            <div className="min-w-0">
-              <p className="text-xs font-bold text-emerald-900">Ali <span className="font-normal text-emerald-700">synthèse finale</span></p>
-              <p className="mt-0.5 text-[11px] leading-4 text-emerald-800">{autoSummary}</p>
-              <p className="mt-1 text-[10px] leading-4 text-emerald-700">Les niveaux de preuve restent distincts : occurrence géolocalisée, compatibilité écologique et signal documentaire ne sont pas équivalents.</p>
-            </div>
           </section>
 
           <p className="mt-4 px-1 text-[11px] text-gray-400 leading-snug flex gap-1.5 items-start">
