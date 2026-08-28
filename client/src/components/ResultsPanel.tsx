@@ -1579,7 +1579,6 @@ ${shareUrl ? `\nReproduire cette analyse : ${shareUrl}` : ""}`;
             Indication rapide basée sur GBIF, iNaturalist et UICN — ne remplace pas un inventaire terrain.
           </p>
         </div>
-        {!isAnalyzing && composer && <div className="conversation-composer">{composer}</div>}
          {historyDrawer}
 
         {/* Assistant IA contextuel */}
