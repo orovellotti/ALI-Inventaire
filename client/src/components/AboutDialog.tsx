@@ -102,8 +102,7 @@ export function AboutDialog({ open, onOpenChange }: AboutDialogProps) {
                 Aires d'étude concentriques
               </h3>
               <p>
-                L'outil propose trois aires d'étude concentriques, conformément aux standards des études 
-                d'impact environnemental :
+                L’outil propose trois aires indicatives, à ajuster selon le projet, les milieux et les groupes biologiques étudiés :
               </p>
               <div className="mt-3 space-y-2">
                 <div className="flex items-center gap-3 bg-white rounded-lg p-3 border border-gray-200">
@@ -142,25 +141,24 @@ export function AboutDialog({ open, onOpenChange }: AboutDialogProps) {
             <section>
               <h3 className="flex items-center gap-2 font-bold text-gray-900 text-base mb-2">
                 <AlertTriangle className="h-4 w-4 text-teal-600" />
-                Classification des enjeux (UICN)
+                Statuts de conservation et signaux d’enjeu
               </h3>
               <p>
-                Chaque espèce est classée selon son statut IUCN (Union Internationale pour la Conservation 
-                de la Nature), récupéré via l'API GBIF :
+                Les statuts UICN disponibles sont croisés avec les informations territoriales fournies par les sources consultées. Un statut seul ne suffit pas à conclure à un enjeu local :
               </p>
               <div className="mt-3 space-y-2">
                 <div className="flex items-start gap-3 bg-red-50/50 rounded-lg p-3 border border-red-100">
                   <div className="w-3 h-3 rounded-full bg-red-500 mt-0.5 flex-shrink-0" />
                   <div>
-                    <span className="font-semibold text-sm text-red-800 block">Enjeux forts</span>
+                    <span className="font-semibold text-sm text-red-800 block">Statuts appelant une attention particulière</span>
                     <span className="text-xs text-red-600">CR (En danger critique), EN (En danger), VU (Vulnérable), NT (Quasi menacé)</span>
                   </div>
                 </div>
                 <div className="flex items-start gap-3 bg-green-50/50 rounded-lg p-3 border border-green-100">
                   <div className="w-3 h-3 rounded-full bg-green-500 mt-0.5 flex-shrink-0" />
                   <div>
-                    <span className="font-semibold text-sm text-green-800 block">Enjeux faibles</span>
-                    <span className="text-xs text-green-600">LC (Préoccupation mineure), DD (Données insuffisantes), NA (Non applicable), NE (Non évalué) et autres. Les espèces DD méritent une attention au cas par cas mais ne sont pas automatiquement priorisées.</span>
+                    <span className="font-semibold text-sm text-green-800 block">Statuts non concluants à eux seuls</span>
+                    <span className="text-xs text-green-600">LC (Préoccupation mineure), DD (Données insuffisantes), NA (Non applicable) et NE (Non évalué). DD, NA et NE signalent surtout une limite de connaissance et ne justifient pas automatiquement un niveau d’enjeu.</span>
                   </div>
                 </div>
               </div>

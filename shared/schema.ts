@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { pgTable, text, varchar, serial, index, timestamp } from "drizzle-orm/pg-core";
+import { pgTable, text, varchar, serial, index, timestamp, integer, jsonb } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
@@ -82,3 +82,12 @@ export const insertZnieffSpeciesSchema = createInsertSchema(znieffSpecies);
 export type InsertZnieffSpecies = z.infer<typeof insertZnieffSpeciesSchema>;
 export type ZnieffSpecies = typeof znieffSpecies.$inferSelect;
 export type ZnieffReferenceMeta = typeof znieffReferenceMeta.$inferSelect;
+
+export const harnessConfigs = pgTable("harness_configs", {
+  id: varchar("id").primaryKey(),
+  version: integer("version").notNull().default(1),
+  config: jsonb("config").notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export type HarnessConfigRow = typeof harnessConfigs.$inferSelect;

@@ -5,6 +5,7 @@ import { ResultsPanel } from "@/components/ResultsPanel";
 import { AboutDialog } from "@/components/AboutDialog";
 import { ApiDialog } from "@/components/ApiDialog";
 import { LieuxDitsDialog } from "@/components/LieuxDitsDialog";
+import { HarnessDialog } from "@/components/HarnessDialog";
 import { searchGBIFMultiCircle, InventoryResult, BufferCircle, STUDY_AREAS, ProjectPreset, TAXON_GROUPS, getTaxonGroupId } from "@/lib/gbif";
 import { searchPlace, reverseGeocode } from "@/lib/geocoding";
 import { parseShapefile, ProjectPolygon } from "@/lib/shapefile";
@@ -12,6 +13,7 @@ import { toZonageMapFeatures } from "@/lib/zonageMap";
 import { fetchZonages, type ZonagesData } from "@/lib/zonages";
 import { fetchPotentialSpecies } from "@/lib/potentialSpecies";
 import type { PotentialSpeciesResult } from "@shared/types";
+import { DEFAULT_HARNESS_CONFIG, type HarnessConfig } from "@shared/harness";
 import {
   createAnalysisConversationId,
   deleteAnalysisConversation,
@@ -34,14 +36,6 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
-
 function createDefaultCircles(center: [number, number]): BufferCircle[] {
   return STUDY_AREAS.map(area => ({
     id: area.id,
@@ -99,6 +93,7 @@ export default function Home() {
   const [showAbout, setShowAbout] = useState(false);
   const [showApi, setShowApi] = useState(false);
   const [showHarness, setShowHarness] = useState(false);
+  const [harnessConfig, setHarnessConfig] = useState<HarnessConfig>(DEFAULT_HARNESS_CONFIG);
   const [showLieuxDits, setShowLieuxDits] = useState(false);
   const [currentToponym, setCurrentToponym] = useState<string>(INITIAL_PLACE.name);
   const [activePresetId, setActivePresetId] = useState("custom");
@@ -128,6 +123,13 @@ export default function Home() {
     { kind: "map"; center: [number, number] } | { kind: "reset" } | null
   >(null);
   const { toast } = useToast();
+
+  useEffect(() => {
+    fetch("/api/harness")
+      .then((response) => response.ok ? response.json() : Promise.reject())
+      .then(setHarnessConfig)
+      .catch(() => undefined);
+  }, []);
 
   const inventoryRequestId = useRef(0);
   const zonagesAbortController = useRef<AbortController | null>(null);
@@ -265,6 +267,11 @@ export default function Home() {
   };
 
   const handleLaunchAnalysis = async () => {
+    const agentEnabled = (id: string) => harnessConfig.agents.find((agent) => agent.id === id)?.enabled !== false;
+    if (!agentEnabled("occurrences")) {
+      toast({ title: "Agent Occurrences désactivé", description: "Activez-le dans le Harnais pour lancer une pré-étude.", variant: "destructive" });
+      return;
+    }
     const enabledCircles = circles.filter(c => c.enabled);
     const enabledCount = enabledCircles.length;
     if (enabledCount === 0) {
@@ -320,9 +327,9 @@ export default function Home() {
     setLocationKey((key) => key + 1);
     setZonages(null);
     setSelectedZonageId(null);
-    setZonagesLoading(true);
+    setZonagesLoading(agentEnabled("zonages"));
     setPotentialSpecies(null);
-    setPotentialSpeciesLoading(true);
+    setPotentialSpeciesLoading(agentEnabled("potential"));
     setPotentialSpeciesError(false);
     setAnalysisFailed(false);
     setZonagesError(false);
@@ -336,7 +343,7 @@ export default function Home() {
 
     // Les zonages partent dès le clic, en parallèle de GBIF/iNaturalist.
     // Leur échec reste non bloquant : l'inventaire d'espèces s'ouvre quand même.
-    void fetchZonages(
+    if (agentEnabled("zonages")) void fetchZonages(
       referenceCircle.center[0],
       referenceCircle.center[1],
       referenceCircle.radius,
@@ -363,7 +370,7 @@ export default function Home() {
 
     // La compatibilité écologique part elle aussi dès le clic. Les occurrences
     // reçues ensuite serviront uniquement à distinguer avérées et potentielles.
-    void fetchPotentialSpecies(
+    if (agentEnabled("potential")) void fetchPotentialSpecies(
       referenceCircle.center[0],
       referenceCircle.center[1],
       referenceCircle.radius,
@@ -793,58 +800,12 @@ export default function Home() {
         onNewConversation={handleNewConversation}
         onRenameConversation={handleRenameConversation}
         onDeleteConversation={handleDeleteConversation}
+        harnessConfig={harnessConfig}
       />
 
       <AboutDialog open={showAbout} onOpenChange={setShowAbout} />
       <ApiDialog open={showApi} onOpenChange={setShowApi} />
-      <Dialog open={showHarness} onOpenChange={setShowHarness}>
-        <DialogContent className="z-[4000] max-h-[85vh] max-w-xl overflow-y-auto border-[#d9ddd1] bg-[#fffef9] text-[#426158] shadow-[0_24px_70px_rgba(23,72,61,.2)]">
-          <DialogHeader>
-            <div className="mb-3 flex h-11 w-11 items-center justify-center rounded-xl bg-[#1e594a] text-[#dcc05b]">
-              <Bot className="h-5 w-5" aria-hidden="true" />
-            </div>
-            <DialogTitle className="font-serif text-2xl font-semibold text-[#17483d]">
-              Le harnais d’ALi
-            </DialogTitle>
-            <DialogDescription className="text-sm leading-6 text-[#557067]">
-              Le harnais est le cadre qui organise le travail d’ALi, ses agents spécialisés,
-              leurs sources et les règles appliquées à chaque pré-étude.
-            </DialogDescription>
-          </DialogHeader>
-
-          <div className="grid gap-3 text-sm">
-            <section className="rounded-xl border border-[#dfe3da] bg-[#faf9f3] p-4">
-              <h3 className="font-semibold text-[#17483d]">Coordination</h3>
-              <p className="mt-1 leading-6">
-                ALi comprend la demande, vérifie le périmètre, répartit l’analyse et rassemble
-                les réponses dans un diagnostic traçable.
-              </p>
-            </section>
-            <section className="rounded-xl border border-[#dfe3da] bg-[#faf9f3] p-4">
-              <h3 className="font-semibold text-[#17483d]">Agents spécialisés</h3>
-              <p className="mt-1 leading-6">
-                Les agents Occurrences, Zonages et Potentiel écologique examinent chacun leur
-                domaine avant qu’ALi ne croise leurs conclusions.
-              </p>
-            </section>
-            <section className="rounded-xl border border-[#dfe3da] bg-[#faf9f3] p-4">
-              <h3 className="font-semibold text-[#17483d]">Sources mobilisées</h3>
-              <p className="mt-1 leading-6">
-                Le harnais interroge notamment GBIF, iNaturalist, IGN/PatriNat, INPN,
-                UICN et ALI/TAXREF selon les besoins de l’analyse.
-              </p>
-            </section>
-            <section className="rounded-xl border border-[#dfe3da] bg-[#faf9f3] p-4">
-              <h3 className="font-semibold text-[#17483d]">Garde-fous scientifiques</h3>
-              <p className="mt-1 leading-6">
-                ALi distingue les données connues, les présences potentielles et les présences
-                confirmées sur le terrain. La pré-étude signale ses incertitudes et ne remplace
-                jamais une expertise écologique de terrain.
-              </p>
-            </section>
-          </div>
-        </DialogContent>
-      </Dialog>
+      <HarnessDialog open={showHarness} onOpenChange={setShowHarness} config={harnessConfig} onConfigChange={setHarnessConfig} />
       <LieuxDitsDialog
         open={showLieuxDits}
         onOpenChange={setShowLieuxDits}

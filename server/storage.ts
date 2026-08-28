@@ -7,10 +7,12 @@ import {
   natura2000Species,
   znieffReferenceMeta,
   znieffSpecies,
+  harnessConfigs,
 } from "@shared/schema";
 import { randomUUID } from "crypto";
 import { eq, inArray } from "drizzle-orm";
 import { db } from "./db";
+import type { HarnessConfig } from "@shared/harness";
 
 // modify the interface with any CRUD methods
 // you might need
@@ -22,6 +24,8 @@ export interface IStorage {
   getNaturaSpeciesForSites(siteCodes: string[]): Promise<Natura2000Species[]>;
   getZnieffSpeciesForZones(zoneCodes: string[]): Promise<ZnieffSpecies[]>;
   getZnieffReferenceMeta(): Promise<ZnieffReferenceMeta | undefined>;
+  getHarnessConfig(): Promise<HarnessConfig | undefined>;
+  saveHarnessConfig(config: HarnessConfig): Promise<HarnessConfig>;
 }
 
 export class MemStorage implements IStorage {
@@ -71,6 +75,22 @@ export class MemStorage implements IStorage {
       .where(eq(znieffReferenceMeta.id, "patrinat-znieff"))
       .limit(1);
     return rows[0];
+  }
+
+  async getHarnessConfig(): Promise<HarnessConfig | undefined> {
+    const rows = await db.select().from(harnessConfigs).where(eq(harnessConfigs.id, "default")).limit(1);
+    return rows[0]?.config as HarnessConfig | undefined;
+  }
+
+  async saveHarnessConfig(config: HarnessConfig): Promise<HarnessConfig> {
+    await db
+      .insert(harnessConfigs)
+      .values({ id: "default", version: config.version, config, updatedAt: new Date() })
+      .onConflictDoUpdate({
+        target: harnessConfigs.id,
+        set: { version: config.version, config, updatedAt: new Date() },
+      });
+    return config;
   }
 }
 

@@ -20,6 +20,7 @@ import { reconcilePotentialSpecies } from "@/lib/potentialSpecies";
 import { zonageKey } from "@/lib/zonageMap";
 import type { ZonagesData, ZonageItem } from "@/lib/zonages";
 import type { AnalysisConversation } from "@/lib/analysisHistory";
+import type { HarnessConfig } from "@shared/harness";
 
 interface NaturaSpeciesItem {
   name: string;
@@ -39,9 +40,9 @@ function computeGlobalIssueLevel(riskTone: "critical" | "high" | "moderate" | "l
   level: "fort" | "modere" | "faible";
   label: string;
 } {
-  if (riskTone === "critical" || riskTone === "high") return { level: "fort", label: "Fort" };
-  if (riskTone === "moderate") return { level: "modere", label: "Modéré" };
-  return { level: "faible", label: "Faible" };
+  if (riskTone === "critical" || riskTone === "high") return { level: "fort", label: "À approfondir" };
+  if (riskTone === "moderate") return { level: "modere", label: "À examiner" };
+  return { level: "faible", label: "Peu de signaux documentés" };
 }
 
 /** Priorité d'affichage des catégories de zonages (plus petit = plus prioritaire). */
@@ -135,9 +136,10 @@ interface ResultsPanelProps {
   onNewConversation?: () => void;
   onRenameConversation?: (id: string, title: string) => void;
   onDeleteConversation?: (id: string) => void;
+  harnessConfig?: HarnessConfig;
 }
 
-export function ResultsPanel({ isOpen, isAnalyzing = false, areaCount = 1, onClose, results, selectedSpecies, onSelectSpecies, activeTaxonFilters, onToggleTaxonFilter, onToggleAllTaxonFilters, excludeMarine, onToggleExcludeMarine, includeINaturalist, onToggleIncludeINaturalist, toponym, zonages, zonagesLoading, potentialSpecies, potentialSpeciesLoading, potentialSpeciesError, selectedZonageId, onSelectZonage, composer, conversations = [], activeConversationId = null, historyError, requestSummary, onSelectConversation, onNewConversation, onRenameConversation, onDeleteConversation }: ResultsPanelProps) {
+export function ResultsPanel({ isOpen, isAnalyzing = false, areaCount = 1, onClose, results, selectedSpecies, onSelectSpecies, activeTaxonFilters, onToggleTaxonFilter, onToggleAllTaxonFilters, excludeMarine, onToggleExcludeMarine, includeINaturalist, onToggleIncludeINaturalist, toponym, zonages, zonagesLoading, potentialSpecies, potentialSpeciesLoading, potentialSpeciesError, selectedZonageId, onSelectZonage, composer, conversations = [], activeConversationId = null, historyError, requestSummary, onSelectConversation, onNewConversation, onRenameConversation, onDeleteConversation, harnessConfig }: ResultsPanelProps) {
   const [openSections, setOpenSections] = useState<Set<SectionKey>>(new Set());
   const [showCalcDetail, setShowCalcDetail] = useState(false);
   const [assistantOpen, setAssistantOpen] = useState(false);
@@ -479,10 +481,10 @@ export function ResultsPanel({ isOpen, isAnalyzing = false, areaCount = 1, onClo
 
     let label: string;
     let tone: "critical" | "high" | "moderate" | "low";
-    if (score >= 75) { label = "Très élevé"; tone = "critical"; }
-    else if (score >= 55) { label = "Élevé"; tone = "high"; }
-    else if (score >= 35) { label = "Modéré"; tone = "moderate"; }
-    else { label = "Faible"; tone = "low"; }
+    if (score >= 75) { label = "Nombreux signaux documentaires"; tone = "critical"; }
+    else if (score >= 55) { label = "Signaux significatifs"; tone = "high"; }
+    else if (score >= 35) { label = "Signaux à examiner"; tone = "moderate"; }
+    else { label = "Peu de signaux documentés"; tone = "low"; }
 
     const factors: string[] = [];
     if (hi > 0) factors.push(`${hi} espèce${hi > 1 ? "s" : ""} à enjeu fort`);
@@ -505,20 +507,20 @@ export function ResultsPanel({ isOpen, isAnalyzing = false, areaCount = 1, onClo
     const sp = results.stats.speciesCount;
     const sens = results.stats.sensitiveCount;
     const zc = zonages?.count || 0;
-    const parts = [`Le secteur recense ${sp} espèce${sp > 1 ? "s" : ""}, dont ${sens} sensible${sens > 1 ? "s" : ""}`];
+    const parts = [`Les sources consultées documentent ${sp} taxon${sp > 1 ? "s" : ""} dans l’aire étudiée, dont ${sens} présentant un signal de sensibilité${sens > 1 ? "s" : ""}`];
     if (potentialIssueSignals.count > 0) {
       parts.push(
         `et retient ${potentialIssueSignals.count} espèce${potentialIssueSignals.count > 1 ? "s" : ""} potentielle${potentialIssueSignals.count > 1 ? "s" : ""} comme signal d’enjeu à confirmer`,
       );
     }
-    if (zc > 0) parts.push(`et intersecte ${zc} zonage${zc > 1 ? "s" : ""} environnemental${zc > 1 ? "aux" : ""}`);
+    if (zc > 0) parts.push(`et retournent ${zc} zonage${zc > 1 ? "s" : ""} environnemental${zc > 1 ? "aux" : ""} à qualifier selon leur portée`);
     let text = parts.join(" ") + ".";
-    text += ` Le potentiel d'enjeux écologiques est estimé « ${riskScore.label} ».`;
-    text += " Le risque biodiversité proprement dit ne pourra être calculé qu'en croisant ces enjeux avec les caractéristiques et les pressions d'un projet.";
+    text += ` L’indice documentaire fait ressortir : « ${riskScore.label} ».`;
+    text += " Il ne constitue ni un niveau d’enjeu réglementaire ni une conclusion d’impact ; ces éléments dépendent du projet, de ses pressions et des vérifications de terrain.";
     if (riskScore.tone === "critical" || riskScore.tone === "high") {
-      text += " Des inventaires complémentaires sont recommandés avant toute intervention.";
+      text += " Selon la nature du projet, des investigations ciblées sont à examiner avec un écologue avant de décider des suites.";
     } else {
-      text += " Une vérification de terrain reste conseillée pour confirmer ce pré-diagnostic.";
+      text += " Une vérification de terrain reste utile pour confirmer ou nuancer cette lecture documentaire.";
     }
     return text;
   }, [results, zonages, riskScore, potentialIssueSignals]);
@@ -769,6 +771,10 @@ ${zonages.groups.map(g => `${g.label} (${g.count})\n${g.zonages.map(z => `• ${
 
 ↳ Zonages intersectant l'aire d'étude — source IGN Géoplateforme / INPN (PatriNat).
 ` : "";
+    const enabledAgents = harnessConfig?.agents.filter((agent) => agent.enabled) ?? [];
+    const configuredAgents = enabledAgents.length
+      ? enabledAgents.map((agent) => `- ${agent.name} : ${agent.description || "consigne spécialisée configurée"}${agent.mcpId === "none" ? "" : ` — MCP : ${agent.mcpId === "ali-internal" ? "interne ALi" : "à connecter (déclaratif)"}`}`).join("\n")
+      : "- Aucun agent configuré n’a été mobilisé.";
 
     return `ALi INVENTAIRE
 PRÉ-VNEI DOCUMENTAIRE À COMPLÉTER PAR DES INVESTIGATIONS DE TERRAIN
@@ -782,9 +788,7 @@ ${!isAllActive ? `Filtres taxonomiques actifs : ${activeGroupLabels}\n` : ""}
 
 HARNAIS D'ALi — ORCHESTRATION RÉELLEMENT MOBILISÉE
 - Coordination : ALi comprend la demande, vérifie le périmètre, répartit l'analyse et consolide les réponses.
-- Agent Occurrences : consolidation et déduplication des données naturalistes disponibles dans l'aire bibliographique.
-- Agent Zonages : interrogation et qualification des zonages environnementaux autour du site.
-- Agent Potentiel écologique : croisement prudent entre espèces documentées, habitats et contexte territorial.
+${configuredAgents}
 - Sources effectivement mobilisées par cette analyse : GBIF${includeINaturalist ? ", iNaturalist" : ""}, UICN, ALI/TAXREF, IGN Géoplateforme, PatriNat et INPN${aiAnalysis?.natura2000?.length ? ", données Natura 2000 et formulaires standards disponibles" : ""}.
 - Garde-fou 1 : une donnée connue dans l'aire bibliographique n'est pas une présence confirmée dans l'emprise.
 - Garde-fou 2 : une présence potentielle issue d'une compatibilité écologique doit être vérifiée sur le terrain.
@@ -840,7 +844,7 @@ STATUT ET LIMITES
 Pré-VNEI documentaire produite par le harnais d'ALi à partir des seules sources indiquées.
 Ce document constitue un état initial bibliographique et une analyse de sensibilités. Il ne remplace ni des inventaires de terrain, ni une VNEI réglementaire, ni la validation d'un écologue.
 ${shareUrl ? `\nReproduire cette analyse : ${shareUrl}` : ""}`;
-  }, [results, sortedSpecies, activeTaxonFilters, presentGroups, isAllActive, aiAnalysis, toponym, zonages, riskScore, includeINaturalist]);
+  }, [results, sortedSpecies, activeTaxonFilters, presentGroups, isAllActive, aiAnalysis, toponym, zonages, riskScore, includeINaturalist, harnessConfig]);
 
   const reportSubject = useMemo(() => {
     if (!results) return "ALi Inventaire";
@@ -971,12 +975,10 @@ ${shareUrl ? `\nReproduire cette analyse : ${shareUrl}` : ""}`;
           className="conversation-panel fixed right-0 z-[2000] flex flex-col bg-white inset-x-0 bottom-0 h-[80vh] rounded-t-2xl border-t md:inset-x-auto md:top-0 md:bottom-auto md:h-full md:w-[680px] md:max-w-[95vw] md:rounded-none md:border-l md:border-t-0"
           aria-label="Conversation ALi Inventaire"
         >
-          <header className="conversation-header flex items-start justify-between gap-3 border-b border-gray-100 bg-white px-5 py-4">
+          <header className="conversation-header flex items-center justify-between gap-3 border-b border-gray-100 bg-white px-5 py-2">
             <div className="min-w-0">
-              <h2 className="text-lg font-bold tracking-tight text-gray-900">ALi Inventaire</h2>
-              <p className="text-[11px] text-gray-500 leading-tight">Assistant biodiversité conversationnel</p>
               {toponym && (
-                <p className="mt-1 flex items-center gap-1 truncate text-xs font-semibold text-teal-700">
+                 <p className="flex items-center gap-1 truncate text-xs font-semibold text-teal-700">
                   <MapPin className="h-3 w-3 shrink-0" />
                   <span className="truncate">{toponym}</span>
                 </p>
@@ -1025,13 +1027,11 @@ ${shareUrl ? `\nReproduire cette analyse : ${shareUrl}` : ""}`;
         className="conversation-panel results-text-mode fixed right-0 z-[2000] flex flex-col bg-white inset-x-0 bottom-0 h-[80vh] rounded-t-2xl border-t border-gray-300 md:inset-x-auto md:top-0 md:bottom-auto md:h-full md:w-[680px] md:max-w-[95vw] md:rounded-none md:border-t-0 md:border-l"
         aria-label="Conversation ALi Inventaire"
       >
-        <div className="conversation-header px-5 pt-4 pb-3 border-b border-gray-100 bg-white/50">
-          <div className="flex justify-between items-start gap-2">
+        <div className="conversation-header border-b border-gray-100 bg-white/50 px-5 py-2">
+          <div className="flex items-center justify-between gap-2">
             <div className="min-w-0">
-              <h2 className="text-lg font-bold text-gray-900 tracking-tight truncate">ALi Inventaire</h2>
-              <p className="text-[11px] text-gray-500 leading-tight">Assistant biodiversité conversationnel</p>
               {toponym && (
-                <p className="mt-1 text-xs font-semibold text-teal-700 flex items-center gap-1 truncate" data-testid="text-site-name">
+                <p className="flex items-center gap-1 truncate text-xs font-semibold text-teal-700" data-testid="text-site-name">
                   <MapPin className="h-3 w-3 shrink-0" /> <span className="truncate">{toponym}</span>
                 </p>
               )}
@@ -1195,7 +1195,7 @@ ${shareUrl ? `\nReproduire cette analyse : ${shareUrl}` : ""}`;
                data-level={globalLevel.level}
             >
               <div className="flex items-center justify-between gap-2">
-                 <div className="font-bold text-gray-700">Potentiel écologique du site</div>
+                  <div className="font-bold text-gray-700">Signaux écologiques documentaires</div>
                 {zonagesLoading && <Loader2 className="h-3.5 w-3.5 animate-spin text-gray-400" aria-label="Chargement des zonages" />}
               </div>
               <div
@@ -1213,7 +1213,7 @@ ${shareUrl ? `\nReproduire cette analyse : ${shareUrl}` : ""}`;
                 </span>
                 <span className="flex items-center gap-1">
                   <AlertTriangle className="h-3.5 w-3.5 text-orange-600" />
-                  {sortedSpecies.high.length + sortedSpecies.medium.length} espèce{sortedSpecies.high.length + sortedSpecies.medium.length > 1 ? "s" : ""} sensible{sortedSpecies.high.length + sortedSpecies.medium.length > 1 ? "s" : ""}
+                  {sortedSpecies.high.length + sortedSpecies.medium.length} taxon{sortedSpecies.high.length + sortedSpecies.medium.length > 1 ? "s" : ""} à examiner
                 </span>
                 <span className="flex items-center gap-1">
                   <Layers className="h-3.5 w-3.5 text-teal-600" />
@@ -1221,7 +1221,7 @@ ${shareUrl ? `\nReproduire cette analyse : ${shareUrl}` : ""}`;
                 </span>
               </div>
               <p className="mt-2 text-[10px] text-gray-400 leading-snug">
-                Estimation indicative issue des données publiques — à valider par un écologue.
+                 Indice automatisé fondé sur les données publiques consultées. Il guide les vérifications, sans conclure à un impact ni remplacer l’expertise de terrain.
               </p>
             </div>
 

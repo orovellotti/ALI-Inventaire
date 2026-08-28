@@ -49,7 +49,7 @@ export function SearchPanel(props: SearchPanelProps) {
   return <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className={embedded ? "search-dialogue" : "search-dialogue absolute top-6 left-1/2 z-[1000] w-[92%] max-w-md -translate-x-1/2"}>
     <AliMessage>
       <p>Bonjour, je suis Ali Inventaire.</p>
-      <p>Je peux réaliser une première analyse de la biodiversité potentiellement présente sur votre site et identifier les vérifications à effectuer sur le terrain.</p>
+      <p>Je peux préparer une première lecture écologique à partir des données disponibles, puis vous indiquer les points à vérifier sur le terrain.</p>
       <p>Pour commencer, où se trouve le site à étudier&nbsp;?</p>
     </AliMessage>
     <div className="user-response location-response" data-testid="response-location">
@@ -65,7 +65,7 @@ export function SearchPanel(props: SearchPanelProps) {
     </div>
     {locationReady && <>
       <AliMessage>
-        <p>J’ai localisé votre site.</p>
+        <p>L’adresse correspond au secteur suivant&nbsp;:</p>
         <p className="site-confirmation"><MapPin /> {projectPolygon ? projectPolygon.name : toponym}</p>
         {projectPolygon && <p className="site-confirmation"><FileArchive /> Emprise importée&nbsp;: {projectPolygon.geojson.features.length} entité{projectPolygon.geojson.features.length > 1 ? "s" : ""} <button type="button" onClick={onShapefileClear} aria-label="Supprimer l'emprise" data-testid="button-clear-shapefile"><X /></button></p>}
         <p>Le périmètre est-il correct&nbsp;? Vous pouvez le confirmer ou le modifier directement sur la carte.</p>
@@ -85,7 +85,7 @@ export function SearchPanel(props: SearchPanelProps) {
           {circles.map((circle) => <div key={circle.id} className="circle-control" data-testid={`circle-item-${circle.id}`}><button type="button" onClick={() => onToggleCircle(circle.id)} className={circle.enabled ? "selected" : ""} data-testid={`toggle-circle-${circle.id}`}><Check /> {circle.label}</button>{circle.enabled && <><button type="button" onClick={() => setExpandedCircle(expandedCircle === circle.id ? null : circle.id)}>{formatRadius(circle.radius)} <ChevronDown /></button>{expandedCircle === circle.id && <Slider value={[circle.radius]} onValueChange={(values) => onRadiusChange(circle.id, values[0])} min={100} max={circle.id === "eloignee" ? 15000 : circle.id === "rapprochee" ? 5000 : 2000} step={100} data-testid={`slider-radius-${circle.id}`} />}</>}</div>)}
         </motion.div>}</AnimatePresence>
       </div>
-      <AliMessage><p>Je vais lancer une pré-étude biodiversité à partir des données disponibles&nbsp;: habitats, observations à proximité, espèces potentiellement présentes et zonages.</p><p><strong>Cette analyse ne remplace pas un inventaire réalisé sur le terrain par un écologue.</strong></p></AliMessage>
+      <AliMessage><p>La pré-étude va croiser les observations documentées à proximité, les compatibilités écologiques et les zonages disponibles.</p><p><strong>Les résultats orientent la décision, mais ne confirment pas une présence sur le site et ne remplacent pas l’expertise d’un écologue sur le terrain.</strong></p></AliMessage>
       <div className="response-actions launch-response"><button type="button" onClick={onLaunchAnalysis} disabled={isAnalyzing || enabledCount === 0} data-testid="button-launch-analysis">{isAnalyzing ? <Loader2 className="animate-spin" /> : <Zap />} Lancer la pré-étude biodiversité</button></div>
     </>}
   </motion.div>;

@@ -22,7 +22,7 @@ const EFFORT_SPEED: Record<Effort, number> = {
 function buildSteps(includeINaturalist: boolean, areaCount: number): Step[] {
   const steps: Step[] = [
     {
-      label: "Je prépare votre aire d’étude avant de consulter mes agents.",
+      label: "Préparation de l’aire d’étude et contrôle des paramètres.",
       detail:
         areaCount > 1
           ? `Je vais analyser ${areaCount} aires en parallèle.`
@@ -31,7 +31,7 @@ function buildSteps(includeINaturalist: boolean, areaCount: number): Step[] {
       effort: 1,
     },
     {
-      label: "Je consulte maintenant plusieurs sources en parallèle.",
+      label: "Consultation des sources disponibles en parallèle.",
       detail: includeINaturalist
         ? "Mes agents interrogent GBIF, iNaturalist et les référentiels territoriaux."
         : "Mes agents interrogent GBIF et les référentiels territoriaux.",
@@ -41,14 +41,14 @@ function buildSteps(includeINaturalist: boolean, areaCount: number): Step[] {
   ];
   steps.push(
     {
-      label: "Je rassemble les réponses de mes agents.",
-      detail: "Je distingue les observations, les zonages et les espèces potentielles.",
+      label: "Consolidation des résultats disponibles.",
+      detail: "Les observations, zonages et compatibilités écologiques restent présentés séparément.",
       duration: 2400,
       effort: 2,
     },
     {
-      label: "Je vérifie la cohérence des résultats.",
-      detail: "Encore un instant, je prépare une synthèse traçable.",
+      label: "Contrôle automatisé de cohérence.",
+      detail: "La synthèse précisera ses sources, ses limites et les vérifications à prévoir.",
       duration: 6000,
       effort: 1,
     },
@@ -185,7 +185,7 @@ export function AnalysisProgress({
         ? "Je recherche les zonages autour de l’aire d’étude."
         : zonagesReady
           ? zonageFeatureCount > 0
-            ? `J’ai trouvé ${zonageFeatureCount} emprise${zonageFeatureCount > 1 ? "s" : ""}.`
+            ? `${zonageFeatureCount} emprise${zonageFeatureCount > 1 ? "s ont" : " a"} été retournée${zonageFeatureCount > 1 ? "s" : ""} par la source.`
             : "Je n’ai trouvé aucune emprise dans l’aire."
           : "Je ne peux pas récupérer les zonages ; l’inventaire continue.",
       detail: "Sources : IGN / PatriNat.",
@@ -196,9 +196,9 @@ export function AnalysisProgress({
       icon: Leaf,
       tone: "text-[#6f7650]",
       message: potentialSpeciesLoading
-        ? "Je calcule les espèces potentielles."
+        ? "Calcul de compatibilités écologiques en cours."
         : potentialSpeciesReady
-          ? `J’ai identifié ${potentialSpeciesCount} espèce${potentialSpeciesCount > 1 ? "s" : ""} potentielle${potentialSpeciesCount > 1 ? "s" : ""}.`
+          ? `${potentialSpeciesCount} ${potentialSpeciesCount > 1 ? "signaux" : "signal"} de compatibilité à confirmer sur le terrain.`
           : "Le calcul des espèces potentielles est indisponible ; l’inventaire continue.",
       detail: "Calcul lancé pour l’aire d’étude.",
     },

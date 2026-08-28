@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { harnessConfigSchema } from "@shared/harness";
 
 export const latSchema = z.coerce
   .number()
@@ -88,6 +89,8 @@ export const potentialSpeciesBodySchema = z.object({
 export const reformatBodySchema = z.object({
   report: z.string().min(1, "Champ 'report' requis").max(50000, "Rapport trop long (max 50000 caractères)"),
 });
+
+export const harnessConfigBodySchema = harnessConfigSchema;
 
 export const taxonKeyParamSchema = z.object({
   taxonKey: z.coerce.number().int().positive("taxonKey doit être un entier"),

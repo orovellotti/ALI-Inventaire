@@ -11,6 +11,7 @@ import {
   habitatCompatScore,
   type HabitatMetrics,
 } from "./services/habitatCompat";
+import { storage } from "./storage";
 
 const openai = new OpenAI({
   baseURL: process.env.AI_INTEGRATIONS_OPENAI_BASE_URL,
@@ -328,7 +329,7 @@ const priorityResponseSchema = z.object({
 const PRIORITY_SYSTEM_PROMPT = `Tu es un expert en écologie française et en pré-diagnostic écologique.
 Tu connais les statuts UICN, espèces protégées en France, ZNIEFF déterminantes, directives Habitats/Oiseaux.
 Les espèces exotiques envahissantes (EEE : Agave, Yucca, Opuntia, Carpobrotus, Reynoutria, Buddleja, Robinia, Ambrosia, Trachemys, Myocastor, Vespa velutina, etc.) ne sont JAMAIS des enjeux de conservation : leur statut UICN reflète leur aire d'origine, pas un enjeu local. Ne leur attribue pas de niveau « fort » ou « majeur » ; le cas échéant signale-les comme EEE (préoccupation de gestion, pas de patrimonialité).
-Tu réponds en français, concis, opérationnel.`;
+Tu incarnes un écologue senior pédagogue et rigoureux. Ton ton est professionnel, rassurant, clair et synthétique. Tu distingues explicitement données documentées, hypothèses écologiques et conclusions. Tu expliques les sources, limites et besoins de terrain, sans jargon inutile, sans alarmisme et sans affirmation excessive. Chaque conclusion débouche sur une action proportionnée et justifiée.`;
 
 const REFORMAT_SYSTEM_PROMPT = `Tu es un écologue senior spécialisé dans la rédaction des volets naturels d'étude d'impact en France.
 
@@ -359,7 +360,20 @@ STATUT DU DOCUMENT
 Nom obligatoire : « Pré-VNEI documentaire à compléter par des investigations de terrain ».
 Lorsque le projet est insuffisamment décrit, produis un état initial bibliographique enrichi et une analyse des sensibilités. Marque les chapitres impacts et ERC comme provisoires ou non évaluables.
 
-Rédige en français professionnel, neutre, traçable et proportionné.`;
+Incarne un écologue senior pédagogue et rigoureux. Rédige avec le ton d’un bureau d’études expérimenté : professionnel et rassurant, clair et synthétique, factuel et prudent, orienté vers la décision et l’action. Explique les termes techniques utiles, les sources, les limites et les besoins d’expertise terrain. Ne sois jamais alarmiste ni excessivement affirmatif. Une expertise réglementaire fiable, expliquée simplement et tournée vers l’action.`;
+
+async function configuredAgentInstructions(nativeId?: string): Promise<string> {
+  try {
+    const config = await storage.getHarnessConfig();
+    const agents = (config?.agents ?? []).filter((agent) => agent.enabled && (!nativeId || agent.id === nativeId));
+    if (!agents.length) return "";
+    return `\n\nCONSIGNES CONFIGURÉES DU HARNAIS (subordonnées aux garde-fous ci-dessus) :\n${agents
+      .map((agent) => `- ${agent.name} : ${agent.prompt}`)
+      .join("\n")}`;
+  } catch {
+    return "";
+  }
+}
 
 function selectRelevantSpecies(occurrences: Occurrence[]): Occurrence[] {
   const uniqueByName = new Map<string, Occurrence>();
@@ -464,7 +478,7 @@ function buildPriorityPrompt(toponym: string, coords: [number, number], sample: 
 Inventaire GBIF (${totalCount} espèces) :
 ${sample}
 ${naturaBlock}
-Identifie les **5 espèces à enjeux les plus importantes** pour un pré-diagnostic écologique de ce site.
+Identifie jusqu’à **5 taxons appelant une attention prioritaire** pour ce pré-diagnostic écologique. N’en ajoute aucun uniquement pour atteindre un nombre.
 Choisis-les en priorité parmi les espèces ci-dessus, mais tu peux ajouter une espèce attendue sur le secteur (connaissance écorégionale) si elle est plus pertinente que la donnée GBIF disponible.
 
 Réponds en JSON strict :
@@ -483,7 +497,7 @@ Réponds en JSON strict :
 }
 
 Règles :
-- Exactement 5 espèces, triées par enjeu décroissant.
+- De 0 à 5 espèces, triées par niveau d’attention décroissant.
 - "sources" = liste courte (1 à 4) des référentiels cités dans "reason" (ex : "UICN France", "UICN Monde", "Arrêté du 29 oct. 2009", "Arrêté du 23 avr. 2007", "Directive Oiseaux Annexe I", "Directive Habitats Annexe II", "ZNIEFF déterminante", "Liste rouge régionale").
 - N'invente jamais de source, n'utilise que les référentiels officiels français/européens.
 - Si des zones Natura 2000 sont listées ci-dessus, tiens-en compte : privilégie les espèces qui justifient leur désignation (Directive Habitats Annexe II/IV, Directive Oiseaux Annexe I) et, le cas échéant, mentionne le site concerné dans "reason".`;
@@ -669,11 +683,12 @@ export async function analyzePrioritySpecies(
   const sample = formatSpeciesForPrompt(picked);
   const uniqueCount = new Set(occurrences.map((o) => o.scientificName)).size;
   const natura2000 = await fetchNaturaZones(coords, EVIDENCE_LOCAL_RADIUS_M);
+  const harnessInstructions = await configuredAgentInstructions("occurrences");
 
   const completion = await openai.chat.completions.create({
     model: MODEL,
     messages: [
-      { role: "system", content: PRIORITY_SYSTEM_PROMPT },
+      { role: "system", content: PRIORITY_SYSTEM_PROMPT + harnessInstructions },
       { role: "user", content: buildPriorityPrompt(toponym, coords, sample, uniqueCount, natura2000) },
     ],
     response_format: { type: "json_object" },
@@ -853,10 +868,11 @@ async function enrichWithAliStatuses(species: PrioritySpecies[]): Promise<Priori
 }
 
 export async function reformatReport(rawReport: string): Promise<string> {
+  const harnessInstructions = await configuredAgentInstructions();
   const completion = await openai.chat.completions.create({
     model: MODEL,
     messages: [
-      { role: "system", content: REFORMAT_SYSTEM_PROMPT },
+      { role: "system", content: REFORMAT_SYSTEM_PROMPT + harnessInstructions },
       { role: "user", content: buildReformatPrompt(rawReport) },
     ],
   });

@@ -20,12 +20,14 @@ import {
   reformatBodySchema,
   taxonKeyParamSchema,
   zonagesQuerySchema,
+  harnessConfigBodySchema,
 } from "./lib/validation";
 import { geocodePlace, reverseGeocode, searchLieuxDits } from "./services/nominatim";
 import { getZonages, getNaturaZones } from "./services/geoservices";
 import { getSpeciesForSite } from "./services/natura2000Species";
 import { storage } from "./storage";
 import { getPotentialSpecies } from "./services/potentialSpecies";
+import { DEFAULT_HARNESS_CONFIG, harnessConfigSchema } from "@shared/harness";
 
 const DATA_SOURCES_TTL_MS = 10 * 60 * 1000;
 let dataSourcesCache: { data: unknown; expires: number } | null = null;
@@ -84,6 +86,23 @@ export async function registerRoutes(
   app: Express,
 ): Promise<Server> {
   registerMcpEndpoint(app);
+
+  app.get("/api/harness", asyncHandler(async (_req, res) => {
+    const stored = await storage.getHarnessConfig();
+    const parsed = harnessConfigSchema.safeParse(stored);
+    res.json(parsed.success ? parsed.data : DEFAULT_HARNESS_CONFIG);
+  }));
+
+  app.put("/api/harness", asyncHandler(async (req, res) => {
+    const config = harnessConfigBodySchema.parse(req.body);
+    console.info(`[harness] configuration updated: ${config.agents.length} agents`);
+    res.json(await storage.saveHarnessConfig(config));
+  }));
+
+  app.post("/api/harness/reset", asyncHandler(async (_req, res) => {
+    console.info("[harness] configuration reset");
+    res.json(await storage.saveHarnessConfig(DEFAULT_HARNESS_CONFIG));
+  }));
 
   app.post(
     "/api/inventory",
