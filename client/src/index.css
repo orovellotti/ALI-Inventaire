@@ -178,6 +178,79 @@
 .conversation-panel [data-testid="analysis-transcript"] { padding:2px 0 18px 34px!important; border-left:1px dashed #bdd0bd; }.conversation-panel [data-testid="analysis-transcript"] h3{font-family:"DM Sans",sans-serif!important;font-size:11px!important;text-transform:uppercase;letter-spacing:.12em}.conversation-panel [data-testid="analysis-transcript"] li{padding:6px 0}
 .conversation-panel table { border-color:#dae2d8!important; }.conversation-panel th{background:#edf2e9!important;color:#315b4e!important;}.conversation-panel td{border-color:#e3e8df!important;}
 
+/* Results use one restrained type scale and one visual language. */
+.conversation-panel [data-testid="results-scroll-area"] {
+  color:#315b4e;
+  font-size:14px;
+  line-height:1.55;
+}
+.conversation-panel [data-testid="results-scroll-area"] :is(p,li,button,input,td,th) {
+  font-size:14px!important;
+  line-height:1.55!important;
+}
+.conversation-panel [data-testid="results-scroll-area"] :is(
+  [data-testid^="message-agent-"],
+  [data-testid="section-pourquoi"]
+) > button span {
+  font-size:14px!important;
+  line-height:1.35!important;
+}
+.conversation-panel [data-testid="results-scroll-area"] :is(
+  [data-testid^="message-agent-"],
+  [data-testid="section-pourquoi"]
+) > button span span:last-child,
+.conversation-panel [data-testid="results-scroll-area"] :is(
+  [class*="text-[10px]"],
+  [class*="text-[11px]"],
+  .text-xs
+) {
+  font-size:12px!important;
+  line-height:1.45!important;
+}
+.conversation-panel [data-testid="results-scroll-area"] :is(strong,.font-bold,.font-semibold) {
+  color:#234f43;
+}
+.conversation-panel [data-testid="results-scroll-area"] :is(
+  [class*="text-teal"],
+  [class*="text-sky"],
+  [class*="text-blue"],
+  [class*="text-indigo"],
+  [class*="text-emerald"],
+  [class*="text-lime"]
+) {
+  color:#315b4e!important;
+}
+.conversation-panel [data-testid="results-scroll-area"] :is(
+  [class*="bg-teal"],
+  [class*="bg-sky"],
+  [class*="bg-blue"],
+  [class*="bg-indigo"],
+  [class*="bg-emerald"],
+  [class*="bg-lime"]
+) {
+  background-color:#edf2e9!important;
+}
+.conversation-panel [data-testid="results-scroll-area"] :is(
+  [class*="border-teal"],
+  [class*="border-sky"],
+  [class*="border-blue"],
+  [class*="border-indigo"],
+  [class*="border-emerald"],
+  [class*="border-lime"]
+) {
+  border-color:#d9e1d6!important;
+}
+.conversation-panel [data-testid="results-scroll-area"] [data-testid="button-report-text"] {
+  background:#1e594a!important;
+  color:#fffdf5!important;
+}
+.conversation-panel [data-testid="results-scroll-area"] [data-testid="button-report-text"]:hover {
+  background:#17483d!important;
+}
+.conversation-panel [data-testid="results-scroll-area"] [data-testid="button-report-text"] > svg {
+  color:#dcc05b!important;
+}
+
 /* Leaflet controls use the same light paper language. */
 .leaflet-control-zoom a,.leaflet-popup-content-wrapper,.leaflet-popup-tip { background:#fffef9!important; color:#234f43!important; border-color:#d7ddd3!important; }.leaflet-control-attribution{background:rgba(255,254,249,.75)!important;color:#60756d!important;}
 #map-container:after { content:""; position:absolute; inset:0; pointer-events:none; z-index:350; background:rgba(232,229,205,.055); mix-blend-mode:multiply; }
