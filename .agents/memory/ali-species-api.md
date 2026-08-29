@@ -3,6 +3,17 @@ name: ALI Species (alispecies.io) API quirks
 description: Undocumented behavior of the ALI / TAXREF API used to enrich species statuses
 ---
 
+ALI Species is the biodiversity-grounding layer for the impact study: resolve inventory names to
+TAXREF/cdNom, retrieve synonyms and classification, enrich with protection/red-list/directive/PNA
+statuses and selected traits/interactions, and support territory relevance filters. The Harnais may
+then relate these structured, traceable facts to project pressures for issue, impact and ERC analysis.
+
+**Why:** Grounding reduces nomenclatural and regulatory errors but is not evidence that a species is
+present on the project footprint and cannot replace local observations, GIS analysis or ecologist review.
+
+**How to apply:** Preserve source and scope on every enrichment, keep inference separate from documented
+facts, and never let ALI Species output alone confirm presence or determine a final impact or ERC measure.
+
 ALI Species (https://alispecies.io) wraps the French TAXREF reference. Used to enrich
 priority species ("espèces à enjeux") with regulatory statuses.
 
