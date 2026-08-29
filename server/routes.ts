@@ -6,7 +6,7 @@ import { findSINPPlatforms, SINP_PLATFORMS } from "./sinp";
 import { STUDY_AREAS, PROJECT_PRESETS, TAXON_GROUPS } from "./constants";
 import { analyzePrioritySpecies, reformatReport } from "./llm";
 import { resolveAliUrl } from "./ali";
-import { registerMcpEndpoint } from "./mcp";
+import { getMcpServerRegistry, registerMcpEndpoint } from "./mcp";
 import { asyncHandler } from "./lib/asyncHandler";
 import { HttpError, badGateway } from "./lib/httpError";
 import {
@@ -27,7 +27,7 @@ import { getZonages, getNaturaZones } from "./services/geoservices";
 import { getSpeciesForSite } from "./services/natura2000Species";
 import { storage } from "./storage";
 import { getPotentialSpecies } from "./services/potentialSpecies";
-import { DEFAULT_HARNESS_CONFIG, harnessConfigSchema } from "@shared/harness";
+import { DEFAULT_HARNESS_CONFIG, migrateHarnessConfig } from "@shared/harness";
 
 const DATA_SOURCES_TTL_MS = 10 * 60 * 1000;
 let dataSourcesCache: { data: unknown; expires: number } | null = null;
@@ -89,12 +89,31 @@ export async function registerRoutes(
 
   app.get("/api/harness", asyncHandler(async (_req, res) => {
     const stored = await storage.getHarnessConfig();
-    const parsed = harnessConfigSchema.safeParse(stored);
-    res.json(parsed.success ? parsed.data : DEFAULT_HARNESS_CONFIG);
+    const config = migrateHarnessConfig(stored) ?? DEFAULT_HARNESS_CONFIG;
+    if (stored && (stored as { version?: unknown }).version !== config.version) {
+      await storage.saveHarnessConfig(config);
+    }
+    res.json(config);
+  }));
+
+  app.get("/api/harness/mcp-registry", asyncHandler(async (_req, res) => {
+    res.json(await getMcpServerRegistry());
   }));
 
   app.put("/api/harness", asyncHandler(async (req, res) => {
     const config = harnessConfigBodySchema.parse(req.body);
+    const registry = await getMcpServerRegistry();
+    for (const agent of config.agents) {
+      if (agent.mcpId === "none" && agent.mcpToolIds.length > 0) {
+        throw new HttpError(400, `L’agent ${agent.name} ne peut pas approuver d’outil sans MCP.`);
+      }
+      if (agent.mcpId !== "none") {
+        const registered = registry.find((entry) => entry.id === agent.mcpId && entry.connected);
+        if (!registered || agent.mcpToolIds.some((toolId) => !registered.tools.some((tool) => tool.id === toolId))) {
+          throw new HttpError(400, `La sélection MCP de l’agent ${agent.name} contient un outil non administré.`);
+        }
+      }
+    }
     console.info(`[harness] configuration updated: ${config.agents.length} agents`);
     res.json(await storage.saveHarnessConfig(config));
   }));

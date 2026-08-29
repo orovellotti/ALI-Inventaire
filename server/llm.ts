@@ -12,6 +12,8 @@ import {
   type HabitatMetrics,
 } from "./services/habitatCompat";
 import { storage } from "./storage";
+import { DEFAULT_HARNESS_CONFIG, migrateHarnessConfig } from "@shared/harness";
+import { executeApprovedMcpTool, type McpExecutionTrace } from "./mcp";
 
 const openai = new OpenAI({
   baseURL: process.env.AI_INTEGRATIONS_OPENAI_BASE_URL,
@@ -310,6 +312,7 @@ export interface PrioritySpeciesAnalysis {
   species: PrioritySpecies[];
   natura2000: Natura2000Zone[];
   generatedAt: string;
+  mcpTrace: McpExecutionTrace[];
 }
 
 const prioritySpeciesSchema = z.object({
@@ -683,12 +686,31 @@ export async function analyzePrioritySpecies(
   const sample = formatSpeciesForPrompt(picked);
   const uniqueCount = new Set(occurrences.map((o) => o.scientificName)).size;
   const natura2000 = await fetchNaturaZones(coords, EVIDENCE_LOCAL_RADIUS_M);
+  const harnessConfig = migrateHarnessConfig(await storage.getHarnessConfig()) ?? DEFAULT_HARNESS_CONFIG;
+  const agents = harnessConfig.agents;
+  const mcpTrace = await Promise.all(
+    agents.flatMap((agent) =>
+      (agent.mcpToolIds ?? []).map((toolId) =>
+        executeApprovedMcpTool(agent, toolId, {
+          lat: coords[0],
+          lng: coords[1],
+          radius: EVIDENCE_LOCAL_RADIUS_M,
+        }),
+      ),
+    ),
+  );
   const harnessInstructions = await configuredAgentInstructions("occurrences");
+  const mcpContext = mcpTrace.some((trace) => trace.status === "success")
+    ? `\n\nRÉSULTATS MCP APPROUVÉS (données d’appui, sans extrapolation) :\n${mcpTrace
+        .filter((trace) => trace.status === "success")
+        .map((trace) => `- ${trace.agentId}/${trace.toolId} : ${trace.summary}`)
+        .join("\n")}`
+    : "";
 
   const completion = await openai.chat.completions.create({
     model: MODEL,
     messages: [
-      { role: "system", content: PRIORITY_SYSTEM_PROMPT + harnessInstructions },
+      { role: "system", content: PRIORITY_SYSTEM_PROMPT + harnessInstructions + mcpContext },
       { role: "user", content: buildPriorityPrompt(toponym, coords, sample, uniqueCount, natura2000) },
     ],
     response_format: { type: "json_object" },
@@ -828,6 +850,7 @@ export async function analyzePrioritySpecies(
     species: classified,
     natura2000,
     generatedAt: new Date().toISOString(),
+    mcpTrace,
   };
 }
 

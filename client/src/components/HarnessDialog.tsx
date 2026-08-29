@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
-import { DEFAULT_HARNESS_CONFIG, MCP_REGISTRY, type HarnessAgent, type HarnessConfig } from "@shared/harness";
+import { DEFAULT_HARNESS_CONFIG, type HarnessAgent, type HarnessConfig, type McpRegistryEntry } from "@shared/harness";
 
 export function HarnessDialog({
   open,
@@ -22,8 +22,16 @@ export function HarnessDialog({
   const [draft, setDraft] = useState(config);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
+  const [mcpRegistry, setMcpRegistry] = useState<McpRegistryEntry[]>([]);
 
   useEffect(() => setDraft(config), [config, open]);
+  useEffect(() => {
+    if (!open) return;
+    fetch("/api/harness/mcp-registry")
+      .then((response) => response.ok ? response.json() : Promise.reject())
+      .then(setMcpRegistry)
+      .catch(() => setMcpRegistry([]));
+  }, [open]);
 
   const updateAgent = (id: string, patch: Partial<HarnessAgent>) =>
     setDraft((current) => ({
@@ -80,6 +88,7 @@ export function HarnessDialog({
         enabled: false,
         native: false,
         mcpId: "none",
+        mcpToolIds: [],
       }],
     }));
   };
@@ -111,11 +120,31 @@ export function HarnessDialog({
                 <div><Label>Description</Label><Input value={agent.description} maxLength={500} onChange={(event) => updateAgent(agent.id, { description: event.target.value })} /></div>
                 <div><Label>Prompt de l’agent</Label><Textarea value={agent.prompt} maxLength={8000} rows={5} onChange={(event) => updateAgent(agent.id, { prompt: event.target.value })} /></div>
                 <div>
-                  <Label>MCP potentiel</Label>
+                  <Label>MCP approuvé</Label>
                   <select value={agent.mcpId} onChange={(event) => updateAgent(agent.id, { mcpId: event.target.value as HarnessAgent["mcpId"] })} className="mt-1 h-10 w-full rounded-md border border-input bg-background px-3 text-sm">
-                    {MCP_REGISTRY.map((mcp) => <option key={mcp.id} value={mcp.id}>{mcp.label}{mcp.executable ? "" : " — déclaratif"}</option>)}
+                    <option value="none">Aucun MCP</option>
+                    {mcpRegistry.filter((mcp) => mcp.connected).map((mcp) => <option key={mcp.id} value={mcp.id}>{mcp.label} — connecté</option>)}
                   </select>
-                  {agent.mcpId === "to-connect" && <p className="mt-1 text-xs text-[#6b7d76]">Association enregistrée, mais aucune connexion externe arbitraire ne sera exécutée.</p>}
+                  {agent.mcpId !== "none" && (
+                    <div className="mt-2 space-y-2 rounded-lg border border-[#dfe3da] bg-white p-3">
+                      {(mcpRegistry.find((mcp) => mcp.id === agent.mcpId)?.tools ?? []).map((tool) => (
+                        <label key={tool.id} className="flex items-start gap-2 text-xs">
+                          <input
+                            type="checkbox"
+                            className="mt-0.5"
+                            checked={agent.mcpToolIds.includes(tool.id)}
+                            onChange={(event) => updateAgent(agent.id, {
+                              mcpToolIds: event.target.checked
+                                ? [...agent.mcpToolIds, tool.id]
+                                : agent.mcpToolIds.filter((id) => id !== tool.id),
+                            })}
+                          />
+                          <span><strong>{tool.title}</strong><br />{tool.description}</span>
+                        </label>
+                      ))}
+                    </div>
+                  )}
+                  <p className="mt-1 text-xs text-[#6b7d76]">Seuls les serveurs connectés par l’administration et les outils cochés peuvent être exécutés. Aucune adresse libre n’est acceptée.</p>
                 </div>
               </div>
             </section>

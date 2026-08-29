@@ -17,3 +17,4 @@
 - [Ali dialogue UX](ali-dialogue-ux.md) — the left panel must advance as an actual scripted exchange, never as a conventional form merely styled like chat.
 - [ALi visual identity](ali-visual-identity.md) — use the light ivory, forest-green editorial shell with conversation first and the map as secondary context across the app.
 - [ALi editorial voice](ali-editorial-voice.md) — write as a senior ecology consultancy: calm, clear, evidence-led, decision-oriented, transparent about uncertainty and field validation.
+- [Approved MCP execution](approved-mcp-execution.md) — discover live capabilities, filter with a server allowlist, then enforce each agent’s tool grants before MCP invocation.

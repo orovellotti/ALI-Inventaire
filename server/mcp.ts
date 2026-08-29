@@ -1,6 +1,8 @@
 import type { Express, Request, Response } from "express";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
+import { Client } from "@modelcontextprotocol/sdk/client/index.js";
+import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import { z } from "zod";
 
 import { searchGBIF, searchGBIFMultiCircle, fetchSpeciesDetails } from "./gbif";
@@ -9,6 +11,139 @@ import { STUDY_AREAS, PROJECT_PRESETS, TAXON_GROUPS } from "./constants";
 import { analyzePrioritySpecies } from "./llm";
 import { getZonages } from "./services/geoservices";
 import type { BufferCircle, Occurrence, InventoryResult } from "@shared/types";
+import type { HarnessAgent, McpRegistryEntry } from "@shared/harness";
+
+const APPROVED_INTERNAL_TOOL_IDS = new Set([
+  "sinp_links",
+  "zonages_for_location",
+  "list_reference_data",
+]);
+const MCP_CONNECT_TIMEOUT_MS = 2000;
+const MCP_TOOL_TIMEOUT_MS = 10000;
+
+export interface McpExecutionTrace {
+  agentId: string;
+  mcpId: string;
+  toolId: string;
+  status: "success" | "error" | "denied";
+  startedAt: string;
+  durationMs: number;
+  summary: string;
+}
+
+function traceSummary(value: unknown): string {
+  const text = typeof value === "string" ? value : JSON.stringify(value);
+  return text.length > 500 ? `${text.slice(0, 497)}…` : text;
+}
+
+async function connectInternalMcp(): Promise<{ client: Client; server: McpServer }> {
+  const server = buildMcpServer();
+  const client = new Client({ name: "ali-harness", version: "1.0.0" });
+  const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
+  await Promise.all([
+    server.connect(serverTransport),
+    client.connect(clientTransport),
+  ]);
+  return { client, server };
+}
+
+export async function getMcpServerRegistry(): Promise<McpRegistryEntry[]> {
+  let connection: Awaited<ReturnType<typeof connectInternalMcp>> | undefined;
+  try {
+    connection = await connectInternalMcp();
+    const response = await connection.client.listTools(undefined, { timeout: MCP_CONNECT_TIMEOUT_MS });
+    return [{
+      id: "ali-internal",
+      label: "MCP interne ALi",
+      connected: true,
+      tools: response.tools
+        .filter((tool) => APPROVED_INTERNAL_TOOL_IDS.has(tool.name))
+        .map((tool) => ({
+          id: tool.name,
+          title: tool.title ?? tool.name,
+          description: tool.description ?? "",
+        })),
+    }];
+  } catch {
+    return [{ id: "ali-internal", label: "MCP interne ALi", connected: false, tools: [] }];
+  } finally {
+    await connection?.client.close().catch(() => undefined);
+    await connection?.server.close().catch(() => undefined);
+  }
+}
+
+export async function executeApprovedMcpTool(
+  agent: HarnessAgent,
+  toolId: string,
+  input: { lat: number; lng: number; radius?: number },
+  registryProvider: () => Promise<McpRegistryEntry[]> = getMcpServerRegistry,
+): Promise<McpExecutionTrace> {
+  const started = Date.now();
+  const base = {
+    agentId: agent.id,
+    mcpId: agent.mcpId,
+    toolId,
+    startedAt: new Date(started).toISOString(),
+  };
+  if (
+    !agent.enabled ||
+    agent.mcpId !== "ali-internal" ||
+    !APPROVED_INTERNAL_TOOL_IDS.has(toolId) ||
+    !agent.mcpToolIds?.includes(toolId)
+  ) {
+    return { ...base, status: "denied", durationMs: Date.now() - started, summary: "Outil non approuvé pour cet agent." };
+  }
+  const registry = (await registryProvider()).find((entry) => entry.id === agent.mcpId);
+  if (!registry?.connected || !registry.tools.some((tool) => tool.id === toolId)) {
+    return { ...base, status: "error", durationMs: Date.now() - started, summary: "MCP indisponible ou capacité introuvable." };
+  }
+  let connection: Awaited<ReturnType<typeof connectInternalMcp>> | undefined;
+  try {
+    let args: Record<string, unknown>;
+    switch (toolId) {
+      case "sinp_links":
+        args = { lat: input.lat, lng: input.lng };
+        break;
+      case "zonages_for_location":
+        args = { lat: input.lat, lng: input.lng, radius: input.radius ?? 2000 };
+        break;
+      case "list_reference_data":
+        args = { kind: "study_areas" };
+        break;
+      default:
+        throw new Error("Outil MCP inconnu");
+    }
+    connection = await connectInternalMcp();
+    const result = await connection.client.callTool(
+      { name: toolId, arguments: args },
+      undefined,
+      { timeout: MCP_TOOL_TIMEOUT_MS },
+    );
+    const content = Array.isArray(result.content)
+      ? result.content as Array<{ type?: string; text?: string }>
+      : [];
+    const text = content
+      .filter((item) => item.type === "text" && typeof item.text === "string")
+      .map((item) => item.text)
+      .join("\n");
+    return {
+      ...base,
+      status: result.isError ? "error" : "success",
+      durationMs: Date.now() - started,
+      summary: traceSummary(text || result),
+    };
+  } catch (error) {
+    return {
+      ...base,
+      status: "error",
+      durationMs: Date.now() - started,
+      summary: error instanceof Error ? error.message : "Échec MCP",
+    };
+  } finally {
+    await connection?.client.close().catch(() => undefined);
+    await connection?.server.close().catch(() => undefined);
+  }
+}
 
 function summariseInventory(result: InventoryResult, max = 200) {
   const map = new Map<

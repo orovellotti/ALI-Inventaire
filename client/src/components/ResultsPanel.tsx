@@ -158,7 +158,7 @@ export function ResultsPanel({ isOpen, isAnalyzing = false, areaCount = 1, onClo
   const [editingConversationId, setEditingConversationId] = useState<string | null>(null);
   const [editingTitle, setEditingTitle] = useState("");
   const [deleteConversationId, setDeleteConversationId] = useState<string | null>(null);
-  const [aiAnalysis, setAiAnalysis] = useState<{ species: { scientificName: string; vernacularName?: string; group: string; level: string; reason: string; sources?: string[]; inInventory?: boolean; evidenceClass?: string; evidenceLabel?: string; score?: number; scoreLabel?: string; isInvasive?: boolean }[]; natura2000?: { type: string; name: string; url: string | null; code?: string | null; species?: { name: string; designating: boolean; grade?: string | null }[]; habitats?: { code: string; description: string; cover: number | null }[] }[]; generatedAt: string } | null>(null);
+  const [aiAnalysis, setAiAnalysis] = useState<{ species: { scientificName: string; vernacularName?: string; group: string; level: string; reason: string; sources?: string[]; inInventory?: boolean; evidenceClass?: string; evidenceLabel?: string; score?: number; scoreLabel?: string; isInvasive?: boolean }[]; natura2000?: { type: string; name: string; url: string | null; code?: string | null; species?: { name: string; designating: boolean; grade?: string | null }[]; habitats?: { code: string; description: string; cover: number | null }[] }[]; mcpTrace?: { agentId: string; mcpId: string; toolId: string; status: "success" | "error" | "denied"; startedAt: string; durationMs: number; summary: string }[]; generatedAt: string } | null>(null);
   useEffect(() => {
     if (!historyOpen) return;
     const onKey = (event: KeyboardEvent) => {
@@ -773,8 +773,12 @@ ${zonages.groups.map(g => `${g.label} (${g.count})\n${g.zonages.map(z => `• ${
 ` : "";
     const enabledAgents = harnessConfig?.agents.filter((agent) => agent.enabled) ?? [];
     const configuredAgents = enabledAgents.length
-      ? enabledAgents.map((agent) => `- ${agent.name} : ${agent.description || "consigne spécialisée configurée"}${agent.mcpId === "none" ? "" : ` — MCP : ${agent.mcpId === "ali-internal" ? "interne ALi" : "à connecter (déclaratif)"}`}`).join("\n")
+      ? enabledAgents.map((agent) => `- ${agent.name} : ${agent.description || "consigne spécialisée configurée"}${agent.mcpId === "none" ? "" : ` — MCP interne ALi (${agent.mcpToolIds.length} outil${agent.mcpToolIds.length > 1 ? "s" : ""} approuvé${agent.mcpToolIds.length > 1 ? "s" : ""})`}`).join("\n")
       : "- Aucun agent configuré n’a été mobilisé.";
+    const mcpTrace = aiAnalysis?.mcpTrace ?? [];
+    const mcpTraceSection = mcpTrace.length
+      ? `\n- Journal d’exécution MCP :\n${mcpTrace.map((trace) => `  - ${trace.agentId}/${trace.toolId} — ${trace.status === "success" ? "succès" : trace.status === "denied" ? "refusé" : "échec"} (${trace.durationMs} ms) : ${trace.summary}`).join("\n")}`
+      : "\n- Journal d’exécution MCP : aucun outil MCP exécuté.";
 
     return `ALi INVENTAIRE
 PRÉ-VNEI DOCUMENTAIRE À COMPLÉTER PAR DES INVESTIGATIONS DE TERRAIN
@@ -789,6 +793,7 @@ ${!isAllActive ? `Filtres taxonomiques actifs : ${activeGroupLabels}\n` : ""}
 HARNAIS D'ALi — ORCHESTRATION RÉELLEMENT MOBILISÉE
 - Coordination : ALi comprend la demande, vérifie le périmètre, répartit l'analyse et consolide les réponses.
 ${configuredAgents}
+${mcpTraceSection}
 - Sources effectivement mobilisées par cette analyse : GBIF${includeINaturalist ? ", iNaturalist" : ""}, UICN, ALI/TAXREF, IGN Géoplateforme, PatriNat et INPN${aiAnalysis?.natura2000?.length ? ", données Natura 2000 et formulaires standards disponibles" : ""}.
 - Garde-fou 1 : une donnée connue dans l'aire bibliographique n'est pas une présence confirmée dans l'emprise.
 - Garde-fou 2 : une présence potentielle issue d'une compatibilité écologique doit être vérifiée sur le terrain.
@@ -1655,6 +1660,23 @@ ${shareUrl ? `\nReproduire cette analyse : ${shareUrl}` : ""}`;
               </Button>
             </div>
           </section>
+
+          {aiAnalysis?.mcpTrace && aiAnalysis.mcpTrace.length > 0 && (
+            <section className="conversation-message" data-testid="message-mcp-trace">
+              <Link className="mt-1 h-5 w-5" aria-hidden="true" />
+              <div>
+                <p><strong>Traçabilité MCP</strong></p>
+                <ul className="mt-2 space-y-1 text-xs text-[#60756d]">
+                  {aiAnalysis.mcpTrace.map((trace, index) => (
+                    <li key={`${trace.agentId}-${trace.toolId}-${index}`}>
+                      {trace.agentId} / {trace.toolId} — <strong>{trace.status === "success" ? "succès" : trace.status === "denied" ? "refusé" : "échec"}</strong> ({trace.durationMs} ms)
+                      <span className="block break-words text-[11px] text-[#71847d]">{trace.summary}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            </section>
+          )}
 
           <p className="mt-4 px-1 text-[11px] text-gray-400 leading-snug flex gap-1.5 items-start">
             <Info className="h-3 w-3 shrink-0 mt-0.5" />
