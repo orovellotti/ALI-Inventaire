@@ -39,9 +39,10 @@ test("migre les associations déclaratives sans perdre les agents personnalisés
     ],
   });
 
-  assert.equal(migrated?.version, 2);
+  assert.equal(migrated?.version, 3);
   assert.equal(migrated?.agents[0].prompt, "Prompt conservé");
   assert.equal(migrated?.agents[0].mcpId, "none");
+  assert.equal(migrated?.agents.some((agent) => agent.id === "potential"), false);
 });
 
 test("refuse un outil qui n'est pas explicitement approuvé pour l'agent", async () => {

@@ -21,7 +21,6 @@ export const MCP_IDS = ["none", "ali-internal", "ali-species", "ali-habitat"] as
 const DEFAULT_TOOLS_BY_AGENT: Record<string, string[]> = {
   occurrences: ["sinp_links"],
   zonages: ["zonages_for_location"],
-  potential: ["list_reference_data"],
 };
 
 export const harnessAgentSchema = z.object({
@@ -35,10 +34,10 @@ export const harnessAgentSchema = z.object({
   mcpToolIds: z.array(z.string().trim().min(1).max(80)).max(20).default([]),
 }).strict();
 
-const NATIVE_AGENT_IDS = ["occurrences", "zonages", "potential"] as const;
+const NATIVE_AGENT_IDS = ["occurrences", "zonages"] as const;
 
 export const harnessConfigSchema = z.object({
-  version: z.literal(2),
+  version: z.literal(3),
   agents: z.array(harnessAgentSchema).min(1).max(20).refine(
     (agents) => new Set(agents.map((agent) => agent.id)).size === agents.length,
     "Chaque agent doit avoir un identifiant unique",
@@ -66,15 +65,19 @@ export function migrateHarnessConfig(value: unknown): HarnessConfig | undefined 
   if (current.success) return current.data;
   if (!value || typeof value !== "object" || !Array.isArray((value as { agents?: unknown }).agents)) return undefined;
   const legacy = value as { version?: unknown; agents: Array<Record<string, unknown>> };
-  if (legacy.version !== 1) return undefined;
+  if (legacy.version !== 1 && legacy.version !== 2) return undefined;
   const migrated = harnessConfigSchema.safeParse({
-    version: 2,
-    agents: legacy.agents.map((agent) => {
-      const mcpId = agent.mcpId === "ali-internal" ? "ali-internal" : "none";
+    version: 3,
+    agents: legacy.agents.filter((agent) => agent.id !== "potential").map((agent) => {
+      const mcpId = MCP_IDS.includes(agent.mcpId as (typeof MCP_IDS)[number])
+        ? agent.mcpId
+        : "none";
       return {
         ...agent,
         mcpId,
-        mcpToolIds: mcpId === "ali-internal" ? (DEFAULT_TOOLS_BY_AGENT[String(agent.id)] ?? []) : [],
+        mcpToolIds: legacy.version === 1
+          ? (mcpId === "ali-internal" ? (DEFAULT_TOOLS_BY_AGENT[String(agent.id)] ?? []) : [])
+          : (Array.isArray(agent.mcpToolIds) ? agent.mcpToolIds : []),
       };
     }),
   });
@@ -82,7 +85,7 @@ export function migrateHarnessConfig(value: unknown): HarnessConfig | undefined 
 }
 
 export const DEFAULT_HARNESS_CONFIG: HarnessConfig = {
-  version: 2,
+  version: 3,
   agents: [
     {
       id: "occurrences",
@@ -103,16 +106,6 @@ export const DEFAULT_HARNESS_CONFIG: HarnessConfig = {
       native: true,
       mcpId: "ali-internal",
       mcpToolIds: ["zonages_for_location"],
-    },
-    {
-      id: "potential",
-      name: "Agent Potentiel écologique",
-      description: "Croise les espèces documentées, les habitats et le contexte territorial.",
-      prompt: "Présente toute compatibilité écologique comme une présence potentielle à confirmer sur le terrain.",
-      enabled: true,
-      native: true,
-      mcpId: "ali-internal",
-      mcpToolIds: ["list_reference_data"],
     },
   ],
 };

@@ -11,7 +11,6 @@ import { searchPlace, reverseGeocode } from "@/lib/geocoding";
 import { parseShapefile, ProjectPolygon } from "@/lib/shapefile";
 import { toZonageMapFeatures } from "@/lib/zonageMap";
 import { fetchZonages, type ZonagesData } from "@/lib/zonages";
-import { fetchPotentialSpecies } from "@/lib/potentialSpecies";
 import type { PotentialSpeciesResult } from "@shared/types";
 import { DEFAULT_HARNESS_CONFIG, type HarnessConfig } from "@shared/harness";
 import {
@@ -267,7 +266,7 @@ export default function Home() {
   };
 
   const handleLaunchAnalysis = async () => {
-    const agentEnabled = (id: string) => harnessConfig.agents.find((agent) => agent.id === id)?.enabled !== false;
+    const agentEnabled = (id: string) => harnessConfig.agents.find((agent) => agent.id === id)?.enabled === true;
     if (!agentEnabled("occurrences")) {
       toast({ title: "Agent Occurrences désactivé", description: "Activez-le dans le Harnais pour lancer une pré-étude.", variant: "destructive" });
       return;
@@ -329,7 +328,7 @@ export default function Home() {
     setSelectedZonageId(null);
     setZonagesLoading(agentEnabled("zonages"));
     setPotentialSpecies(null);
-    setPotentialSpeciesLoading(agentEnabled("potential"));
+    setPotentialSpeciesLoading(false);
     setPotentialSpeciesError(false);
     setAnalysisFailed(false);
     setZonagesError(false);
@@ -366,32 +365,6 @@ export default function Home() {
       })
       .finally(() => {
         if (requestId === inventoryRequestId.current) setZonagesLoading(false);
-      });
-
-    // La compatibilité écologique part elle aussi dès le clic. Les occurrences
-    // reçues ensuite serviront uniquement à distinguer avérées et potentielles.
-    if (agentEnabled("potential")) void fetchPotentialSpecies(
-      referenceCircle.center[0],
-      referenceCircle.center[1],
-      referenceCircle.radius,
-      potentialController.signal,
-    )
-      .then((data) => {
-        if (requestId === inventoryRequestId.current) {
-          setPotentialSpecies(data);
-          setPotentialSpeciesError(false);
-        }
-      })
-      .catch((error: unknown) => {
-        if (
-          requestId === inventoryRequestId.current &&
-          !(error instanceof DOMException && error.name === "AbortError")
-        ) {
-          setPotentialSpeciesError(true);
-        }
-      })
-      .finally(() => {
-        if (requestId === inventoryRequestId.current) setPotentialSpeciesLoading(false);
       });
 
     try {

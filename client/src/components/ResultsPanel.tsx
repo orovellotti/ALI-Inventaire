@@ -1155,7 +1155,7 @@ ${shareUrl ? `\nReproduire cette analyse : ${shareUrl}` : ""}`;
                    <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-[#1e594a] text-[#dcc05b]"><Check className="h-5 w-5" /></span>
                    <div className="min-w-0 flex-1">
                      <p className="font-semibold text-[#234f43]">Analyse terminée</p>
-                     <p className="text-[#60756d]">7 agents mobilisés · {results.stats.speciesCount} espèces analysées · {zonages?.count ?? 0} zonages vérifiés</p>
+                      <p className="text-[#60756d]">{harnessConfig?.agents.filter((agent) => agent.enabled).length ?? 0} agents mobilisés · {results.stats.speciesCount} espèces analysées · {zonages?.count ?? 0} zonages vérifiés</p>
                    </div>
                  </div>
                  <button type="button" className="mt-2 flex min-h-11 items-center gap-1.5 text-sm font-semibold" onClick={() => setShowAnalysisDetails((value) => !value)} aria-expanded={showAnalysisDetails} aria-controls="analysis-transcript">
@@ -1167,7 +1167,6 @@ ${shareUrl ? `\nReproduire cette analyse : ${shareUrl}` : ""}`;
                        <li><strong>Ali — coordination</strong><p>Demande comprise, périmètre vérifié et analyse répartie entre les agents spécialisés.</p></li>
                        <li><strong>Agent Occurrences</strong><p>{results.stats.speciesCount} espèces consolidées à partir de {results.stats.total} données retenues.</p></li>
                        <li><strong>Agent Zonages</strong><p>{zonagesLoading ? "Consultation des référentiels en cours." : `${zonages?.count ?? 0} zonage${(zonages?.count ?? 0) > 1 ? "s" : ""} vérifié${(zonages?.count ?? 0) > 1 ? "s" : ""}.`}</p></li>
-                       <li><strong>Agent Potentiel écologique</strong><p>{potentialSpeciesLoading ? "Croisement écologique en cours." : `${potentialSpecies?.potentialCount ?? 0} espèce${(potentialSpecies?.potentialCount ?? 0) > 1 ? "s" : ""} potentielle${(potentialSpecies?.potentialCount ?? 0) > 1 ? "s" : ""} examinée${(potentialSpecies?.potentialCount ?? 0) > 1 ? "s" : ""}.`}</p></li>
                      </ol>
                    </div>
                  )}
@@ -1254,24 +1253,6 @@ ${shareUrl ? `\nReproduire cette analyse : ${shareUrl}` : ""}`;
               </button>
               {showAllRecommendations && <p className="border-t border-[#d9e1d6] pt-3">{recommendations[3]}</p>}
             </div>
-
-            {/* Section 4 — Espèces potentiellement présentes (repliable) */}
-            <section className="space-y-2" data-testid="message-agent-potential">
-              <div className="flex items-start gap-2 border-l-2 border-lime-600 pl-3">
-                <Leaf className="mt-0.5 h-5 w-5 shrink-0" aria-hidden="true" />
-                <div><p className="text-xs font-bold text-lime-900">Agent Potentiel écologique</p><p className="mt-0.5 text-[11px] leading-4 text-lime-800">Je distingue la compatibilité écologique d’une preuve d’observation. Mes résultats restent des signaux à confirmer.</p></div>
-              </div>
-              <PotentialSpeciesSection
-                center={results.center}
-                radius={results.radius}
-                occurrences={results.occurrences}
-                result={reconciledPotentialSpecies}
-                loading={potentialSpeciesLoading}
-                error={potentialSpeciesError}
-                open={openSections.has("potentielles")}
-                onToggle={() => toggleSection("potentielles")}
-              />
-            </section>
 
             {/* Section 5 — Niveau d'enjeu, qualité et limites (repliable) */}
             <section className="rounded-xl border border-gray-200 bg-white overflow-hidden" data-testid="section-pourquoi">

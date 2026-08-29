@@ -190,18 +190,6 @@ export function AnalysisProgress({
           : "Je ne peux pas récupérer les zonages ; l’inventaire continue.",
       detail: "Sources : IGN / PatriNat.",
     },
-    {
-      id: "potential" as const,
-      name: "Agent Potentiel écologique",
-      icon: Leaf,
-      tone: "text-[#6f7650]",
-      message: potentialSpeciesLoading
-        ? "Calcul de compatibilités écologiques en cours."
-        : potentialSpeciesReady
-          ? `${potentialSpeciesCount} ${potentialSpeciesCount > 1 ? "signaux" : "signal"} de compatibilité à confirmer sur le terrain.`
-          : "Le calcul des espèces potentielles est indisponible ; l’inventaire continue.",
-      detail: "Calcul lancé pour l’aire d’étude.",
-    },
   ];
 
   return (
