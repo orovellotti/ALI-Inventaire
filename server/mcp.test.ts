@@ -1,8 +1,13 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { harnessAgentSchema, migrateHarnessConfig } from "@shared/harness";
-import { executeApprovedMcpTool, getMcpServerRegistry } from "./mcp";
+import { DEFAULT_HARNESS_CONFIG, harnessAgentSchema, migrateHarnessConfig } from "@shared/harness";
+import {
+  executeApprovedMcpTool,
+  getCustomToolCompatibility,
+  getMcpServerRegistry,
+  validatePublicMcpUrl,
+} from "./mcp";
 
 test("le registre vérifie la connexion MCP et découvre ses capacités", async () => {
   const registry = await getMcpServerRegistry();
@@ -39,7 +44,7 @@ test("migre les associations déclaratives sans perdre les agents personnalisés
     ],
   });
 
-  assert.equal(migrated?.version, 3);
+  assert.equal(migrated?.version, 4);
   assert.equal(migrated?.agents[0].prompt, "Prompt conservé");
   assert.equal(migrated?.agents[0].mcpId, "none");
   assert.equal(migrated?.agents.some((agent) => agent.id === "potential"), false);
@@ -120,4 +125,69 @@ test("le schéma navigateur rejette toute adresse de serveur MCP", () => {
   });
 
   assert.equal(parsed.success, false);
+});
+
+test("refuse les URL MCP locales, privées ou non chiffrées", async () => {
+  await assert.rejects(() => validatePublicMcpUrl("http://example.com/mcp"), /HTTPS/i);
+  await assert.rejects(() => validatePublicMcpUrl("https://localhost/mcp"), /pas autorisée/i);
+  await assert.rejects(() => validatePublicMcpUrl("https://127.0.0.1/mcp"), /adresse publique/i);
+  await assert.rejects(() => validatePublicMcpUrl("https://10.0.0.5/mcp"), /adresse publique/i);
+  await assert.rejects(() => validatePublicMcpUrl("https://[::ffff:7f00:1]/mcp"), /(publique|invalide|ENOTFOUND)/i);
+  await assert.rejects(() => validatePublicMcpUrl("https://user:pass@example.com/mcp"), /identifiants/i);
+});
+
+test("découvre les outils d'un serveur MCP administré", async () => {
+  const registry = await getMcpServerRegistry([{
+    id: "custom-ali-habitat",
+    label: "ALI Habitat personnalisé",
+    url: "https://ali-habitat.replit.app/mcp",
+  }]);
+  const custom = registry.find((entry) => entry.id === "custom-ali-habitat");
+  assert.equal(custom?.connected, true);
+  assert.ok(custom?.tools.some((tool) => tool.id === "get_habitats"));
+  assert.ok(custom?.tools.every((tool) => tool.inputSchema));
+});
+
+test("un outil personnalisé homonyme reste soumis à son propre schéma", async () => {
+  const customAgent = {
+    ...DEFAULT_HARNESS_CONFIG.agents[0],
+    mcpId: "custom-collision",
+    mcpToolIds: ["get_habitats"],
+  };
+  const result = await executeApprovedMcpTool(
+    customAgent,
+    "get_habitats",
+    { lat: 48, lng: -4, radius: 2000 },
+    async () => [{
+      id: "custom-collision",
+      label: "Collision",
+      url: "https://example.com/mcp",
+      managed: true,
+      connected: true,
+      tools: [{
+        id: "get_habitats",
+        title: "Autre outil",
+        description: "",
+        supported: false,
+        unsupportedReason: "Paramètres obligatoires non fournis par ALi : geometry",
+        inputSchema: {
+          type: "object",
+          properties: { geometry: { type: "object" } },
+          required: ["geometry"],
+        },
+      }],
+    }],
+  );
+  assert.equal(result.status, "denied");
+  assert.match(result.summary, /geometry/);
+});
+
+test("un paramètre entier est incompatible avec les coordonnées décimales émises par ALi", () => {
+  const compatibility = getCustomToolCompatibility({
+    type: "object",
+    properties: { lat: { type: "integer" }, lng: { type: "number" } },
+    required: ["lat", "lng"],
+  });
+  assert.equal(compatibility.supported, false);
+  assert.match(compatibility.unsupportedReason ?? "", /lat/);
 });

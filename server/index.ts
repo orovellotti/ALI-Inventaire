@@ -3,9 +3,18 @@ import { registerRoutes } from "./routes";
 import { ensureHarnessSchema } from "./db";
 import { serveStatic } from "./static";
 import { createServer } from "http";
+import { clerkMiddleware } from "@clerk/express";
+import { publishableKeyFromHost } from "@clerk/shared/keys";
+import {
+  CLERK_PROXY_PATH,
+  clerkProxyMiddleware,
+  getClerkProxyHost,
+} from "./middlewares/clerkProxyMiddleware";
 
 const app = express();
 const httpServer = createServer(app);
+
+app.use(CLERK_PROXY_PATH, clerkProxyMiddleware());
 
 declare module "http" {
   interface IncomingMessage {
@@ -23,6 +32,14 @@ app.use(
 );
 
 app.use(express.urlencoded({ extended: false, limit: "10mb" }));
+app.use(
+  clerkMiddleware((request) => ({
+    publishableKey: publishableKeyFromHost(
+      getClerkProxyHost(request) ?? "",
+      process.env.CLERK_PUBLISHABLE_KEY,
+    ),
+  })),
+);
 
 export function log(message: string, source = "express") {
   const formattedTime = new Date().toLocaleTimeString("en-US", {

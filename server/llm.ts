@@ -13,7 +13,7 @@ import {
 } from "./services/habitatCompat";
 import { storage } from "./storage";
 import { DEFAULT_HARNESS_CONFIG, migrateHarnessConfig } from "@shared/harness";
-import { executeApprovedMcpTool, type McpExecutionTrace } from "./mcp";
+import { executeApprovedMcpTool, getMcpServerRegistry, type McpExecutionTrace } from "./mcp";
 
 const openai = new OpenAI({
   baseURL: process.env.AI_INTEGRATIONS_OPENAI_BASE_URL,
@@ -691,12 +691,17 @@ export async function analyzePrioritySpecies(
   const mcpTrace = await Promise.all(
     agents.flatMap((agent) =>
       (agent.mcpToolIds ?? []).map((toolId) =>
-        executeApprovedMcpTool(agent, toolId, {
-          lat: coords[0],
-          lng: coords[1],
-          radius: EVIDENCE_LOCAL_RADIUS_M,
-          scientificName: picked[0]?.scientificName,
-        }),
+        executeApprovedMcpTool(
+          agent,
+          toolId,
+          {
+            lat: coords[0],
+            lng: coords[1],
+            radius: EVIDENCE_LOCAL_RADIUS_M,
+            scientificName: picked[0]?.scientificName,
+          },
+          () => getMcpServerRegistry(harnessConfig.mcpServers),
+        ),
       ),
     ),
   );

@@ -6,6 +6,7 @@ import { AboutDialog } from "@/components/AboutDialog";
 import { ApiDialog } from "@/components/ApiDialog";
 import { LieuxDitsDialog } from "@/components/LieuxDitsDialog";
 import { HarnessDialog } from "@/components/HarnessDialog";
+import { SignInButton, UserButton, useAuth } from "@clerk/react";
 import { searchGBIFMultiCircle, InventoryResult, BufferCircle, STUDY_AREAS, ProjectPreset, TAXON_GROUPS, getTaxonGroupId } from "@/lib/gbif";
 import { searchPlace, reverseGeocode } from "@/lib/geocoding";
 import { parseShapefile, ProjectPolygon } from "@/lib/shapefile";
@@ -122,13 +123,41 @@ export default function Home() {
     { kind: "map"; center: [number, number] } | { kind: "reset" } | null
   >(null);
   const { toast } = useToast();
+  const { isLoaded: authLoaded, isSignedIn } = useAuth();
+  const [isHarnessAdmin, setIsHarnessAdmin] = useState(false);
 
   useEffect(() => {
-    fetch("/api/harness")
+    fetch("/api/runtime/harness")
       .then((response) => response.ok ? response.json() : Promise.reject())
       .then(setHarnessConfig)
       .catch(() => undefined);
   }, []);
+
+  useEffect(() => {
+    if (!authLoaded || !isSignedIn) {
+      setIsHarnessAdmin(false);
+      return;
+    }
+    fetch("/api/harness/access")
+      .then((response) => {
+        setIsHarnessAdmin(response.ok);
+      })
+      .catch(() => setIsHarnessAdmin(false));
+  }, [authLoaded, isSignedIn]);
+
+  const openHarness = async () => {
+    const response = await fetch("/api/harness");
+    if (!response.ok) {
+      toast({
+        title: response.status === 403 ? "Accès administrateur requis" : "Connexion requise",
+        description: "Le Harnais est réservé aux comptes autorisés.",
+        variant: "destructive",
+      });
+      return;
+    }
+    setHarnessConfig(await response.json());
+    setShowHarness(true);
+  };
 
   const inventoryRequestId = useRef(0);
   const zonagesAbortController = useRef<AbortController | null>(null);
@@ -679,7 +708,13 @@ export default function Home() {
           <span className="h-2 w-2 rounded-full bg-[#c4a642]" aria-hidden="true" /><span className="text-sm font-semibold text-[#315b4e]">Projet Lunaret</span><span className="text-xs text-[#7b8c83]">Pré-étude biodiversité · {currentToponym.split(",")[0]}</span>
         </div>
         <div className="ml-auto flex items-center gap-2">
-          <button type="button" onClick={() => setShowHarness(true)} className="hidden items-center gap-2 rounded-xl border border-[#d5ddd2] bg-[#fffef9] px-3 py-2 text-xs font-semibold text-[#426158] shadow-sm transition-colors hover:bg-[#edf2e9] sm:flex" aria-label="Découvrir le harnais de l’agent" data-testid="button-harness"><Bot className="h-4 w-4 text-[#1e594a]" /> Harnais</button>
+          {authLoaded && !isSignedIn && (
+            <SignInButton mode="modal">
+              <button type="button" className="hidden items-center gap-2 rounded-xl border border-[#d5ddd2] bg-[#fffef9] px-3 py-2 text-xs font-semibold text-[#426158] shadow-sm transition-colors hover:bg-[#edf2e9] sm:flex">Connexion</button>
+            </SignInButton>
+          )}
+          {isHarnessAdmin && <button type="button" onClick={() => void openHarness()} className="hidden items-center gap-2 rounded-xl border border-[#d5ddd2] bg-[#fffef9] px-3 py-2 text-xs font-semibold text-[#426158] shadow-sm transition-colors hover:bg-[#edf2e9] sm:flex" aria-label="Configurer le harnais de l’agent" data-testid="button-harness"><Bot className="h-4 w-4 text-[#1e594a]" /> Harnais</button>}
+          {isSignedIn && <UserButton />}
           <button type="button" onClick={() => { const text = requestSummary || `Pré-étude biodiversité — ${currentToponym}`; if (navigator.share) void navigator.share({ title: "ALi Inventaire", text }); else void navigator.clipboard?.writeText(text); }} className="flex items-center gap-2 rounded-xl border border-[#d5ddd2] bg-[#fffef9] px-3 py-2 text-xs font-semibold text-[#426158] shadow-sm transition-colors hover:bg-[#edf2e9]" aria-label="Partager cette étude" data-testid="button-share"><Share2 className="h-4 w-4 text-[#1e594a]" /> <span className="hidden sm:inline">Partager</span></button>
         </div>
       </header>

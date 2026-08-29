@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { harnessConfigSchema } from "@shared/harness";
+import { customMcpServerSchema, harnessConfigSchema } from "@shared/harness";
 
 export const latSchema = z.coerce
   .number()
@@ -91,6 +91,7 @@ export const reformatBodySchema = z.object({
 });
 
 export const harnessConfigBodySchema = harnessConfigSchema;
+export const mcpDiscoveryBodySchema = customMcpServerSchema.pick({ label: true, url: true });
 
 export const taxonKeyParamSchema = z.object({
   taxonKey: z.coerce.number().int().positive("taxonKey doit être un entier"),

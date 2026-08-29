@@ -21,6 +21,7 @@ import {
   taxonKeyParamSchema,
   zonagesQuerySchema,
   harnessConfigBodySchema,
+  mcpDiscoveryBodySchema,
 } from "./lib/validation";
 import { geocodePlace, reverseGeocode, searchLieuxDits } from "./services/nominatim";
 import { getZonages, getNaturaZones } from "./services/geoservices";
@@ -28,6 +29,8 @@ import { getSpeciesForSite } from "./services/natura2000Species";
 import { storage } from "./storage";
 import { getPotentialSpecies } from "./services/potentialSpecies";
 import { DEFAULT_HARNESS_CONFIG, migrateHarnessConfig } from "@shared/harness";
+import { randomUUID } from "node:crypto";
+import { requireHarnessAdmin } from "./harnessAuth";
 
 const DATA_SOURCES_TTL_MS = 10 * 60 * 1000;
 let dataSourcesCache: { data: unknown; expires: number } | null = null;
@@ -87,7 +90,26 @@ export async function registerRoutes(
 ): Promise<Server> {
   registerMcpEndpoint(app);
 
-  app.get("/api/harness", asyncHandler(async (_req, res) => {
+  app.get("/api/runtime/harness", asyncHandler(async (_req, res) => {
+    const stored = await storage.getHarnessConfig();
+    const config = migrateHarnessConfig(stored) ?? DEFAULT_HARNESS_CONFIG;
+    res.json({
+      ...config,
+      mcpServers: [],
+      agents: config.agents.map((agent) => ({
+        ...agent,
+        prompt: "",
+        mcpId: "none",
+        mcpToolIds: [],
+      })),
+    });
+  }));
+
+  app.get("/api/harness/access", requireHarnessAdmin, (_req, res) => {
+    res.json({ admin: true });
+  });
+
+  app.get("/api/harness", requireHarnessAdmin, asyncHandler(async (_req, res) => {
     const stored = await storage.getHarnessConfig();
     const config = migrateHarnessConfig(stored) ?? DEFAULT_HARNESS_CONFIG;
     if (stored && (stored as { version?: unknown }).version !== config.version) {
@@ -96,20 +118,36 @@ export async function registerRoutes(
     res.json(config);
   }));
 
-  app.get("/api/harness/mcp-registry", asyncHandler(async (_req, res) => {
-    res.json(await getMcpServerRegistry());
+  app.get("/api/harness/mcp-registry", requireHarnessAdmin, asyncHandler(async (_req, res) => {
+    const config = migrateHarnessConfig(await storage.getHarnessConfig()) ?? DEFAULT_HARNESS_CONFIG;
+    res.json(await getMcpServerRegistry(config.mcpServers));
   }));
 
-  app.put("/api/harness", asyncHandler(async (req, res) => {
+  app.post("/api/harness/mcp-discover", requireHarnessAdmin, asyncHandler(async (req, res) => {
+    const server = mcpDiscoveryBodySchema.parse(req.body);
+    const [entry] = await getMcpServerRegistry([{
+      id: `custom-${randomUUID()}`,
+      ...server,
+    }]).then((registry) => registry.slice(-1));
+    if (!entry.connected) throw new HttpError(400, entry.error || "Serveur MCP inaccessible ou incompatible.");
+    res.json(entry);
+  }));
+
+  app.put("/api/harness", requireHarnessAdmin, asyncHandler(async (req, res) => {
     const config = harnessConfigBodySchema.parse(req.body);
-    const registry = await getMcpServerRegistry();
+    const registry = await getMcpServerRegistry(config.mcpServers);
     for (const agent of config.agents) {
       if (agent.mcpId === "none" && agent.mcpToolIds.length > 0) {
         throw new HttpError(400, `L’agent ${agent.name} ne peut pas approuver d’outil sans MCP.`);
       }
       if (agent.mcpId !== "none") {
         const registered = registry.find((entry) => entry.id === agent.mcpId && entry.connected);
-        if (!registered || agent.mcpToolIds.some((toolId) => !registered.tools.some((tool) => tool.id === toolId))) {
+        if (
+          !registered ||
+          agent.mcpToolIds.some((toolId) =>
+            !registered.tools.some((tool) => tool.id === toolId && tool.supported !== false),
+          )
+        ) {
           throw new HttpError(400, `La sélection MCP de l’agent ${agent.name} contient un outil non administré.`);
         }
       }
@@ -118,7 +156,7 @@ export async function registerRoutes(
     res.json(await storage.saveHarnessConfig(config));
   }));
 
-  app.post("/api/harness/reset", asyncHandler(async (_req, res) => {
+  app.post("/api/harness/reset", requireHarnessAdmin, asyncHandler(async (_req, res) => {
     console.info("[harness] configuration reset");
     res.json(await storage.saveHarnessConfig(DEFAULT_HARNESS_CONFIG));
   }));

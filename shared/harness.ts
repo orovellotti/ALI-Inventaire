@@ -4,6 +4,9 @@ export const mcpToolSchema = z.object({
   id: z.string(),
   title: z.string(),
   description: z.string(),
+  inputSchema: z.record(z.string(), z.unknown()).optional(),
+  supported: z.boolean().default(true),
+  unsupportedReason: z.string().optional(),
 });
 
 export const mcpRegistryEntrySchema = z.object({
@@ -11,12 +14,22 @@ export const mcpRegistryEntrySchema = z.object({
   label: z.string(),
   connected: z.boolean(),
   tools: z.array(mcpToolSchema),
+  url: z.string().url().optional(),
+  managed: z.boolean().default(true),
+  error: z.string().optional(),
 });
 
 export const mcpRegistrySchema = z.array(mcpRegistryEntrySchema);
 export type McpRegistryEntry = z.infer<typeof mcpRegistryEntrySchema>;
 
 export const MCP_IDS = ["none", "ali-internal", "ali-species", "ali-habitat"] as const;
+
+export const customMcpServerSchema = z.object({
+  id: z.string().regex(/^custom-[a-z0-9-]{8,}$/),
+  label: z.string().trim().min(2).max(80),
+  url: z.string().trim().url().max(500),
+}).strict();
+export type CustomMcpServer = z.infer<typeof customMcpServerSchema>;
 
 const DEFAULT_TOOLS_BY_AGENT: Record<string, string[]> = {
   occurrences: ["sinp_links"],
@@ -30,18 +43,19 @@ export const harnessAgentSchema = z.object({
   prompt: z.string().trim().min(1).max(8000),
   enabled: z.boolean(),
   native: z.boolean(),
-  mcpId: z.enum(MCP_IDS),
+  mcpId: z.string().trim().min(1).max(80).regex(/^(none|ali-internal|ali-species|ali-habitat|custom-[a-z0-9-]{8,})$/),
   mcpToolIds: z.array(z.string().trim().min(1).max(80)).max(20).default([]),
 }).strict();
 
 const NATIVE_AGENT_IDS = ["occurrences", "zonages"] as const;
 
 export const harnessConfigSchema = z.object({
-  version: z.literal(3),
+  version: z.literal(4),
   agents: z.array(harnessAgentSchema).min(1).max(20).refine(
     (agents) => new Set(agents.map((agent) => agent.id)).size === agents.length,
     "Chaque agent doit avoir un identifiant unique",
   ),
+  mcpServers: z.array(customMcpServerSchema).max(10).default([]),
 }).superRefine((config, context) => {
   for (const id of NATIVE_AGENT_IDS) {
     const agent = config.agents.find((candidate) => candidate.id === id);
@@ -54,6 +68,12 @@ export const harnessConfigSchema = z.object({
     if (agent.native !== reserved) {
       context.addIssue({ code: z.ZodIssueCode.custom, message: `Identité native invalide pour ${agent.id}` });
     }
+    if (agent.mcpId.startsWith("custom-") && !config.mcpServers.some((server) => server.id === agent.mcpId)) {
+      context.addIssue({ code: z.ZodIssueCode.custom, message: `Serveur MCP inconnu pour ${agent.name}` });
+    }
+  }
+  if (new Set(config.mcpServers.map((server) => server.id)).size !== config.mcpServers.length) {
+    context.addIssue({ code: z.ZodIssueCode.custom, message: "Chaque serveur MCP doit avoir un identifiant unique" });
   }
 });
 
@@ -65,9 +85,12 @@ export function migrateHarnessConfig(value: unknown): HarnessConfig | undefined 
   if (current.success) return current.data;
   if (!value || typeof value !== "object" || !Array.isArray((value as { agents?: unknown }).agents)) return undefined;
   const legacy = value as { version?: unknown; agents: Array<Record<string, unknown>> };
-  if (legacy.version !== 1 && legacy.version !== 2) return undefined;
+  if (legacy.version !== 1 && legacy.version !== 2 && legacy.version !== 3) return undefined;
   const migrated = harnessConfigSchema.safeParse({
-    version: 3,
+    version: 4,
+    mcpServers: Array.isArray((value as { mcpServers?: unknown }).mcpServers)
+      ? (value as { mcpServers: unknown[] }).mcpServers
+      : [],
     agents: legacy.agents.filter((agent) => agent.id !== "potential").map((agent) => {
       const mcpId = MCP_IDS.includes(agent.mcpId as (typeof MCP_IDS)[number])
         ? agent.mcpId
@@ -85,7 +108,8 @@ export function migrateHarnessConfig(value: unknown): HarnessConfig | undefined 
 }
 
 export const DEFAULT_HARNESS_CONFIG: HarnessConfig = {
-  version: 3,
+  version: 4,
+  mcpServers: [],
   agents: [
     {
       id: "occurrences",
