@@ -3,6 +3,7 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
+import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
 import { z } from "zod";
 
 import { searchGBIF, searchGBIFMultiCircle, fetchSpeciesDetails } from "./gbif";
@@ -18,6 +19,10 @@ const APPROVED_INTERNAL_TOOL_IDS = new Set([
   "zonages_for_location",
   "list_reference_data",
 ]);
+const ALI_SPECIES_MCP_URL = "https://taxref-explorer.replit.app/api/mcp";
+const APPROVED_ALI_SPECIES_TOOL_IDS = new Set(["search_taxons"]);
+const ALI_HABITAT_MCP_URL = "https://ali-habitat.replit.app/mcp";
+const APPROVED_ALI_HABITAT_TOOL_IDS = new Set(["get_habitats", "list_project_types"]);
 const MCP_CONNECT_TIMEOUT_MS = 2000;
 const MCP_TOOL_TIMEOUT_MS = 10000;
 
@@ -47,35 +52,60 @@ async function connectInternalMcp(): Promise<{ client: Client; server: McpServer
   return { client, server };
 }
 
+async function connectAliSpeciesMcp(): Promise<{ client: Client }> {
+  const client = new Client({ name: "ali-inventaire-harness", version: "1.0.0" });
+  await client.connect(new StreamableHTTPClientTransport(new URL(ALI_SPECIES_MCP_URL)));
+  return { client };
+}
+
+async function connectAliHabitatMcp(): Promise<{ client: Client }> {
+  const client = new Client({ name: "ali-inventaire-harness", version: "1.0.0" });
+  await client.connect(new StreamableHTTPClientTransport(new URL(ALI_HABITAT_MCP_URL)));
+  return { client };
+}
+
 export async function getMcpServerRegistry(): Promise<McpRegistryEntry[]> {
-  let connection: Awaited<ReturnType<typeof connectInternalMcp>> | undefined;
-  try {
-    connection = await connectInternalMcp();
-    const response = await connection.client.listTools(undefined, { timeout: MCP_CONNECT_TIMEOUT_MS });
-    return [{
-      id: "ali-internal",
-      label: "MCP interne ALi",
-      connected: true,
-      tools: response.tools
-        .filter((tool) => APPROVED_INTERNAL_TOOL_IDS.has(tool.name))
-        .map((tool) => ({
-          id: tool.name,
-          title: tool.title ?? tool.name,
-          description: tool.description ?? "",
-        })),
-    }];
-  } catch {
-    return [{ id: "ali-internal", label: "MCP interne ALi", connected: false, tools: [] }];
-  } finally {
-    await connection?.client.close().catch(() => undefined);
-    await connection?.server.close().catch(() => undefined);
-  }
+  const discover = async (
+    id: string,
+    label: string,
+    approvedTools: Set<string>,
+    connect: () => Promise<{ client: Client; server?: McpServer }>,
+  ): Promise<McpRegistryEntry> => {
+    let connection: Awaited<ReturnType<typeof connect>> | undefined;
+    try {
+      connection = await connect();
+      const response = await connection.client.listTools(undefined, { timeout: MCP_CONNECT_TIMEOUT_MS });
+      return {
+        id,
+        label,
+        connected: true,
+        tools: response.tools
+          .filter((tool) => approvedTools.has(tool.name))
+          .map((tool) => ({
+            id: tool.name,
+            title: tool.title ?? tool.name,
+            description: tool.description ?? "",
+          })),
+      };
+    } catch {
+      return { id, label, connected: false, tools: [] };
+    } finally {
+      await connection?.client.close().catch(() => undefined);
+      await connection?.server?.close().catch(() => undefined);
+    }
+  };
+
+  return Promise.all([
+    discover("ali-internal", "MCP interne ALi", APPROVED_INTERNAL_TOOL_IDS, connectInternalMcp),
+    discover("ali-species", "ALI Species — TAXREF Explorer", APPROVED_ALI_SPECIES_TOOL_IDS, connectAliSpeciesMcp),
+    discover("ali-habitat", "ALI Habitat — CARHAB", APPROVED_ALI_HABITAT_TOOL_IDS, connectAliHabitatMcp),
+  ]);
 }
 
 export async function executeApprovedMcpTool(
   agent: HarnessAgent,
   toolId: string,
-  input: { lat: number; lng: number; radius?: number },
+  input: { lat: number; lng: number; radius?: number; scientificName?: string },
   registryProvider: () => Promise<McpRegistryEntry[]> = getMcpServerRegistry,
 ): Promise<McpExecutionTrace> {
   const started = Date.now();
@@ -87,8 +117,12 @@ export async function executeApprovedMcpTool(
   };
   if (
     !agent.enabled ||
-    agent.mcpId !== "ali-internal" ||
-    !APPROVED_INTERNAL_TOOL_IDS.has(toolId) ||
+    agent.mcpId === "none" ||
+    !(agent.mcpId === "ali-internal"
+      ? APPROVED_INTERNAL_TOOL_IDS.has(toolId)
+      : agent.mcpId === "ali-species"
+        ? APPROVED_ALI_SPECIES_TOOL_IDS.has(toolId)
+        : agent.mcpId === "ali-habitat" && APPROVED_ALI_HABITAT_TOOL_IDS.has(toolId)) ||
     !agent.mcpToolIds?.includes(toolId)
   ) {
     return { ...base, status: "denied", durationMs: Date.now() - started, summary: "Outil non approuvé pour cet agent." };
@@ -97,7 +131,7 @@ export async function executeApprovedMcpTool(
   if (!registry?.connected || !registry.tools.some((tool) => tool.id === toolId)) {
     return { ...base, status: "error", durationMs: Date.now() - started, summary: "MCP indisponible ou capacité introuvable." };
   }
-  let connection: Awaited<ReturnType<typeof connectInternalMcp>> | undefined;
+  let connection: { client: Client; server?: McpServer } | undefined;
   try {
     let args: Record<string, unknown>;
     switch (toolId) {
@@ -110,10 +144,28 @@ export async function executeApprovedMcpTool(
       case "list_reference_data":
         args = { kind: "study_areas" };
         break;
+      case "search_taxons":
+        if (!input.scientificName) throw new Error("Aucun taxon disponible pour interroger ALI Species");
+        args = { query: input.scientificName, limit: 5 };
+        break;
+      case "get_habitats":
+        args = {
+          lng: input.lng,
+          lat: input.lat,
+          radiusKm: Math.min(50, Math.max(0.001, (input.radius ?? 2000) / 1000)),
+        };
+        break;
+      case "list_project_types":
+        args = {};
+        break;
       default:
         throw new Error("Outil MCP inconnu");
     }
-    connection = await connectInternalMcp();
+    connection = agent.mcpId === "ali-species"
+      ? await connectAliSpeciesMcp()
+      : agent.mcpId === "ali-habitat"
+        ? await connectAliHabitatMcp()
+        : await connectInternalMcp();
     const result = await connection.client.callTool(
       { name: toolId, arguments: args },
       undefined,
@@ -141,7 +193,7 @@ export async function executeApprovedMcpTool(
     };
   } finally {
     await connection?.client.close().catch(() => undefined);
-    await connection?.server.close().catch(() => undefined);
+    await connection?.server?.close().catch(() => undefined);
   }
 }
 

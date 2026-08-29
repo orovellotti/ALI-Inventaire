@@ -16,7 +16,7 @@ export const mcpRegistryEntrySchema = z.object({
 export const mcpRegistrySchema = z.array(mcpRegistryEntrySchema);
 export type McpRegistryEntry = z.infer<typeof mcpRegistryEntrySchema>;
 
-export const MCP_IDS = ["none", "ali-internal"] as const;
+export const MCP_IDS = ["none", "ali-internal", "ali-species", "ali-habitat"] as const;
 
 const DEFAULT_TOOLS_BY_AGENT: Record<string, string[]> = {
   occurrences: ["sinp_links"],

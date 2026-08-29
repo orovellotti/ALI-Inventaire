@@ -773,7 +773,14 @@ ${zonages.groups.map(g => `${g.label} (${g.count})\n${g.zonages.map(z => `• ${
 ` : "";
     const enabledAgents = harnessConfig?.agents.filter((agent) => agent.enabled) ?? [];
     const configuredAgents = enabledAgents.length
-      ? enabledAgents.map((agent) => `- ${agent.name} : ${agent.description || "consigne spécialisée configurée"}${agent.mcpId === "none" ? "" : ` — MCP interne ALi (${agent.mcpToolIds.length} outil${agent.mcpToolIds.length > 1 ? "s" : ""} approuvé${agent.mcpToolIds.length > 1 ? "s" : ""})`}`).join("\n")
+      ? enabledAgents.map((agent) => {
+          const mcpLabel = agent.mcpId === "ali-internal"
+            ? "interne ALi"
+            : agent.mcpId === "ali-species"
+              ? "ALI Species / TAXREF Explorer"
+              : "ALI Habitat / CARHAB";
+          return `- ${agent.name} : ${agent.description || "consigne spécialisée configurée"}${agent.mcpId === "none" ? "" : ` — MCP ${mcpLabel} (${agent.mcpToolIds.length} outil${agent.mcpToolIds.length > 1 ? "s" : ""} approuvé${agent.mcpToolIds.length > 1 ? "s" : ""})`}`;
+        }).join("\n")
       : "- Aucun agent configuré n’a été mobilisé.";
     const mcpTrace = aiAnalysis?.mcpTrace ?? [];
     const mcpTraceSection = mcpTrace.length

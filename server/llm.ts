@@ -695,6 +695,7 @@ export async function analyzePrioritySpecies(
           lat: coords[0],
           lng: coords[1],
           radius: EVIDENCE_LOCAL_RADIUS_M,
+          scientificName: picked[0]?.scientificName,
         }),
       ),
     ),
