@@ -86,8 +86,16 @@ export const potentialSpeciesBodySchema = z.object({
     .max(5000, "Maximum 5000 occurrences"),
 });
 
+export const MAX_REFORMAT_REPORT_CHARACTERS = 200_000;
+
 export const reformatBodySchema = z.object({
-  report: z.string().min(1, "Champ 'report' requis").max(50000, "Rapport trop long (max 50000 caractères)"),
+  report: z
+    .string()
+    .min(1, "Champ 'report' requis")
+    .max(
+      MAX_REFORMAT_REPORT_CHARACTERS,
+      `Rapport trop long (max ${MAX_REFORMAT_REPORT_CHARACTERS.toLocaleString("fr-FR")} caractères)`,
+    ),
 });
 
 export const harnessConfigBodySchema = harnessConfigSchema;
