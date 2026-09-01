@@ -124,7 +124,6 @@ export default function Home() {
   >(null);
   const { toast } = useToast();
   const { isLoaded: authLoaded, isSignedIn } = useAuth();
-  const [isHarnessAdmin, setIsHarnessAdmin] = useState(false);
 
   useEffect(() => {
     fetch("/api/runtime/harness")
@@ -133,31 +132,7 @@ export default function Home() {
       .catch(() => undefined);
   }, []);
 
-  useEffect(() => {
-    if (!authLoaded || !isSignedIn) {
-      setIsHarnessAdmin(false);
-      return;
-    }
-    fetch("/api/harness/access")
-      .then((response) => {
-        setIsHarnessAdmin(response.ok);
-      })
-      .catch(() => setIsHarnessAdmin(false));
-  }, [authLoaded, isSignedIn]);
-
-  const openHarness = async () => {
-    const response = await fetch("/api/harness");
-    if (!response.ok) {
-      toast({
-        title: response.status === 403 ? "Accès administrateur requis" : "Connexion requise",
-        description: "Le Harnais est réservé aux comptes autorisés.",
-        variant: "destructive",
-      });
-      return;
-    }
-    setHarnessConfig(await response.json());
-    setShowHarness(true);
-  };
+  const openHarness = () => setShowHarness(true);
 
   const inventoryRequestId = useRef(0);
   const zonagesAbortController = useRef<AbortController | null>(null);
@@ -713,7 +688,7 @@ export default function Home() {
               <button type="button" className="hidden items-center gap-2 rounded-xl border border-[#d5ddd2] bg-[#fffef9] px-3 py-2 text-xs font-semibold text-[#426158] shadow-sm transition-colors hover:bg-[#edf2e9] sm:flex">Connexion</button>
             </SignInButton>
           )}
-          {isHarnessAdmin && <button type="button" onClick={() => void openHarness()} className="hidden items-center gap-2 rounded-xl border border-[#d5ddd2] bg-[#fffef9] px-3 py-2 text-xs font-semibold text-[#426158] shadow-sm transition-colors hover:bg-[#edf2e9] sm:flex" aria-label="Configurer le harnais de l’agent" data-testid="button-harness"><Bot className="h-4 w-4 text-[#1e594a]" /> Harnais</button>}
+          <button type="button" onClick={openHarness} className="hidden items-center gap-2 rounded-xl border border-[#d5ddd2] bg-[#fffef9] px-3 py-2 text-xs font-semibold text-[#426158] shadow-sm transition-colors hover:bg-[#edf2e9] sm:flex" aria-label="Consulter le harnais de l’agent" data-testid="button-harness"><Bot className="h-4 w-4 text-[#1e594a]" /> Harnais</button>
           {isSignedIn && <UserButton />}
           <button type="button" onClick={() => { const text = requestSummary || `Pré-étude biodiversité — ${currentToponym}`; if (navigator.share) void navigator.share({ title: "ALi Inventaire", text }); else void navigator.clipboard?.writeText(text); }} className="flex items-center gap-2 rounded-xl border border-[#d5ddd2] bg-[#fffef9] px-3 py-2 text-xs font-semibold text-[#426158] shadow-sm transition-colors hover:bg-[#edf2e9]" aria-label="Partager cette étude" data-testid="button-share"><Share2 className="h-4 w-4 text-[#1e594a]" /> <span className="hidden sm:inline">Partager</span></button>
         </div>

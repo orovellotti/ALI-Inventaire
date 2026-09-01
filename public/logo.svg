@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 180 64" role="img" aria-labelledby="title">
+  <title id="title">ALi</title>
+  <rect width="180" height="64" rx="16" fill="#1e594a"/>
+  <path d="M27 45 40 18h8l13 27h-8l-3-7H38l-3 7Zm14-14h6l-3-8Z" fill="#dcc05b"/>
+  <text x="69" y="43" fill="#fffef9" font-family="Georgia,serif" font-size="32" font-weight="700">ALi</text>
+</svg>

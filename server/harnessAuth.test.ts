@@ -1,7 +1,13 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import type { NextFunction, Request, Response } from "express";
-import { createRequireHarnessAdmin } from "./harnessAuth";
+import {
+  configuredAdminIds,
+  createRequireHarnessAdmin,
+  isHarnessAdmin,
+} from "./harnessAuth";
+
+const noMetadata = { privateMetadata: {}, publicMetadata: {} };
 
 function responseRecorder() {
   const state = { status: 200, body: undefined as unknown };
@@ -21,7 +27,7 @@ function responseRecorder() {
 test("un visiteur anonyme reçoit 401", async () => {
   const { response, state } = responseRecorder();
   let nextCalled = false;
-  const guard = createRequireHarnessAdmin(async () => ({}), () => null);
+  const guard = createRequireHarnessAdmin(async () => ({}), () => null, new Set());
   await guard({} as Request, response, (() => { nextCalled = true; }) as NextFunction);
   assert.equal(state.status, 401);
   assert.equal(nextCalled, false);
@@ -30,7 +36,11 @@ test("un visiteur anonyme reçoit 401", async () => {
 test("un compte sans rôle administrateur reçoit 403", async () => {
   const { response, state } = responseRecorder();
   let nextCalled = false;
-  const guard = createRequireHarnessAdmin(async () => ({ publicMetadata: { role: "ecologue" } }), () => "user-1");
+  const guard = createRequireHarnessAdmin(
+    async () => ({ publicMetadata: { role: "ecologue" } }),
+    () => "user-1",
+    new Set(),
+  );
   await guard({} as Request, response, (() => { nextCalled = true; }) as NextFunction);
   assert.equal(state.status, 403);
   assert.equal(nextCalled, false);
@@ -39,8 +49,32 @@ test("un compte sans rôle administrateur reçoit 403", async () => {
 test("un administrateur authentifié atteint la route protégée", async () => {
   const { response, state } = responseRecorder();
   let nextCalled = false;
-  const guard = createRequireHarnessAdmin(async () => ({ privateMetadata: { role: "admin" } }), () => "admin-1");
+  const guard = createRequireHarnessAdmin(
+    async () => ({ privateMetadata: { role: "admin" } }),
+    () => "admin-1",
+    new Set(),
+  );
   await guard({} as Request, response, (() => { nextCalled = true; }) as NextFunction);
   assert.equal(state.status, 200);
   assert.equal(nextCalled, true);
+});
+
+test("normalise la liste des administrateurs configurés", () => {
+  assert.deepEqual(
+    [...configuredAdminIds(" user_a, user_b ,,user_a ")],
+    ["user_a", "user_b"],
+  );
+});
+
+test("autorise la liste serveur et les métadonnées Clerk administrateur", () => {
+  assert.equal(isHarnessAdmin("user_a", noMetadata, new Set(["user_a"])), true);
+  assert.equal(
+    isHarnessAdmin("user_a", { privateMetadata: { role: "admin" } }, new Set()),
+    true,
+  );
+  assert.equal(
+    isHarnessAdmin("user_a", { publicMetadata: { role: "admin" } }, new Set()),
+    true,
+  );
+  assert.equal(isHarnessAdmin("user_a", noMetadata, new Set(["user_b"])), false);
 });

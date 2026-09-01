@@ -30,7 +30,7 @@ import { storage } from "./storage";
 import { getPotentialSpecies } from "./services/potentialSpecies";
 import { DEFAULT_HARNESS_CONFIG, migrateHarnessConfig } from "@shared/harness";
 import { randomUUID } from "node:crypto";
-import { requireHarnessAdmin } from "./harnessAuth";
+import { getHarnessAccess, requireHarnessAdmin } from "./harnessAuth";
 
 const DATA_SOURCES_TTL_MS = 10 * 60 * 1000;
 let dataSourcesCache: { data: unknown; expires: number } | null = null;
@@ -105,9 +105,9 @@ export async function registerRoutes(
     });
   }));
 
-  app.get("/api/harness/access", requireHarnessAdmin, (_req, res) => {
-    res.json({ admin: true });
-  });
+  app.get("/api/harness/access", asyncHandler(async (req, res) => {
+    res.json(await getHarnessAccess(req));
+  }));
 
   app.get("/api/harness", requireHarnessAdmin, asyncHandler(async (_req, res) => {
     const stored = await storage.getHarnessConfig();

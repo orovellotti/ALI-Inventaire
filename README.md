@@ -56,6 +56,7 @@ L'application démarre sur le port `5000` (frontend + API servis par le même se
 | `AI_INTEGRATIONS_OPENAI_BASE_URL` | URL de base du proxy AI |
 | `SESSION_SECRET` | Secret de session |
 | `DATABASE_URL` | Connexion PostgreSQL (Natura 2000) |
+| `HARNESS_ADMIN_USER_IDS` | Identifiants Clerk autorisés à administrer le Harnais, séparés par des virgules (alternative : métadonnée Clerk `role: "admin"`) |
 
 ---
 
