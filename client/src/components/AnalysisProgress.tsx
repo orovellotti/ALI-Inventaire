@@ -33,10 +33,16 @@ function buildSteps(includeINaturalist: boolean, areaCount: number): Step[] {
     {
       label: "Consultation des sources disponibles en parallèle.",
       detail: includeINaturalist
-        ? "Mes agents interrogent GBIF, iNaturalist et les référentiels territoriaux."
-        : "Mes agents interrogent GBIF et les référentiels territoriaux.",
+        ? "Mes agents interrogent GBIF, iNaturalist, les référentiels territoriaux et ALI Habitat / CARHAB."
+        : "Mes agents interrogent GBIF, les référentiels territoriaux et ALI Habitat / CARHAB.",
       duration: 6800,
       effort: 3,
+    },
+    {
+      label: "Lecture documentaire des habitats autour de l’aire d’étude.",
+      detail: "ALI Habitat / CARHAB documente les habitats disponibles, sans confirmer leur présence sur le terrain.",
+      duration: 3200,
+      effort: 2,
     },
   ];
   steps.push(
@@ -165,6 +171,7 @@ export function AnalysisProgress({
   const currentEffort: Effort = done ? 1 : steps[stepIndex].effort;
   const pulseSpeed = EFFORT_SPEED[currentEffort];
   const observationsSearching = !done && stepIndex < 2;
+  const habitatsSearching = !done && stepIndex < 3;
   const sourceMessages = [
     {
       id: "occurrences" as const,
@@ -189,6 +196,16 @@ export function AnalysisProgress({
             : "Je n’ai trouvé aucune emprise dans l’aire."
           : "Je ne peux pas récupérer les zonages ; l’inventaire continue.",
       detail: "Sources : IGN / PatriNat.",
+    },
+    {
+      id: "habitats" as const,
+      name: "Agent Habitats",
+      icon: Leaf,
+      tone: "text-[#527349]",
+      message: habitatsSearching
+        ? "Je consulte les habitats documentés autour de l’aire d’étude."
+        : "J’intègre les informations d’habitats disponibles à la synthèse.",
+      detail: "Source : ALI Habitat / CARHAB — donnée documentaire à vérifier sur le terrain.",
     },
   ];
 
@@ -258,6 +275,9 @@ export function AnalysisProgress({
               style={{ width: `${progress}%` }}
             />
           </div>
+          <p className="mt-3 text-sm text-[#315b4e]" data-testid="analysis-current-step">
+            {done ? "Toutes les consultations sont terminées." : steps[stepIndex].label}
+          </p>
           <button
             type="button"
             onClick={() => setOpenSourceDetail((open) => open === "ally" ? null : "ally")}
