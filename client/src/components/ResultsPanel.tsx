@@ -865,6 +865,18 @@ ${shareUrl ? `\nReproduire cette analyse : ${shareUrl}` : ""}`;
   }, [results, toponym, sortedSpecies]);
 
   const activeReportText = reformattedReport || reportText;
+  const aliHabitatTraces = aiAnalysis?.mcpTrace?.filter((trace) => trace.mcpId === "ali-habitat") ?? [];
+  const aliHabitatSucceeded = aliHabitatTraces.some((trace) => trace.status === "success");
+  const aliHabitatConfigured = harnessConfig?.agents.some(
+    (agent) => agent.enabled && agent.mcpId === "ali-habitat" && agent.mcpToolIds.length > 0,
+  ) ?? false;
+  const aliHabitatStatus = aliHabitatSucceeded
+    ? `CARHAB consulté avec succès (${aliHabitatTraces.filter((trace) => trace.status === "success").length} outil${aliHabitatTraces.filter((trace) => trace.status === "success").length > 1 ? "s" : ""} mobilisé${aliHabitatTraces.filter((trace) => trace.status === "success").length > 1 ? "s" : ""}).`
+    : aliHabitatTraces.length > 0
+      ? "CARHAB a été sollicité, mais n’a pas pu fournir de résultat exploitable."
+      : aliHabitatConfigured
+        ? "CARHAB est configuré, mais n’a pas été mobilisé pour cette analyse."
+        : "CARHAB n’était pas activé pour cette analyse.";
 
   useEffect(() => {
     setReformattedReport(null);
@@ -1164,9 +1176,10 @@ ${shareUrl ? `\nReproduire cette analyse : ${shareUrl}` : ""}`;
                  {showAnalysisDetails && (
                    <div className="pt-2" id="analysis-transcript" data-testid="analysis-transcript">
                      <ol className="space-y-3">
-                       <li><strong>Ali — coordination</strong><p>Demande comprise, périmètre vérifié et analyse répartie entre les agents spécialisés.</p></li>
+                        <li><strong>ALi — coordination</strong><p>Demande comprise, périmètre vérifié et analyse répartie entre les agents spécialisés.</p></li>
                        <li><strong>Agent Occurrences</strong><p>{results.stats.speciesCount} espèces consolidées à partir de {results.stats.total} données retenues.</p></li>
                        <li><strong>Agent Zonages</strong><p>{zonagesLoading ? "Consultation des référentiels en cours." : `${zonages?.count ?? 0} zonage${(zonages?.count ?? 0) > 1 ? "s" : ""} vérifié${(zonages?.count ?? 0) > 1 ? "s" : ""}.`}</p></li>
+                        <li data-testid="analysis-transcript-ali-habitat"><strong>ALI Habitat — CARHAB</strong><p>{aliHabitatStatus}</p></li>
                      </ol>
                    </div>
                  )}
