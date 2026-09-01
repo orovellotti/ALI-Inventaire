@@ -28,6 +28,8 @@ const ALI_HABITAT_MCP_URL = "https://ali-habitat.replit.app/mcp";
 const APPROVED_ALI_HABITAT_TOOL_IDS = new Set(["get_habitats", "list_project_types"]);
 const MCP_CONNECT_TIMEOUT_MS = 2000;
 const MCP_TOOL_TIMEOUT_MS = 10000;
+const ALI_HABITAT_CONNECT_TIMEOUT_MS = 10000;
+const ALI_HABITAT_TOOL_TIMEOUT_MS = 30000;
 const MCP_RESPONSE_MAX_BYTES = 1_000_000;
 const BLOCKED_HOSTNAMES = new Set(["localhost", "localhost.localdomain"]);
 const CUSTOM_ARGUMENT_NAMES = new Set([
@@ -59,6 +61,15 @@ export interface McpExecutionTrace {
   startedAt: string;
   durationMs: number;
   summary: string;
+  output?: string;
+}
+
+const MCP_CONTEXT_MAX_CHARACTERS = 50_000;
+
+function contextOutput(value: string): string {
+  return value.length > MCP_CONTEXT_MAX_CHARACTERS
+    ? `${value.slice(0, MCP_CONTEXT_MAX_CHARACTERS)}\n[Réponse tronquée à ${MCP_CONTEXT_MAX_CHARACTERS} caractères]`
+    : value;
 }
 
 function traceSummary(value: unknown): string {
@@ -322,7 +333,9 @@ export async function getMcpServerRegistry(customServers: CustomMcpServer[] = []
     let connection: Awaited<ReturnType<typeof connect>> | undefined;
     try {
       connection = await connect();
-      const response = await connection.client.listTools(undefined, { timeout: MCP_CONNECT_TIMEOUT_MS });
+      const response = await connection.client.listTools(undefined, {
+        timeout: id === "ali-habitat" ? ALI_HABITAT_CONNECT_TIMEOUT_MS : MCP_CONNECT_TIMEOUT_MS,
+      });
       return {
         id,
         label,
@@ -465,7 +478,7 @@ export async function executeApprovedMcpTool(
     const result = await connection.client.callTool(
       { name: toolId, arguments: args },
       undefined,
-      { timeout: MCP_TOOL_TIMEOUT_MS },
+      { timeout: toolId === "get_habitats" ? ALI_HABITAT_TOOL_TIMEOUT_MS : MCP_TOOL_TIMEOUT_MS },
     );
     const content = Array.isArray(result.content)
       ? result.content as Array<{ type?: string; text?: string }>
@@ -479,6 +492,7 @@ export async function executeApprovedMcpTool(
       status: result.isError ? "error" : "success",
       durationMs: Date.now() - started,
       summary: traceSummary(text || result),
+      output: result.isError ? undefined : contextOutput(text || JSON.stringify(result)),
     };
   } catch (error) {
     return {

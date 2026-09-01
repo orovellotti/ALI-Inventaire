@@ -158,7 +158,7 @@ export function ResultsPanel({ isOpen, isAnalyzing = false, areaCount = 1, onClo
   const [editingConversationId, setEditingConversationId] = useState<string | null>(null);
   const [editingTitle, setEditingTitle] = useState("");
   const [deleteConversationId, setDeleteConversationId] = useState<string | null>(null);
-  const [aiAnalysis, setAiAnalysis] = useState<{ species: { scientificName: string; vernacularName?: string; group: string; level: string; reason: string; sources?: string[]; inInventory?: boolean; evidenceClass?: string; evidenceLabel?: string; score?: number; scoreLabel?: string; isInvasive?: boolean }[]; natura2000?: { type: string; name: string; url: string | null; code?: string | null; species?: { name: string; designating: boolean; grade?: string | null }[]; habitats?: { code: string; description: string; cover: number | null }[] }[]; mcpTrace?: { agentId: string; mcpId: string; toolId: string; status: "success" | "error" | "denied"; startedAt: string; durationMs: number; summary: string }[]; generatedAt: string } | null>(null);
+  const [aiAnalysis, setAiAnalysis] = useState<{ species: { scientificName: string; vernacularName?: string; group: string; level: string; reason: string; sources?: string[]; inInventory?: boolean; evidenceClass?: string; evidenceLabel?: string; score?: number; scoreLabel?: string; isInvasive?: boolean }[]; natura2000?: { type: string; name: string; url: string | null; code?: string | null; species?: { name: string; designating: boolean; grade?: string | null }[]; habitats?: { code: string; description: string; cover: number | null }[] }[]; mcpTrace?: { agentId: string; mcpId: string; toolId: string; status: "success" | "error" | "denied"; startedAt: string; durationMs: number; summary: string; output?: string }[]; generatedAt: string } | null>(null);
   useEffect(() => {
     if (!historyOpen) return;
     const onKey = (event: KeyboardEvent) => {
@@ -786,6 +786,19 @@ ${zonages.groups.map(g => `${g.label} (${g.count})\n${g.zonages.map(z => `• ${
     const mcpTraceSection = mcpTrace.length
       ? `\n- Journal d’exécution MCP :\n${mcpTrace.map((trace) => `  - ${trace.agentId}/${trace.toolId} — ${trace.status === "success" ? "succès" : trace.status === "denied" ? "refusé" : "échec"} (${trace.durationMs} ms) : ${trace.summary}`).join("\n")}`
       : "\n- Journal d’exécution MCP : aucun outil MCP exécuté.";
+    const aliHabitatOutputs = mcpTrace
+      .filter((trace) => trace.mcpId === "ali-habitat" && trace.toolId === "get_habitats" && trace.status === "success" && trace.output)
+      .map((trace) => trace.output);
+    const aliHabitatReportSection = aliHabitatOutputs.length
+      ? `
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+🌿 HABITATS DOCUMENTÉS PAR ALI HABITAT / CARHAB
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+${aliHabitatOutputs.join("\n\n")}
+
+↳ Données documentaires issues de CARHAB autour de l’aire d’étude. Elles ne constituent ni une cartographie de terrain, ni une confirmation de présence dans l’emprise des travaux.
+`
+      : "";
 
     return `ALi INVENTAIRE
 PRÉ-VNEI DOCUMENTAIRE À COMPLÉTER PAR DES INVESTIGATIONS DE TERRAIN
@@ -823,6 +836,7 @@ Indice de confiance des données : ${conf.total}/100 — ${confLabel}
 Potentiel d'enjeux écologiques : ${riskScore.label}
 ↳ Le risque biodiversité ne peut être calculé qu'en croisant ces enjeux avec les caractéristiques et les pressions d'un projet.
 ${conf.message ? `↳ ${conf.message}\n` : ""}
+${aliHabitatReportSection}
 ${sectionList("🔴 ENJEUX FORTS", sortedSpecies.high)}
 ${sectionList("🟠 ENJEUX MOYENS", sortedSpecies.medium)}
 ${sectionList("🟢 ENJEUX FAIBLES", sortedSpecies.low)}${aiAnalysis && aiAnalysis.species.length > 0 ? `
@@ -865,6 +879,17 @@ ${shareUrl ? `\nReproduire cette analyse : ${shareUrl}` : ""}`;
   }, [results, toponym, sortedSpecies]);
 
   const activeReportText = reformattedReport || reportText;
+  const reportPreviewText = useMemo(() => {
+    const sectionOneIndex = activeReportText.search(/\n## 1\./);
+    const openingSections = sectionOneIndex > 0
+      ? activeReportText.slice(0, sectionOneIndex)
+      : activeReportText;
+    const maxPreviewCharacters = 4_000;
+    if (openingSections.length <= maxPreviewCharacters) return openingSections;
+    const lastLineBreak = openingSections.lastIndexOf("\n", maxPreviewCharacters);
+    const cutAt = lastLineBreak > 2_500 ? lastLineBreak : maxPreviewCharacters;
+    return `${openingSections.slice(0, cutAt).trimEnd()}\n\n[… Aperçu abrégé — téléchargez l’étude complète pour consulter tous les résultats.]`;
+  }, [activeReportText]);
   const aliHabitatTraces = aiAnalysis?.mcpTrace?.filter((trace) => trace.mcpId === "ali-habitat") ?? [];
   const aliHabitatSucceeded = aliHabitatTraces.some((trace) => trace.status === "success");
   const aliHabitatConfigured = harnessConfig?.agents.some(
@@ -905,6 +930,49 @@ ${shareUrl ? `\nReproduire cette analyse : ${shareUrl}` : ""}`;
     const body = encodeURIComponent(reformattedReport || reportText);
     const subject = encodeURIComponent(reportSubject);
     window.open(`mailto:?subject=${subject}&body=${body}`, "_blank");
+  };
+
+  const handleDownloadWordReport = () => {
+    const escapeHtml = (value: string) =>
+      value
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;");
+    const documentHtml = `<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <title>${escapeHtml(reportSubject)}</title>
+  <style>
+    body { font-family: Aptos, Calibri, Arial, sans-serif; color: #243b34; line-height: 1.5; margin: 2cm; }
+    h1 { color: #1e594a; }
+    .status { padding: 12px; border: 1px solid #b9c9c1; background: #f4f6f1; margin-bottom: 20px; }
+    pre { font: inherit; white-space: pre-wrap; overflow-wrap: anywhere; }
+  </style>
+</head>
+<body>
+  <h1>Pré-VNEI documentaire à compléter par des investigations de terrain</h1>
+  <div class="status">Document documentaire produit par le harnais d’ALi. Il ne remplace ni les investigations de terrain, ni la validation d’un écologue.</div>
+  <pre>${escapeHtml(activeReportText)}</pre>
+</body>
+</html>`;
+    const blob = new Blob(["\ufeff", documentHtml], {
+      type: "application/msword;charset=utf-8",
+    });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    const safePlace = (toponym || "site")
+      .normalize("NFKD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .replace(/[^a-zA-Z0-9]+/g, "-")
+      .replace(/^-+|-+$/g, "")
+      .toLowerCase();
+    link.href = url;
+    link.download = `pre-vnei-ali-${safePlace || "site"}.doc`;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
   };
 
   const handleReformatReport = async () => {
@@ -1751,7 +1819,7 @@ ${shareUrl ? `\nReproduire cette analyse : ${shareUrl}` : ""}`;
               Pré-VNEI documentaire
             </DialogTitle>
             <DialogDescription>
-              Document structuré par le harnais d’ALi, à compléter par des investigations de terrain et à faire valider par un écologue.
+              Aperçu synthétique. L’étude complète reste disponible au téléchargement et doit être complétée par des investigations de terrain.
             </DialogDescription>
           </DialogHeader>
           {reformattedReport && (
@@ -1773,9 +1841,12 @@ ${shareUrl ? `\nReproduire cette analyse : ${shareUrl}` : ""}`;
               {reformatError}
             </div>
           )}
-          <ScrollArea className="flex-1 mt-3 h-[50vh] overflow-auto">
+          <div className="mt-3 rounded-lg border border-[#d9e1d6] bg-[#f4f6f1] px-4 py-3 text-xs text-[#52675f]">
+            Seules les informations essentielles sont affichées ici pour faciliter la lecture. Le document téléchargé contient l’étude complète, ses résultats détaillés et ses sources.
+          </div>
+          <ScrollArea className="flex-1 mt-3 h-[42vh] overflow-auto">
             <pre className={`text-sm whitespace-pre-wrap p-4 rounded-lg border text-gray-700 ${reformattedReport ? "bg-teal-50/30 border-teal-100 font-sans leading-relaxed" : "bg-gray-50 border-gray-200 font-mono"}`}>
-              {activeReportText}
+              {reportPreviewText}
             </pre>
           </ScrollArea>
           <div className="flex flex-wrap justify-between items-center gap-2 mt-4 pt-4 border-t">
@@ -1795,6 +1866,14 @@ ${shareUrl ? `\nReproduire cette analyse : ${shareUrl}` : ""}`;
                   {reformatting ? "Génération de la pré-VNEI…" : "Générer la pré-VNEI"}
                 </Button>
               )}
+              <Button
+                onClick={handleDownloadWordReport}
+                className="gap-2 bg-[#1e594a] text-white shadow-md hover:bg-[#17483d]"
+                data-testid="button-download-word-report"
+              >
+                <Download className="h-4 w-4" />
+                Télécharger l’étude complète (.doc)
+              </Button>
               <Button variant="outline" onClick={handleEmailReport} className="gap-2" data-testid="button-email-report">
                 <Mail className="h-4 w-4" />
                 Email
@@ -1805,7 +1884,8 @@ ${shareUrl ? `\nReproduire cette analyse : ${shareUrl}` : ""}`;
               </Button>
               <Button
                 onClick={handleShareReport}
-                className="gap-2 bg-[#1e594a] text-white shadow-md hover:bg-[#17483d]"
+                variant="outline"
+                className="gap-2"
                 data-testid="button-share-report"
               >
                 <Share2 className="h-4 w-4" />

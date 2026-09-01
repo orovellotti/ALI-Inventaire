@@ -12,7 +12,7 @@ import {
   type HabitatMetrics,
 } from "./services/habitatCompat";
 import { storage } from "./storage";
-import { DEFAULT_HARNESS_CONFIG, migrateHarnessConfig } from "@shared/harness";
+import { DEFAULT_HARNESS_CONFIG, migrateHarnessConfig, type HarnessAgent } from "@shared/harness";
 import { executeApprovedMcpTool, getMcpServerRegistry, type McpExecutionTrace } from "./mcp";
 
 const openai = new OpenAI({
@@ -33,6 +33,16 @@ const NATURA_SPECIES_CONCURRENCY = 4;
 const NATURA_SPECIES_BUDGET_MS = 12000;
 const MAX_NATURA_SITES_IN_PROMPT = 12;
 const MAX_SPECIES_PER_SITE_IN_PROMPT = 25;
+const ALI_HABITAT_AGENT: HarnessAgent = {
+  id: "habitats",
+  name: "Agent Habitats",
+  description: "Documente les habitats disponibles autour de l’aire d’étude via ALI Habitat / CARHAB.",
+  prompt: "Distingue les habitats documentés par CARHAB des habitats Natura 2000 et des habitats à confirmer sur le terrain.",
+  enabled: true,
+  native: false,
+  mcpId: "ali-habitat",
+  mcpToolIds: ["get_habitats"],
+};
 
 const PRIORITY_IUCN = new Set(["CR", "EN", "VU", "NT", "DD"]);
 const ALLOWED_LEVELS = ["majeur", "fort", "modéré"] as const;
@@ -688,8 +698,15 @@ export async function analyzePrioritySpecies(
   const natura2000 = await fetchNaturaZones(coords, EVIDENCE_LOCAL_RADIUS_M);
   const harnessConfig = migrateHarnessConfig(await storage.getHarnessConfig()) ?? DEFAULT_HARNESS_CONFIG;
   const agents = harnessConfig.agents;
+  const hasConfiguredHabitatCall = agents.some(
+    (agent) =>
+      agent.enabled &&
+      agent.mcpId === "ali-habitat" &&
+      agent.mcpToolIds.includes("get_habitats"),
+  );
+  const executionAgents = hasConfiguredHabitatCall ? agents : [...agents, ALI_HABITAT_AGENT];
   const mcpTrace = await Promise.all(
-    agents.flatMap((agent) =>
+    executionAgents.flatMap((agent) =>
       (agent.mcpToolIds ?? []).map((toolId) =>
         executeApprovedMcpTool(
           agent,
@@ -709,7 +726,7 @@ export async function analyzePrioritySpecies(
   const mcpContext = mcpTrace.some((trace) => trace.status === "success")
     ? `\n\nRÉSULTATS MCP APPROUVÉS (données d’appui, sans extrapolation) :\n${mcpTrace
         .filter((trace) => trace.status === "success")
-        .map((trace) => `- ${trace.agentId}/${trace.toolId} : ${trace.summary}`)
+        .map((trace) => `- ${trace.agentId}/${trace.toolId} :\n${trace.output ?? trace.summary}`)
         .join("\n")}`
     : "";
 

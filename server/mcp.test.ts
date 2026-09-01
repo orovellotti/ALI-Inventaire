@@ -88,6 +88,7 @@ test("exécute réellement un outil approuvé via le transport MCP", async () =>
 
   assert.equal(trace.status, "success");
   assert.match(trace.summary, /Île-de-France/);
+  assert.match(trace.output ?? "", /Île-de-France/);
 });
 
 test("distingue une panne MCP d'un refus d'autorisation", async () => {
