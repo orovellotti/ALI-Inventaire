@@ -36,6 +36,7 @@ async function buildAll() {
   await rm("dist", { recursive: true, force: true });
 
   console.log("building client...");
+  process.env.VITE_APP_BUILD_ID = new Date().toISOString();
   await viteBuild();
 
   console.log("building server...");

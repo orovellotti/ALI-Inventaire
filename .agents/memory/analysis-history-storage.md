@@ -5,6 +5,8 @@ description: Persistence and restoration constraints for saved analysis conversa
 
 Analysis conversations are complete browser-local snapshots in IndexedDB, limited to the 20 most recent entries. Do not add accounts, server persistence, or cross-device synchronization unless the user explicitly changes this product decision. Restoring a saved conversation must use its stored scientific results and geometries rather than rerunning the analysis APIs.
 
-**Why:** Scientific result payloads and detailed geometries can exceed reliable localStorage capacity, while users need completed work to survive reloads without changing because an upstream source has evolved.
+Clear all saved conversations on the first browser load of every newly published build. Keep them across ordinary reloads within the same publication.
 
-**How to apply:** Any new analysis input or result needed to reconstruct the conversation, map, filters, tables, or exports must be included in the versioned snapshot. Handle storage failures visibly without blocking a live analysis.
+**Why:** Scientific result payloads and detailed geometries can exceed reliable localStorage capacity. Users need stable reloads within one publication, but explicitly require a clean history after each republish.
+
+**How to apply:** Store the published-build marker atomically in IndexedDB rather than localStorage. Include every reconstruction input in the snapshot, and never rerun scientific APIs when restoring history.

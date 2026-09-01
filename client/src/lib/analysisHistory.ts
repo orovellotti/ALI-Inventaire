@@ -3,8 +3,10 @@ import type { ProjectPolygon } from "./shapefile";
 import type { ZonagesData } from "./zonages";
 
 const DATABASE_NAME = "inventaire-flash";
-const DATABASE_VERSION = 1;
+const DATABASE_VERSION = 2;
 const STORE_NAME = "conversations";
+const METADATA_STORE_NAME = "metadata";
+const BUILD_ID_KEY = "published-build-id";
 const UPDATED_AT_INDEX = "updatedAt";
 const MAX_CONVERSATIONS = 20;
 const tombstones = new Set<string>();
@@ -83,6 +85,9 @@ function openDatabase(): Promise<IDBDatabase> {
         : database.createObjectStore(STORE_NAME, { keyPath: "id" });
       if (!store.indexNames.contains(UPDATED_AT_INDEX)) {
         store.createIndex(UPDATED_AT_INDEX, "updatedAt", { unique: false });
+      }
+      if (!database.objectStoreNames.contains(METADATA_STORE_NAME)) {
+        database.createObjectStore(METADATA_STORE_NAME);
       }
     };
     request.onsuccess = () => resolve(request.result);
@@ -316,6 +321,31 @@ export async function deleteAnalysisConversation(id: string): Promise<void> {
     } catch (error) {
       if (error instanceof Error && error.message.startsWith("L'historique local")) throw error;
       throw storageError("la suppression a échoué");
+    } finally {
+      database.close();
+    }
+  });
+}
+
+/** Supprime l'historique une seule fois pour chaque nouvelle version publiée. */
+export async function clearAnalysisConversationsForBuild(buildId: string): Promise<void> {
+  return enqueueMutation(async () => {
+    const database = await openDatabase();
+    try {
+      const transaction = database.transaction([STORE_NAME, METADATA_STORE_NAME], "readwrite");
+      const metadata = transaction.objectStore(METADATA_STORE_NAME);
+      const previousBuildId = await requestResult(metadata.get(BUILD_ID_KEY));
+      if (previousBuildId === buildId) {
+        await transactionDone(transaction);
+        return;
+      }
+      transaction.objectStore(STORE_NAME).clear();
+      metadata.put(buildId, BUILD_ID_KEY);
+      await transactionDone(transaction);
+      tombstones.clear();
+    } catch (error) {
+      if (error instanceof Error && error.message.startsWith("L'historique local")) throw error;
+      throw storageError("la réinitialisation a échoué");
     } finally {
       database.close();
     }
