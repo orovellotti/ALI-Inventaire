@@ -1538,7 +1538,7 @@ ${shareUrl ? `\nReproduire cette analyse : ${shareUrl}` : ""}`;
           </div>
 
           {/* Message Agent Occurrences — pièce jointe dépliable */}
-          <section className="rounded-xl border border-teal-200 bg-teal-50/30 overflow-hidden" data-testid="message-agent-occurrences">
+          <section className="w-full self-stretch overflow-hidden rounded-xl border border-teal-200 bg-teal-50/30" data-testid="message-agent-occurrences">
             <button type="button" onClick={() => toggleSection("especes")} aria-expanded={openSections.has("especes")} aria-controls="attachment-especes" className="w-full flex items-center justify-between gap-3 px-4 py-3 text-left hover:bg-teal-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-400">
               <span className="flex items-center gap-2"><Database className="h-5 w-5 shrink-0" aria-hidden="true" /><span><span className="block text-xs font-bold text-teal-900">Agent Occurrences</span><span className="block text-[11px] text-teal-700">{filteredTotal} espèces consolidées · données géolocalisées</span></span></span>
               {openSections.has("especes") ? <ChevronUp className="h-4 w-4 text-teal-700" /> : <ChevronDown className="h-4 w-4 text-teal-700" />}
@@ -1692,7 +1692,7 @@ ${shareUrl ? `\nReproduire cette analyse : ${shareUrl}` : ""}`;
           </section>
 
           {/* Message Agent Habitat — pièce jointe dépliable */}
-          <section className="rounded-xl border border-emerald-200 bg-emerald-50/30 overflow-hidden" data-testid="message-agent-habitat">
+          <section className="w-full self-stretch overflow-hidden rounded-xl border border-emerald-200 bg-emerald-50/30" data-testid="message-agent-habitat">
             <button
               type="button"
               onClick={() => toggleSection("habitats")}
@@ -1725,7 +1725,7 @@ ${shareUrl ? `\nReproduire cette analyse : ${shareUrl}` : ""}`;
           </section>
 
           {/* Message Agent Zonages — pièce jointe dépliable */}
-          <section className="rounded-xl border border-sky-200 bg-sky-50/30 overflow-hidden" data-testid="message-agent-zonages">
+          <section className="w-full self-stretch overflow-hidden rounded-xl border border-sky-200 bg-sky-50/30" data-testid="message-agent-zonages">
             <button type="button" onClick={() => toggleSection("zonages")} aria-expanded={openSections.has("zonages")} aria-controls="attachment-zonages" className="w-full flex items-center justify-between gap-3 px-4 py-3 text-left hover:bg-sky-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400">
               <span className="flex items-center gap-2"><Layers className="h-5 w-5 shrink-0" aria-hidden="true" /><span><span className="block text-xs font-bold text-sky-900">Agent Zonages</span><span className="block text-[11px] text-sky-700">{zonagesLoading ? "Recherche en cours…" : `${flatZonages.length} zonage${flatZonages.length > 1 ? "s" : ""} · IGN / PatriNat`}</span></span></span>
               {openSections.has("zonages") ? <ChevronUp className="h-4 w-4 text-sky-700" /> : <ChevronDown className="h-4 w-4 text-sky-700" />}
