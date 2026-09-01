@@ -28,7 +28,7 @@ interface NaturaSpeciesItem {
   sensitive: boolean;
 }
 /** Sections repliables du diagnostic. */
-type SectionKey = "especes" | "potentielles" | "zonages" | "pourquoi";
+type SectionKey = "especes" | "potentielles" | "zonages" | "habitats" | "pourquoi";
 
 /**
  * Niveau d'enjeu global du site (Faible / Modéré / Fort), dérivé du score de
@@ -1691,6 +1691,39 @@ ${shareUrl ? `\nReproduire cette analyse : ${shareUrl}` : ""}`;
                 </div>}
           </section>
 
+          {/* Message Agent Habitat — pièce jointe dépliable */}
+          <section className="rounded-xl border border-emerald-200 bg-emerald-50/30 overflow-hidden" data-testid="message-agent-habitat">
+            <button
+              type="button"
+              onClick={() => toggleSection("habitats")}
+              aria-expanded={openSections.has("habitats")}
+              aria-controls="attachment-habitats"
+              className="w-full flex items-center justify-between gap-3 px-4 py-3 text-left hover:bg-emerald-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400"
+            >
+              <span className="flex items-center gap-2">
+                <Leaf className="h-5 w-5 shrink-0 text-emerald-800" aria-hidden="true" />
+                <span>
+                  <span className="block text-xs font-bold text-emerald-900">Agent Habitat</span>
+                  <span className="block text-[11px] text-emerald-700">
+                    {aliHabitatStatus ?? "Habitats documentaires · CARHAB"}
+                  </span>
+                </span>
+              </span>
+              {openSections.has("habitats") ? <ChevronUp className="h-4 w-4 text-emerald-700" /> : <ChevronDown className="h-4 w-4 text-emerald-700" />}
+            </button>
+            {openSections.has("habitats") && (
+              <div id="attachment-habitats" className="space-y-3 border-t border-emerald-200 bg-white p-4 sm:p-5" data-testid="panel-habitats">
+                <p className="rounded-lg border border-emerald-100 bg-emerald-50/60 px-3 py-2 text-xs leading-relaxed text-emerald-950">
+                  <strong>Source : CARHAB.</strong> L’Agent Habitat documente les habitats disponibles autour de l’aire d’étude et les transmet à la synthèse.
+                </p>
+                <p className="flex items-start gap-2 text-[11px] leading-relaxed text-gray-600">
+                  <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber-600" aria-hidden="true" />
+                  Ces informations sont documentaires : elles ne constituent ni une cartographie des habitats dans l’emprise des travaux, ni une confirmation de terrain.
+                </p>
+              </div>
+            )}
+          </section>
+
           {/* Message Agent Zonages — pièce jointe dépliable */}
           <section className="rounded-xl border border-sky-200 bg-sky-50/30 overflow-hidden" data-testid="message-agent-zonages">
             <button type="button" onClick={() => toggleSection("zonages")} aria-expanded={openSections.has("zonages")} aria-controls="attachment-zonages" className="w-full flex items-center justify-between gap-3 px-4 py-3 text-left hover:bg-sky-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400">
@@ -1824,23 +1857,6 @@ ${shareUrl ? `\nReproduire cette analyse : ${shareUrl}` : ""}`;
               </Button>
             </div>
           </section>
-
-          {aiAnalysis?.mcpTrace && aiAnalysis.mcpTrace.length > 0 && (
-            <section className="conversation-message" data-testid="message-mcp-trace">
-              <Link className="mt-1 h-5 w-5" aria-hidden="true" />
-              <div>
-                <p><strong>Traçabilité MCP</strong></p>
-                <ul className="mt-2 space-y-1 text-xs text-[#60756d]">
-                  {aiAnalysis.mcpTrace.map((trace, index) => (
-                    <li key={`${trace.agentId}-${trace.toolId}-${index}`}>
-                      {trace.agentId} / {trace.toolId} — <strong>{trace.status === "success" ? "succès" : trace.status === "denied" ? "refusé" : "échec"}</strong> ({trace.durationMs} ms)
-                      <span className="block break-words text-[11px] text-[#71847d]">{trace.summary}</span>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            </section>
-          )}
 
           <p className="mt-4 px-1 text-[11px] text-gray-400 leading-snug flex gap-1.5 items-start">
             <Info className="h-3 w-3 shrink-0 mt-0.5" />

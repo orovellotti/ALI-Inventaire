@@ -47,7 +47,18 @@ export const harnessAgentSchema = z.object({
   mcpToolIds: z.array(z.string().trim().min(1).max(80)).max(20).default([]),
 }).strict();
 
-const NATIVE_AGENT_IDS = ["occurrences", "zonages"] as const;
+const NATIVE_AGENT_IDS = ["occurrences", "zonages", "habitats"] as const;
+
+const NATIVE_HABITAT_AGENT = {
+  id: "habitats",
+  name: "Agent Habitat",
+  description: "Documente les habitats disponibles autour de l’aire d’étude via CARHAB.",
+  prompt: "Distingue les habitats documentés par CARHAB des habitats Natura 2000 et des habitats à confirmer sur le terrain.",
+  enabled: true,
+  native: true,
+  mcpId: "ali-habitat",
+  mcpToolIds: ["get_habitats"],
+};
 
 export const harnessConfigSchema = z.object({
   version: z.literal(4),
@@ -85,13 +96,15 @@ export function migrateHarnessConfig(value: unknown): HarnessConfig | undefined 
   if (current.success) return current.data;
   if (!value || typeof value !== "object" || !Array.isArray((value as { agents?: unknown }).agents)) return undefined;
   const legacy = value as { version?: unknown; agents: Array<Record<string, unknown>> };
-  if (legacy.version !== 1 && legacy.version !== 2 && legacy.version !== 3) return undefined;
+  if (legacy.version !== 1 && legacy.version !== 2 && legacy.version !== 3 && legacy.version !== 4) return undefined;
+  const agents = legacy.agents.filter((agent) => agent.id !== "potential");
+  if (!agents.some((agent) => agent.id === "habitats")) agents.push({ ...NATIVE_HABITAT_AGENT });
   const migrated = harnessConfigSchema.safeParse({
     version: 4,
     mcpServers: Array.isArray((value as { mcpServers?: unknown }).mcpServers)
       ? (value as { mcpServers: unknown[] }).mcpServers
       : [],
-    agents: legacy.agents.filter((agent) => agent.id !== "potential").map((agent) => {
+    agents: agents.map((agent) => {
       const mcpId = MCP_IDS.includes(agent.mcpId as (typeof MCP_IDS)[number])
         ? agent.mcpId
         : "none";
@@ -131,5 +144,6 @@ export const DEFAULT_HARNESS_CONFIG: HarnessConfig = {
       mcpId: "ali-internal",
       mcpToolIds: ["zonages_for_location"],
     },
+    { ...NATIVE_HABITAT_AGENT },
   ],
 };
