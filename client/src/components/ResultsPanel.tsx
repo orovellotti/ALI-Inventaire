@@ -801,7 +801,7 @@ ${aliHabitatOutputs.join("\n\n")}
       : "";
 
     return `ALi INVENTAIRE
-PRÉ-VNEI DOCUMENTAIRE À COMPLÉTER PAR DES INVESTIGATIONS DE TERRAIN
+PRÉ-ÉTUDE BIODIVERSITÉ À COMPLÉTER PAR DES INVESTIGATIONS DE TERRAIN
 Version 1 — ${new Date().toLocaleDateString("fr-FR")}
 
 LOCALISATION ET PÉRIMÈTRE
@@ -822,7 +822,7 @@ ${mcpTraceSection}
 - Garde-fou 5 : les espèces exotiques envahissantes relèvent d'un enjeu de gestion et non automatiquement d'un enjeu patrimonial.
 - Limite d'orchestration : aucun MCP, document utilisateur ou référentiel non cité ci-dessus ne doit être présenté comme mobilisé.
 
-DONNÉES MANQUANTES À SIGNALER DANS LA PRÉ-VNEI
+DONNÉES MANQUANTES À SIGNALER DANS LA PRÉ-ÉTUDE BIODIVERSITÉ
 - Emprise parcellaire et emprise exacte des travaux : non documentées si seule l'aire circulaire est fournie.
 - Description détaillée, dimensions et méthodes des travaux : non documentées.
 - Calendrier de chantier et phase d'exploitation : non documentés.
@@ -867,8 +867,8 @@ SOURCES SYNTHÉTIQUES
 GBIF${includeINaturalist ? " • iNaturalist" : ""} • UICN • ALI/TAXREF • IGN Géoplateforme • PatriNat/INPN
 
 STATUT ET LIMITES
-Pré-VNEI documentaire produite par le harnais d'ALi à partir des seules sources indiquées.
-Ce document constitue un état initial bibliographique et une analyse de sensibilités. Il ne remplace ni des inventaires de terrain, ni une VNEI réglementaire, ni la validation d'un écologue.
+Pré-étude biodiversité documentaire produite par le harnais d'ALi à partir des seules sources indiquées.
+Ce document constitue un état initial bibliographique et une analyse de sensibilités. Il ne remplace ni des inventaires de terrain, ni un volet naturel d'étude d'impact réglementaire, ni la validation d'un écologue.
 ${shareUrl ? `\nReproduire cette analyse : ${shareUrl}` : ""}`;
   }, [results, sortedSpecies, activeTaxonFilters, presentGroups, isAllActive, aiAnalysis, toponym, zonages, riskScore, includeINaturalist, harnessConfig]);
 
@@ -951,7 +951,7 @@ ${shareUrl ? `\nReproduire cette analyse : ${shareUrl}` : ""}`;
   </style>
 </head>
 <body>
-  <h1>Pré-VNEI documentaire à compléter par des investigations de terrain</h1>
+  <h1>Pré-étude biodiversité à compléter par des investigations de terrain</h1>
   <div class="status">Document documentaire produit par le harnais d’ALi. Il ne remplace ni les investigations de terrain, ni la validation d’un écologue.</div>
   <pre>${escapeHtml(activeReportText)}</pre>
 </body>
@@ -968,7 +968,7 @@ ${shareUrl ? `\nReproduire cette analyse : ${shareUrl}` : ""}`;
       .replace(/^-+|-+$/g, "")
       .toLowerCase();
     link.href = url;
-    link.download = `pre-vnei-ali-${safePlace || "site"}.doc`;
+    link.download = `pre-etude-biodiversite-ali-${safePlace || "site"}.doc`;
     document.body.appendChild(link);
     link.click();
     link.remove();
@@ -1816,7 +1816,7 @@ ${shareUrl ? `\nReproduire cette analyse : ${shareUrl}` : ""}`;
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <FileText className="h-5 w-5" />
-              Pré-VNEI documentaire
+              Pré-étude biodiversité
             </DialogTitle>
             <DialogDescription>
               Aperçu synthétique. L’étude complète reste disponible au téléchargement et doit être complétée par des investigations de terrain.
@@ -1825,7 +1825,7 @@ ${shareUrl ? `\nReproduire cette analyse : ${shareUrl}` : ""}`;
           {reformattedReport && (
             <div className="mt-3 flex items-center gap-2 text-xs text-teal-700 bg-teal-50 border border-teal-200 px-3 py-1.5 rounded-md">
               <Sparkles className="h-3.5 w-3.5" />
-              <span className="font-medium">Pré-VNEI structurée par le harnais d’ALi</span>
+              <span className="font-medium">Pré-étude biodiversité structurée par le harnais d’ALi</span>
               <button
                 type="button"
                 onClick={() => setReformattedReport(null)}
@@ -1863,7 +1863,7 @@ ${shareUrl ? `\nReproduire cette analyse : ${shareUrl}` : ""}`;
                   data-testid="button-reformat-report"
                 >
                   {reformatting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
-                  {reformatting ? "Génération de la pré-VNEI…" : "Générer la pré-VNEI"}
+                  {reformatting ? "Génération de la pré-étude…" : "Générer la pré-étude complète"}
                 </Button>
               )}
               <Button
