@@ -8,7 +8,7 @@ import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuIte
 import { InventoryResult, Occurrence, getIucnLabel, getIucnFullLabel, getPatrimonialite, ConfidenceScore, TAXON_GROUPS, getTaxonGroupId, isMarineSpecies } from "@/lib/gbif";
 import { findSINPPlatforms, SINPPlatform } from "@/lib/sinp";
 import { exportCSV, exportExcel } from "@/lib/export";
-import { PrioritySpeciesInline } from "./PrioritySpeciesInline";
+import { PrioritySpeciesInline, type Analysis as PrioritySpeciesAnalysis } from "./PrioritySpeciesInline";
 import { AnalysisProgress } from "./AnalysisProgress";
 import html2canvas from "html2canvas";
 import type {
@@ -158,7 +158,9 @@ export function ResultsPanel({ isOpen, isAnalyzing = false, areaCount = 1, onClo
   const [editingConversationId, setEditingConversationId] = useState<string | null>(null);
   const [editingTitle, setEditingTitle] = useState("");
   const [deleteConversationId, setDeleteConversationId] = useState<string | null>(null);
-  const [aiAnalysis, setAiAnalysis] = useState<{ species: { scientificName: string; vernacularName?: string; group: string; level: string; reason: string; sources?: string[]; inInventory?: boolean; evidenceClass?: string; evidenceLabel?: string; score?: number; scoreLabel?: string; isInvasive?: boolean }[]; natura2000?: { type: string; name: string; url: string | null; code?: string | null; species?: { name: string; designating: boolean; grade?: string | null }[]; habitats?: { code: string; description: string; cover: number | null }[] }[]; mcpTrace?: { agentId: string; mcpId: string; toolId: string; status: "success" | "error" | "denied"; startedAt: string; durationMs: number; summary: string; output?: string }[]; generatedAt: string } | null>(null);
+  const [aiAnalysis, setAiAnalysis] = useState<PrioritySpeciesAnalysis | null>(null);
+  const [habitatConsultationState, setHabitatConsultationState] = useState<"idle" | "loading" | "complete" | "error">("idle");
+  const shouldRunHabitatAnalysisRef = useRef(false);
   useEffect(() => {
     if (!historyOpen) return;
     const onKey = (event: KeyboardEvent) => {
@@ -182,6 +184,13 @@ export function ResultsPanel({ isOpen, isAnalyzing = false, areaCount = 1, onClo
     setSpeciesScope("prioritaires");
     setSpeciesQuery("");
   }, [results]);
+
+  useEffect(() => {
+    if (isAnalyzing) {
+      shouldRunHabitatAnalysisRef.current = true;
+      setHabitatConsultationState("loading");
+    }
+  }, [isAnalyzing]);
 
   // Fermeture de l'assistant au clavier (Échap), focus à l'ouverture,
   // piégeage du focus dans le tiroir et restitution au déclencheur à la fermeture.
@@ -340,6 +349,74 @@ export function ResultsPanel({ isOpen, isAnalyzing = false, areaCount = 1, onClo
   const allFilteredSpecies = useMemo(() => {
     return [...sortedSpecies.high, ...sortedSpecies.medium, ...sortedSpecies.low];
   }, [sortedSpecies]);
+
+  useEffect(() => {
+    if (isAnalyzing || !results || !shouldRunHabitatAnalysisRef.current) return;
+    shouldRunHabitatAnalysisRef.current = false;
+
+    const distanceToCenter = (occurrence: Occurrence) =>
+      typeof occurrence.decimalLatitude === "number" && typeof occurrence.decimalLongitude === "number"
+        ? (occurrence.decimalLatitude - results.center[0]) ** 2 +
+          (occurrence.decimalLongitude - results.center[1]) ** 2
+        : Infinity;
+    const nearestBySpecies = new Map<string, Occurrence>();
+    for (const occurrence of results.occurrences) {
+      const previous = nearestBySpecies.get(occurrence.scientificName);
+      if (!previous || distanceToCenter(occurrence) < distanceToCenter(previous)) {
+        nearestBySpecies.set(occurrence.scientificName, occurrence);
+      }
+    }
+    const occurrences = Array.from(nearestBySpecies.values())
+      .slice(0, 5000)
+      .map((occurrence) => ({
+        scientificName: occurrence.scientificName,
+        vernacularName: occurrence.vernacularName,
+        iucnStatus: occurrence.iucnStatus,
+        alertLevel: occurrence.alertLevel,
+        class: occurrence.class,
+        kingdom: occurrence.kingdom,
+        decimalLatitude: occurrence.decimalLatitude,
+        decimalLongitude: occurrence.decimalLongitude,
+        source: occurrence.source,
+        observationCount: occurrence.observationCount,
+        lastObservationYear: occurrence.lastObservationYear,
+      }));
+
+    if (occurrences.length === 0) {
+      setHabitatConsultationState("error");
+      return;
+    }
+
+    const controller = new AbortController();
+    setHabitatConsultationState("loading");
+    fetch("/api/llm/priority-species", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        toponym: toponym || `Point ${results.center[0].toFixed(4)}, ${results.center[1].toFixed(4)}`,
+        coords: results.center,
+        occurrences,
+      }),
+      signal: controller.signal,
+    })
+      .then(async (response) => {
+        if (!response.ok) {
+          const payload = await response.json().catch(() => ({}));
+          throw new Error(payload.error || "Analyse spécialisée indisponible");
+        }
+        return response.json() as Promise<PrioritySpeciesAnalysis>;
+      })
+      .then((analysis) => {
+        setAiAnalysis(analysis);
+        setHabitatConsultationState("complete");
+      })
+      .catch((error: unknown) => {
+        if (error instanceof DOMException && error.name === "AbortError") return;
+        setHabitatConsultationState("error");
+      });
+
+    return () => controller.abort();
+  }, [isAnalyzing, results, toponym]);
 
   const enjeuxBuckets = useMemo(() => {
     // Les EEE sont retirées de tous les buckets de conservation.
@@ -778,7 +855,7 @@ ${zonages.groups.map(g => `${g.label} (${g.count})\n${g.zonages.map(z => `• ${
             ? "interne ALi"
             : agent.mcpId === "ali-species"
               ? "ALI Species / TAXREF Explorer"
-              : "ALI Habitat / CARHAB";
+              : "CARHAB";
           return `- ${agent.name} : ${agent.description || "consigne spécialisée configurée"}${agent.mcpId === "none" ? "" : ` — MCP ${mcpLabel} (${agent.mcpToolIds.length} outil${agent.mcpToolIds.length > 1 ? "s" : ""} approuvé${agent.mcpToolIds.length > 1 ? "s" : ""})`}`;
         }).join("\n")
       : "- Aucun agent configuré n’a été mobilisé.";
@@ -892,16 +969,15 @@ ${shareUrl ? `\nReproduire cette analyse : ${shareUrl}` : ""}`;
   }, [activeReportText]);
   const aliHabitatTraces = aiAnalysis?.mcpTrace?.filter((trace) => trace.mcpId === "ali-habitat") ?? [];
   const aliHabitatSucceeded = aliHabitatTraces.some((trace) => trace.status === "success");
-  const aliHabitatConfigured = harnessConfig?.agents.some(
-    (agent) => agent.enabled && agent.mcpId === "ali-habitat" && agent.mcpToolIds.length > 0,
-  ) ?? false;
   const aliHabitatStatus = aliHabitatSucceeded
     ? `CARHAB consulté avec succès (${aliHabitatTraces.filter((trace) => trace.status === "success").length} outil${aliHabitatTraces.filter((trace) => trace.status === "success").length > 1 ? "s" : ""} mobilisé${aliHabitatTraces.filter((trace) => trace.status === "success").length > 1 ? "s" : ""}).`
     : aliHabitatTraces.length > 0
       ? "CARHAB a été sollicité, mais n’a pas pu fournir de résultat exploitable."
-      : aliHabitatConfigured
-        ? "CARHAB est configuré, mais n’a pas été mobilisé pour cette analyse."
-        : "CARHAB n’était pas activé pour cette analyse.";
+      : habitatConsultationState === "loading"
+        ? "Consultation de CARHAB en cours."
+        : habitatConsultationState === "error"
+          ? "La consultation de CARHAB n’a pas pu être finalisée."
+          : null;
 
   useEffect(() => {
     setReformattedReport(null);
@@ -1247,7 +1323,7 @@ ${shareUrl ? `\nReproduire cette analyse : ${shareUrl}` : ""}`;
                         <li><strong>ALi — coordination</strong><p>Demande comprise, périmètre vérifié et analyse répartie entre les agents spécialisés.</p></li>
                        <li><strong>Agent Occurrences</strong><p>{results.stats.speciesCount} espèces consolidées à partir de {results.stats.total} données retenues.</p></li>
                        <li><strong>Agent Zonages</strong><p>{zonagesLoading ? "Consultation des référentiels en cours." : `${zonages?.count ?? 0} zonage${(zonages?.count ?? 0) > 1 ? "s" : ""} vérifié${(zonages?.count ?? 0) > 1 ? "s" : ""}.`}</p></li>
-                        <li data-testid="analysis-transcript-ali-habitat"><strong>ALI Habitat — CARHAB</strong><p>{aliHabitatStatus}</p></li>
+                        {aliHabitatStatus && <li data-testid="analysis-transcript-ali-habitat"><strong>Agent Habitat — CARHAB</strong><p>{aliHabitatStatus}</p></li>}
                      </ol>
                    </div>
                  )}
@@ -1363,6 +1439,20 @@ ${shareUrl ? `\nReproduire cette analyse : ${shareUrl}` : ""}`;
                       </li>
                     ))}
                   </ul>
+                  <div className="rounded-xl border border-emerald-200 bg-emerald-50/60 p-3" data-testid="method-source-carhab">
+                    <div className="flex items-start gap-2">
+                      <Leaf className="mt-0.5 h-4 w-4 shrink-0 text-emerald-700" aria-hidden="true" />
+                      <div>
+                        <p className="text-xs font-bold text-emerald-900">Agent Habitat — CARHAB</p>
+                        <p className="mt-1 text-xs leading-relaxed text-emerald-900/80">
+                          {aliHabitatStatus ?? "CARHAB est consulté automatiquement lors des nouvelles analyses."}
+                        </p>
+                        <p className="mt-1 text-[11px] leading-relaxed text-emerald-800/75">
+                          Source documentaire sur les habitats autour de l’aire d’étude ; elle ne remplace ni une cartographie d’habitats ni une confirmation sur le terrain.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
                   <Button
                     ref={explainTriggerRef}
                     variant="outline"
@@ -1386,7 +1476,7 @@ ${shareUrl ? `\nReproduire cette analyse : ${shareUrl}` : ""}`;
                   {showCalcDetail && (
                     <div className="space-y-3">
                       <div className="rounded-xl border border-gray-200 bg-white p-4">
-                        <div className="grid grid-cols-4 gap-2 text-center">
+                        <div className="grid grid-cols-2 gap-2 text-center sm:grid-cols-5">
                           <div>
                             <div className="text-xl font-bold text-gray-900" data-testid="text-species-detected">{results.stats.speciesCount}</div>
                             <div className="text-[10px] text-gray-500 leading-tight">taxons</div>
@@ -1404,8 +1494,13 @@ ${shareUrl ? `\nReproduire cette analyse : ${shareUrl}` : ""}`;
                           </div>
                           <div>
                             <div className="text-xl font-bold text-indigo-600">{includeINaturalist ? 2 : 1}</div>
-                            <div className="text-[10px] text-gray-500 leading-tight">source{(includeINaturalist ? 2 : 1) > 1 ? "s" : ""}</div>
+                            <div className="text-[10px] text-gray-500 leading-tight">source{(includeINaturalist ? 2 : 1) > 1 ? "s" : ""} d’observations</div>
                             <div className="text-[9px] text-gray-400 mt-0.5" title="Sources des observations">{includeINaturalist ? "GBIF+iNat" : "GBIF"}</div>
+                          </div>
+                          <div>
+                            <Leaf className="mx-auto h-5 w-5 text-emerald-700" aria-hidden="true" />
+                            <div className="text-[10px] text-gray-500 leading-tight">source habitats</div>
+                            <div className="mt-0.5 text-[9px] text-gray-400">CARHAB</div>
                           </div>
                         </div>
                       </div>
@@ -1801,7 +1896,8 @@ ${shareUrl ? `\nReproduire cette analyse : ${shareUrl}` : ""}`;
                     coords={results.center}
                     occurrences={allFilteredSpecies}
                     onAnalysisChange={setAiAnalysis}
-                    autoStart={assistantOpen}
+                    initialAnalysis={aiAnalysis}
+                    autoStart={assistantOpen && habitatConsultationState !== "loading"}
                   />
                 </div>
               </ScrollArea>

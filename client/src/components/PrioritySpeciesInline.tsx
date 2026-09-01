@@ -7,6 +7,7 @@ interface Props {
   coords: [number, number];
   occurrences: Occurrence[];
   onAnalysisChange?: (a: Analysis | null) => void;
+  initialAnalysis?: Analysis | null;
   /** Lance automatiquement l'analyse à l'affichage (si pas déjà disponible). */
   autoStart?: boolean;
 }
@@ -121,10 +122,20 @@ interface Natura2000Zone {
   habitats?: SiteHabitat[];
 }
 
-interface Analysis {
+export interface Analysis {
   toponym: string;
   species: PrioritySpecies[];
   natura2000?: Natura2000Zone[];
+  mcpTrace?: {
+    agentId: string;
+    mcpId: string;
+    toolId: string;
+    status: "success" | "error" | "denied";
+    startedAt: string;
+    durationMs: number;
+    summary: string;
+    output?: string;
+  }[];
   generatedAt: string;
 }
 
@@ -134,8 +145,8 @@ const LEVEL_STYLE: Record<string, { color: string; icon: typeof AlertTriangle }>
   modéré: { color: "text-amber-700 bg-amber-50 border-amber-200", icon: Info },
 };
 
-export function PrioritySpeciesInline({ toponym, coords, occurrences, onAnalysisChange, autoStart }: Props) {
-  const [analysis, setAnalysis] = useState<Analysis | null>(null);
+export function PrioritySpeciesInline({ toponym, coords, occurrences, onAnalysisChange, initialAnalysis, autoStart }: Props) {
+  const [analysis, setAnalysis] = useState<Analysis | null>(initialAnalysis ?? null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const lastKeyRef = useRef<string>("");
@@ -176,6 +187,10 @@ export function PrioritySpeciesInline({ toponym, coords, occurrences, onAnalysis
       .join("§");
     return `${toponym}|${coords[0].toFixed(5)},${coords[1].toFixed(5)}|${sig}`;
   }, [toponym, coords, slim]);
+
+  useEffect(() => {
+    if (initialAnalysis) setAnalysis(initialAnalysis);
+  }, [initialAnalysis]);
 
   const runAnalysis = (force = false) => {
     if (slim.length === 0) return;

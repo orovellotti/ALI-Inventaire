@@ -35,8 +35,8 @@ const MAX_NATURA_SITES_IN_PROMPT = 12;
 const MAX_SPECIES_PER_SITE_IN_PROMPT = 25;
 const ALI_HABITAT_AGENT: HarnessAgent = {
   id: "habitats",
-  name: "Agent Habitats",
-  description: "Documente les habitats disponibles autour de l’aire d’étude via ALI Habitat / CARHAB.",
+  name: "Agent Habitat",
+  description: "Documente les habitats disponibles autour de l’aire d’étude via CARHAB.",
   prompt: "Distingue les habitats documentés par CARHAB des habitats Natura 2000 et des habitats à confirmer sur le terrain.",
   enabled: true,
   native: false,
