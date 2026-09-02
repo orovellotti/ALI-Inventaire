@@ -1373,8 +1373,8 @@ ${shareUrl ? `\nReproduire cette analyse : ${shareUrl}` : ""}`;
                         <li><strong>ALi — coordination</strong><p>Demande comprise, périmètre vérifié et analyse répartie entre les agents spécialisés.</p></li>
                         {occurrencesAgentActive && <li><strong>Agent Occurrences</strong><p>{results.stats.speciesCount} espèces consolidées à partir de {results.stats.total} données retenues.</p></li>}
                         {zonagesAgentActive && <li><strong>Agent Zonages</strong><p>{zonagesLoading ? "Consultation des référentiels en cours." : `${zonages?.count ?? 0} zonage${(zonages?.count ?? 0) > 1 ? "s" : ""} vérifié${(zonages?.count ?? 0) > 1 ? "s" : ""}.`}</p></li>}
+                         {habitatAgentActive && <li data-testid="analysis-transcript-ali-habitat"><strong>Agent Habitat — CARHAB</strong><p>{aliHabitatStatus ?? "Aucun bilan CARHAB enregistré pour cette analyse."}</p></li>}
                          {taxonomyAgentActive && <li><strong>Agent Taxonomie et statuts — ALI Species</strong><p>{results.aliSpeciesEnrichment ? `${results.aliSpeciesEnrichment.enriched}/${results.aliSpeciesEnrichment.attempted} taxons enrichis via ALI Species.` : "Aucun bilan ALI Species enregistré pour cette analyse."}</p></li>}
-                         {habitatAgentActive && aliHabitatStatus && <li data-testid="analysis-transcript-ali-habitat"><strong>Agent Habitat — CARHAB</strong><p>{aliHabitatStatus}</p></li>}
                      </ol>
                    </div>
                  )}
