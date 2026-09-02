@@ -29,7 +29,6 @@ function buildSteps(
     enabled.has("occurrences") && (includeINaturalist ? "GBIF et iNaturalist" : "GBIF"),
     enabled.has("zonages") && "les référentiels territoriaux",
     enabled.has("habitats") && "CARHAB",
-    enabled.has("taxonomy-status") && "ALI Species",
   ].filter(Boolean).join(", ");
   const steps: Step[] = [
     {
@@ -53,20 +52,20 @@ function buildSteps(
       duration: 3200,
       effort: 2 as Effort,
     }] : []),
+    {
+      label: "Consolidation de l’inventaire naturaliste.",
+      detail: "Je fusionne et déduplique les espèces documentées avant tout enrichissement taxonomique.",
+      duration: 2400,
+      effort: 2,
+    },
     ...(enabled.has("taxonomy-status") ? [{
-      label: "Enrichissement territorial des taxons.",
-      detail: "ALi Species MCP vérifie les listes rouges UICN régionales et les statuts réglementaires de chaque taxon.",
+      label: "Enrichissement final de l’inventaire avec ALI Species.",
+      detail: "Une fois l’inventaire consolidé, ALI Species vérifie les listes rouges UICN régionales et les statuts réglementaires de chaque taxon.",
       duration: 5200,
       effort: 3 as Effort,
     }] : []),
   ];
   steps.push(
-    {
-      label: "Consolidation des résultats disponibles.",
-      detail: "Les observations, zonages et compatibilités écologiques restent présentés séparément.",
-      duration: 2400,
-      effort: 2,
-    },
     {
       label: "Contrôle automatisé de cohérence.",
       detail: "La synthèse précisera ses sources, ses limites et les vérifications à prévoir.",
@@ -190,7 +189,8 @@ export function AnalysisProgress({
   const currentStepLabel = steps[stepIndex].label;
   const observationsSearching = !done && currentStepLabel.includes("sources");
   const habitatsSearching = !done && currentStepLabel.includes("habitats");
-  const taxonEnrichmentActive = !done && currentStepLabel.includes("taxons");
+  const taxonEnrichmentActive = !done && currentStepLabel.includes("ALI Species");
+  const taxonEnrichmentStep = steps.findIndex((step) => step.label.includes("ALI Species"));
   const enabled = new Set(enabledAgentIds);
   const sourceMessages = [
     {
@@ -233,15 +233,18 @@ export function AnalysisProgress({
       icon: Tags,
       tone: "text-[#795f1f]",
       message: taxonEnrichmentActive
-        ? "J’interroge ALI Species pour qualifier les statuts locaux."
-        : stepIndex < 3
-          ? "Je prépare la vérification des statuts territoriaux."
-          : "J’intègre les listes rouges UICN régionales et les protections disponibles.",
+        ? "L’inventaire est consolidé. J’interroge maintenant ALI Species pour qualifier les statuts locaux."
+        : "J’ai intégré les listes rouges UICN régionales et les protections disponibles à l’inventaire.",
       detail: "Source : ALI Species MCP / TAXREF — statut documentaire, non preuve de présence.",
     },
-  ].filter((agent) => enabled.has(
-    agent.id === "taxon-enrichment" ? "taxonomy-status" : agent.id,
-  ));
+  ].filter((agent) => {
+    const agentEnabled = enabled.has(
+      agent.id === "taxon-enrichment" ? "taxonomy-status" : agent.id,
+    );
+    if (!agentEnabled) return false;
+    if (agent.id !== "taxon-enrichment") return true;
+    return done || (taxonEnrichmentStep >= 0 && stepIndex >= taxonEnrichmentStep);
+  });
 
   return (
     <div

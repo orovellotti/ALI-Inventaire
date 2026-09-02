@@ -1364,17 +1364,6 @@ ${shareUrl ? `\nReproduire cette analyse : ${shareUrl}` : ""}`;
                       <p className="text-[#60756d]">{harnessConfig?.agents.filter((agent) => agent.enabled).length ?? 0} agents mobilisés · {results.stats.speciesCount} espèces analysées · {zonages?.count ?? 0} zonages vérifiés</p>
                    </div>
                  </div>
-                  {taxonomyAgentActive && (
-                    <div className="mt-3 flex items-start gap-2 border-l-4 border-[#c5962f] bg-[#fff8df] px-3 py-2 text-sm text-[#4d4328]" data-testid="analysis-final-ali-species">
-                      <Tag className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
-                      <p>
-                        <strong>ALI Species — Taxonomie et statuts :</strong>{" "}
-                        {results.aliSpeciesEnrichment
-                          ? `${results.aliSpeciesEnrichment.enriched}/${results.aliSpeciesEnrichment.attempted} taxons enrichis.`
-                          : "aucun bilan ALI Species n’a été enregistré pour cette analyse."}
-                      </p>
-                    </div>
-                  )}
                  <button type="button" className="mt-2 flex min-h-11 items-center gap-1.5 text-sm font-semibold" onClick={() => setShowAnalysisDetails((value) => !value)} aria-expanded={showAnalysisDetails} aria-controls="analysis-transcript">
                    Voir les détails {showAnalysisDetails ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
                  </button>
