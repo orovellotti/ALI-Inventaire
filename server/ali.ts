@@ -211,7 +211,7 @@ function mapSimpleStatus(raw: RawAliStatus): SpeciesStatus | null {
   }
 }
 
-function normalizeStatuses(raws: RawAliStatus[]): SpeciesStatus[] {
+export function normalizeStatuses(raws: RawAliStatus[]): SpeciesStatus[] {
   const redListByType = new Map<string, RawAliStatus[]>();
   const others: SpeciesStatus[] = [];
   const seenSimple = new Set<string>();

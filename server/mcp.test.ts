@@ -44,10 +44,14 @@ test("migre les associations déclaratives sans perdre les agents personnalisés
     ],
   });
 
-  assert.equal(migrated?.version, 4);
+  assert.equal(migrated?.version, 5);
   assert.equal(migrated?.agents[0].prompt, "Prompt conservé");
   assert.equal(migrated?.agents[0].mcpId, "none");
   assert.equal(migrated?.agents.some((agent) => agent.id === "potential"), false);
+  assert.deepEqual(
+    migrated?.agents.find((agent) => agent.id === "taxonomy-status"),
+    DEFAULT_HARNESS_CONFIG.agents.find((agent) => agent.id === "taxonomy-status"),
+  );
 });
 
 test("refuse un outil qui n'est pas explicitement approuvé pour l'agent", async () => {

@@ -11,9 +11,13 @@ const PLACE_TYPES = new Set([
 
 const ADMIN_TYPES = new Set(["administrative", "boundary"]);
 
-async function nominatimFetch(path: string, params: Record<string, string>) {
+async function nominatimFetch(
+  path: string,
+  params: Record<string, string>,
+  signal?: AbortSignal,
+) {
   const url = `${NOMINATIM_BASE}${path}?${new URLSearchParams(params).toString()}`;
-  const response = await fetch(url, { headers: { "User-Agent": USER_AGENT } });
+  const response = await fetch(url, { headers: { "User-Agent": USER_AGENT }, signal });
   if (!response.ok) throw badGateway("Erreur du service de géocodage");
   return response.json();
 }
@@ -62,14 +66,18 @@ function extractCommune(addr: any): string {
   return addr.village || addr.town || addr.municipality || addr.city || addr.hamlet || "";
 }
 
-export async function reverseGeocode(lat: number, lng: number): Promise<ReverseGeocodeResult> {
+export async function reverseGeocode(
+  lat: number,
+  lng: number,
+  signal?: AbortSignal,
+): Promise<ReverseGeocodeResult> {
   const data = await nominatimFetch("/reverse", {
     lat: String(lat),
     lon: String(lng),
     format: "json",
     zoom: "14",
     addressdetails: "1",
-  });
+  }, signal);
   if (!data || data.error) throw notFound("Aucun toponyme trouvé");
 
   const addr = data.address ?? {};

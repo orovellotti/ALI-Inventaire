@@ -47,7 +47,7 @@ export const harnessAgentSchema = z.object({
   mcpToolIds: z.array(z.string().trim().min(1).max(80)).max(20).default([]),
 }).strict();
 
-const NATIVE_AGENT_IDS = ["occurrences", "zonages", "habitats"] as const;
+const NATIVE_AGENT_IDS = ["occurrences", "zonages", "habitats", "taxonomy-status"] as const;
 
 const NATIVE_HABITAT_AGENT = {
   id: "habitats",
@@ -60,8 +60,19 @@ const NATIVE_HABITAT_AGENT = {
   mcpToolIds: ["get_habitats"],
 };
 
+const NATIVE_TAXONOMY_STATUS_AGENT = {
+  id: "taxonomy-status",
+  name: "Agent Taxonomie et statuts",
+  description: "Vérifie l’identité TAXREF et enrichit les taxons avec leurs statuts territoriaux via ALI Species.",
+  prompt: "Utilise les statuts documentaires du territoire étudié sans les présenter comme une preuve de présence. En cas d’incertitude territoriale ou d’indisponibilité, conserve un enjeu local à confirmer.",
+  enabled: true,
+  native: true,
+  mcpId: "ali-species",
+  mcpToolIds: ["get_statuts"],
+};
+
 export const harnessConfigSchema = z.object({
-  version: z.literal(4),
+  version: z.literal(5),
   agents: z.array(harnessAgentSchema).min(1).max(20).refine(
     (agents) => new Set(agents.map((agent) => agent.id)).size === agents.length,
     "Chaque agent doit avoir un identifiant unique",
@@ -96,11 +107,12 @@ export function migrateHarnessConfig(value: unknown): HarnessConfig | undefined 
   if (current.success) return current.data;
   if (!value || typeof value !== "object" || !Array.isArray((value as { agents?: unknown }).agents)) return undefined;
   const legacy = value as { version?: unknown; agents: Array<Record<string, unknown>> };
-  if (legacy.version !== 1 && legacy.version !== 2 && legacy.version !== 3 && legacy.version !== 4) return undefined;
+  if (legacy.version !== 1 && legacy.version !== 2 && legacy.version !== 3 && legacy.version !== 4 && legacy.version !== 5) return undefined;
   const agents = legacy.agents.filter((agent) => agent.id !== "potential");
   if (!agents.some((agent) => agent.id === "habitats")) agents.push({ ...NATIVE_HABITAT_AGENT });
+  if (!agents.some((agent) => agent.id === "taxonomy-status")) agents.push({ ...NATIVE_TAXONOMY_STATUS_AGENT });
   const migrated = harnessConfigSchema.safeParse({
-    version: 4,
+    version: 5,
     mcpServers: Array.isArray((value as { mcpServers?: unknown }).mcpServers)
       ? (value as { mcpServers: unknown[] }).mcpServers
       : [],
@@ -112,7 +124,11 @@ export function migrateHarnessConfig(value: unknown): HarnessConfig | undefined 
         ...agent,
         mcpId,
         mcpToolIds: legacy.version === 1
-          ? (mcpId === "ali-internal" ? (DEFAULT_TOOLS_BY_AGENT[String(agent.id)] ?? []) : [])
+          ? (
+              mcpId === "ali-internal"
+                ? (DEFAULT_TOOLS_BY_AGENT[String(agent.id)] ?? [])
+                : (Array.isArray(agent.mcpToolIds) ? agent.mcpToolIds : [])
+            )
           : (Array.isArray(agent.mcpToolIds) ? agent.mcpToolIds : []),
       };
     }),
@@ -121,7 +137,7 @@ export function migrateHarnessConfig(value: unknown): HarnessConfig | undefined 
 }
 
 export const DEFAULT_HARNESS_CONFIG: HarnessConfig = {
-  version: 4,
+  version: 5,
   mcpServers: [],
   agents: [
     {
@@ -145,5 +161,6 @@ export const DEFAULT_HARNESS_CONFIG: HarnessConfig = {
       mcpToolIds: ["zonages_for_location"],
     },
     { ...NATIVE_HABITAT_AGENT },
+    { ...NATIVE_TAXONOMY_STATUS_AGENT },
   ],
 };

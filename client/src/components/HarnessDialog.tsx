@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Bot, Link2, LockKeyhole, Plus, RotateCcw, Save, Trash2 } from "lucide-react";
+import { Activity, Bot, Link2, LockKeyhole, Plus, RefreshCw, RotateCcw, Save, Trash2 } from "lucide-react";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -24,6 +24,8 @@ export function HarnessDialog({
   const [message, setMessage] = useState<string | null>(null);
   const [mcpRegistry, setMcpRegistry] = useState<McpRegistryEntry[]>([]);
   const [testingMcpId, setTestingMcpId] = useState<string | null>(null);
+  const [pinging, setPinging] = useState(false);
+  const [lastPingAt, setLastPingAt] = useState<Date | null>(null);
   const [access, setAccess] = useState<{ signedIn: boolean; canManage: boolean } | null>(null);
 
   useEffect(() => setDraft(config), [config, open]);
@@ -52,6 +54,7 @@ export function HarnessDialog({
         ]);
         setDraft(adminConfig);
         setMcpRegistry(registry);
+        setLastPingAt(new Date());
       })
       .catch((error) => {
         setAccess({ signedIn: false, canManage: false });
@@ -59,7 +62,40 @@ export function HarnessDialog({
       });
   }, [open]);
 
+  useEffect(() => {
+    if (!open || !access?.canManage) return;
+    const interval = window.setInterval(() => {
+      fetch("/api/harness/mcp-registry")
+        .then(async (response) => {
+          const data = await response.json();
+          if (!response.ok) throw new Error(data.error || "Ping MCP impossible");
+          setMcpRegistry(data);
+          setLastPingAt(new Date());
+        })
+        .catch(() => undefined);
+    }, 30_000);
+    return () => window.clearInterval(interval);
+  }, [open, access?.canManage]);
+
   const readOnly = !access?.canManage;
+
+  const pingMcpServers = async () => {
+    if (pinging) return;
+    setPinging(true);
+    setMessage(null);
+    try {
+      const response = await fetch("/api/harness/mcp-registry");
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || "Ping MCP impossible");
+      setMcpRegistry(data);
+      setLastPingAt(new Date());
+      setMessage("Ping MCP terminé.");
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Ping MCP impossible");
+    } finally {
+      setPinging(false);
+    }
+  };
 
   const updateAgent = (id: string, patch: Partial<HarnessAgent>) =>
     setDraft((current) => ({
@@ -198,15 +234,44 @@ export function HarnessDialog({
           </div>
         </div>
         <p className="rounded-xl border border-[#dfe3da] bg-[#f3f6ef] p-3 text-xs leading-5 text-[#557067]">
-          Le prompt Occurrences complète l’analyse IA. Le prompt Zonages documente la méthode et le rapport ; il ne modifie pas les calculs scientifiques déterministes.
+          Les agents pilotent les consultations autorisées. L’Agent Taxonomie et statuts utilise ALI Species pour documenter les statuts territoriaux sans confirmer la présence sur le terrain.
         </p>
         {!readOnly && <section className="space-y-3 rounded-2xl border border-[#dfe3da] bg-[#f3f6ef] p-4">
           <div className="flex items-center justify-between gap-3">
             <div>
               <h3 className="font-semibold text-[#17483d]">Serveurs MCP</h3>
-              <p className="text-xs text-[#6b7d76]">Ajoutez une URL HTTPS, testez-la puis autorisez ses outils agent par agent.</p>
+              <p className="text-xs text-[#6b7d76]">
+                État actualisé toutes les 30 secondes
+                {lastPingAt ? ` · dernier ping à ${lastPingAt.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit", second: "2-digit" })}` : ""}.
+              </p>
             </div>
-            <Button variant="outline" size="sm" onClick={addMcpServer} disabled={draft.mcpServers.length >= 10} className="gap-1"><Plus className="h-3.5 w-3.5" />Ajouter</Button>
+            <div className="flex gap-2">
+              <Button variant="outline" size="sm" onClick={() => void pingMcpServers()} disabled={pinging} className="gap-1">
+                <RefreshCw className={`h-3.5 w-3.5 ${pinging ? "animate-spin" : ""}`} />
+                {pinging ? "Ping…" : "Ping"}
+              </Button>
+              <Button variant="outline" size="sm" onClick={addMcpServer} disabled={draft.mcpServers.length >= 10} className="gap-1"><Plus className="h-3.5 w-3.5" />Ajouter</Button>
+            </div>
+          </div>
+          <div className="grid gap-2 sm:grid-cols-2">
+            {mcpRegistry.map((mcp) => (
+              <div key={mcp.id} className="flex items-center justify-between gap-3 rounded-xl border border-[#dfe3da] bg-white px-3 py-2">
+                <span className="flex min-w-0 items-center gap-2 text-sm font-medium text-[#315b4e]">
+                  <Activity className="h-4 w-4 shrink-0" />
+                  <span className="truncate">{mcp.label}</span>
+                </span>
+                <span
+                  className={`rounded-full px-2 py-0.5 text-[11px] font-bold tracking-wide ${
+                    mcp.connected
+                      ? "bg-emerald-100 text-emerald-800"
+                      : "bg-red-100 text-red-800"
+                  }`}
+                  title={mcp.connected ? `${mcp.tools.length} outil(s) disponible(s)` : mcp.error}
+                >
+                  {mcp.connected ? "UP" : "DOWN"}
+                </span>
+              </div>
+            ))}
           </div>
           {draft.mcpServers.map((server) => {
             const status = mcpRegistry.find((entry) => entry.id === server.id);
@@ -236,6 +301,16 @@ export function HarnessDialog({
                 {!readOnly && <div><Label>Prompt de l’agent</Label><Textarea value={agent.prompt} maxLength={8000} rows={5} onChange={(event) => updateAgent(agent.id, { prompt: event.target.value })} /></div>}
                 {!readOnly && <div>
                   <Label>MCP approuvé</Label>
+                   {agent.mcpId !== "none" && (() => {
+                     const status = mcpRegistry.find((mcp) => mcp.id === agent.mcpId);
+                     return status ? (
+                       <span className={`ml-2 rounded-full px-2 py-0.5 text-[10px] font-bold ${
+                         status.connected ? "bg-emerald-100 text-emerald-800" : "bg-red-100 text-red-800"
+                       }`}>
+                         {status.connected ? "UP" : "DOWN"}
+                       </span>
+                     ) : null;
+                   })()}
                   <select value={agent.mcpId} onChange={(event) => updateAgent(agent.id, { mcpId: event.target.value as HarnessAgent["mcpId"], mcpToolIds: [] })} className="mt-1 h-10 w-full rounded-md border border-input bg-background px-3 text-sm">
                     <option value="none">Aucun MCP</option>
                     {mcpRegistry.filter((mcp) => mcp.connected).map((mcp) => <option key={mcp.id} value={mcp.id}>{mcp.label} — connecté</option>)}

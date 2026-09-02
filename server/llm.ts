@@ -716,6 +716,7 @@ export async function analyzePrioritySpecies(
             lng: coords[1],
             radius: EVIDENCE_LOCAL_RADIUS_M,
             scientificName: picked[0]?.scientificName,
+            cdNom: picked[0]?.cdNom,
           },
           () => getMcpServerRegistry(harnessConfig.mcpServers),
         ),

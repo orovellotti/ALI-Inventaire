@@ -23,7 +23,7 @@ const APPROVED_INTERNAL_TOOL_IDS = new Set([
   "list_reference_data",
 ]);
 const ALI_SPECIES_MCP_URL = "https://taxref-explorer.replit.app/api/mcp";
-const APPROVED_ALI_SPECIES_TOOL_IDS = new Set(["search_taxons"]);
+const APPROVED_ALI_SPECIES_TOOL_IDS = new Set(["search_taxons", "get_statuts"]);
 const ALI_HABITAT_MCP_URL = "https://ali-habitat.replit.app/mcp";
 const APPROVED_ALI_HABITAT_TOOL_IDS = new Set(["get_habitats", "list_project_types"]);
 const MCP_CONNECT_TIMEOUT_MS = 2000;
@@ -370,7 +370,7 @@ export async function getMcpServerRegistry(customServers: CustomMcpServer[] = []
 export async function executeApprovedMcpTool(
   agent: HarnessAgent,
   toolId: string,
-  input: { lat: number; lng: number; radius?: number; scientificName?: string },
+  input: { lat: number; lng: number; radius?: number; scientificName?: string; cdNom?: number; region?: string },
   registryProvider: () => Promise<McpRegistryEntry[]> = getMcpServerRegistry,
 ): Promise<McpExecutionTrace> {
   const started = Date.now();
@@ -453,6 +453,10 @@ export async function executeApprovedMcpTool(
         case "search_taxons":
           if (!input.scientificName) throw new Error("Aucun taxon disponible pour interroger ALI Species");
           args = { query: input.scientificName, limit: 5 };
+          break;
+        case "get_statuts":
+          if (!Number.isInteger(input.cdNom)) throw new Error("Aucun identifiant TAXREF disponible pour interroger les statuts");
+          args = { cdNom: input.cdNom, ...(input.region ? { region: input.region } : {}) };
           break;
         case "get_habitats":
           args = {

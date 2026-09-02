@@ -677,7 +677,13 @@ export default function Home() {
       <header className="ali-global-header absolute inset-x-0 top-0 z-[2500] flex h-[76px] items-center border-b border-[#dfe3d8] bg-[#faf9f3]/95 px-4 backdrop-blur-md sm:px-6">
         <button type="button" onClick={() => { if (results || isAnalyzing) setPendingLocationChange({ kind: "reset" }); else { setIsPanelOpen(true); resetForNewLocation(); } }} className="flex items-center gap-3 text-left" aria-label="Commencer une nouvelle analyse" data-testid="global-brand">
           <span className="flex h-10 w-10 items-center justify-center rounded-[12px] bg-[#1e594a] text-[#dcc05b]"><Leaf className="h-5 w-5" /></span>
-          <span className="leading-none"><strong className="block font-serif text-[22px] font-semibold tracking-[-.05em] text-[#17483d]">ALi</strong><small className="mt-1 block text-[9px] font-semibold uppercase tracking-[.19em] text-[#6b8076]">France · Pré-étude</small></span>
+          <span className="leading-none">
+            <span className="flex items-center gap-2">
+              <strong className="block font-serif text-[22px] font-semibold tracking-[-.05em] text-[#17483d]">ALi</strong>
+              <span className="rounded-full border border-[#b9c9bb] bg-[#edf2e9] px-1.5 py-0.5 text-[8px] font-bold uppercase tracking-[.12em] text-[#426158]">Bêta</span>
+            </span>
+            <small className="mt-1 block text-[9px] font-semibold uppercase tracking-[.19em] text-[#6b8076]">France · Pré-étude</small>
+          </span>
         </button>
         <div className="absolute left-1/2 hidden -translate-x-1/2 items-center gap-2 md:flex">
           <span className="h-2 w-2 rounded-full bg-[#c4a642]" aria-hidden="true" /><span className="text-sm font-semibold text-[#315b4e]">Projet Lunaret</span><span className="text-xs text-[#7b8c83]">Pré-étude biodiversité · {currentToponym.split(",")[0]}</span>
@@ -837,6 +843,7 @@ export default function Home() {
             <Leaf className="h-4 w-4 text-[#dcc05b]" />
           </div>
           <span className="font-serif text-lg font-semibold tracking-[-0.04em] text-[#17483d]">ALi</span>
+          <span className="rounded-full border border-[#b9c9bb] bg-[#edf2e9] px-1.5 py-0.5 text-[8px] font-bold uppercase tracking-[.12em] text-[#426158]">Bêta</span>
           <span className="hidden text-[9px] font-semibold uppercase tracking-[.18em] text-[#668075] sm:inline">France · Pré-étude</span>
         </button>
 

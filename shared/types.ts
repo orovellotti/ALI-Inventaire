@@ -117,6 +117,17 @@ export interface InventoryResult {
   radius: number;
   circles: BufferCircle[];
   confidence: ConfidenceScore;
+  /** Traçabilité de la phase d'enrichissement territorial ALI Species. */
+  aliSpeciesEnrichment?: {
+    source: "ALI Species MCP";
+    region?: string;
+    territorialScope: "single" | "multiple" | "unknown";
+    attempted: number;
+    enriched: number;
+    failed: number;
+    skipped: number;
+    partial: boolean;
+  };
 }
 
 export interface InventoryRequest {

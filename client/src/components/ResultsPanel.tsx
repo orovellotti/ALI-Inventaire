@@ -339,10 +339,16 @@ export function ResultsPanel({ isOpen, isAnalyzing = false, areaCount = 1, onClo
       return a.scientificName.localeCompare(b.scientificName);
     };
 
+    const bucketFor = (occurrence: Occurrence): "high" | "medium" | "low" => {
+      if (occurrence.enjeuLevel === "critique" || occurrence.enjeuLevel === "fort") return "high";
+      if (occurrence.enjeuLevel === "modere" || occurrence.enjeuLevel === "a_confirmer") return "medium";
+      if (occurrence.enjeuLevel === "faible") return "low";
+      return occurrence.alertLevel;
+    };
     return {
-      high: unique.filter(o => o.alertLevel === "high").sort(sortByEnjeu),
-      medium: unique.filter(o => o.alertLevel === "medium").sort(sortByEnjeu),
-      low: unique.filter(o => o.alertLevel === "low").sort(sortByEnjeu),
+      high: unique.filter((occurrence) => bucketFor(occurrence) === "high").sort(sortByEnjeu),
+      medium: unique.filter((occurrence) => bucketFor(occurrence) === "medium").sort(sortByEnjeu),
+      low: unique.filter((occurrence) => bucketFor(occurrence) === "low").sort(sortByEnjeu),
     };
   }, [results, activeTaxonFilters, excludeMarine]);
 
@@ -892,6 +898,7 @@ HARNAIS D'ALi — ORCHESTRATION RÉELLEMENT MOBILISÉE
 ${configuredAgents}
 ${mcpTraceSection}
 - Sources effectivement mobilisées par cette analyse : GBIF${includeINaturalist ? ", iNaturalist" : ""}, UICN, ALI/TAXREF, IGN Géoplateforme, PatriNat et INPN${aiAnalysis?.natura2000?.length ? ", données Natura 2000 et formulaires standards disponibles" : ""}.
+${results.aliSpeciesEnrichment ? `- Enrichissement territorial ALI Species MCP : ${results.aliSpeciesEnrichment.enriched}/${results.aliSpeciesEnrichment.attempted} taxons enrichis${results.aliSpeciesEnrichment.region ? ` pour ${results.aliSpeciesEnrichment.region}` : results.aliSpeciesEnrichment.territorialScope === "multiple" ? " — plusieurs régions concernées, aucune liste rouge régionale unique attribuée" : " — territoire régional non résolu"}${results.aliSpeciesEnrichment.partial ? " — résultat partiel, les taxons non enrichis restent signalés sans extrapolation." : "."}` : ""}
 - Garde-fou 1 : une donnée connue dans l'aire bibliographique n'est pas une présence confirmée dans l'emprise.
 - Garde-fou 2 : une présence potentielle issue d'une compatibilité écologique doit être vérifiée sur le terrain.
 - Garde-fou 3 : seule une prospection adaptée peut confirmer une présence sur le terrain.
@@ -1439,6 +1446,28 @@ ${shareUrl ? `\nReproduire cette analyse : ${shareUrl}` : ""}`;
                       </li>
                     ))}
                   </ul>
+                   {results.aliSpeciesEnrichment && (
+                     <div className="rounded-xl border border-teal-200 bg-teal-50/60 p-3" data-testid="method-source-ali-species">
+                       <div className="flex items-start gap-2">
+                         <Database className="mt-0.5 h-4 w-4 shrink-0 text-teal-700" aria-hidden="true" />
+                         <div>
+                           <p className="text-xs font-bold text-teal-900">Enrichissement taxonomique — ALI Species MCP</p>
+                           <p className="mt-1 text-xs leading-relaxed text-teal-900/80">
+                             {results.aliSpeciesEnrichment.enriched} taxon{results.aliSpeciesEnrichment.enriched > 1 ? "s" : ""} enrichi{results.aliSpeciesEnrichment.enriched > 1 ? "s" : ""} sur {results.aliSpeciesEnrichment.attempted}
+                             {results.aliSpeciesEnrichment.region ? ` pour ${results.aliSpeciesEnrichment.region}` : ""}.
+                           </p>
+                           <p className="mt-1 text-[11px] leading-relaxed text-teal-800/75">
+                             {results.aliSpeciesEnrichment.territorialScope === "single"
+                               ? "Les listes rouges UICN régionales du territoire étudié priment sur les statuts nationaux. "
+                               : results.aliSpeciesEnrichment.territorialScope === "multiple"
+                                 ? "Plusieurs régions sont concernées : aucune liste rouge régionale unique n’est attribuée aux taxons. "
+                                 : "Le territoire régional n’a pas pu être résolu : seuls les statuts non régionaux sont retenus. "}
+                             {results.aliSpeciesEnrichment.partial ? "La consultation est partielle : aucun statut absent n’est extrapolé." : "La consultation MCP est complète pour les taxons éligibles."}
+                           </p>
+                         </div>
+                       </div>
+                     </div>
+                   )}
                   <div className="rounded-xl border border-emerald-200 bg-emerald-50/60 p-3" data-testid="method-source-carhab">
                     <div className="flex items-start gap-2">
                       <Leaf className="mt-0.5 h-4 w-4 shrink-0 text-emerald-700" aria-hidden="true" />

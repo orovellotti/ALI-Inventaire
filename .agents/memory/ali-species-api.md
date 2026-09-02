@@ -41,12 +41,19 @@ priority species ("espèces à enjeux") with regulatory statuses.
 (null hit / empty array) poisons the cache for the whole TTL and produces intermittent missing
 enrichment. Let errors propagate, limit concurrency (~3), and retry once.
 
-**Patrimonialité score (the real ALI one):** ALI computes it purely from the `/statuts` rows, no
-extra call. Formula (reverse-engineered from their JS bundle): `score = round(100 * (0.5*ecologique
-+ 0.3*reglementaire + 0.2*territorial))`. ecologique = worst red-list severity normalized; reglementaire
-= protection/directives presence; territorial = ZNIEFF déterminante / PNA presence. Levels:
-`>=75 majeure, >=50 forte, >=25 modérée, else faible`. Replicated in `computePatrimonialite()` in
-server/ali.ts. Only feasible for priority species (needs statuts), NOT the full occurrence list.
+**Patrimonialité score (the real ALI one):** ALI computes it purely from the status rows. Formula:
+`round(100 * (0.5*ecologique + 0.3*reglementaire + 0.2*territorial))`. Inventory enrichment can use
+the MCP `get_statuts` tool directly when cdNom is already known, under a short global budget.
+
+**Territorial rule:** The MCP returns historical LRR rows for many regions plus a resolved regional
+driver for the requested territory. Use only that driver for regional scoring. If multiple regions are
+covered, the territory cannot be resolved, or MCP fails, do not assign one region's LRR to the taxon.
+
+**Why:** Selecting the worst LRR row across France creates false local issues. A timeout must also
+remain an unknown territorial status, never become evidence for a strong local issue.
+
+**How to apply:** Resolve all distinct study-area centers. Apply a regional driver only for one
+unambiguous region; otherwise retain non-regional statuses and mark local interpretation as unresolved.
 
 **Latency trap:** the `/api/taxons/search` endpoint (AI-powered, resolves name→cdNom) is the slow one
 — sequentially it takes ~1-13s per call, while `/statuts` stays fast (~180ms) once cdNom is known.

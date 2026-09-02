@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Bot, Check, ChevronDown, ChevronUp, Database, Layers3, Leaf } from "lucide-react";
+import { Bot, Check, ChevronDown, ChevronUp, Database, Layers3, Leaf, Tags } from "lucide-react";
 
 type Effort = 1 | 2 | 3;
 
@@ -43,6 +43,12 @@ function buildSteps(includeINaturalist: boolean, areaCount: number): Step[] {
       detail: "L’Agent Habitat consulte CARHAB, sans confirmer une présence sur le terrain.",
       duration: 3200,
       effort: 2,
+    },
+    {
+      label: "Enrichissement territorial des taxons.",
+      detail: "ALi Species MCP vérifie les listes rouges UICN régionales et les statuts réglementaires de chaque taxon.",
+      duration: 5200,
+      effort: 3,
     },
   ];
   steps.push(
@@ -172,6 +178,7 @@ export function AnalysisProgress({
   const pulseSpeed = EFFORT_SPEED[currentEffort];
   const observationsSearching = !done && stepIndex < 2;
   const habitatsSearching = !done && stepIndex < 3;
+  const taxonEnrichmentActive = !done && stepIndex === 3;
   const sourceMessages = [
     {
       id: "occurrences" as const,
@@ -206,6 +213,18 @@ export function AnalysisProgress({
         ? "Je consulte les habitats documentés autour de l’aire d’étude."
         : "J’intègre les informations d’habitats disponibles à la synthèse.",
       detail: "Source : CARHAB — donnée documentaire à vérifier sur le terrain.",
+    },
+    {
+      id: "taxon-enrichment" as const,
+      name: "Agent Taxonomie et statuts",
+      icon: Tags,
+      tone: "text-[#795f1f]",
+      message: taxonEnrichmentActive
+        ? "J’interroge ALI Species pour qualifier les statuts locaux."
+        : stepIndex < 3
+          ? "Je prépare la vérification des statuts territoriaux."
+          : "J’intègre les listes rouges UICN régionales et les protections disponibles.",
+      detail: "Source : ALI Species MCP / TAXREF — statut documentaire, non preuve de présence.",
     },
   ];
 
@@ -262,8 +281,8 @@ export function AnalysisProgress({
               </p>
               <p className="mt-0.5 text-[#60756d]">
                 {done
-                  ? `7 agents mobilisés · ${zonageFeatureCount} zonage${zonageFeatureCount > 1 ? "s" : ""} vérifié${zonageFeatureCount > 1 ? "s" : ""}`
-                  : `${Math.min(6, Math.max(1, Math.floor(progress / 15) + 1))} étapes sur 7 terminées`}
+                  ? `${steps.length} phases terminées · ${zonageFeatureCount} zonage${zonageFeatureCount > 1 ? "s" : ""} vérifié${zonageFeatureCount > 1 ? "s" : ""}`
+                  : `${Math.min(steps.length - 1, Math.max(0, stepIndex))} étapes sur ${steps.length} terminées`}
               </p>
             </div>
             {!done && <span className="tabular-nums text-[#60756d]">{progress}%</span>}
@@ -299,8 +318,8 @@ export function AnalysisProgress({
               {sourceMessages.map((agent) => {
                 const Icon = agent.icon;
                 return (
-                  <li key={agent.id} className="flex gap-2">
-                    <Icon className="mt-0.5 h-4 w-4 shrink-0 text-[#315b4e]" />
+                  <li key={agent.id} className="flex gap-2" data-testid={`process-${agent.id}`}>
+                    <Icon className={`mt-0.5 h-4 w-4 shrink-0 ${agent.tone}`} />
                     <div><strong>{agent.name}</strong><p>{agent.message} {agent.detail}</p></div>
                   </li>
                 );

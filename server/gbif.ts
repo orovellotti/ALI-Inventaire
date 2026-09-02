@@ -3,10 +3,9 @@ import { searchINaturalist } from "./inaturalist";
 import { fetchTaxRefCdNom } from "./taxref";
 import { applyFrenchPriorityBoost, isFrenchPriority } from "./frenchPriority";
 import { isInvasiveExotic } from "./invasive";
-import { fetchAliStatusesForInventory } from "./ali";
-import { computeEnjeuLevel, checkConsistency } from "./scoring";
 import { calculateConfidenceScore, emptyConfidence } from "./confidence";
 import { haversineDistance } from "./lib/geo";
+import { enrichInventoryWithAliSpeciesMcp } from "./services/aliSpeciesMcp";
 import {
   searchOccurrences,
   fetchSpeciesMedia,
@@ -30,6 +29,7 @@ const ALERT_PRIORITY: Record<AlertLevel, number> = { high: 3, medium: 2, low: 1 
 
 interface SearchOptions {
   includeINaturalist?: boolean;
+  skipAliSpeciesMcp?: boolean;
 }
 
 type InatResult = Awaited<ReturnType<typeof searchINaturalist>>;
@@ -139,45 +139,6 @@ async function enrichSpecies(record: any): Promise<Occurrence> {
   const taxonRank: string | undefined = record.taxonRank;
   const habitatType = deriveHabitatType(record.phylum, record.class);
 
-  // Enrichissement territorial ALI pour les espèces potentiellement sensibles.
-  // Déclenché uniquement si alertLevel=high (espèce mondialement menacée) ou
-  // frenchProtected (groupe protégé en France). Les EEE sont explicitement
-  // exclues (isInvasive=true) : leur patrimonialité est nulle quel que soit leur
-  // statut UICN. Timeout court (4 s) — pas de blocage si ALI est lent ;
-  // le cache 24 h évite les requêtes redondantes sur les espèces déjà enrichies.
-  let aliStatuses: Occurrence["aliStatuses"] | undefined;
-  let enjeuLevel: Occurrence["enjeuLevel"] | undefined;
-  let enjeuWarnings: string[] | undefined;
-
-  const isSensitiveCandidate =
-    !isInvasive && (alertLevel === "high" || frenchProtected);
-
-  if (isSensitiveCandidate) {
-    const scientificNameBinomial = (record.scientificName ?? "")
-      .split(" ")
-      .slice(0, 2)
-      .join(" ");
-    aliStatuses =
-      (await fetchAliStatusesForInventory(scientificNameBinomial)) ?? undefined;
-
-    const { enjeuLevel: el, enjeuWarnings: ew } = computeEnjeuLevel({
-      globalIucn: iucnStatus,
-      frenchProtected,
-      isInvasive,
-      aliStatuses,
-    });
-    enjeuLevel = el;
-
-    const extraWarnings = checkConsistency({
-      enjeuLevel: el,
-      globalIucn: iucnStatus,
-      aliStatuses,
-      frenchProtected,
-    });
-    enjeuWarnings = [...ew, ...extraWarnings].filter(Boolean);
-    if (enjeuWarnings.length === 0) enjeuWarnings = undefined;
-  }
-
   return {
     key: record.key,
     scientificName: record.scientificName || "Inconnu",
@@ -200,9 +161,6 @@ async function enrichSpecies(record: any): Promise<Occurrence> {
     isInvasive,
     taxonRank,
     habitatType,
-    aliStatuses,
-    enjeuLevel,
-    enjeuWarnings,
   };
 }
 
@@ -383,7 +341,8 @@ export async function searchGBIF(
   const rawRecords = await searchOccurrences({ lat, lng, radiusMeters });
 
   if (rawRecords.length === 0) {
-    return buildEmptyResult(await inatPromise, lat, lng, radiusMeters);
+    const empty = buildEmptyResult(await inatPromise, lat, lng, radiusMeters);
+    return options.skipAliSpeciesMcp ? empty : enrichInventoryWithAliSpeciesMcp(empty);
   }
 
   const confidence = calculateConfidenceScore(rawRecords);
@@ -416,7 +375,7 @@ export async function searchGBIF(
 
   const { consolidated, rawNameCount, duplicatesRemoved } = consolidateByCdRef(merged);
 
-  return {
+  const result: InventoryResult = {
     occurrences: consolidated,
     stats: {
       total: consolidated.length,
@@ -430,6 +389,7 @@ export async function searchGBIF(
     circles: [{ id: "main", center: [lat, lng], radius: radiusMeters, label: "Zone", enabled: true }],
     confidence,
   };
+  return options.skipAliSpeciesMcp ? result : enrichInventoryWithAliSpeciesMcp(result);
 }
 
 function averageConfidences(scores: ConfidenceScore[], areaCount: number): ConfidenceScore {
@@ -475,20 +435,26 @@ export async function searchGBIFMultiCircle(
 
   if (enabledCircles.length === 1) {
     const c = enabledCircles[0];
-    const result = await searchGBIF(c.center[0], c.center[1], c.radius, options);
+    const result = await searchGBIF(c.center[0], c.center[1], c.radius, {
+      ...options,
+      skipAliSpeciesMcp: true,
+    });
     result.circles = circles;
-    return result;
+    return enrichInventoryWithAliSpeciesMcp(result);
   }
 
   const results = await Promise.all(
-    enabledCircles.map((c) => searchGBIF(c.center[0], c.center[1], c.radius, options)),
+    enabledCircles.map((c) => searchGBIF(c.center[0], c.center[1], c.radius, {
+      ...options,
+      skipAliSpeciesMcp: true,
+    })),
   );
 
   const merged = mergeMultiCircleOccurrences(results);
   const referenceCircle = enabledCircles.find((c) => c.id === "immediate") ?? enabledCircles[0];
   const { consolidated, rawNameCount, duplicatesRemoved } = consolidateByCdRef(merged);
 
-  return {
+  const result: InventoryResult = {
     occurrences: consolidated,
     stats: {
       total: consolidated.length,
@@ -502,6 +468,7 @@ export async function searchGBIFMultiCircle(
     circles,
     confidence: averageConfidences(results.map((r) => r.confidence), enabledCircles.length),
   };
+  return enrichInventoryWithAliSpeciesMcp(result);
 }
 
 export async function fetchSpeciesDetails(taxonKey: number) {
