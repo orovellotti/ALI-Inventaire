@@ -16,6 +16,7 @@ import { analyzePrioritySpecies } from "./llm";
 import { getZonages } from "./services/geoservices";
 import type { BufferCircle, Occurrence, InventoryResult } from "@shared/types";
 import type { CustomMcpServer, HarnessAgent, McpRegistryEntry } from "@shared/harness";
+import { getRuntimeHarnessConfig, isAgentEnabled, isAgentToolEnabled } from "./harnessRuntime";
 
 const APPROVED_INTERNAL_TOOL_IDS = new Set([
   "sinp_links",
@@ -327,6 +328,7 @@ export async function getMcpServerRegistry(customServers: CustomMcpServer[] = []
   const discover = async (
     id: string,
     label: string,
+    url: string,
     approvedTools: Set<string>,
     connect: () => Promise<{ client: Client; server?: McpServer }>,
   ): Promise<McpRegistryEntry> => {
@@ -339,6 +341,7 @@ export async function getMcpServerRegistry(customServers: CustomMcpServer[] = []
       return {
         id,
         label,
+        url,
         managed: true,
         connected: true,
         tools: response.tools
@@ -352,7 +355,7 @@ export async function getMcpServerRegistry(customServers: CustomMcpServer[] = []
           })),
       };
     } catch {
-      return { id, label, managed: true, connected: false, tools: [] };
+      return { id, label, url, managed: true, connected: false, tools: [] };
     } finally {
       await connection?.client.close().catch(() => undefined);
       await connection?.server?.close().catch(() => undefined);
@@ -360,9 +363,9 @@ export async function getMcpServerRegistry(customServers: CustomMcpServer[] = []
   };
 
   return Promise.all([
-    discover("ali-internal", "MCP interne ALi", APPROVED_INTERNAL_TOOL_IDS, connectInternalMcp),
-    discover("ali-species", "ALI Species — TAXREF Explorer", APPROVED_ALI_SPECIES_TOOL_IDS, connectAliSpeciesMcp),
-    discover("ali-habitat", "ALI Habitat — CARHAB", APPROVED_ALI_HABITAT_TOOL_IDS, connectAliHabitatMcp),
+    discover("ali-internal", "MCP interne ALi", "/mcp", APPROVED_INTERNAL_TOOL_IDS, connectInternalMcp),
+    discover("ali-species", "ALI Species — TAXREF Explorer", ALI_SPECIES_MCP_URL, APPROVED_ALI_SPECIES_TOOL_IDS, connectAliSpeciesMcp),
+    discover("ali-habitat", "ALI Habitat — CARHAB", ALI_HABITAT_MCP_URL, APPROVED_ALI_HABITAT_TOOL_IDS, connectAliHabitatMcp),
     ...customServers.map(discoverMcpServer),
   ]);
 }
@@ -604,7 +607,11 @@ function buildMcpServer(): McpServer {
     },
     async ({ lat, lng, radius }) => {
       try {
-        const result = await searchGBIF(lat, lng, radius ?? 500);
+        const harness = await getRuntimeHarnessConfig();
+        if (!isAgentEnabled(harness, "occurrences")) return fail("Agent Occurrences désactivé dans le Harnais");
+        const result = await searchGBIF(lat, lng, radius ?? 500, {
+          skipAliSpeciesMcp: !isAgentToolEnabled(harness, "taxonomy-status", "ali-species", "get_statuts"),
+        });
         return ok(summariseInventory(result));
       } catch (e: any) {
         return fail(e.message || "Erreur inventaire");
@@ -640,6 +647,8 @@ function buildMcpServer(): McpServer {
     },
     async ({ circles }) => {
       try {
+        const harness = await getRuntimeHarnessConfig();
+        if (!isAgentEnabled(harness, "occurrences")) return fail("Agent Occurrences désactivé dans le Harnais");
         const normalised = (circles as any[]).map((c) => ({
           id: c.id,
           label: c.label ?? c.id,
@@ -647,7 +656,9 @@ function buildMcpServer(): McpServer {
           radius: c.radius,
           enabled: c.enabled ?? true,
         })) as BufferCircle[];
-        const result = await searchGBIFMultiCircle(normalised);
+        const result = await searchGBIFMultiCircle(normalised, {
+          skipAliSpeciesMcp: !isAgentToolEnabled(harness, "taxonomy-status", "ali-species", "get_statuts"),
+        });
         return ok(summariseInventory(result));
       } catch (e: any) {
         return fail(e.message || "Erreur inventaire");
@@ -748,6 +759,8 @@ function buildMcpServer(): McpServer {
     },
     async ({ lat, lng, radius }) => {
       try {
+        const harness = await getRuntimeHarnessConfig();
+        if (!isAgentEnabled(harness, "zonages")) return fail("Agent Zonages désactivé dans le Harnais");
         return ok(await getZonages(lat, lng, radius ?? 2000));
       } catch (e: any) {
         return fail(e.message || "Erreur zonages");
@@ -776,7 +789,11 @@ function buildMcpServer(): McpServer {
     },
     async ({ toponym, lat, lng, radius }) => {
       try {
-        const inv = await searchGBIF(lat, lng, radius ?? 2000);
+        const harness = await getRuntimeHarnessConfig();
+        if (!isAgentEnabled(harness, "occurrences")) return fail("Agent Occurrences désactivé dans le Harnais");
+        const inv = await searchGBIF(lat, lng, radius ?? 2000, {
+          skipAliSpeciesMcp: !isAgentToolEnabled(harness, "taxonomy-status", "ali-species", "get_statuts"),
+        });
         if (inv.occurrences.length === 0) {
           return fail("Aucune occurrence GBIF dans le rayon, analyse impossible");
         }

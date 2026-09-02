@@ -440,7 +440,7 @@ export async function searchGBIFMultiCircle(
       skipAliSpeciesMcp: true,
     });
     result.circles = circles;
-    return enrichInventoryWithAliSpeciesMcp(result);
+    return options.skipAliSpeciesMcp ? result : enrichInventoryWithAliSpeciesMcp(result);
   }
 
   const results = await Promise.all(
@@ -468,7 +468,7 @@ export async function searchGBIFMultiCircle(
     circles,
     confidence: averageConfidences(results.map((r) => r.confidence), enabledCircles.length),
   };
-  return enrichInventoryWithAliSpeciesMcp(result);
+  return options.skipAliSpeciesMcp ? result : enrichInventoryWithAliSpeciesMcp(result);
 }
 
 export async function fetchSpeciesDetails(taxonKey: number) {

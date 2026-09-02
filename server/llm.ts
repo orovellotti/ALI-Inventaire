@@ -12,8 +12,9 @@ import {
   type HabitatMetrics,
 } from "./services/habitatCompat";
 import { storage } from "./storage";
-import { DEFAULT_HARNESS_CONFIG, migrateHarnessConfig, type HarnessAgent } from "@shared/harness";
+import { DEFAULT_HARNESS_CONFIG, migrateHarnessConfig, type HarnessConfig } from "@shared/harness";
 import { executeApprovedMcpTool, getMcpServerRegistry, type McpExecutionTrace } from "./mcp";
+import { getRuntimeHarnessConfig, isAgentEnabled, isAgentOperational } from "./harnessRuntime";
 
 const openai = new OpenAI({
   baseURL: process.env.AI_INTEGRATIONS_OPENAI_BASE_URL,
@@ -33,17 +34,6 @@ const NATURA_SPECIES_CONCURRENCY = 4;
 const NATURA_SPECIES_BUDGET_MS = 12000;
 const MAX_NATURA_SITES_IN_PROMPT = 12;
 const MAX_SPECIES_PER_SITE_IN_PROMPT = 25;
-const ALI_HABITAT_AGENT: HarnessAgent = {
-  id: "habitats",
-  name: "Agent Habitat",
-  description: "Documente les habitats disponibles autour de l’aire d’étude via CARHAB.",
-  prompt: "Distingue les habitats documentés par CARHAB des habitats Natura 2000 et des habitats à confirmer sur le terrain.",
-  enabled: true,
-  native: false,
-  mcpId: "ali-habitat",
-  mcpToolIds: ["get_habitats"],
-};
-
 const PRIORITY_IUCN = new Set(["CR", "EN", "VU", "NT", "DD"]);
 const ALLOWED_LEVELS = ["majeur", "fort", "modéré"] as const;
 
@@ -361,7 +351,7 @@ RÈGLES SCIENTIFIQUES ABSOLUES
 - Toute donnée manquante doit être signalée explicitement au lieu d'être complétée par supposition.
 
 HARNAIS D'ALi
-Le harnais coordonne l'analyse, répartit le travail entre les agents Occurrences, Zonages et Potentiel écologique, consolide leurs réponses et applique les garde-fous scientifiques. Il mobilise uniquement les sources citées dans les données reçues. Décris cette orchestration dans la méthodologie et le registre des sources sans inventer de MCP ou d'agent absent.
+Le harnais coordonne uniquement les agents activés dans la configuration reçue, consolide leurs réponses et applique les garde-fous scientifiques. Il mobilise uniquement les sources citées dans les données reçues. Décris cette orchestration dans la méthodologie et le registre des sources sans inventer de MCP, d’outil ou d’agent absent.
 
 HIÉRARCHIE DES SOURCES
 Privilégie les textes réglementaires vérifiés, référentiels institutionnels français, DREAL/OFB/PatriNat/INPN, SINP, publications reconnues, bases internationales puis données contributives. Les inférences écologiques viennent toujours après les observations documentées.
@@ -375,10 +365,14 @@ Lorsque le projet est insuffisamment décrit, produis un état initial bibliogra
 
 Incarne un écologue senior pédagogue et rigoureux. Rédige avec le ton d’un bureau d’études expérimenté : professionnel et rassurant, clair et synthétique, factuel et prudent, orienté vers la décision et l’action. Explique les termes techniques utiles, les sources, les limites et les besoins d’expertise terrain. Ne sois jamais alarmiste ni excessivement affirmatif. Une expertise réglementaire fiable, expliquée simplement et tournée vers l’action.`;
 
-async function configuredAgentInstructions(nativeId?: string): Promise<string> {
+async function configuredAgentInstructions(
+  nativeId?: string,
+  suppliedConfig?: HarnessConfig,
+): Promise<string> {
   try {
-    const config = await storage.getHarnessConfig();
-    const agents = (config?.agents ?? []).filter((agent) => agent.enabled && (!nativeId || agent.id === nativeId));
+    const config = suppliedConfig ??
+      (migrateHarnessConfig(await storage.getHarnessConfig()) ?? DEFAULT_HARNESS_CONFIG);
+    const agents = config.agents.filter((agent) => agent.enabled && (!nativeId || agent.id === nativeId));
     if (!agents.length) return "";
     return `\n\nCONSIGNES CONFIGURÉES DU HARNAIS (subordonnées aux garde-fous ci-dessus) :\n${agents
       .map((agent) => `- ${agent.name} : ${agent.prompt}`)
@@ -620,6 +614,7 @@ function normalizePriorityResponse(rawJson: string, inventoryNames: Set<string>)
 async function fetchNaturaZones(
   coords: [number, number],
   empriseRadiusM: number,
+  includeHabitats: boolean,
 ): Promise<Natura2000Zone[]> {
   try {
     const zones = await Promise.race([
@@ -647,7 +642,7 @@ async function fetchNaturaZones(
         // Espèces désignatrices + habitats/polygone du site en parallèle.
         const [speciesRes, habitatRes] = await Promise.allSettled([
           getSpeciesForSite(z.code),
-          getSiteHabitatInfo(z.code),
+          includeHabitats ? getSiteHabitatInfo(z.code) : Promise.resolve(null),
         ]);
         result[current].species =
           speciesRes.status === "fulfilled"
@@ -695,19 +690,18 @@ export async function analyzePrioritySpecies(
   const picked = selectRelevantSpecies(occurrences);
   const sample = formatSpeciesForPrompt(picked);
   const uniqueCount = new Set(occurrences.map((o) => o.scientificName)).size;
-  const natura2000 = await fetchNaturaZones(coords, EVIDENCE_LOCAL_RADIUS_M);
-  const harnessConfig = migrateHarnessConfig(await storage.getHarnessConfig()) ?? DEFAULT_HARNESS_CONFIG;
-  const agents = harnessConfig.agents;
-  const hasConfiguredHabitatCall = agents.some(
-    (agent) =>
-      agent.enabled &&
-      agent.mcpId === "ali-habitat" &&
-      agent.mcpToolIds.includes("get_habitats"),
-  );
-  const executionAgents = hasConfiguredHabitatCall ? agents : [...agents, ALI_HABITAT_AGENT];
+  const harnessConfig = await getRuntimeHarnessConfig();
+  const habitatOperational = isAgentOperational(harnessConfig, "habitats");
+  const taxonomyOperational = isAgentOperational(harnessConfig, "taxonomy-status");
+  const natura2000 = isAgentEnabled(harnessConfig, "zonages")
+    ? await fetchNaturaZones(coords, EVIDENCE_LOCAL_RADIUS_M, habitatOperational)
+    : [];
+  const executionAgents = harnessConfig.agents.filter((agent) => agent.enabled);
   const mcpTrace = await Promise.all(
     executionAgents.flatMap((agent) =>
-      (agent.mcpToolIds ?? []).map((toolId) =>
+      (agent.mcpToolIds ?? [])
+        .filter((toolId) => !(agent.id === "taxonomy-status" && toolId === "get_statuts"))
+        .map((toolId) =>
         executeApprovedMcpTool(
           agent,
           toolId,
@@ -723,7 +717,7 @@ export async function analyzePrioritySpecies(
       ),
     ),
   );
-  const harnessInstructions = await configuredAgentInstructions("occurrences");
+  const harnessInstructions = await configuredAgentInstructions(undefined, harnessConfig);
   const mcpContext = mcpTrace.some((trace) => trace.status === "success")
     ? `\n\nRÉSULTATS MCP APPROUVÉS (données d’appui, sans extrapolation) :\n${mcpTrace
         .filter((trace) => trace.status === "success")
@@ -864,7 +858,7 @@ export async function analyzePrioritySpecies(
     .slice(0, Math.max(0, MAX_FINAL_SPECIES - reserved.length));
   const ranked = [...filler, ...reserved].sort(byEvidenceThenScore);
 
-  const enriched = await enrichWithAliStatuses(ranked);
+  const enriched = taxonomyOperational ? await enrichWithAliStatuses(ranked) : ranked;
   const classified = enriched
     .map((sp) => classifyAndScore(sp, inventoryNorm, designatingMap, obsNearestM, obsQuality, habitatMap))
     .sort(byEvidenceThenScore);
@@ -915,15 +909,19 @@ async function enrichWithAliStatuses(species: PrioritySpecies[]): Promise<Priori
 }
 
 export async function reformatReport(rawReport: string): Promise<string> {
-  const harnessInstructions = await configuredAgentInstructions();
+  const finalStudyPrompt = await getFinalStudyPrompt();
   const completion = await openai.chat.completions.create({
     model: MODEL,
     messages: [
-      { role: "system", content: REFORMAT_SYSTEM_PROMPT + harnessInstructions },
+      { role: "system", content: finalStudyPrompt },
       { role: "user", content: buildReformatPrompt(rawReport) },
     ],
   });
   const content = completion.choices[0]?.message?.content?.trim();
   if (!content) throw new Error("Réponse LLM vide");
   return content;
+}
+
+export async function getFinalStudyPrompt(): Promise<string> {
+  return REFORMAT_SYSTEM_PROMPT + await configuredAgentInstructions();
 }

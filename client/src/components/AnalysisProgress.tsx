@@ -19,7 +19,18 @@ const EFFORT_SPEED: Record<Effort, number> = {
   3: 0.7,
 };
 
-function buildSteps(includeINaturalist: boolean, areaCount: number): Step[] {
+function buildSteps(
+  includeINaturalist: boolean,
+  areaCount: number,
+  enabledAgentIds: string[],
+): Step[] {
+  const enabled = new Set(enabledAgentIds);
+  const activeSources = [
+    enabled.has("occurrences") && (includeINaturalist ? "GBIF et iNaturalist" : "GBIF"),
+    enabled.has("zonages") && "les référentiels territoriaux",
+    enabled.has("habitats") && "CARHAB",
+    enabled.has("taxonomy-status") && "ALI Species",
+  ].filter(Boolean).join(", ");
   const steps: Step[] = [
     {
       label: "Préparation de l’aire d’étude et contrôle des paramètres.",
@@ -32,24 +43,22 @@ function buildSteps(includeINaturalist: boolean, areaCount: number): Step[] {
     },
     {
       label: "Consultation des sources disponibles en parallèle.",
-      detail: includeINaturalist
-        ? "Mes agents interrogent GBIF, iNaturalist, les référentiels territoriaux et CARHAB."
-        : "Mes agents interrogent GBIF, les référentiels territoriaux et CARHAB.",
+      detail: `Mes agents interrogent ${activeSources || "les sources activées"}.`,
       duration: 6800,
       effort: 3,
     },
-    {
+    ...(enabled.has("habitats") ? [{
       label: "Lecture documentaire des habitats autour de l’aire d’étude.",
       detail: "L’Agent Habitat consulte CARHAB, sans confirmer une présence sur le terrain.",
       duration: 3200,
-      effort: 2,
-    },
-    {
+      effort: 2 as Effort,
+    }] : []),
+    ...(enabled.has("taxonomy-status") ? [{
       label: "Enrichissement territorial des taxons.",
       detail: "ALi Species MCP vérifie les listes rouges UICN régionales et les statuts réglementaires de chaque taxon.",
       duration: 5200,
-      effort: 3,
-    },
+      effort: 3 as Effort,
+    }] : []),
   ];
   steps.push(
     {
@@ -99,6 +108,7 @@ export function AnalysisProgress({
   potentialSpeciesLoading,
   potentialSpeciesReady,
   potentialSpeciesCount,
+  enabledAgentIds,
 }: {
   active: boolean;
   /** Affiche le fil dans son panneau parent plutôt que dans une surcouche plein écran. */
@@ -111,10 +121,11 @@ export function AnalysisProgress({
   potentialSpeciesLoading: boolean;
   potentialSpeciesReady: boolean;
   potentialSpeciesCount: number;
+  enabledAgentIds: string[];
 }) {
   const steps = useMemo(
-    () => buildSteps(includeINaturalist, areaCount),
-    [includeINaturalist, areaCount],
+    () => buildSteps(includeINaturalist, areaCount, enabledAgentIds),
+    [includeINaturalist, areaCount, enabledAgentIds],
   );
   const [visible, setVisible] = useState(false);
   const [done, setDone] = useState(false);
@@ -176,9 +187,11 @@ export function AnalysisProgress({
 
   const currentEffort: Effort = done ? 1 : steps[stepIndex].effort;
   const pulseSpeed = EFFORT_SPEED[currentEffort];
-  const observationsSearching = !done && stepIndex < 2;
-  const habitatsSearching = !done && stepIndex < 3;
-  const taxonEnrichmentActive = !done && stepIndex === 3;
+  const currentStepLabel = steps[stepIndex].label;
+  const observationsSearching = !done && currentStepLabel.includes("sources");
+  const habitatsSearching = !done && currentStepLabel.includes("habitats");
+  const taxonEnrichmentActive = !done && currentStepLabel.includes("taxons");
+  const enabled = new Set(enabledAgentIds);
   const sourceMessages = [
     {
       id: "occurrences" as const,
@@ -226,7 +239,9 @@ export function AnalysisProgress({
           : "J’intègre les listes rouges UICN régionales et les protections disponibles.",
       detail: "Source : ALI Species MCP / TAXREF — statut documentaire, non preuve de présence.",
     },
-  ];
+  ].filter((agent) => enabled.has(
+    agent.id === "taxon-enrichment" ? "taxonomy-status" : agent.id,
+  ));
 
   return (
     <div

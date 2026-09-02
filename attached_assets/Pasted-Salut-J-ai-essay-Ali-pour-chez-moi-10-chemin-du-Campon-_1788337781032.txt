@@ -1,0 +1,122 @@
+Salut,
+
+J'ai essayé Ali pour chez moi : 10 chemin du Campon, Le Rove.
+C'est un bon début. ❤️
+
+
+1. Ergonomie générale
+Police un peu trop petite sur PC, nettement trop petite et à peine lisible sur smartphone Android.
+
+Thème pâlichon/décoloré, triste, difficile pour les déficients visuels. Mettre de la gaité dans le choix des couleurs et plus de contraste.
+
+Trop de cadres, sous-cadres, etc. emboités : ça mange l'espace et on s'y perd. A simplifier.
+
+
+2. Localisation
+Dans la hiérarchie géographique, quand je rendre mon adresse (Le Rove), il est évoqué Istres. Bizarre. C'est la sous-préfecture ou le chef-lieu de canton ?
+Si oui, supprimer ce niveau, vraiment inutile, pour simplifier.
+
+Si ton tape l'adresse, comme j'ai fait, on ne voit pas le périmètre, caché derrière le formulaire.
+Revoir le zoning.
+
+La recherche par lieu-dit marche... plus ou moins. Je pense qu'il n'y a que les lieux-dits/quartiers INSEE ou les sections de commune ou chépakoi ??? qui sont reconnus, mais pas les lieux-dits au sens large. Cela ne renvoie généralement pas les fermes, malgré ce qui est indiqué dans l'interface.
+Par exemple, sur la commune de Champoléon, on peut sélectionner Les Borels, mais pas Les Gondouins (pourtant un chouïa plus "grand", je connais).
+https://www.google.com/maps/place/Les+Borels,+05260+Champol%C3%A9on,+France/@44.7201347,6.2565021,589m/data=!3m2!1e3!4b1!4m6!3m5!1s0x12cb51ca0b3213d9:0x93229635d22c04e6!8m2!3d44.7201309!4d6.259077!16s%2Fg%2F1tf4hdr7!5m1!1e4?entry=ttu&g_ep=EgoyMDI2MDgzMC4wIKXMDSoASAFQAw%3D%3D
+https://www.google.com/maps/place/Les+Gondoins,+05260+Champol%C3%A9on,+France/@44.7291901,6.2470247,589m/data=!3m2!1e3!4b1!4m6!3m5!1s0x12cb51c4e0b66ce7:0x760f9ec6459a4a7!8m2!3d44.7291863!4d6.2495996!16s%2Fg%2F1tdg0dyc!5m1!1e4?entry=ttu&g_ep=EgoyMDI2MDgzMC4wIKXMDSoASAFQAw%3D%3D
+S'appuyer sur un découpage administratif/INSEE des quartiers n'a pas d'intérêt. Il vaut mieux un gazetteer (renférentiel géographique) mieux fourni et appliquer un rayon.
+
+Renseigner une commune n'a guère d'intérêt. On ne fait quasi jamais une étude sur une commune entière. Et si ça devait arriver, ce serait une grosse étude : on aurait le temps de récupérer et d'injecter le shapefile du contour de la commune. A faire confirmer par un BE, qui pourrait avoir un besoin auquel je ne cerne pas.
+Après confirmation, j'enlèverais la possibilité de saisir une commune.
+
+Si on fournit un shapefile de contour de projet (emprise), il faut pouvoir ajouter un tampon (buffer).
+
+Il faudrait peut-être pouvoir importer un kml (c'est un format très employé chez certains) et peut-être d'autres formats (à discuter avec un BE, en fonction de ce qu'ils reçoivent des clients/prospects en 2026), en plus du shapefile.
+Ne pas trop s'échiner sur ce point dans une première version.
+
+
+3. Listes d'espèces
+Les listes d'espèces mélangent par défaut toutes les espèces.
+Il faudrait une agrégation par groupe puis par ordre alphabétique.
+Les vertébrés devraient être listés dans l'ordre alphabétique du nom français. Les espèces des autres groupes sont à trier sur le nom latin. on devrait pouvoir choisir le nom de tri (FR/latin). Le nom anglais, si disponible, serait utile.
+
+Le groupe Autres serait un gros fourre-tout où s'entasse tout ce qui n'est pas oiseau/insecte/plante, par ex. Mammifères, Reptiles, Amphibiens, Poissons, Invertébrés non-Insectes (il y a une palanquée de groupes), Champignons, ?Algues (si les "Plantes" sont limitées aux plantes supérieures ?). => Si oui, c'est inexploitable.
+Je pense plutôt que de nombreux groupes sont passés à la trappe.
+Revoir les groupes. Afficher les groupes sans donnée (l'utilisateur est informé qu'il n'y a pas de données pour eux).
+Gérer une hiérarchie à deux niveaux de groupes pertinents.
+
+Le bouton "Toutes" est peu clair. Il faudrait sûrement indiquer "Avérées et potentielles" (???). Clarifier comment sont sélectionnées ces espèces potentielles ?
+
+Si on sélectionne "Toutes" et qu'on clique sur espèce, le filtre se met automatiquement sur "Avérées" dès qu'on clique sur une espèce. Il faut que le filtre reste sur "Toutes".
+
+
+4. "Toutes" les plantes de chez moi : 10 chemin du Campon, Le Rove, périmètre 500 m, étude carrière, 500 m
+Les espèces citées sont réellement présentes chez moi, sur la colline juste à côté, à proximité mais plus loin, ou sont très potentielles.
+Bizarrement, le Chêne vert, le Chêne kermès, le Chêne blanc, le Pin d'Alep, l'Ajonc à petites fleurs, le Lierre, la Baouque / Brachypode rameux, Dactyle d'Espagne... sont des espèces locales (pas exogènes envahissantes) structurantes ou communes/très communes et facilement visibles toute l'année, mais non citées.
+
+
+5. Enjeux des espèces à revoir
+Dans les seulement 3 espèces de plantes avérées, par ex. Ophrys lutea :
+Effectivement présent chez moi (localement, c'est une espèce assez commune). Indiqué "Enjeu critique". Ouch...
+Cet enjeu est beaucoup trop élevé pour une plante ayant une assez bonne capacité de colonisation des milieux ouverts (pelouses, tonsures, bords de routes) calcaires, dans le bas de l'étage mésoméditerranéen (Le Rove...) ou thermoméditerranéen (Menton). C'est un enjeu de conservation modéré pas plus. N'a pas de statut de protection. Pas d'intérêt particulier pour une localisation qui serait excentrée : on est bien dans le "coeur" de l'aire de répartition.
+https://nature.silene.eu/espece/110425
+Comment sont produits les enjeux ?
+
+
+6. IUCN à revoir
+Concernant le statut IUCN des espèces, en ce qui concerne les plantes, n'utilise surtout PAS le statut IUCN mondial, car c'est de la daube pour beaucoup de taxons. Les gens qui font les fiches IUCN monde sont des bénévoles. Leur production a souvent la valeur de qqch qui n'a rien coûté... En tout cas, ne mentionne pas seulement ce statut. Utilise les statut IUCN Europe, France/ou autre niveau national ou régional (s'il existe). Ils seront davantage valables, car produits par des gens connaissant mieux le terrain (en principe).
+Au-delà de la qualité du travail ayant permis de produire les statuts IUCN, les statuts IUCN locaux sont plus pertinents que les statut IUCN globaux, pour une appli "étude d'impact", qui concerne un périmètre limité (sauf cas rare des lignes TGV, etc.), pour une simple question d'échelle spatiale.
+Par ex., Franck Le Driant n'évoque pas le statut IUCN mondial sur son site :
+https://www.florealpes.com/fiche_ophryslutea.php
+franck@florealpes.com (si tu as envie de lui parler ; il a entendu parler de moi)
+
+
+8. Référentiel des statuts à enrichir de façon ciblée
+Tu trouveras TOUS les statuts des espèces répertoriées en France dans la BDC Statuts :
+https://inpn.mnhn.fr/referentiels-donnees
+Ne pas tout intégrer, ça va alourdir l'appli et le rapport Word inutilement. A priori, les BE se fichent totalement du statut CITES. Je ne pense pas qu'ils soient vraiment intéressés par les limitations préfectorales de récolte (Myrtille, Edelweiss...). Voir ce que les BE veulent vraiment, en 2026. 
+
+A noter qu'il y a une "Application mobile de recueil de données naturalistes" sur cette page.
+
+
+9. Habitats
+Les habitats Carhab présents localement ne sont pas listés dans l'interface, mais sont présents dans l'export.
+Dans l'export, ils sont cités de façon brute, avec des doublons : une entrée par polygone. Vérifier si les surfaces citées correspondent à l'intersection des polygones avec l'aire d'étude.
+Il faudrait lister ces habitats par importance décroissante de leur représentation surfacique dans la zone d'étude.
+
+
+10. Incohérences entre l'interface et la préétude
+La préétude (.docx) indique qu'Ophrys lutea a un enjeu modéré...
+Eviter de telles incohérences, sinon les utilisateurs ne feront pas du tout confiance à l'outil ("C'est de la merde").
+
+
+11. Espèces exotiques envahissantes (ou invasives / invaders en anglais)
+Le garde-fou 5 n'a pas marché pour éliminer par ex. la Broussonétie à papier qui est une espèce exotique envahissante (peut-être considérée seulement comme envahissante potentielle ? Chez moi, elle envahit peu à peu).
+Je garderais les espèces exotiques envahissantes dans la liste (suppression du garde-fou).
+Les espèces exotiques envahissantes devraient être citées en tant que telles. Leur contrôle peut être un enjeu lors de la mise en œuvre d'un projet ou de la réhabilitation en fin de projet (par ex. en fin d'exploitation d'une carrière).
+Il existe des listes régionales d'espèces exogènes envahissantes. Par ex. https://especes-exotiques-envahissantes.fr/wp-content/uploads/2023/07/liste-plantes-vasculaires-invasives-de-Basse-Normandie-2013.pdf
+(Les espèces envahissantes ne sont pas les mêmes partout.)
+
+
+12. Déterminisme des résultats ???
+Les utilisateurs voudront des résultats "suffisamment" déterministes.
+Si les listes d'espèces, le niveau d'enjeu... change à chaque appel pour une zone et un type d'étude donnés, ils considèreront l'outil comme non fiable. => Echec assuré.
+As-tu évalué précisément (avec des métriques) le niveau de déterminisme ?
+
+
+13. Sortie Word
+Je pense qu'il faut séparer le log de fonctionnement du harnais du prérapport.
+Faire deux fichiers.
+Il faudrait un rapport de fonctionnement simplifié du "raisonnement" de l'IA, du moins de ce qui n'a pas marché (ressource inaccessible, dépassement de la fenêtre de contexte si on a l'info, etc.).
+
+14. Sorties carto à prévoir
+Indispensable, mais 100% déterministe, donc c'est du SIG automatisable que de l'IA. => Par ex. QGIS + Python.
+Prévoir au moins :
+périmètre d'étude + esquisses des contours du projet (différentes variantes si besoin) sur fond topo riche (limites de communes, réseaux, bâtiments, lieux-dits, haies, forêts, rochers...) ; SI > 4 variantes, faire autant de cartes que nécessaire (4 variantes max par carte) ;
+périmètre d'étude et périmètres à statut sur font topo simplifié ; SI > 3 périmètres à statut :
+périmètre d'étude + périmètres réglementaires ;
+périmètre d'étude + périmètres d'inventaire (ZNIEFF...) ;
+périmètre d'étude + empilement des esquisses des contours du projet + habitats Carhab sur font ultrasimplifié : ombrage + réseau hydro + réseau routier/sentiers + bâtiments. = document d'aide au parcours du terrain (" prép' " comme diraient les écolos Reneco).
+
+Bises,
+
+Jeff

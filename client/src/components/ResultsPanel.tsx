@@ -141,6 +141,14 @@ interface ResultsPanelProps {
 }
 
 export function ResultsPanel({ isOpen, isAnalyzing = false, areaCount = 1, onClose, results, selectedSpecies, onSelectSpecies, activeTaxonFilters, onToggleTaxonFilter, onToggleAllTaxonFilters, excludeMarine, onToggleExcludeMarine, includeINaturalist, onToggleIncludeINaturalist, toponym, zonages, zonagesLoading, potentialSpecies, potentialSpeciesLoading, potentialSpeciesError, selectedZonageId, onSelectZonage, composer, conversations = [], activeConversationId = null, historyError, requestSummary, onSelectConversation, onNewConversation, onRenameConversation, onDeleteConversation, harnessConfig }: ResultsPanelProps) {
+  const enabledAgentIds = useMemo(
+    () => harnessConfig?.agents.filter((agent) => agent.enabled).map((agent) => agent.id) ?? [],
+    [harnessConfig],
+  );
+  const occurrencesAgentActive = enabledAgentIds.includes("occurrences");
+  const zonagesAgentActive = enabledAgentIds.includes("zonages");
+  const habitatAgentActive = enabledAgentIds.includes("habitats");
+  const taxonomyAgentActive = enabledAgentIds.includes("taxonomy-status");
   const [openSections, setOpenSections] = useState<Set<SectionKey>>(new Set());
   const [showCalcDetail, setShowCalcDetail] = useState(false);
   const [assistantOpen, setAssistantOpen] = useState(false);
@@ -892,6 +900,16 @@ ${aliHabitatOutputs.join("\n\n")}
 ↳ Données documentaires issues de CARHAB autour de l’aire d’étude. Elles ne constituent ni une cartographie de terrain, ni une confirmation de présence dans l’emprise des travaux.
 `
       : "";
+    const mobilizedSources = [
+      "GBIF",
+      includeINaturalist && "iNaturalist",
+      "UICN",
+      results.aliSpeciesEnrichment ? "ALI Species / TAXREF" : "TAXREF",
+      zonagesAgentActive && zonages ? "IGN Géoplateforme" : false,
+      zonagesAgentActive && zonages ? "PatriNat / INPN" : false,
+      aliHabitatOutputs.length > 0 ? "CARHAB" : false,
+      aiAnalysis?.natura2000?.length ? "données Natura 2000" : false,
+    ].filter(Boolean).join(", ");
 
     return `ALi INVENTAIRE
 PRÉ-ÉTUDE BIODIVERSITÉ À COMPLÉTER PAR DES INVESTIGATIONS DE TERRAIN
@@ -907,7 +925,7 @@ HARNAIS D'ALi — ORCHESTRATION RÉELLEMENT MOBILISÉE
 - Coordination : ALi comprend la demande, vérifie le périmètre, répartit l'analyse et consolide les réponses.
 ${configuredAgents}
 ${mcpTraceSection}
-- Sources effectivement mobilisées par cette analyse : GBIF${includeINaturalist ? ", iNaturalist" : ""}, UICN, ALI/TAXREF, IGN Géoplateforme, PatriNat et INPN${aiAnalysis?.natura2000?.length ? ", données Natura 2000 et formulaires standards disponibles" : ""}.
+- Sources effectivement mobilisées par cette analyse : ${mobilizedSources}.
 ${results.aliSpeciesEnrichment ? `- Enrichissement territorial ALI Species MCP : ${results.aliSpeciesEnrichment.enriched}/${results.aliSpeciesEnrichment.attempted} taxons enrichis${results.aliSpeciesEnrichment.region ? ` pour ${results.aliSpeciesEnrichment.region}` : results.aliSpeciesEnrichment.territorialScope === "multiple" ? " — plusieurs régions concernées, aucune liste rouge régionale unique attribuée" : " — territoire régional non résolu"}${results.aliSpeciesEnrichment.partial ? " — résultat partiel, les taxons non enrichis restent signalés sans extrapolation." : "."}` : ""}
 - Garde-fou 1 : une donnée connue dans l'aire bibliographique n'est pas une présence confirmée dans l'emprise.
 - Garde-fou 2 : une présence potentielle issue d'une compatibilité écologique doit être vérifiée sur le terrain.
@@ -958,13 +976,13 @@ ${aiAnalysis.natura2000.map(z => { const desig = (z.species ?? []).filter(s => s
 ⚠ Synthèse IA — à valider par un écologue.
 ` : ""}${zonagesSection}
 SOURCES SYNTHÉTIQUES
-GBIF${includeINaturalist ? " • iNaturalist" : ""} • UICN • ALI/TAXREF • IGN Géoplateforme • PatriNat/INPN
+${mobilizedSources.split(", ").join(" • ")}
 
 STATUT ET LIMITES
 Pré-étude biodiversité documentaire produite par le harnais d'ALi à partir des seules sources indiquées.
 Ce document constitue un état initial bibliographique et une analyse de sensibilités. Il ne remplace ni des inventaires de terrain, ni un volet naturel d'étude d'impact réglementaire, ni la validation d'un écologue.
 ${shareUrl ? `\nReproduire cette analyse : ${shareUrl}` : ""}`;
-  }, [results, sortedSpecies, activeTaxonFilters, presentGroups, isAllActive, aiAnalysis, toponym, zonages, riskScore, includeINaturalist, harnessConfig]);
+  }, [results, sortedSpecies, activeTaxonFilters, presentGroups, isAllActive, aiAnalysis, toponym, zonages, riskScore, includeINaturalist, harnessConfig, zonagesAgentActive]);
 
   const reportSubject = useMemo(() => {
     if (!results) return "ALi Inventaire";
@@ -1198,6 +1216,7 @@ ${shareUrl ? `\nReproduire cette analyse : ${shareUrl}` : ""}`;
               potentialSpeciesLoading={potentialSpeciesLoading}
               potentialSpeciesReady={potentialSpecies !== null}
               potentialSpeciesCount={potentialSpecies?.potentialCount ?? 0}
+              enabledAgentIds={enabledAgentIds}
              />}
              {!isAnalyzing && composer && <div className="conversation-composer">{composer}</div>}
           </div>
@@ -1320,6 +1339,7 @@ ${shareUrl ? `\nReproduire cette analyse : ${shareUrl}` : ""}`;
                   potentialSpeciesLoading={potentialSpeciesLoading}
                   potentialSpeciesReady={potentialSpecies !== null}
                   potentialSpeciesCount={potentialSpecies?.potentialCount ?? 0}
+                  enabledAgentIds={enabledAgentIds}
                 />
               )}
              {!isAnalyzing && (
@@ -1338,9 +1358,10 @@ ${shareUrl ? `\nReproduire cette analyse : ${shareUrl}` : ""}`;
                    <div className="pt-2" id="analysis-transcript" data-testid="analysis-transcript">
                      <ol className="space-y-3">
                         <li><strong>ALi — coordination</strong><p>Demande comprise, périmètre vérifié et analyse répartie entre les agents spécialisés.</p></li>
-                       <li><strong>Agent Occurrences</strong><p>{results.stats.speciesCount} espèces consolidées à partir de {results.stats.total} données retenues.</p></li>
-                       <li><strong>Agent Zonages</strong><p>{zonagesLoading ? "Consultation des référentiels en cours." : `${zonages?.count ?? 0} zonage${(zonages?.count ?? 0) > 1 ? "s" : ""} vérifié${(zonages?.count ?? 0) > 1 ? "s" : ""}.`}</p></li>
-                        {aliHabitatStatus && <li data-testid="analysis-transcript-ali-habitat"><strong>Agent Habitat — CARHAB</strong><p>{aliHabitatStatus}</p></li>}
+                        {occurrencesAgentActive && <li><strong>Agent Occurrences</strong><p>{results.stats.speciesCount} espèces consolidées à partir de {results.stats.total} données retenues.</p></li>}
+                        {zonagesAgentActive && <li><strong>Agent Zonages</strong><p>{zonagesLoading ? "Consultation des référentiels en cours." : `${zonages?.count ?? 0} zonage${(zonages?.count ?? 0) > 1 ? "s" : ""} vérifié${(zonages?.count ?? 0) > 1 ? "s" : ""}.`}</p></li>}
+                        {taxonomyAgentActive && results.aliSpeciesEnrichment && <li><strong>Agent Taxonomie et statuts</strong><p>{results.aliSpeciesEnrichment.enriched}/{results.aliSpeciesEnrichment.attempted} taxons enrichis via ALI Species.</p></li>}
+                         {habitatAgentActive && aliHabitatStatus && <li data-testid="analysis-transcript-ali-habitat"><strong>Agent Habitat — CARHAB</strong><p>{aliHabitatStatus}</p></li>}
                      </ol>
                    </div>
                  )}
@@ -1478,7 +1499,7 @@ ${shareUrl ? `\nReproduire cette analyse : ${shareUrl}` : ""}`;
                        </div>
                      </div>
                    )}
-                  <div className="rounded-xl border border-emerald-200 bg-emerald-50/60 p-3" data-testid="method-source-carhab">
+                   {habitatAgentActive && <div className="rounded-xl border border-emerald-200 bg-emerald-50/60 p-3" data-testid="method-source-carhab">
                     <div className="flex items-start gap-2">
                       <Leaf className="mt-0.5 h-4 w-4 shrink-0 text-emerald-700" aria-hidden="true" />
                       <div>
@@ -1489,9 +1510,9 @@ ${shareUrl ? `\nReproduire cette analyse : ${shareUrl}` : ""}`;
                         <p className="mt-1 text-[11px] leading-relaxed text-emerald-800/75">
                           Source documentaire sur les habitats autour de l’aire d’étude ; elle ne remplace ni une cartographie d’habitats ni une confirmation sur le terrain.
                         </p>
-                      </div>
-                    </div>
-                  </div>
+                       </div>
+                     </div>
+                   </div>}
                   <Button
                     ref={explainTriggerRef}
                     variant="outline"
@@ -1731,7 +1752,7 @@ ${shareUrl ? `\nReproduire cette analyse : ${shareUrl}` : ""}`;
           </section>
 
           {/* Message Agent Habitat — pièce jointe dépliable */}
-          <section className="w-full self-stretch overflow-hidden rounded-xl border border-emerald-200 bg-emerald-50/30" data-testid="message-agent-habitat">
+          {habitatAgentActive && <section className="w-full self-stretch overflow-hidden rounded-xl border border-emerald-200 bg-emerald-50/30" data-testid="message-agent-habitat">
             <button
               type="button"
               onClick={() => toggleSection("habitats")}
@@ -1761,10 +1782,10 @@ ${shareUrl ? `\nReproduire cette analyse : ${shareUrl}` : ""}`;
                 </p>
               </div>
             )}
-          </section>
+          </section>}
 
           {/* Message Agent Zonages — pièce jointe dépliable */}
-          <section className="w-full self-stretch overflow-hidden rounded-xl border border-sky-200 bg-sky-50/30" data-testid="message-agent-zonages">
+          {zonagesAgentActive && <section className="w-full self-stretch overflow-hidden rounded-xl border border-sky-200 bg-sky-50/30" data-testid="message-agent-zonages">
             <button type="button" onClick={() => toggleSection("zonages")} aria-expanded={openSections.has("zonages")} aria-controls="attachment-zonages" className="w-full flex items-center justify-between gap-3 px-4 py-3 text-left hover:bg-sky-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400">
               <span className="flex items-center gap-2"><Layers className="h-5 w-5 shrink-0" aria-hidden="true" /><span><span className="block text-xs font-bold text-sky-900">Agent Zonages</span><span className="block text-[11px] text-sky-700">{zonagesLoading ? "Recherche en cours…" : `${flatZonages.length} zonage${flatZonages.length > 1 ? "s" : ""} · IGN / PatriNat`}</span></span></span>
               {openSections.has("zonages") ? <ChevronUp className="h-4 w-4 text-sky-700" /> : <ChevronDown className="h-4 w-4 text-sky-700" />}
@@ -1871,7 +1892,7 @@ ${shareUrl ? `\nReproduire cette analyse : ${shareUrl}` : ""}`;
               <p className="text-sm text-gray-400 italic">Aucun zonage environnemental recensé dans l'aire d'étude. Vous pouvez élargir le rayon d'analyse.</p>
             )}
                 </div>}
-          </section>
+          </section>}
 
           <section className="conversation-message" data-testid="message-ally-report-action">
             <Bot className="mt-1 h-5 w-5" aria-hidden="true" />

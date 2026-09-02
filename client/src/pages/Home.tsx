@@ -126,12 +126,16 @@ export default function Home() {
   const { toast } = useToast();
   const { isLoaded: authLoaded, isSignedIn } = useAuth();
 
-  useEffect(() => {
+  const refreshRuntimeHarness = useCallback(() => {
     fetch("/api/runtime/harness")
       .then((response) => response.ok ? response.json() : Promise.reject())
       .then(setHarnessConfig)
       .catch(() => undefined);
   }, []);
+
+  useEffect(() => {
+    refreshRuntimeHarness();
+  }, [refreshRuntimeHarness]);
 
   const openHarness = () => setShowHarness(true);
 
@@ -795,7 +799,7 @@ export default function Home() {
 
       <AboutDialog open={showAbout} onOpenChange={setShowAbout} />
       <ApiDialog open={showApi} onOpenChange={setShowApi} />
-      <HarnessDialog open={showHarness} onOpenChange={setShowHarness} config={harnessConfig} onConfigChange={setHarnessConfig} />
+      <HarnessDialog open={showHarness} onOpenChange={setShowHarness} config={harnessConfig} onConfigChange={() => refreshRuntimeHarness()} />
       <LieuxDitsDialog
         open={showLieuxDits}
         onOpenChange={setShowLieuxDits}

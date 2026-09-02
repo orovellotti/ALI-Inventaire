@@ -4,7 +4,7 @@ import { ZodError } from "zod";
 import { searchGBIF, searchGBIFMultiCircle, fetchSpeciesDetails } from "./gbif";
 import { findSINPPlatforms, SINP_PLATFORMS } from "./sinp";
 import { STUDY_AREAS, PROJECT_PRESETS, TAXON_GROUPS } from "./constants";
-import { analyzePrioritySpecies, reformatReport } from "./llm";
+import { analyzePrioritySpecies, getFinalStudyPrompt, reformatReport } from "./llm";
 import { resolveAliUrl } from "./ali";
 import { getMcpServerRegistry, registerMcpEndpoint } from "./mcp";
 import { asyncHandler } from "./lib/asyncHandler";
@@ -31,6 +31,7 @@ import { getPotentialSpecies } from "./services/potentialSpecies";
 import { DEFAULT_HARNESS_CONFIG, migrateHarnessConfig } from "@shared/harness";
 import { randomUUID } from "node:crypto";
 import { getHarnessAccess, requireHarnessAdmin } from "./harnessAuth";
+import { getRuntimeHarnessConfig, isAgentEnabled, isAgentOperational, isAgentToolEnabled } from "./harnessRuntime";
 
 const DATA_SOURCES_TTL_MS = 10 * 60 * 1000;
 let dataSourcesCache: { data: unknown; expires: number } | null = null;
@@ -98,6 +99,7 @@ export async function registerRoutes(
       mcpServers: [],
       agents: config.agents.map((agent) => ({
         ...agent,
+        enabled: isAgentOperational(config, agent.id),
         prompt: "",
         mcpId: "none",
         mcpToolIds: [],
@@ -116,6 +118,13 @@ export async function registerRoutes(
       await storage.saveHarnessConfig(config);
     }
     res.json(config);
+  }));
+
+  app.get("/api/harness/final-study-prompt", requireHarnessAdmin, asyncHandler(async (_req, res) => {
+    res.json({
+      title: "Prompt final de génération de la pré-étude",
+      prompt: await getFinalStudyPrompt(),
+    });
   }));
 
   app.get("/api/harness/mcp-registry", requireHarnessAdmin, asyncHandler(async (_req, res) => {
@@ -165,7 +174,19 @@ export async function registerRoutes(
     "/api/inventory",
     asyncHandler(async (req, res) => {
       const { circles, includeINaturalist } = inventoryBodySchema.parse(req.body);
-      const result = await searchGBIFMultiCircle(circles, { includeINaturalist });
+      const harness = await getRuntimeHarnessConfig();
+      if (!isAgentEnabled(harness, "occurrences")) {
+        throw new HttpError(409, "L’Agent Occurrences est désactivé dans le Harnais.");
+      }
+      const result = await searchGBIFMultiCircle(circles, {
+        includeINaturalist,
+        skipAliSpeciesMcp: !isAgentToolEnabled(
+          harness,
+          "taxonomy-status",
+          "ali-species",
+          "get_statuts",
+        ),
+      });
       res.json(result);
     }),
   );
@@ -174,7 +195,19 @@ export async function registerRoutes(
     "/api/inventory/simple",
     asyncHandler(async (req, res) => {
       const { lat, lng, radius, includeINaturalist } = simpleInventoryQuerySchema.parse(req.query);
-      const result = await searchGBIF(lat, lng, radius, { includeINaturalist });
+      const harness = await getRuntimeHarnessConfig();
+      if (!isAgentEnabled(harness, "occurrences")) {
+        throw new HttpError(409, "L’Agent Occurrences est désactivé dans le Harnais.");
+      }
+      const result = await searchGBIF(lat, lng, radius, {
+        includeINaturalist,
+        skipAliSpeciesMcp: !isAgentToolEnabled(
+          harness,
+          "taxonomy-status",
+          "ali-species",
+          "get_statuts",
+        ),
+      });
       res.json(result);
     }),
   );
@@ -218,6 +251,10 @@ export async function registerRoutes(
   app.get(
     "/api/zonages",
     asyncHandler(async (req, res) => {
+      const harness = await getRuntimeHarnessConfig();
+      if (!isAgentEnabled(harness, "zonages")) {
+        throw new HttpError(409, "L’Agent Zonages est désactivé dans le Harnais.");
+      }
       const { lat, lng, radius } = zonagesQuerySchema.parse(req.query);
       const includeGeometry = req.query.geometry === "1" || req.query.geometry === "true";
       res.json(await getZonages(lat, lng, radius, { includeGeometry }));
@@ -292,7 +329,13 @@ export async function registerRoutes(
     asyncHandler(async (req, res) => {
       const { lat, lng, radius, occurrences } =
         potentialSpeciesBodySchema.parse(req.body);
-      res.json(await getPotentialSpecies(lat, lng, radius, occurrences));
+      const harness = await getRuntimeHarnessConfig();
+      if (!isAgentEnabled(harness, "zonages")) {
+        throw new HttpError(409, "L’Agent Zonages est désactivé dans le Harnais.");
+      }
+      res.json(await getPotentialSpecies(lat, lng, radius, occurrences, {
+        includeHabitats: isAgentOperational(harness, "habitats"),
+      }));
     }),
   );
 
@@ -320,6 +363,10 @@ export async function registerRoutes(
     "/api/llm/priority-species",
     asyncHandler(async (req, res) => {
       const { toponym, coords, occurrences } = priorityBodySchema.parse(req.body);
+      const harness = await getRuntimeHarnessConfig();
+      if (!isAgentEnabled(harness, "occurrences")) {
+        throw new HttpError(409, "L’Agent Occurrences est désactivé dans le Harnais.");
+      }
       res.json(await analyzePrioritySpecies(toponym, coords, occurrences as any));
     }),
   );

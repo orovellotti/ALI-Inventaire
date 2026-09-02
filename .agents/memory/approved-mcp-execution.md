@@ -14,3 +14,9 @@ Administrable MCP URLs require HTTPS, public DNS, an outbound connection pinned 
 **Why:** Resolve-then-fetch is vulnerable to DNS rebinding, and displaying an incompatible tool as usable creates persisted approvals that can only fail at runtime. In Replit, public `*.replit.app` hosts may resolve locally to the platform proxy; verify their public DNS separately before pinning the public destination rather than weakening private-network checks.
 
 **How to apply:** Revalidate and pin on discovery and every execution, reject credentials/local/private/reserved targets and unsupported schema shapes, never auto-enable new tools, and keep authentication headers or OAuth outside the URL.
+
+The Harness configuration is the authoritative execution policy for both HTTP routes and the public MCP endpoint. Native direct-service paths must require the exact native agent/MCP/tool grant; a custom tool with the same name must never activate a managed native source.
+
+**Why:** UI-only switches and hidden fallbacks let disabled agents continue changing scientific results, while homonymous custom tools can cause false source attribution.
+
+**How to apply:** Build runtime capability checks server-side, gate every direct and MCP entry point, expose only the operational projection to the public UI, and derive process messages and report sources from what was actually scheduled.

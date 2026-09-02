@@ -87,6 +87,7 @@ export async function getPotentialSpecies(
   lng: number,
   radius: number,
   occurrences: PotentialOccurrence[],
+  options: { includeHabitats?: boolean } = {},
 ): Promise<PotentialSpeciesResult> {
   const deadline = Date.now() + REQUEST_BUDGET_MS;
   let partial = false;
@@ -150,6 +151,15 @@ export async function getPotentialSpecies(
         continue;
       }
       try {
+        if (options.includeHabitats === false) {
+          evidenceByCode.set(code, {
+            code,
+            name: zone.name,
+            habitats: [],
+            metrics: computeSiteMetrics(lat, lng, radius, zone.geometry ?? null),
+          });
+          continue;
+        }
         const info = await withDeadline(
           getSiteHabitatInfo(code),
           remainingMs,

@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Activity, Bot, Link2, LockKeyhole, Plus, RefreshCw, RotateCcw, Save, Trash2 } from "lucide-react";
+import { Activity, Bot, FileText, Link2, LockKeyhole, Plus, RefreshCw, RotateCcw, Save, Settings2, Trash2 } from "lucide-react";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -27,12 +27,16 @@ export function HarnessDialog({
   const [pinging, setPinging] = useState(false);
   const [lastPingAt, setLastPingAt] = useState<Date | null>(null);
   const [access, setAccess] = useState<{ signedIn: boolean; canManage: boolean } | null>(null);
+  const [activeTab, setActiveTab] = useState<"agents" | "final-prompt">("agents");
+  const [finalStudyPrompt, setFinalStudyPrompt] = useState("");
 
   useEffect(() => setDraft(config), [config, open]);
   useEffect(() => {
     if (!open) return;
     setAccess(null);
     setMcpRegistry([]);
+    setFinalStudyPrompt("");
+    setActiveTab("agents");
     setMessage(null);
     fetch("/api/harness/access")
       .then(async (response) => {
@@ -41,19 +45,22 @@ export function HarnessDialog({
         setAccess(data);
         if (!data.canManage) return;
 
-        const [configResponse, registryResponse] = await Promise.all([
+        const [configResponse, registryResponse, promptResponse] = await Promise.all([
           fetch("/api/harness"),
           fetch("/api/harness/mcp-registry"),
+          fetch("/api/harness/final-study-prompt"),
         ]);
-        if (!configResponse.ok || !registryResponse.ok) {
+        if (!configResponse.ok || !registryResponse.ok || !promptResponse.ok) {
           throw new Error("Chargement de la configuration d’administration impossible");
         }
-        const [adminConfig, registry] = await Promise.all([
+        const [adminConfig, registry, promptData] = await Promise.all([
           configResponse.json(),
           registryResponse.json(),
+          promptResponse.json(),
         ]);
         setDraft(adminConfig);
         setMcpRegistry(registry);
+        setFinalStudyPrompt(promptData.prompt ?? "");
         setLastPingAt(new Date());
       })
       .catch((error) => {
@@ -115,6 +122,11 @@ export function HarnessDialog({
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || "Sauvegarde impossible");
       onConfigChange(data);
+      const promptResponse = await fetch("/api/harness/final-study-prompt");
+      if (promptResponse.ok) {
+        const promptData = await promptResponse.json();
+        setFinalStudyPrompt(promptData.prompt ?? "");
+      }
       setMessage("Configuration partagée enregistrée.");
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Sauvegarde impossible");
@@ -236,6 +248,23 @@ export function HarnessDialog({
         <p className="rounded-xl border border-[#dfe3da] bg-[#f3f6ef] p-3 text-xs leading-5 text-[#557067]">
           Les agents pilotent les consultations autorisées. L’Agent Taxonomie et statuts utilise ALI Species pour documenter les statuts territoriaux sans confirmer la présence sur le terrain.
         </p>
+        {access?.canManage && <div className="grid grid-cols-2 gap-1 rounded-xl border border-[#d9ddd1] bg-[#f3f6ef] p-1">
+          <button
+            type="button"
+            onClick={() => setActiveTab("agents")}
+            className={`flex items-center justify-center gap-2 rounded-lg px-3 py-2 text-sm font-semibold transition-colors ${activeTab === "agents" ? "bg-white text-[#17483d] shadow-sm" : "text-[#557067] hover:bg-white/60"}`}
+          >
+            <Settings2 className="h-4 w-4" /> Agents et MCP
+          </button>
+          <button
+            type="button"
+            onClick={() => setActiveTab("final-prompt")}
+            className={`flex items-center justify-center gap-2 rounded-lg px-3 py-2 text-sm font-semibold transition-colors ${activeTab === "final-prompt" ? "bg-white text-[#17483d] shadow-sm" : "text-[#557067] hover:bg-white/60"}`}
+          >
+            <FileText className="h-4 w-4" /> Prompt final de l’étude
+          </button>
+        </div>}
+        {activeTab === "agents" && <>
         {!readOnly && <section className="space-y-3 rounded-2xl border border-[#dfe3da] bg-[#f3f6ef] p-4">
           <div className="flex items-center justify-between gap-3">
             <div>
@@ -256,9 +285,22 @@ export function HarnessDialog({
           <div className="grid gap-2 sm:grid-cols-2">
             {mcpRegistry.map((mcp) => (
               <div key={mcp.id} className="flex items-center justify-between gap-3 rounded-xl border border-[#dfe3da] bg-white px-3 py-2">
-                <span className="flex min-w-0 items-center gap-2 text-sm font-medium text-[#315b4e]">
+                <span className="flex min-w-0 items-start gap-2 text-sm font-medium text-[#315b4e]">
                   <Activity className="h-4 w-4 shrink-0" />
-                  <span className="truncate">{mcp.label}</span>
+                  <span className="min-w-0">
+                    <span className="block truncate">{mcp.label}</span>
+                    {mcp.url && (
+                      <a
+                        href={mcp.url}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="mt-0.5 block truncate text-[11px] font-normal text-[#6b7d76] underline"
+                        title={mcp.url}
+                      >
+                        {mcp.url}
+                      </a>
+                    )}
+                  </span>
                 </span>
                 <span
                   className={`rounded-full px-2 py-0.5 text-[11px] font-bold tracking-wide ${
@@ -315,6 +357,20 @@ export function HarnessDialog({
                     <option value="none">Aucun MCP</option>
                     {mcpRegistry.filter((mcp) => mcp.connected).map((mcp) => <option key={mcp.id} value={mcp.id}>{mcp.label} — connecté</option>)}
                   </select>
+                   {agent.mcpId !== "none" && (() => {
+                     const selectedMcp = mcpRegistry.find((mcp) => mcp.id === agent.mcpId);
+                     return selectedMcp?.url ? (
+                       <a
+                         href={selectedMcp.url}
+                         target="_blank"
+                         rel="noreferrer"
+                         className="mt-1 flex items-center gap-1 break-all text-xs text-[#557067] underline"
+                       >
+                         <Link2 className="h-3 w-3 shrink-0" />
+                         {selectedMcp.url}
+                       </a>
+                     ) : null;
+                   })()}
                   {agent.mcpId !== "none" && (
                     <div className="mt-2 space-y-2 rounded-lg border border-[#dfe3da] bg-white p-3">
                       {(mcpRegistry.find((mcp) => mcp.id === agent.mcpId)?.tools ?? []).map((tool) => (
@@ -348,6 +404,25 @@ export function HarnessDialog({
             </section>
           ))}
         </div>
+        </>}
+        {activeTab === "final-prompt" && access?.canManage && (
+          <section className="space-y-3 rounded-2xl border border-[#dfe3da] bg-[#faf9f3] p-4">
+            <div>
+              <h3 className="font-semibold text-[#17483d]">Prompt réellement envoyé au modèle</h3>
+              <p className="mt-1 text-xs leading-5 text-[#6b7d76]">
+                Cet aperçu en lecture seule combine les garde-fous de rédaction et les prompts de tous les agents activés. Il est recalculé à l’ouverture du Harnais.
+              </p>
+            </div>
+            <Textarea
+              readOnly
+              value={finalStudyPrompt}
+              rows={24}
+              className="min-h-[420px] resize-y bg-white font-mono text-xs leading-5"
+              aria-label="Prompt final de génération de la pré-étude"
+              data-testid="textarea-final-study-prompt"
+            />
+          </section>
+        )}
         {message && <p className="text-sm font-medium text-[#1e594a]" role="status">{message}</p>}
         {!readOnly && <div className="flex flex-wrap justify-between gap-2 border-t pt-4">
           <Button variant="outline" onClick={reset} disabled={saving} className="gap-2"><RotateCcw className="h-4 w-4" />Réinitialiser</Button>
