@@ -1,4 +1,3 @@
-import { useState, useMemo, useEffect, useRef, type ReactNode } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -21,6 +20,8 @@ import { zonageKey } from "@/lib/zonageMap";
 import type { ZonagesData, ZonageItem } from "@/lib/zonages";
 import type { AnalysisConversation } from "@/lib/analysisHistory";
 import type { HarnessConfig } from "@shared/harness";
+import { occurrenceKey, uniqueOccurrences } from "@/lib/resultKeys";
+import React, { useState, useMemo, useEffect, useRef, type ReactNode } from "react";
 
 interface NaturaSpeciesItem {
   name: string;
@@ -240,8 +241,9 @@ export function ResultsPanel({ isOpen, isAnalyzing = false, areaCount = 1, onClo
     const seen = new Set<string>();
     let n = 0;
     for (const occ of results.occurrences) {
-      if (seen.has(occ.scientificName)) continue;
-      seen.add(occ.scientificName);
+      const key = occurrenceKey(occ);
+      if (seen.has(key)) continue;
+      seen.add(key);
       if (isMarineSpecies(occ)) n += 1;
     }
     return n;
@@ -252,9 +254,10 @@ export function ResultsPanel({ isOpen, isAnalyzing = false, areaCount = 1, onClo
     const uniqueMap = new Map<string, Occurrence>();
     results.occurrences.forEach((occ) => {
       if (excludeMarine && isMarineSpecies(occ)) return;
-      const existing = uniqueMap.get(occ.scientificName);
+      const key = occurrenceKey(occ);
+      const existing = uniqueMap.get(key);
       if (!existing || getAlertPriority(occ.alertLevel) > getAlertPriority(existing.alertLevel)) {
-        uniqueMap.set(occ.scientificName, occ);
+        uniqueMap.set(key, occ);
       }
     });
     const counts = new Map<string, number>();
@@ -271,9 +274,10 @@ export function ResultsPanel({ isOpen, isAnalyzing = false, areaCount = 1, onClo
     const uniqueMap = new Map<string, Occurrence>();
     results.occurrences.forEach((occ) => {
       if (excludeMarine && isMarineSpecies(occ)) return;
-      const existing = uniqueMap.get(occ.scientificName);
+      const key = occurrenceKey(occ);
+      const existing = uniqueMap.get(key);
       if (!existing || getAlertPriority(occ.alertLevel) > getAlertPriority(existing.alertLevel)) {
-        uniqueMap.set(occ.scientificName, occ);
+        uniqueMap.set(key, occ);
       }
     });
     for (const occ of Array.from(uniqueMap.values())) {
@@ -307,9 +311,10 @@ export function ResultsPanel({ isOpen, isAnalyzing = false, areaCount = 1, onClo
     const uniqueMap = new Map<string, Occurrence>();
     results.occurrences.forEach((occ) => {
       if (excludeMarine && isMarineSpecies(occ)) return;
-      const existing = uniqueMap.get(occ.scientificName);
+      const key = occurrenceKey(occ);
+      const existing = uniqueMap.get(key);
       if (!existing || getAlertPriority(occ.alertLevel) > getAlertPriority(existing.alertLevel)) {
-        uniqueMap.set(occ.scientificName, occ);
+        uniqueMap.set(key, occ);
       }
     });
 
@@ -543,8 +548,9 @@ export function ResultsPanel({ isOpen, isAnalyzing = false, areaCount = 1, onClo
     if (results) {
       const seen = new Set<string>();
       for (const occ of results.occurrences) {
-        if (seen.has(occ.scientificName)) continue;
-        seen.add(occ.scientificName);
+        const key = occurrenceKey(occ);
+        if (seen.has(key)) continue;
+        seen.add(key);
         tot += 1;
         if (occ.lastObservationYear && occ.lastObservationYear >= CURRENT_YEAR - 5) recent += 1;
       }
@@ -667,7 +673,7 @@ export function ResultsPanel({ isOpen, isAnalyzing = false, areaCount = 1, onClo
   // et fait défiler jusqu'à la fiche correspondante.
   useEffect(() => {
     if (!selectedSpecies || !isOpen) return;
-    const isPriority = prioritySpeciesList.some((o) => o.scientificName === selectedSpecies);
+    const isPriority = prioritySpeciesList.some((o) => occurrenceKey(o) === selectedSpecies);
     setSpeciesScope(isPriority ? "prioritaires" : "toutes");
     setSpeciesQuery("");
     setOpenSections((prev) => new Set(prev).add("especes"));
@@ -694,8 +700,12 @@ export function ResultsPanel({ isOpen, isAnalyzing = false, areaCount = 1, onClo
   const flatZonages = useMemo(() => {
     if (!zonages) return [] as (ZonageItem & { groupCategory: string; categoryLabel: string; priority: number })[];
     const list: (ZonageItem & { groupCategory: string; categoryLabel: string; priority: number })[] = [];
+    const seen = new Set<string>();
     for (const g of zonages.groups) {
       for (const z of g.zonages) {
+        const key = zonageKey(z);
+        if (seen.has(key)) continue;
+        seen.add(key);
         list.push({ ...z, groupCategory: g.category, categoryLabel: g.label, priority: ZONAGE_CATEGORY_PRIORITY[g.category] ?? 9 });
       }
     }
@@ -1786,7 +1796,7 @@ ${shareUrl ? `\nReproduire cette analyse : ${shareUrl}` : ""}`;
                 const isSelectedOnMap = selectedZonageId === key;
                 return (
                   <div
-                    key={`${key}-${idx}`}
+                    key={key}
                     data-zonage-key={key}
                     className={`rounded-lg border bg-white overflow-hidden ${
                       isSelectedOnMap ? "border-teal-400 ring-1 ring-teal-300" : "border-gray-200"
@@ -2110,23 +2120,26 @@ const SPECIES_TABLE =
 const SPECIES_TABLE_HEAD =
   "border-b border-slate-200 bg-slate-50 text-[9px] font-bold uppercase tracking-[0.11em] text-slate-500";
 
-function SpeciesInventoryTable({ species, selectedSpecies, onSelectSpecies, centerCoords }: {
+export function SpeciesInventoryTable({ species, selectedSpecies, onSelectSpecies, centerCoords }: {
   species: Occurrence[];
   selectedSpecies: string | null;
   onSelectSpecies: (name: string | null) => void;
   centerCoords: [number, number];
 }) {
+  const uniqueSpecies = useMemo(() => uniqueOccurrences(species), [species]);
+
   return (
     <div className={SPECIES_TABLE_FRAME}>
       <div className="divide-y divide-slate-100 md:hidden" data-testid="species-inventory-list">
-        {species.map((occ, index) => {
-          const selected = selectedSpecies === occ.scientificName;
+        {uniqueSpecies.map((occ) => {
+          const key = occurrenceKey(occ);
+          const selected = selectedSpecies === key;
           return (
             <SpeciesInventoryCard
-              key={`${occ.scientificName}-${index}`}
+              key={key}
               occ={occ}
               selected={selected}
-              onSelect={() => onSelectSpecies(selected ? null : occ.scientificName)}
+              onSelect={() => onSelectSpecies(selected ? null : key)}
               centerCoords={centerCoords}
             />
           );
@@ -2146,14 +2159,15 @@ function SpeciesInventoryTable({ species, selectedSpecies, onSelectSpecies, cent
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
-            {species.map((occ, index) => {
-              const selected = selectedSpecies === occ.scientificName;
+            {uniqueSpecies.map((occ) => {
+              const key = occurrenceKey(occ);
+              const selected = selectedSpecies === key;
               return (
                 <SpeciesTableRow
-                  key={`${occ.scientificName}-${index}`}
+                  key={key}
                   occ={occ}
                   selected={selected}
-                  onSelect={() => onSelectSpecies(selected ? null : occ.scientificName)}
+                  onSelect={() => onSelectSpecies(selected ? null : key)}
                   centerCoords={centerCoords}
                 />
               );
@@ -2169,14 +2183,15 @@ function SpeciesInventoryCard({ occ, selected, onSelect, centerCoords }: { occ: 
   const patri = getPatrimonialite(occ.iucnStatus, occ.alertLevel, occ.isInvasive);
   const group = TAXON_GROUPS.find((g) => g.id === getTaxonGroupId(occ));
   const enjeuBadge = occ.enjeuLevel ? ENJEU_LEVEL_BADGE[occ.enjeuLevel] : null;
+  const key = occurrenceKey(occ);
   return (
-    <article data-species-item={occ.scientificName} className={selected ? "bg-teal-50/80" : "bg-white"}>
+    <article data-species-item={key} className={selected ? "bg-teal-50/80" : "bg-white"}>
       <button
         type="button"
         onClick={onSelect}
         aria-expanded={selected}
         className="w-full px-3 py-3 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-teal-500"
-        data-testid={`species-row-${occ.scientificName}`}
+        data-testid={`species-row-${key}`}
       >
         <span className="flex items-start justify-between gap-2">
           <span className="min-w-0">
@@ -2200,11 +2215,12 @@ function SpeciesTableRow({ occ, selected, onSelect, centerCoords }: { occ: Occur
   const patri = getPatrimonialite(occ.iucnStatus, occ.alertLevel, occ.isInvasive);
   const group = TAXON_GROUPS.find((g) => g.id === getTaxonGroupId(occ));
   const enjeuBadge = occ.enjeuLevel ? ENJEU_LEVEL_BADGE[occ.enjeuLevel] : null;
+  const key = occurrenceKey(occ);
   return (
     <>
-      <tr data-species-item={occ.scientificName} className={`group transition-colors ${selected ? "bg-teal-50/80" : "hover:bg-teal-50/40"}`}>
+      <tr data-species-item={key} className={`group transition-colors ${selected ? "bg-teal-50/80" : "hover:bg-teal-50/40"}`}>
         <td className="px-3 py-2.5">
-          <button type="button" onClick={onSelect} className="block max-w-full text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500 focus-visible:ring-offset-2 rounded" data-testid={`species-row-${occ.scientificName}`}>
+          <button type="button" onClick={onSelect} className="block max-w-full text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500 focus-visible:ring-offset-2 rounded" data-testid={`species-row-${key}`}>
             <span className="block truncate text-xs font-semibold text-slate-800">{occ.vernacularName || occ.scientificName}</span>
             {occ.vernacularName && <span className="block truncate text-[10px] italic text-slate-500">{occ.scientificName}</span>}
           </button>
@@ -2865,7 +2881,11 @@ function ZnieffDocumentaryBlock({
       {znieff.species.length > 0 ? (
         <ul className="mt-2 space-y-1.5" data-testid="list-znieff-species">
           {visibleSpecies.map((item, index) => (
-            <ZnieffSpeciesRow key={`${item.scientificName}-${index}`} item={item} index={index} />
+            <ZnieffSpeciesRow
+              key={item.cdRef?.trim() || `${item.scientificName.normalize("NFKC").trim().toLowerCase()}::${item.speciesGroup}`}
+              item={item}
+              index={index}
+            />
           ))}
         </ul>
       ) : (

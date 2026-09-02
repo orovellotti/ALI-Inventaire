@@ -7,4 +7,4 @@ Zonage list↔map selection sync is done with **vector emprises from the Géopla
 
 **Why:** the WMS raster overlays used as visual layers cannot support per-polygon click/highlight; earlier attempts to promise selection on them were dropped. A completion review also rejected flattening MultiPolygons — flattened rings render islands as holes in Leaflet.
 
-**How to apply:** any zonage-on-map feature must use the WFS vector path, preserve Polygon/MultiPolygon nesting end to end (holes stay with their exterior part), and degrade gracefully when the WFS returns no geometry. Never promise click behavior on WMS raster layers. Bbox axis quirk: see ign-geoplateforme-wfs.md.
+**How to apply:** any zonage-on-map feature must use the WFS vector path, preserve Polygon/MultiPolygon nesting end to end (holes stay with their exterior part), preserve distinct homonyms in the shared identity, and degrade gracefully when the WFS returns no geometry. Never promise click behavior on WMS raster layers. Bbox axis quirk: see ign-geoplateforme-wfs.md.

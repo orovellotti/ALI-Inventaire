@@ -3,6 +3,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Sparkles, AlertTriangle, AlertCircle, Info, Loader2 } from "lucide-react";
 import { useEffect, useState } from "react";
 import type { Occurrence } from "@/lib/gbif";
+import { occurrenceKey } from "@/lib/resultKeys";
 
 interface Props {
   open: boolean;
@@ -54,8 +55,9 @@ export function PrioritySpeciesDialog({ open, onOpenChange, toponym, coords, occ
         : Infinity;
     const nearest = new Map<string, Occurrence>();
     for (const o of occurrences) {
-      const prev = nearest.get(o.scientificName);
-      if (!prev || d2(o) < d2(prev)) nearest.set(o.scientificName, o);
+      const key = occurrenceKey(o);
+      const prev = nearest.get(key);
+      if (!prev || d2(o) < d2(prev)) nearest.set(key, o);
     }
     const slim = Array.from(nearest.values()).map(o => ({
       scientificName: o.scientificName,

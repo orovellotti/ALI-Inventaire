@@ -6,6 +6,7 @@ import L from "leaflet";
 import { InventoryResult, BufferCircle, STUDY_AREAS, getTaxonGroupId, isMarineSpecies } from "@/lib/gbif";
 import type { ProjectPolygon } from "@/lib/shapefile";
 import { ZonageMapFeature, ZONAGE_MAP_COLORS } from "@/lib/zonageMap";
+import { occurrenceKey, uniqueOccurrences } from "@/lib/resultKeys";
 
 import icon from 'leaflet/dist/images/marker-icon.png';
 import iconShadow from 'leaflet/dist/images/marker-shadow.png';
@@ -25,7 +26,7 @@ interface MapProps {
   results: InventoryResult | null;
   onMapClick: (lat: number, lng: number) => void;
   selectedSpecies: string | null;
-  onSelectSpecies?: (name: string | null) => void;
+  onSelectSpecies?: (key: string | null) => void;
   activeTaxonFilters: Set<string>;
   excludeMarine?: boolean;
   projectPolygon: ProjectPolygon | null;
@@ -246,10 +247,10 @@ export function Map({ center, circles, results, onMapClick, selectedSpecies, onS
 
   const filteredOccurrences = useMemo(() => {
     if (!results) return [];
-    return results.occurrences.filter(occ =>
+    return uniqueOccurrences(results.occurrences.filter(occ =>
       activeTaxonFilters.has(getTaxonGroupId(occ)) &&
       !(excludeMarine && isMarineSpecies(occ))
-    );
+    ));
   }, [results, activeTaxonFilters, excludeMarine]);
 
   return (
@@ -366,10 +367,11 @@ export function Map({ center, circles, results, onMapClick, selectedSpecies, onS
         />
 
         {filteredOccurrences.map((occ) => {
-          const isSelected = selectedSpecies === occ.scientificName;
+          const key = occurrenceKey(occ);
+          const isSelected = selectedSpecies === key;
           return (
             <CircleMarker
-              key={occ.key || `occ-${occ.scientificName}-${occ.decimalLatitude}-${occ.decimalLongitude}`}
+              key={key}
               center={[occ.decimalLatitude, occ.decimalLongitude]}
               radius={isSelected ? 14 : (occ.alertLevel === 'high' ? 8 : (occ.alertLevel === 'medium' ? 6 : 4))}
               pathOptions={{
@@ -382,7 +384,7 @@ export function Map({ center, circles, results, onMapClick, selectedSpecies, onS
                 click: (e) => {
                   L.DomEvent.stopPropagation(e);
                   if (onSelectSpecies) {
-                    onSelectSpecies(isSelected ? null : occ.scientificName);
+                    onSelectSpecies(isSelected ? null : key);
                   }
                 },
               }}

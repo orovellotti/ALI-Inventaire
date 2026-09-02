@@ -1,6 +1,7 @@
 import { Sparkles, AlertTriangle, AlertCircle, Info, Loader2, RefreshCw, ExternalLink, BookOpen, Layers } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { Occurrence } from "@/lib/gbif";
+import { occurrenceKey } from "@/lib/resultKeys";
 
 interface Props {
   toponym: string;
@@ -162,8 +163,9 @@ export function PrioritySpeciesInline({ toponym, coords, occurrences, onAnalysis
     // proximité (C).
     const nearest = new Map<string, Occurrence>();
     for (const o of occurrences) {
-      const prev = nearest.get(o.scientificName);
-      if (!prev || d2(o) < d2(prev)) nearest.set(o.scientificName, o);
+      const key = occurrenceKey(o);
+      const prev = nearest.get(key);
+      if (!prev || d2(o) < d2(prev)) nearest.set(key, o);
     }
     return Array.from(nearest.values()).map(o => ({
       scientificName: o.scientificName,

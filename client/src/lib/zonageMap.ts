@@ -3,7 +3,7 @@
 import type { ZonagesData } from "@/lib/zonages";
 
 export interface ZonageMapFeature {
-  /** Identifiant stable côté client : `${type}::${nom}` */
+  /** Identifiant stable côté client, partagé avec la liste de résultats. */
   id: string;
   name: string;
   type: string;
@@ -16,8 +16,14 @@ export interface ZonageMapFeature {
 }
 
 /** Clé stable d'un zonage, identique dans la liste et sur la carte. */
-export function zonageKey(z: { type: string; name: string }): string {
-  return `${z.type}::${z.name}`;
+export function zonageKey(z: {
+  type: string;
+  name: string;
+  id?: string | null;
+  code?: string | null;
+}): string {
+  const identifier = z.id?.trim() || z.code?.trim() || z.name.normalize("NFKC").trim();
+  return `${z.type.normalize("NFKC").trim()}::${identifier}`;
 }
 
 /**

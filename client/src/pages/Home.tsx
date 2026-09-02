@@ -11,6 +11,7 @@ import { searchGBIFMultiCircle, InventoryResult, BufferCircle, STUDY_AREAS, Proj
 import { searchPlace, reverseGeocode } from "@/lib/geocoding";
 import { parseShapefile, ProjectPolygon } from "@/lib/shapefile";
 import { toZonageMapFeatures } from "@/lib/zonageMap";
+import { occurrenceKey } from "@/lib/resultKeys";
 import { fetchZonages, type ZonagesData } from "@/lib/zonages";
 import type { PotentialSpeciesResult } from "@shared/types";
 import { DEFAULT_HARNESS_CONFIG, type HarnessConfig } from "@shared/harness";
@@ -461,7 +462,7 @@ export default function Home() {
 
   useEffect(() => {
     if (selectedSpecies && results) {
-      const matchingOcc = results.occurrences.find(o => o.scientificName === selectedSpecies);
+      const matchingOcc = results.occurrences.find(o => occurrenceKey(o) === selectedSpecies);
       if (matchingOcc && !activeTaxonFilters.has(getTaxonGroupId(matchingOcc))) {
         setSelectedSpecies(null);
       }
@@ -706,9 +707,9 @@ export default function Home() {
         results={results} 
         onMapClick={handleMapClick}
         selectedSpecies={selectedSpecies}
-        onSelectSpecies={(name) => {
-          setSelectedSpecies(name);
-          if (name && !isPanelOpen) setIsPanelOpen(true);
+        onSelectSpecies={(key) => {
+          setSelectedSpecies(key);
+          if (key && !isPanelOpen) setIsPanelOpen(true);
         }}
         activeTaxonFilters={activeTaxonFilters}
         excludeMarine={excludeMarine}
