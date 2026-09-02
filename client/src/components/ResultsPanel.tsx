@@ -1364,6 +1364,17 @@ ${shareUrl ? `\nReproduire cette analyse : ${shareUrl}` : ""}`;
                       <p className="text-[#60756d]">{harnessConfig?.agents.filter((agent) => agent.enabled).length ?? 0} agents mobilisés · {results.stats.speciesCount} espèces analysées · {zonages?.count ?? 0} zonages vérifiés</p>
                    </div>
                  </div>
+                  {taxonomyAgentActive && (
+                    <div className="mt-3 flex items-start gap-2 border-l-4 border-[#c5962f] bg-[#fff8df] px-3 py-2 text-sm text-[#4d4328]" data-testid="analysis-final-ali-species">
+                      <Tag className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
+                      <p>
+                        <strong>ALI Species — Taxonomie et statuts :</strong>{" "}
+                        {results.aliSpeciesEnrichment
+                          ? `${results.aliSpeciesEnrichment.enriched}/${results.aliSpeciesEnrichment.attempted} taxons enrichis.`
+                          : "aucun bilan ALI Species n’a été enregistré pour cette analyse."}
+                      </p>
+                    </div>
+                  )}
                  <button type="button" className="mt-2 flex min-h-11 items-center gap-1.5 text-sm font-semibold" onClick={() => setShowAnalysisDetails((value) => !value)} aria-expanded={showAnalysisDetails} aria-controls="analysis-transcript">
                    Voir les détails {showAnalysisDetails ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
                  </button>
@@ -1373,7 +1384,7 @@ ${shareUrl ? `\nReproduire cette analyse : ${shareUrl}` : ""}`;
                         <li><strong>ALi — coordination</strong><p>Demande comprise, périmètre vérifié et analyse répartie entre les agents spécialisés.</p></li>
                         {occurrencesAgentActive && <li><strong>Agent Occurrences</strong><p>{results.stats.speciesCount} espèces consolidées à partir de {results.stats.total} données retenues.</p></li>}
                         {zonagesAgentActive && <li><strong>Agent Zonages</strong><p>{zonagesLoading ? "Consultation des référentiels en cours." : `${zonages?.count ?? 0} zonage${(zonages?.count ?? 0) > 1 ? "s" : ""} vérifié${(zonages?.count ?? 0) > 1 ? "s" : ""}.`}</p></li>}
-                        {taxonomyAgentActive && results.aliSpeciesEnrichment && <li><strong>Agent Taxonomie et statuts</strong><p>{results.aliSpeciesEnrichment.enriched}/{results.aliSpeciesEnrichment.attempted} taxons enrichis via ALI Species.</p></li>}
+                         {taxonomyAgentActive && <li><strong>Agent Taxonomie et statuts — ALI Species</strong><p>{results.aliSpeciesEnrichment ? `${results.aliSpeciesEnrichment.enriched}/${results.aliSpeciesEnrichment.attempted} taxons enrichis via ALI Species.` : "Aucun bilan ALI Species enregistré pour cette analyse."}</p></li>}
                          {habitatAgentActive && aliHabitatStatus && <li data-testid="analysis-transcript-ali-habitat"><strong>Agent Habitat — CARHAB</strong><p>{aliHabitatStatus}</p></li>}
                      </ol>
                    </div>
@@ -2296,6 +2307,7 @@ function SpeciesInventoryCard({ occ, selected, onSelect, centerCoords }: { occ: 
           <span className="min-w-0">
             <span className="block break-words text-xs font-semibold text-slate-800">{occ.vernacularName || occ.scientificName}</span>
             {occ.vernacularName && <span className="block break-words text-[10px] italic text-slate-500">{occ.scientificName}</span>}
+            {occ.englishName && <span className="block break-words text-[10px] text-slate-500">EN · {occ.englishName}</span>}
           </span>
           {selected ? <ChevronUp className="h-4 w-4 shrink-0 text-teal-700" /> : <ChevronDown className="h-4 w-4 shrink-0 text-slate-400" />}
         </span>
@@ -2322,6 +2334,7 @@ function SpeciesTableRow({ occ, selected, onSelect, centerCoords }: { occ: Occur
           <button type="button" onClick={onSelect} className="block max-w-full text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500 focus-visible:ring-offset-2 rounded" data-testid={`species-row-${key}`}>
             <span className="block truncate text-xs font-semibold text-slate-800">{occ.vernacularName || occ.scientificName}</span>
             {occ.vernacularName && <span className="block truncate text-[10px] italic text-slate-500">{occ.scientificName}</span>}
+            {occ.englishName && <span className="block truncate text-[10px] text-slate-500">EN · {occ.englishName}</span>}
           </button>
         </td>
         <td className="px-2 py-2.5 text-[10px] font-medium text-slate-600">{group?.label || "Autres"}</td>

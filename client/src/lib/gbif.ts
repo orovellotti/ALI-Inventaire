@@ -30,10 +30,18 @@ export const TAXON_GROUPS: TaxonGroup[] = [
   { id: "poissons", label: "Poissons", icon: "🐟", match: (o) => ["Actinopterygii", "Chondrichthyes", "Petromyzonti", "Cephalaspidomorphi"].includes(o.class || "") },
   { id: "insectes", label: "Insectes", icon: "🦋", match: (o) => o.class === "Insecta" },
   { id: "arachnides", label: "Arachnides", icon: "🕷️", match: (o) => o.class === "Arachnida" },
+  { id: "crustaces", label: "Crustacés", icon: "🦀", match: (o) => ["Malacostraca", "Branchiopoda", "Ostracoda", "Maxillopoda", "Thecostraca", "Remipedia", "Cephalocarida"].includes(o.class || "") },
+  { id: "myriapodes", label: "Myriapodes", icon: "〰️", match: (o) => ["Chilopoda", "Diplopoda", "Pauropoda", "Symphyla"].includes(o.class || "") },
   { id: "mollusques", label: "Mollusques", icon: "🐌", match: (o) => o.phylum === "Mollusca" },
-  { id: "plantes", label: "Plantes", icon: "🌿", match: (o) => o.kingdom === "Plantae" },
+  { id: "annelides", label: "Annélides", icon: "〰️", match: (o) => o.phylum === "Annelida" },
+  { id: "cnidaires", label: "Cnidaires", icon: "◉", match: (o) => o.phylum === "Cnidaria" },
+  { id: "echinodermes", label: "Échinodermes", icon: "★", match: (o) => o.phylum === "Echinodermata" },
+  { id: "eponges", label: "Éponges", icon: "◌", match: (o) => o.phylum === "Porifera" },
+  { id: "autres-invertebres", label: "Autres invertébrés", icon: "◇", match: (o) => o.kingdom === "Animalia" },
+  { id: "algues", label: "Algues", icon: "≋", match: (o) => ["Rhodophyta", "Ochrophyta", "Chlorophyta", "Haptophyta", "Cryptophyta"].includes(o.phylum || "") || ["Phaeophyceae", "Florideophyceae", "Ulvophyceae"].includes(o.class || "") },
+  { id: "plantes", label: "Plantes terrestres", icon: "🌿", match: (o) => o.kingdom === "Plantae" },
   { id: "champignons", label: "Champignons", icon: "🍄", match: (o) => o.kingdom === "Fungi" },
-  { id: "autres", label: "Autres", icon: "🔬", match: () => true },
+  { id: "autres", label: "Autres organismes", icon: "🔬", match: () => true },
 ];
 
 export function getTaxonGroupId(occ: Occurrence): string {

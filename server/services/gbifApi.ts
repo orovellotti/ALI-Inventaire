@@ -2,6 +2,7 @@ import { getBoundingBox } from "../lib/geo";
 
 const GBIF_BASE = "https://api.gbif.org/v1";
 const FRENCH_LANGS = new Set(["fra", "fr", "fre", "french", "français"]);
+const ENGLISH_LANGS = new Set(["eng", "en", "english"]);
 const VERNACULAR_PAGE_SIZE = 100;
 const VERNACULAR_MAX_PAGES = 5;
 
@@ -58,22 +59,46 @@ function isFrench(lang?: string): boolean {
   return FRENCH_LANGS.has((lang ?? "").toLowerCase());
 }
 
-export async function fetchFrenchVernacularName(speciesKey: number): Promise<string | undefined> {
+function isEnglish(lang?: string): boolean {
+  return ENGLISH_LANGS.has((lang ?? "").toLowerCase());
+}
+
+export interface VernacularNames {
+  french?: string;
+  english?: string;
+}
+
+export function extractVernacularNames(rows: any[]): VernacularNames {
+  const french = rows.find((row) => isFrench(row.language))?.vernacularName;
+  const english = rows.find((row) => isEnglish(row.language))?.vernacularName;
+  const names: VernacularNames = {};
+  if (french) names.french = french;
+  if (english) names.english = english;
+  return names;
+}
+
+export async function fetchVernacularNames(speciesKey: number): Promise<VernacularNames> {
   try {
+    const names: VernacularNames = {};
     for (let page = 0; page < VERNACULAR_MAX_PAGES; page++) {
       const offset = page * VERNACULAR_PAGE_SIZE;
       const response = await fetch(
         `${GBIF_BASE}/species/${speciesKey}/vernacularNames?limit=${VERNACULAR_PAGE_SIZE}&offset=${offset}`,
       );
-      if (!response.ok) return undefined;
+      if (!response.ok) return {};
       const data = await response.json();
       const results: any[] = data.results ?? [];
-      const french = results.find((v) => isFrench(v.language));
-      if (french?.vernacularName) return french.vernacularName;
-      if (data.endOfRecords || results.length < VERNACULAR_PAGE_SIZE) return undefined;
+      const pageNames = extractVernacularNames(results);
+      names.french ||= pageNames.french;
+      names.english ||= pageNames.english;
+      if ((names.french && names.english) || data.endOfRecords || results.length < VERNACULAR_PAGE_SIZE) return names;
     }
+    return names;
   } catch {
-    /* fallthrough */
+    return {};
   }
-  return undefined;
+}
+
+export async function fetchFrenchVernacularName(speciesKey: number): Promise<string | undefined> {
+  return (await fetchVernacularNames(speciesKey)).french;
 }

@@ -58,7 +58,7 @@ export function SearchPanel(props: SearchPanelProps) {
       <Button onClick={locate} disabled={isSearching || !query.trim()} aria-label="Localiser" data-testid="button-goto">{isSearching ? <Loader2 className="animate-spin" /> : <MapPin />}</Button>
       <button type="button" onClick={() => setMoreOpen(!moreOpen)} aria-expanded={moreOpen} aria-label="Autres méthodes de localisation" data-testid="button-more-location"><ChevronDown /></button>
       <AnimatePresence>{moreOpen && <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="location-methods">
-        <button type="button" onClick={() => chooseAlternate(onOpenLieuxDits)} data-testid="popover-lieu-dit"><Landmark /> Choisir un lieu-dit ou une commune</button>
+        <button type="button" onClick={() => chooseAlternate(onOpenLieuxDits)} data-testid="popover-lieu-dit"><Landmark /> Rechercher un lieu ou une commune</button>
         <button type="button" onClick={() => chooseAlternate(() => fileInputRef.current?.click())} disabled={isLoadingShapefile} data-testid="popover-shapefile">{isLoadingShapefile ? <Loader2 className="animate-spin" /> : <Upload />} Importer une emprise shapefile (.zip)</button>
       </motion.div>}</AnimatePresence>
       <input ref={fileInputRef} type="file" accept=".zip" onChange={(event) => { const file = event.target.files?.[0]; if (file) onShapefileLoad(file); event.target.value = ""; }} className="hidden" data-testid="input-shapefile" />

@@ -59,3 +59,23 @@ test("regroupe les taxons et applique le tri métier par défaut", () => {
   assert.ok(markup.indexOf("Alouette") < markup.indexOf("Zorzal"));
   assert.ok(markup.indexOf("Abies test") < markup.indexOf("Zea test"));
 });
+
+test("sépare les principaux groupes auparavant rangés dans Autres", () => {
+  const crustacean = { ...occurrence(70, 700), scientificName: "Austropotamobius pallipes", class: "Malacostraca", kingdom: "Animalia" };
+  const annelid = { ...occurrence(80, 800), scientificName: "Lumbricus terrestris", phylum: "Annelida", kingdom: "Animalia" };
+  const alga = { ...occurrence(90, 900), scientificName: "Ulva lactuca", phylum: "Chlorophyta", kingdom: "Plantae" };
+
+  const markup = renderToStaticMarkup(
+    <SpeciesInventoryTable
+      species={[crustacean, annelid, alga]}
+      selectedSpecies={null}
+      onSelectSpecies={() => undefined}
+      centerCoords={[43, 6]}
+    />,
+  );
+
+  assert.match(markup, /Crustacés/);
+  assert.match(markup, /Annélides/);
+  assert.match(markup, /Algues/);
+  assert.doesNotMatch(markup, /Autres organismes/);
+});

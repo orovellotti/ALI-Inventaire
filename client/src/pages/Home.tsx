@@ -671,10 +671,12 @@ export default function Home() {
 
   const requestSummary = useMemo(() => {
     const enabled = circles.filter((circle) => circle.enabled);
+    const siteLabel = projectPolygon?.name || currentToponym.split(",")[0]?.trim() || "Site sélectionné";
     const areaLabel = enabled
       .map((circle) => `${circle.label.replace("Aire d'étude ", "")} (${circle.radius >= 1000 ? `${circle.radius / 1000} km` : `${circle.radius} m`})`)
       .join(", ");
-    return `J’ai analysé ${currentToponym} sur ${enabled.length} aire${enabled.length > 1 ? "s" : ""} — ${areaLabel}, avec les sources GBIF${includeINaturalist ? " et iNaturalist" : ""}${projectPolygon ? ` et l’emprise « ${projectPolygon.name} »` : ""}.`;
+    const sources = `GBIF${includeINaturalist ? " et iNaturalist" : ""}`;
+    return `Site : ${siteLabel}. Aire${enabled.length > 1 ? "s" : ""} : ${areaLabel}. Sources : ${sources}.${projectPolygon ? " Emprise importée." : ""}`;
   }, [circles, currentToponym, includeINaturalist, projectPolygon]);
 
   return (

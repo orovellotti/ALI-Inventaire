@@ -1,0 +1,20 @@
+2. Localisation
+Dans la hiérarchie géographique, quand je rendre mon adresse (Le Rove), il est évoqué Istres. Bizarre. C'est la sous-préfecture ou le chef-lieu de canton ?
+Si oui, supprimer ce niveau, vraiment inutile, pour simplifier.
+
+Si ton tape l'adresse, comme j'ai fait, on ne voit pas le périmètre, caché derrière le formulaire.
+Revoir le zoning.
+
+La recherche par lieu-dit marche... plus ou moins. Je pense qu'il n'y a que les lieux-dits/quartiers INSEE ou les sections de commune ou chépakoi ??? qui sont reconnus, mais pas les lieux-dits au sens large. Cela ne renvoie généralement pas les fermes, malgré ce qui est indiqué dans l'interface.
+Par exemple, sur la commune de Champoléon, on peut sélectionner Les Borels, mais pas Les Gondouins (pourtant un chouïa plus "grand", je connais).
+https://www.google.com/maps/place/Les+Borels,+05260+Champol%C3%A9on,+France/@44.7201347,6.2565021,589m/data=!3m2!1e3!4b1!4m6!3m5!1s0x12cb51ca0b3213d9:0x93229635d22c04e6!8m2!3d44.7201309!4d6.259077!16s%2Fg%2F1tf4hdr7!5m1!1e4?entry=ttu&g_ep=EgoyMDI2MDgzMC4wIKXMDSoASAFQAw%3D%3D
+https://www.google.com/maps/place/Les+Gondoins,+05260+Champol%C3%A9on,+France/@44.7291901,6.2470247,589m/data=!3m2!1e3!4b1!4m6!3m5!1s0x12cb51c4e0b66ce7:0x760f9ec6459a4a7!8m2!3d44.7291863!4d6.2495996!16s%2Fg%2F1tdg0dyc!5m1!1e4?entry=ttu&g_ep=EgoyMDI2MDgzMC4wIKXMDSoASAFQAw%3D%3D
+S'appuyer sur un découpage administratif/INSEE des quartiers n'a pas d'intérêt. Il vaut mieux un gazetteer (renférentiel géographique) mieux fourni et appliquer un rayon.
+
+Renseigner une commune n'a guère d'intérêt. On ne fait quasi jamais une étude sur une commune entière. Et si ça devait arriver, ce serait une grosse étude : on aurait le temps de récupérer et d'injecter le shapefile du contour de la commune. A faire confirmer par un BE, qui pourrait avoir un besoin auquel je ne cerne pas.
+Après confirmation, j'enlèverais la possibilité de saisir une commune.
+
+Si on fournit un shapefile de contour de projet (emprise), il faut pouvoir ajouter un tampon (buffer).
+
+Il faudrait peut-être pouvoir importer un kml (c'est un format très employé chez certains) et peut-être d'autres formats (à discuter avec un BE, en fonction de ce qu'ils reçoivent des clients/prospects en 2026), en plus du shapefile.
+Ne pas trop s'échiner sur ce point dans une première version.

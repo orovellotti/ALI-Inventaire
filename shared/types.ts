@@ -32,6 +32,7 @@ export interface Occurrence {
   decimalLatitude: number;
   decimalLongitude: number;
   vernacularName?: string;
+  englishName?: string;
   kingdom?: string;
   phylum?: string;
   class?: string;

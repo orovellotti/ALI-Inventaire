@@ -28,6 +28,19 @@ export interface GeocodeResult {
   display_name: string;
 }
 
+export function formatGeocodeDisplayName(row: any): string {
+  const addr = row?.address ?? {};
+  const primary = row?.name || extractPlace(addr, "");
+  const localAdmin = addr.village || addr.town || addr.city || "";
+  const parts = [
+    primary,
+    localAdmin && localAdmin !== primary ? localAdmin : null,
+    addr.county || null,
+    addr.state || null,
+  ].filter((part, index, values): part is string => Boolean(part) && values.indexOf(part) === index);
+  return parts.join(", ") || row?.display_name || "";
+}
+
 export async function geocodePlace(query: string): Promise<GeocodeResult> {
   const data = await nominatimFetch("/search", {
     q: query,
@@ -39,7 +52,7 @@ export async function geocodePlace(query: string): Promise<GeocodeResult> {
   return {
     lat: parseFloat(data[0].lat),
     lon: parseFloat(data[0].lon),
-    display_name: data[0].display_name,
+    display_name: formatGeocodeDisplayName(data[0]),
   };
 }
 

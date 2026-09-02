@@ -10,7 +10,7 @@ import {
   searchOccurrences,
   fetchSpeciesMedia,
   fetchSpeciesIucnStatus,
-  fetchFrenchVernacularName,
+  fetchVernacularNames,
 } from "./services/gbifApi";
 
 type AlertLevel = "high" | "medium" | "low";
@@ -123,14 +123,14 @@ function deriveHabitatType(
 async function enrichSpecies(record: any): Promise<Occurrence> {
   const speciesKey = record.speciesKey || record.taxonKey;
 
-  const [imageUrl, iucnStatus, frenchName, cdNom] = speciesKey
+  const [imageUrl, iucnStatus, vernacularNames, cdNom] = speciesKey
     ? await Promise.all([
         fetchSpeciesMedia(speciesKey),
         fetchSpeciesIucnStatus(speciesKey),
-        fetchFrenchVernacularName(speciesKey),
+        fetchVernacularNames(speciesKey),
         fetchTaxRefCdNom(record.scientificName ?? ""),
       ])
-    : [undefined, undefined, undefined, await fetchTaxRefCdNom(record.scientificName ?? "")];
+    : [undefined, undefined, {}, await fetchTaxRefCdNom(record.scientificName ?? "")];
 
   const baseLevel = getAlertLevelFromIucn(iucnStatus);
   const alertLevel = applyFrenchPriorityBoost(baseLevel, record.family, record.order, record.class);
@@ -144,7 +144,8 @@ async function enrichSpecies(record: any): Promise<Occurrence> {
     scientificName: record.scientificName || "Inconnu",
     decimalLatitude: record.decimalLatitude,
     decimalLongitude: record.decimalLongitude,
-    vernacularName: frenchName || undefined,
+    vernacularName: vernacularNames.french,
+    englishName: vernacularNames.english,
     kingdom: record.kingdom,
     phylum: record.phylum,
     class: record.class,
@@ -197,6 +198,7 @@ function mergeInatWithGbif(gbifOccurrences: Occurrence[], inatOccurrences: Occur
       ...existing,
       imageUrl: existing.imageUrl || iocc.imageUrl,
       vernacularName: existing.vernacularName || iocc.vernacularName,
+      englishName: existing.englishName || iocc.englishName,
       iucnStatus: existing.iucnStatus || iocc.iucnStatus,
       cdNom: existing.cdNom ?? iocc.cdNom,
       frenchProtected: existing.frenchProtected || iocc.frenchProtected,
@@ -274,6 +276,7 @@ function consolidateByCdRef(occurrences: Occurrence[]): ConsolidationResult {
     );
     existing.imageUrl = existing.imageUrl || occ.imageUrl;
     existing.vernacularName = existing.vernacularName || occ.vernacularName;
+    existing.englishName = existing.englishName || occ.englishName;
     existing.iucnStatus = existing.iucnStatus || occ.iucnStatus;
     existing.cdNom = existing.cdNom ?? occ.cdNom;
     existing.frenchProtected = existing.frenchProtected || occ.frenchProtected;
@@ -472,10 +475,10 @@ export async function searchGBIFMultiCircle(
 }
 
 export async function fetchSpeciesDetails(taxonKey: number) {
-  const [imageUrl, iucnStatus, vernacularName] = await Promise.all([
+  const [imageUrl, iucnStatus, vernacularNames] = await Promise.all([
     fetchSpeciesMedia(taxonKey),
     fetchSpeciesIucnStatus(taxonKey),
-    fetchFrenchVernacularName(taxonKey),
+    fetchVernacularNames(taxonKey),
   ]);
-  return { taxonKey, imageUrl, iucnStatus, vernacularName };
+  return { taxonKey, imageUrl, iucnStatus, vernacularName: vernacularNames.french, englishName: vernacularNames.english };
 }

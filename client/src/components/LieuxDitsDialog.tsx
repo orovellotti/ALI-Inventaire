@@ -97,12 +97,13 @@ export function LieuxDitsDialog({ open, onOpenChange, onSelectPolygon, onSelectP
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <MapPin className="h-5 w-5 text-teal-600" />
-            Rechercher un lieu-dit ou une commune
+            Rechercher un lieu ou une commune
           </DialogTitle>
           <DialogDescription>
-            Trouvez un hameau, lieu-dit, ferme, quartier ou commune. Si OpenStreetMap
-            dispose de son contour (souvent le cas pour les communes), il sera utilisé
-            comme emprise du projet ; sinon les aires d'étude seront centrées sur le point.
+            Recherchez un hameau, lieu-dit, quartier ou commune dans le référentiel
+            OpenStreetMap. Pour éviter les homonymes, ajoutez la commune ou le département.
+            La couverture des petits lieux dépend des contributions disponibles. Si un
+            contour est fourni, il sera utilisé ; sinon les aires seront centrées sur le point.
           </DialogDescription>
         </DialogHeader>
 
@@ -113,7 +114,7 @@ export function LieuxDitsDialog({ open, onOpenChange, onSelectPolygon, onSelectP
               type="text"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              placeholder="ex : Moustoir-Ac, Le Bois du Cerf, Lille…"
+              placeholder="ex : Les Gondoins, Champoléon"
               className="w-full pl-9 pr-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500/30 focus:border-teal-500"
               data-testid="input-lieu-dit-query"
               autoFocus
@@ -137,7 +138,7 @@ export function LieuxDitsDialog({ open, onOpenChange, onSelectPolygon, onSelectP
           )}
           {results && results.length === 0 && (
             <div className="text-center py-8 text-sm text-gray-500">
-              Aucun lieu-dit ni commune trouvé. Essayez une orthographe différente.
+              Aucun lieu trouvé. Essayez d’ajouter la commune ou le département.
             </div>
           )}
           <div className="space-y-2">
@@ -162,7 +163,7 @@ export function LieuxDitsDialog({ open, onOpenChange, onSelectPolygon, onSelectP
                         </span>
                       )}
                     </div>
-                    <p className="text-xs text-gray-500 mt-1">
+                    <p className="text-xs font-medium text-gray-600 mt-1">
                       {[lieu.commune, lieu.departement, lieu.region].filter(Boolean).join(" · ")}
                     </p>
                     <p className="text-[11px] text-gray-400 mt-0.5 truncate">{lieu.displayName}</p>
