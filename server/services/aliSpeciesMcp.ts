@@ -2,6 +2,7 @@ import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
 
 import type { AliStatusSummary, InventoryResult, Occurrence } from "@shared/types";
+import { isPlantTaxon } from "@shared/iucn";
 import { normalizeStatuses } from "../ali";
 import { checkConsistency, computeEnjeuLevel } from "../scoring";
 import { reverseGeocode } from "./nominatim";
@@ -141,23 +142,27 @@ function applyStatuses(
   verified: boolean,
 ): Occurrence {
   if (!verified) {
+    const isPlant = isPlantTaxon(occurrence);
     return {
       ...occurrence,
       aliStatuses: undefined,
       enjeuLevel: occurrence.isInvasive
         ? "faible"
-        : occurrence.alertLevel === "high" || occurrence.frenchProtected
+        : occurrence.frenchProtected || (!isPlant && occurrence.alertLevel === "high")
           ? "a_confirmer"
           : "faible",
       enjeuWarnings: occurrence.isInvasive
         ? undefined
-        : ["Statuts territoriaux ALI Species indisponibles — enjeu local à confirmer"],
+        : [isPlant
+          ? "Flore : statuts territoriaux ALI Species indisponibles — le statut UICN mondial n’est pas utilisé seul"
+          : "Statuts territoriaux ALI Species indisponibles — enjeu local à confirmer"],
     };
   }
   const { enjeuLevel, enjeuWarnings } = computeEnjeuLevel({
     globalIucn: occurrence.iucnStatus,
     frenchProtected: occurrence.frenchProtected === true,
     isInvasive: occurrence.isInvasive === true,
+    isPlant: isPlantTaxon(occurrence),
     aliStatuses,
   });
   const warnings = [

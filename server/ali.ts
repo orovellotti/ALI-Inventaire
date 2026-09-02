@@ -139,10 +139,10 @@ const RED_LIST_CATEGORIES: Record<string, string> = {
 };
 
 const CATEGORY_ORDER = [
-  "Liste rouge nationale",
-  "Liste rouge mondiale",
-  "Liste rouge européenne",
   "Liste rouge régionale",
+  "Liste rouge nationale",
+  "Liste rouge européenne",
+  "Liste rouge mondiale",
   "Protection nationale",
   "Protection régionale",
   "Protection départementale",

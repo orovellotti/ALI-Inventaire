@@ -7,6 +7,7 @@
 - [Priority-species ranking](priority-species-ranking.md) — espèces-à-enjeux top-N reserves slots for Natura 2000 class C/B species or they get evicted by observed (A) species.
 - [EEA Natura 2000 bulk data + directive source](eea-natura2000-bulk-data.md) — download tabular DB via SDI Nextcloud WebDAV; no DIRECTIVESPECIES table exists, use EUNIS Species_Legal_Status for directive/annex.
 - [Taxon consolidation by cdRef](taxon-consolidation.md) — dedup occurrences to valid taxa via TAXREF cdRef+normalized-name bridge (noms bruts vs taxons valides); IUCN always territory-tagged; risk→potentiel d'enjeux.
+- [IUCN spatial priority](iucn-spatial-priority.md) — regional outranks national, then European; never score or present a global-only IUCN status as sufficient for flora.
 - [Zonage list↔map sync](zonage-map-wms-limitation.md) — sync uses WFS GeoJSON emprises (`geometry=1`, rings [lng,lat] → flip for Leaflet, key `type::name`); WMS rasters stay non-clickable.
 - [Invasive species (EEE) handling](invasive-eee-handling.md) — EEE never a conservation enjeu; isInvasiveExotic gates both inventory patrimonialité and the priority engine (statut 0, score ≤20, level modéré, "enjeu de gestion" badge).
 - [Species–habitat ecological reference](species-habitat-reference.md) — score only exact EEA DAT-143 group matches; partial evidence means Non évaluée; site-level habitat data cap scores at 70.

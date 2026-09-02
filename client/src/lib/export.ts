@@ -1,5 +1,6 @@
 import * as XLSX from "xlsx";
 import { Occurrence, InventoryResult, getIucnLabel, IUCN_SOURCE_LABEL, getTaxonGroupId, TAXON_GROUPS, ConfidenceScore } from "./gbif";
+import { getPreferredTerritorialRedList, isPlantTaxon } from "@shared/iucn";
 
 interface ExportOptions {
   results: InventoryResult;
@@ -20,13 +21,21 @@ function getTaxonGroupLabel(occ: Occurrence): string {
 }
 
 function buildSpeciesRows(species: Occurrence[]) {
-  return species.map((occ) => ({
+  return species.map((occ) => {
+    const territorial = getPreferredTerritorialRedList(occ.aliStatuses);
+    const status = territorial?.value || (isPlantTaxon(occ) ? "À confirmer" : getIucnLabel(occ.iucnStatus));
+    const source = territorial
+      ? `${territorial.category}${territorial.scope ? ` — ${territorial.scope}` : ""}`
+      : isPlantTaxon(occ)
+        ? "Statut régional/national/européen non renseigné"
+        : occ.iucnStatus ? IUCN_SOURCE_LABEL : "Non renseigné";
+    return ({
     "Nom scientifique": occ.scientificName,
     "Nom vernaculaire": occ.vernacularName || "",
     "Niveau d'enjeu": getEnjeuLabel(occ.alertLevel),
-    "Statut UICN": getIucnLabel(occ.iucnStatus),
-    "Territoire / source du statut": occ.iucnStatus ? IUCN_SOURCE_LABEL : "Non renseigné (GBIF)",
-    "Code UICN": occ.iucnStatus || "",
+    "Statut UICN prioritaire": status,
+    "Territoire / source du statut": source,
+    "Code UICN": territorial?.value || (isPlantTaxon(occ) ? "" : occ.iucnStatus || ""),
     "Noms sources fusionnés": (occ.sourceNames && occ.sourceNames.length > 1) ? occ.sourceNames.join(" | ") : "",
     "Groupe taxonomique": getTaxonGroupLabel(occ),
     "Règne": occ.kingdom || "",
@@ -36,7 +45,8 @@ function buildSpeciesRows(species: Occurrence[]) {
     "Latitude": occ.decimalLatitude,
     "Longitude": occ.decimalLongitude,
     "Lien GBIF": occ.taxonKey ? `https://www.gbif.org/species/${occ.taxonKey}` : "",
-  }));
+    });
+  });
 }
 
 function buildMetaRows(results: InventoryResult, filteredCount: number) {

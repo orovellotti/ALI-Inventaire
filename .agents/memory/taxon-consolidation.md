@@ -29,12 +29,13 @@ survives the multi-circle double pass. Never dedup by raw `scientificName` alone
 
 ## IUCN status = always territory-tagged
 
-GBIF's IUCN status is the **global** Red List. `getIucnFullLabel`
-(client/src/lib/gbif.ts) always appends `IUCN_SOURCE_LABEL` ("Liste rouge
-mondiale (UICN)") and distinguishes "non renseigné" (no GBIF data) from "NE"
-(evaluated Not Evaluated). Compact badges show `label + " · mondiale"` with the
-full label in `title`. **Why:** a global NT ≠ a regional NT; the spec forbids
-bare "UICN NT" or bare "Non évalué".
+GBIF's IUCN status is the **global** Red List. It must always be identified as
+global and distinguished from a missing or unevaluated status. It is contextual,
+not interchangeable with a territorial assessment. For flora, never show or use
+this global status alone; see `iucn-spatial-priority.md`.
+
+**Why:** a global NT is not a regional NT; bare IUCN codes hide the spatial
+scale and can overstate local relevance.
 
 ## Potentiel d'enjeux ≠ risque biodiversité
 

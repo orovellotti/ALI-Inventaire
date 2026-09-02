@@ -35,9 +35,10 @@ export function computeEnjeuLevel(params: {
   globalIucn: string | undefined;
   frenchProtected: boolean;
   isInvasive: boolean;
+  isPlant: boolean;
   aliStatuses: AliStatusSummary[] | undefined;
 }): { enjeuLevel: EnjeuLevel; enjeuWarnings: string[] } {
-  const { globalIucn, frenchProtected, isInvasive, aliStatuses } = params;
+  const { globalIucn, frenchProtected, isInvasive, isPlant, aliStatuses } = params;
   const warnings: string[] = [];
 
   // EEE : enjeu de gestion géré séparément, pas de conservation
@@ -55,10 +56,12 @@ export function computeEnjeuLevel(params: {
     const regional = redLists.filter((s) => s.category.includes("régionale"));
     const national = redLists.filter((s) => s.category.includes("nationale"));
     const european = redLists.filter((s) => s.category.includes("européenne"));
+    const globalAli = redLists.filter((s) => s.category.includes("mondiale"));
 
     const bestRegional = Math.max(0, ...regional.map((s) => rankCode(s.value)));
     const bestNational = Math.max(0, ...national.map((s) => rankCode(s.value)));
     const bestEuropean = Math.max(0, ...european.map((s) => rankCode(s.value)));
+    const bestGlobalAli = Math.max(0, ...globalAli.map((s) => rankCode(s.value)));
 
     // Priorité stricte : régionale > nationale > européenne.
     // On ne combine pas les scopes : si une évaluation régionale informationnelle
@@ -148,6 +151,15 @@ export function computeEnjeuLevel(params: {
       return { enjeuLevel: "faible", enjeuWarnings: warnings };
     }
 
+    if (isPlant && (rankCode(globalIucn) > 0 || bestGlobalAli > 0)) {
+      return {
+        enjeuLevel: "a_confirmer",
+        enjeuWarnings: [
+          "Flore : aucun statut régional, national ou européen disponible — le statut UICN mondial n’est pas utilisé seul",
+        ],
+      };
+    }
+
     // Aucun statut de conservation pertinent
     const globalRank = rankCode(globalIucn);
     if (globalRank >= 4) {
@@ -161,6 +173,15 @@ export function computeEnjeuLevel(params: {
 
   // --- Repli sans données ALI ---
   const globalRank = rankCode(globalIucn);
+
+  if (isPlant) {
+    return {
+      enjeuLevel: frenchProtected || globalRank > 0 ? "a_confirmer" : "faible",
+      enjeuWarnings: [
+        "Flore : statuts régionaux, nationaux et européens non vérifiés — le statut UICN mondial n’est pas utilisé seul",
+      ],
+    };
+  }
 
   // Contrôle : LC classé fort sans justification territoriale
   if (globalRank === 1 && frenchProtected) {

@@ -21,6 +21,7 @@ import type { ZonagesData, ZonageItem } from "@/lib/zonages";
 import type { AnalysisConversation } from "@/lib/analysisHistory";
 import type { HarnessConfig } from "@shared/harness";
 import { formatCarhabSummary, parseCarhabOutput } from "@shared/carhab";
+import { getPreferredTerritorialRedList, isPlantTaxon } from "@shared/iucn";
 import { occurrenceKey, uniqueOccurrences } from "@/lib/resultKeys";
 import React, { useState, useMemo, useEffect, useRef, type ReactNode } from "react";
 
@@ -873,8 +874,15 @@ export function ResultsPanel({ isOpen, isAnalyzing = false, areaCount = 1, onClo
       ? `${window.location.origin}/?lat=${lat}&lng=${lng}&radius=${results.radius}`
       : "";
 
-    const fmtSpecies = (o: Occurrence) =>
-      `• ${o.scientificName}${o.vernacularName ? ` — ${o.vernacularName}` : ""} (${getIucnFullLabel(o.iucnStatus)})`;
+    const fmtSpecies = (o: Occurrence) => {
+      const territorial = getPreferredTerritorialRedList(o.aliStatuses);
+      const status = territorial
+        ? `${territorial.category}${territorial.scope ? ` — ${territorial.scope}` : ""} : ${territorial.value}`
+        : isPlantTaxon(o)
+          ? "statut régional/national/européen non renseigné"
+          : getIucnFullLabel(o.iucnStatus);
+      return `• ${o.scientificName}${o.vernacularName ? ` — ${o.vernacularName}` : ""} (${status})`;
+    };
 
     const sectionList = (label: string, list: Occurrence[]) =>
       list.length > 0 ? `${label} (${list.length})\n${list.map(fmtSpecies).join("\n")}\n` : "";
@@ -2281,7 +2289,11 @@ export function SpeciesInventoryTable({ species, selectedSpecies, onSelectSpecie
 function SpeciesInventoryCard({ occ, selected, onSelect, centerCoords }: { occ: Occurrence; selected: boolean; onSelect: () => void; centerCoords: [number, number] }) {
   const patri = getPatrimonialite(occ.iucnStatus, occ.alertLevel, occ.isInvasive);
   const group = TAXON_GROUPS.find((g) => g.id === getTaxonGroupId(occ));
-  const enjeuBadge = occ.enjeuLevel ? ENJEU_LEVEL_BADGE[occ.enjeuLevel] : null;
+  const enjeuBadge = occ.enjeuLevel
+    ? ENJEU_LEVEL_BADGE[occ.enjeuLevel]
+    : isPlantTaxon(occ)
+      ? ENJEU_LEVEL_BADGE.a_confirmer
+      : null;
   const key = occurrenceKey(occ);
   return (
     <article data-species-item={key} className={selected ? "bg-teal-50/80" : "bg-white"}>
@@ -2303,7 +2315,7 @@ function SpeciesInventoryCard({ occ, selected, onSelect, centerCoords }: { occ: 
         <span className="mt-2 grid grid-cols-2 gap-x-3 gap-y-2">
           <span><span className="block text-[9px] font-bold uppercase tracking-wide text-slate-400">Groupe</span><span className="text-[10px] font-medium text-slate-600">{group?.label || "Autres"}</span></span>
           <span><span className="block text-[9px] font-bold uppercase tracking-wide text-slate-400">Enjeu</span><span className={`inline-flex rounded border px-1.5 py-0.5 text-[9px] font-bold ${enjeuBadge?.color || patri.color}`}>{enjeuBadge?.label || `~${patri.label}`}</span></span>
-          <span><span className="block text-[9px] font-bold uppercase tracking-wide text-slate-400">Statut</span><span className="text-[10px] font-semibold text-slate-600">{occ.aliStatuses?.[0]?.value || getIucnLabel(occ.iucnStatus)}{occ.frenchProtected && <Shield className="ml-1 inline h-3 w-3 text-amber-600" aria-label="Groupe protégé en France" />}</span></span>
+          <span><span className="block text-[9px] font-bold uppercase tracking-wide text-slate-400">Statut</span><span className="text-[10px] font-semibold text-slate-600">{getPreferredTerritorialRedList(occ.aliStatuses)?.value || (isPlantTaxon(occ) ? "À confirmer" : getIucnLabel(occ.iucnStatus))}{occ.frenchProtected && <Shield className="ml-1 inline h-3 w-3 text-amber-600" aria-label="Groupe protégé en France" />}</span></span>
           <span><span className="block text-[9px] font-bold uppercase tracking-wide text-slate-400">Données</span><span className="text-[10px] tabular-nums text-slate-500">{occ.lastObservationYear || "—"}<span className="ml-1 text-slate-300">{occ.observationCount ? `×${occ.observationCount}` : ""}</span></span></span>
         </span>
       </button>
@@ -2314,7 +2326,11 @@ function SpeciesInventoryCard({ occ, selected, onSelect, centerCoords }: { occ: 
 function SpeciesTableRow({ occ, selected, onSelect, centerCoords }: { occ: Occurrence; selected: boolean; onSelect: () => void; centerCoords: [number, number] }) {
   const patri = getPatrimonialite(occ.iucnStatus, occ.alertLevel, occ.isInvasive);
   const group = TAXON_GROUPS.find((g) => g.id === getTaxonGroupId(occ));
-  const enjeuBadge = occ.enjeuLevel ? ENJEU_LEVEL_BADGE[occ.enjeuLevel] : null;
+  const enjeuBadge = occ.enjeuLevel
+    ? ENJEU_LEVEL_BADGE[occ.enjeuLevel]
+    : isPlantTaxon(occ)
+      ? ENJEU_LEVEL_BADGE.a_confirmer
+      : null;
   const key = occurrenceKey(occ);
   return (
     <>
@@ -2328,7 +2344,7 @@ function SpeciesTableRow({ occ, selected, onSelect, centerCoords }: { occ: Occur
         </td>
         <td className="px-2 py-2.5 text-[10px] font-medium text-slate-600">{group?.label || "Autres"}</td>
         <td className="px-2 py-2.5"><span className={`inline-flex rounded border px-1.5 py-0.5 text-[9px] font-bold ${enjeuBadge?.color || patri.color}`} title={enjeuBadge ? "Enjeu fondé sur les statuts territoriaux (ALI/TAXREF)" : "Patrimonialité estimée (heuristique)"}>{enjeuBadge?.label || `~${patri.label}`}</span></td>
-        <td className="px-2 py-2.5"><span className="text-[10px] font-semibold text-slate-600" title={getIucnFullLabel(occ.iucnStatus)}>{occ.aliStatuses?.[0]?.value || getIucnLabel(occ.iucnStatus)}</span>{occ.frenchProtected && <Shield className="ml-1 inline h-3 w-3 text-amber-600" aria-label="Groupe protégé en France" />}</td>
+        <td className="px-2 py-2.5"><span className="text-[10px] font-semibold text-slate-600" title={getPreferredTerritorialRedList(occ.aliStatuses)?.label || (isPlantTaxon(occ) ? "Statut régional, national ou européen à confirmer" : getIucnFullLabel(occ.iucnStatus))}>{getPreferredTerritorialRedList(occ.aliStatuses)?.value || (isPlantTaxon(occ) ? "À confirmer" : getIucnLabel(occ.iucnStatus))}</span>{occ.frenchProtected && <Shield className="ml-1 inline h-3 w-3 text-amber-600" aria-label="Groupe protégé en France" />}</td>
         <td className="px-2 py-2.5 text-right text-[10px] tabular-nums text-slate-500">{occ.lastObservationYear || "—"}<span className="ml-1 text-slate-300">{occ.observationCount ? `×${occ.observationCount}` : ""}</span></td>
         <td className="px-2 py-2.5"><button type="button" onClick={onSelect} aria-expanded={selected} aria-label={`${selected ? "Masquer" : "Afficher"} les détails de ${occ.scientificName}`} className="rounded p-1 text-slate-400 transition-colors hover:bg-teal-100 hover:text-teal-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500">{selected ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}</button></td>
       </tr>
@@ -2440,10 +2456,10 @@ function SpeciesCard({ occ, isSelected, onSelect, centerCoords }: { occ: Occurre
           {occ.vernacularName || "Nom vernaculaire N/A"}
         </div>
         <div className="mt-1.5 flex flex-wrap gap-1">
-          {/* Statut UICN mondial — toujours annoté "mondiale" */}
-          <StatusBadge status={occ.iucnStatus} />
           {/* Statuts territoriaux ALI (liste rouge régionale/nationale, protection…) */}
-          {occ.aliStatuses && occ.aliStatuses.length > 0 && occ.aliStatuses.slice(0, 4).map((st, i) => {
+          {occ.aliStatuses && occ.aliStatuses.length > 0 && occ.aliStatuses
+            .filter((st) => !isPlantTaxon(occ) || st.category !== "Liste rouge mondiale" || !!getPreferredTerritorialRedList(occ.aliStatuses))
+            .slice(0, 4).map((st, i) => {
             const toneClass =
               st.tone === "danger" ? "bg-red-100 text-red-700 border-red-200" :
               st.tone === "warn"   ? "bg-amber-100 text-amber-700 border-amber-200" :
@@ -2459,8 +2475,15 @@ function SpeciesCard({ occ, isSelected, onSelect, centerCoords }: { occ: Occurre
               </span>
             );
           })}
+          {/* Le mondial reste un contexte secondaire et n'est jamais montré seul pour la flore. */}
+          {(!isPlantTaxon(occ) || !!getPreferredTerritorialRedList(occ.aliStatuses)) && <StatusBadge status={occ.iucnStatus} />}
+          {isPlantTaxon(occ) && !getPreferredTerritorialRedList(occ.aliStatuses) && (
+            <span className="rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-[10px] font-medium text-slate-600">
+              Statut territorial à confirmer
+            </span>
+          )}
           {/* Badge patrimonialité (heuristique, si pas de données ALI ou tableau vide) */}
-          {(!occ.aliStatuses || occ.aliStatuses.length === 0) && (() => {
+          {(!occ.aliStatuses || occ.aliStatuses.length === 0) && !isPlantTaxon(occ) && (() => {
             const patri = getPatrimonialite(occ.iucnStatus, occ.alertLevel, occ.isInvasive);
             return (
               <span
