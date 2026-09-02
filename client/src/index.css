@@ -510,6 +510,20 @@
 .conversation-panel.fixed > header,.conversation-panel.fixed > .conversation-header { flex:0 0 auto; }
 .conversation-panel.fixed [data-testid="conversation-feed"] { max-width:760px; margin:0 auto; width:100%; }
 .conversation-panel.fixed .conversation-composer { padding-bottom:24px!important; }
+@media (min-width:768px) {
+  .conversation-panel.fixed {
+    left:auto!important;
+    right:0!important;
+    width:min(680px, 52vw)!important;
+    transform:none!important;
+    border-left:1px solid #dfe3d8!important;
+    border-right:0!important;
+    box-shadow:-14px 0 36px rgba(28,62,49,.10)!important;
+  }
+  #map-container .leaflet-left {
+    left:0;
+  }
+}
 @media (max-width:767px) {
   .conversation-panel.fixed { top:76px!important; left:0!important; width:100%!important; transform:none; border:0!important; }
   .conversation-panel.fixed [data-testid="conversation-feed"] { padding-inline:16px!important; }

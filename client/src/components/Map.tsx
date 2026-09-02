@@ -52,7 +52,7 @@ function ZonageFitter({ features, selectedId, panelOpen, panelWidth }: { feature
       map.invalidateSize({ animate: false, pan: false });
       const mapSize = map.getSize();
       const isMobile = mapSize.x < 768;
-      const reservedWidth = !isMobile && panelOpen && panelWidth ? Math.min(panelWidth, mapSize.x * 0.72) : 0;
+      const reservedWidth = !isMobile && panelOpen && panelWidth ? Math.min(panelWidth, mapSize.x * 0.52) : 0;
       const reservedHeight = isMobile && panelOpen ? Math.round(mapSize.y * 0.72) : 0;
       map.fitBounds(bounds, {
         paddingTopLeft: [44, 44],
@@ -102,7 +102,7 @@ function MapController({ center, circles, projectPolygon, panelOpen, panelWidth,
       const bounds = projectPolygon ? L.latLngBounds(projectPolygon.bounds as any) : circlesBounds(circles);
       const mapSize = map.getSize();
       const isMobile = mapSize.x < 768;
-      const reservedWidth = !isMobile && panelOpen && panelWidth ? Math.min(panelWidth, mapSize.x * 0.72) : 0;
+      const reservedWidth = !isMobile && panelOpen && panelWidth ? Math.min(panelWidth, mapSize.x * 0.52) : 0;
       const reservedHeight = isMobile && panelOpen ? Math.round(mapSize.y * 0.72) : 0;
       if (bounds?.isValid()) {
         map.fitBounds(bounds, {
