@@ -71,7 +71,7 @@ in aliApi.ts) since a single search can hit ~13s.
 **Why:** debugged a case where patrimonialité/statuts silently came back empty for every species; root
 cause was concurrent search calls all timing out, NOT the timeout value or the formula.
 
-For inventory enrichment, resolve missing names only in the final ALI Species phase, sequentially and
-with a bounded number of priority taxa. Keep enough of the global budget in reserve for `get_statuts`.
-Report name-resolution counts separately from status-enrichment counts; `0/0` must never look like a
-successful enrichment.
+The MCP `get_statuts` tool accepts either `cdNom` or `scientificName`. For inventory enrichment, call
+it directly with the consolidated scientific name when `cdNom` is absent; it returns `resolvedTaxon`
+with canonical `cdRef`. Keep the whole final phase time-bounded and report name-resolution counts
+separately from status-enrichment counts; `0/0` must never look like a successful enrichment.

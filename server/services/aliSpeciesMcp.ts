@@ -6,7 +6,7 @@ import { isPlantTaxon } from "@shared/iucn";
 import { normalizeStatuses } from "../ali";
 import { checkConsistency, computeEnjeuLevel } from "../scoring";
 import { reverseGeocode } from "./nominatim";
-import { searchAliTaxon, type RawAliStatus } from "./aliApi";
+import type { RawAliStatus } from "./aliApi";
 
 const ALI_SPECIES_MCP_URL = "https://taxref-explorer.replit.app/api/mcp";
 const MAX_ENRICHED_TAXA = 80;
@@ -15,9 +15,6 @@ const CONNECT_TIMEOUT_MS = 5_000;
 const TOOL_TIMEOUT_MS = 12_000;
 const REGION_LOOKUP_TIMEOUT_MS = 3_000;
 const PHASE_BUDGET_MS = 40_000;
-const STATUS_BUDGET_RESERVE_MS = 12_000;
-const MAX_NAME_RESOLUTIONS = 10;
-const NAME_RESOLUTION_TIMEOUT_MS = 8_000;
 
 interface McpDriver {
   label?: string;
@@ -27,6 +24,13 @@ interface McpDriver {
 }
 
 interface McpStatusPayload {
+  resolvedTaxon?: {
+    cdNom?: number;
+    cdRef?: number;
+    scientificName?: string;
+    matchedName?: string;
+    rank?: string;
+  };
   territoire?: string;
   patrimonialite?: {
     drivers?: McpDriver[];
@@ -245,40 +249,10 @@ export async function enrichInventoryWithAliSpeciesMcp(
   const prioritized = [...inventory.occurrences]
     .sort((a, b) => enrichmentPriority(b) - enrichmentPriority(a))
     .slice(0, MAX_ENRICHED_TAXA);
-  const candidates: Occurrence[] = [];
   let nameResolutionAttempted = 0;
   let nameResolved = 0;
-
-  for (const occurrence of prioritized) {
-    if (Number.isInteger(occurrence.cdNom)) {
-      candidates.push(occurrence);
-      continue;
-    }
-    if (
-      nameResolutionAttempted >= MAX_NAME_RESOLUTIONS ||
-      Date.now() >= deadline - STATUS_BUDGET_RESERVE_MS
-    ) {
-      continue;
-    }
-    nameResolutionAttempted++;
-    try {
-      const remainingForResolution = Math.max(
-        1,
-        deadline - STATUS_BUDGET_RESERVE_MS - Date.now(),
-      );
-      const hit = await searchAliTaxon(
-        occurrence.scientificName,
-        Math.min(NAME_RESOLUTION_TIMEOUT_MS, remainingForResolution),
-      );
-      if (!hit) continue;
-      occurrence.cdNom = hit.cdRef;
-      nameResolved++;
-      candidates.push(occurrence);
-    } catch {
-      // Une résolution en échec ne doit ni bloquer les suivantes ni être mise en cache.
-    }
-  }
-  const statusesByCdNom = new Map<number, AliStatusSummary[]>();
+  const statusesByOccurrence = new Map<Occurrence, AliStatusSummary[]>();
+  let attempted = 0;
   let failed = 0;
   let cursor = 0;
   let client: Client | undefined;
@@ -290,16 +264,21 @@ export async function enrichInventoryWithAliSpeciesMcp(
       CONNECT_TIMEOUT_MS,
       "Connexion ALI Species MCP expirée",
     );
-    const workers = Array.from({ length: Math.min(CONCURRENCY, candidates.length) }, async () => {
-      while (cursor < candidates.length && Date.now() < deadline) {
-        const occurrence = candidates[cursor++];
+    const workers = Array.from({ length: Math.min(CONCURRENCY, prioritized.length) }, async () => {
+      while (cursor < prioritized.length && Date.now() < deadline) {
+        const occurrence = prioritized[cursor++];
+        attempted++;
+        const resolveByName = !Number.isInteger(occurrence.cdNom);
+        if (resolveByName) nameResolutionAttempted++;
         try {
           const remainingMs = Math.max(1, deadline - Date.now());
           const result = await client!.callTool(
             {
               name: "get_statuts",
               arguments: {
-                cdNom: occurrence.cdNom,
+                ...(resolveByName
+                  ? { scientificName: occurrence.scientificName }
+                  : { cdNom: occurrence.cdNom }),
                 ...(region ? { region } : {}),
               },
             },
@@ -311,10 +290,14 @@ export async function enrichInventoryWithAliSpeciesMcp(
             failed++;
             continue;
           }
-          statusesByCdNom.set(
-            occurrence.cdNom!,
-            statusesForStudyRegion(payload, region),
-          );
+          if (resolveByName) {
+            const resolvedCdNom = payload.resolvedTaxon?.cdRef ?? payload.resolvedTaxon?.cdNom;
+            if (Number.isInteger(resolvedCdNom)) {
+              occurrence.cdNom = resolvedCdNom;
+              nameResolved++;
+            }
+          }
+          statusesByOccurrence.set(occurrence, statusesForStudyRegion(payload, region));
         } catch {
           failed++;
         }
@@ -322,7 +305,11 @@ export async function enrichInventoryWithAliSpeciesMcp(
     });
     await Promise.all(workers);
   } catch {
-    failed = candidates.length;
+    attempted = prioritized.length;
+    failed = attempted;
+    nameResolutionAttempted = prioritized.filter(
+      (occurrence) => !Number.isInteger(occurrence.cdNom),
+    ).length;
   } finally {
     await client?.close().catch(() => undefined);
   }
@@ -330,13 +317,13 @@ export async function enrichInventoryWithAliSpeciesMcp(
   const occurrences = inventory.occurrences.map((occurrence) =>
     applyStatuses(
       occurrence,
-      occurrence.cdNom == null ? undefined : statusesByCdNom.get(occurrence.cdNom),
-      occurrence.cdNom != null && statusesByCdNom.has(occurrence.cdNom),
+      statusesByOccurrence.get(occurrence),
+      statusesByOccurrence.has(occurrence),
     ),
   );
-  const skipped = inventory.occurrences.length - candidates.length;
-  const enriched = statusesByCdNom.size;
-  failed = Math.max(failed, candidates.length - enriched);
+  const skipped = inventory.occurrences.length - attempted;
+  const enriched = statusesByOccurrence.size;
+  failed = Math.max(failed, attempted - enriched);
   return {
     ...inventory,
     occurrences,
@@ -353,7 +340,7 @@ export async function enrichInventoryWithAliSpeciesMcp(
       source: "ALI Species MCP",
       region,
       territorialScope: territorial.scope,
-      attempted: candidates.length,
+      attempted,
       enriched,
       failed,
       skipped,
