@@ -1,5 +1,5 @@
-@layer theme, base, clerk, components, utilities;
 @import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&display=swap');
+@layer theme, base, clerk, components, utilities;
 @import "tailwindcss";
 @import "@clerk/themes/shadcn.css";
 @import "tw-animate-css";
@@ -19,15 +19,15 @@
   --font-sans:"DM Sans", sans-serif; --font-mono:"DM Mono", monospace;
 }
 :root {
-  --background:42 29% 96%; --foreground:158 35% 18%; --card:45 35% 99%; --card-foreground:158 35% 18%;
-  --popover:45 35% 99%; --popover-foreground:158 35% 18%; --primary:158 43% 25%; --primary-foreground:48 38% 96%;
-  --secondary:128 24% 91%; --secondary-foreground:158 35% 20%; --muted:44 24% 91%; --muted-foreground:150 12% 43%;
-  --accent:41 61% 57%; --accent-foreground:158 35% 16%; --destructive:7 47% 42%; --destructive-foreground:45 35% 99%;
-  --border:134 16% 84%; --input:134 16% 84%; --ring:158 43% 35%;
-  --chart-1:158 43% 31%; --chart-2:41 61% 57%; --chart-3:195 29% 45%; --chart-4:91 24% 44%; --chart-5:10 37% 51%;
-  --alert-high:7 47% 42%; --alert-medium:41 61% 46%; --alert-low:158 43% 31%;
+  --background:43 37% 94%; --foreground:158 42% 16%; --card:47 53% 98%; --card-foreground:158 42% 16%;
+  --popover:47 53% 98%; --popover-foreground:158 42% 16%; --primary:158 51% 23%; --primary-foreground:48 54% 97%;
+  --secondary:126 29% 88%; --secondary-foreground:158 42% 17%; --muted:43 27% 88%; --muted-foreground:154 18% 32%;
+  --accent:32 74% 48%; --accent-foreground:30 54% 14%; --destructive:6 61% 38%; --destructive-foreground:48 54% 97%;
+  --border:134 18% 76%; --input:134 18% 69%; --ring:32 74% 42%;
+  --chart-1:158 51% 28%; --chart-2:32 74% 48%; --chart-3:193 42% 38%; --chart-4:83 38% 37%; --chart-5:6 61% 43%;
+  --alert-high:6 61% 38%; --alert-medium:32 74% 39%; --alert-low:158 51% 28%;
 }
-.dark { --background:158 27% 14%; --foreground:45 35% 94%; --card:158 24% 18%; --card-foreground:45 35% 94%; --popover:158 24% 18%; --popover-foreground:45 35% 94%; --primary:128 24% 80%; --primary-foreground:158 35% 16%; --secondary:158 18% 24%; --secondary-foreground:45 35% 94%; --muted:158 14% 27%; --muted-foreground:128 15% 71%; --accent:41 61% 62%; --accent-foreground:158 35% 16%; --destructive:7 55% 60%; --destructive-foreground:45 35% 99%; --border:158 12% 31%; --input:158 12% 31%; --ring:128 24% 80%; }
+.dark { --background:158 31% 12%; --foreground:48 43% 94%; --card:158 28% 16%; --card-foreground:48 43% 94%; --popover:158 28% 16%; --popover-foreground:48 43% 94%; --primary:126 38% 76%; --primary-foreground:158 42% 13%; --secondary:158 20% 22%; --secondary-foreground:48 43% 94%; --muted:158 17% 25%; --muted-foreground:126 20% 76%; --accent:35 76% 62%; --accent-foreground:30 54% 14%; --destructive:7 66% 63%; --destructive-foreground:48 54% 97%; --border:158 16% 34%; --input:158 16% 39%; --ring:35 76% 62%; }
 @layer base { * { @apply border-border; } body { @apply bg-background text-foreground antialiased; font-family:"DM Sans",sans-serif; } button,input,textarea,select { font:inherit; } }
 
 /* ALi — herbier éditorial : une toile calme, des papiers fins et un vert profond. */
@@ -291,6 +291,216 @@
   .conversation-panel [data-testid="results-scroll-area"] button {
     min-height:44px;
   }
+}
+
+/* Accessibility pass — "terrain vivant": denser evidence, warmer paper, and
+   readable field typography rather than a stack of pale containers. */
+.conversation-panel {
+  --ink:#123f35;
+  --paper:#fffdf5;
+  --line:#c8d4c7;
+  --sage:#e4eee1;
+  background:#f7f5eb!important;
+  color:#123f35!important;
+}
+.conversation-panel header,
+.conversation-panel>div:first-child {
+  background:#f7f5eb!important;
+  border-color:#c8d4c7!important;
+}
+.conversation-panel [data-testid="conversation-feed"] {
+  padding:24px 28px 34px!important;
+  background:linear-gradient(180deg,#faf8ef 0%,#f3f2e7 100%)!important;
+}
+.conversation-panel p,
+.conversation-panel li {
+  color:#294f44!important;
+  font-size:16px!important;
+  line-height:1.62!important;
+}
+.conversation-panel button {
+  color:#174b3f!important;
+  font-size:15px!important;
+  font-weight:600!important;
+  letter-spacing:.002em;
+}
+.conversation-panel :is(input,textarea,select) {
+  color:#123f35!important;
+  font-size:16px!important;
+  font-weight:500;
+}
+.conversation-panel input::placeholder,
+.conversation-panel textarea::placeholder {
+  color:#60766c!important;
+  opacity:1;
+}
+.conversation-panel [class*="text-gray"],
+.conversation-panel [class*="text-slate"],
+.conversation-panel [data-testid="results-scroll-area"] :is(.text-xs,[class*="text-[10px]"],[class*="text-[11px]"]) {
+  color:#46675b!important;
+}
+.conversation-panel h1,.conversation-panel h2,.conversation-panel h3 {
+  color:#123f35!important;
+}
+.conversation-panel header h2 { font-size:23px!important; }
+
+/* A single evidence plane: section triggers hold the boundary; their contents
+   no longer repeat it with a second framed card. */
+.conversation-panel [data-testid="panel-overview"] > :is(
+  [data-testid="card-issue-level"],
+  [data-testid="card-key-findings"],
+  [data-testid="section-pourquoi"],
+  [data-testid^="message-agent-"]
+) {
+  width:calc(100% - 36px);
+  margin-left:36px;
+  border:0!important;
+  border-left:3px solid #d1a64d!important;
+  border-radius:0!important;
+  background:#fffdf7!important;
+  box-shadow:none!important;
+}
+.conversation-panel [data-testid="panel-overview"] > :is(
+  [data-testid="card-issue-level"],
+  [data-testid="card-key-findings"],
+  [data-testid="section-pourquoi"],
+  [data-testid^="message-agent-"]
+)::before { left:-36px; background:#1b5a49; }
+.conversation-panel [data-testid="panel-overview"] > :is(
+  [data-testid="card-issue-level"],
+  [data-testid="card-key-findings"],
+  [data-testid="section-pourquoi"],
+  [data-testid^="message-agent-"]
+)::after { left:-30px; background:#f1c85a; }
+.conversation-panel :is(
+  [data-testid="message-agent-occurrences"],
+  [data-testid="message-agent-habitat"],
+  [data-testid="message-agent-zonages"]
+) {
+  width:calc(100% - 36px);
+  margin-left:36px;
+  border-radius:0!important;
+  border-left:3px solid #d1a64d!important;
+  box-shadow:none!important;
+}
+.conversation-panel :is(
+  [data-testid="message-agent-occurrences"],
+  [data-testid="message-agent-habitat"],
+  [data-testid="message-agent-zonages"]
+)::before { left:-36px; background:#1b5a49; }
+.conversation-panel :is(
+  [data-testid="message-agent-occurrences"],
+  [data-testid="message-agent-habitat"],
+  [data-testid="message-agent-zonages"]
+)::after { left:-30px; background:#f1c85a; }
+.conversation-panel [data-testid="panel-overview"] > [data-testid^="message-agent-"] > button,
+.conversation-panel [data-testid="section-pourquoi"] > button {
+  min-height:54px;
+  padding:11px 14px!important;
+  background:transparent!important;
+}
+.conversation-panel [data-testid="panel-overview"] > [data-testid^="message-agent-"] > div[id^="attachment-"],
+.conversation-panel [data-testid="section-body-pourquoi"] {
+  border-inline:0!important;
+  border-bottom:0!important;
+  background:#fffdf7!important;
+}
+.conversation-panel [data-testid="card-issue-level"],
+.conversation-panel [data-testid="card-key-findings"],
+.conversation-panel [data-testid="panel-risk-score"],
+.conversation-panel [data-testid="analysis-progress"],
+.conversation-panel [data-testid="analysis-complete-summary"] {
+  border-color:#c8d4c7!important;
+  background:#fffdf7!important;
+  box-shadow:none!important;
+}
+.conversation-panel .conversation-message>div,
+.conversation-panel [data-testid="message-ally"]>div,
+.conversation-panel .ali-message>div {
+  border-color:#cad7c8!important;
+  background:#fffdf7!important;
+  box-shadow:none!important;
+}
+.conversation-panel .conversation-message>svg,
+.conversation-panel [data-testid="message-ally"]>svg,
+.conversation-panel [data-testid="message-ally-final"]>svg,
+.conversation-panel .ali-message>svg { background:#1b5a49!important; color:#f1c85a!important; }
+.conversation-panel .location-response,
+.conversation-panel .settings-response,
+.conversation-panel .response-actions button,
+.conversation-panel .settings-response>button {
+  border-color:#b9cdbb!important;
+  background:#fffdf7!important;
+}
+.conversation-panel .response-actions button.selected,
+.conversation-panel .settings-detail button.selected {
+  border-color:#417963!important;
+  background:#e1efdf!important;
+  color:#123f35!important;
+}
+.conversation-panel .launch-response button {
+  background:#185746!important;
+  border-color:#185746!important;
+  color:#fffdf5!important;
+}
+.conversation-panel .launch-response button:hover,
+.conversation-panel [data-testid="button-report-text"]:hover { background:#103f34!important; }
+.conversation-panel button:focus-visible,
+.conversation-panel input:focus-visible,
+.conversation-panel textarea:focus-visible,
+.conversation-panel select:focus-visible {
+  outline:3px solid #b87820!important;
+  outline-offset:3px;
+}
+.conversation-panel [data-testid="results-scroll-area"],
+.conversation-panel [data-testid="results-scroll-area"] :is(p,li,button,input,td,th) {
+  font-size:16px!important;
+  line-height:1.58!important;
+}
+.conversation-panel [data-testid="results-scroll-area"] :is(
+  [data-testid^="message-agent-"],
+  [data-testid="section-pourquoi"]
+) > button span { font-size:16px!important; }
+.conversation-panel th { background:#dfece0!important; color:#174b3f!important; }
+.conversation-panel td { border-color:#d2ddd0!important; }
+
+@media (max-width:767px) {
+  .conversation-panel [data-testid="conversation-feed"] { padding:20px 16px 30px!important; }
+  .conversation-panel p,.conversation-panel li { font-size:16px!important; line-height:1.64!important; }
+  .conversation-panel button { font-size:16px!important; }
+  .conversation-panel [data-testid="panel-overview"] > :is(
+    [data-testid="card-issue-level"],
+    [data-testid="card-key-findings"],
+    [data-testid="section-pourquoi"],
+    [data-testid^="message-agent-"]
+  ),
+  .conversation-panel :is(
+    [data-testid="message-agent-occurrences"],
+    [data-testid="message-agent-habitat"],
+    [data-testid="message-agent-zonages"]
+  ) { width:calc(100% - 32px); margin-left:32px; }
+  .conversation-panel [data-testid="panel-overview"] > :is(
+    [data-testid="card-issue-level"],
+    [data-testid="card-key-findings"],
+    [data-testid="section-pourquoi"],
+    [data-testid^="message-agent-"]
+  )::before,
+  .conversation-panel :is(
+    [data-testid="message-agent-occurrences"],
+    [data-testid="message-agent-habitat"],
+    [data-testid="message-agent-zonages"]
+  )::before { left:-32px; }
+  .conversation-panel [data-testid="panel-overview"] > :is(
+    [data-testid="card-issue-level"],
+    [data-testid="card-key-findings"],
+    [data-testid="section-pourquoi"],
+    [data-testid^="message-agent-"]
+  )::after,
+  .conversation-panel :is(
+    [data-testid="message-agent-occurrences"],
+    [data-testid="message-agent-habitat"],
+    [data-testid="message-agent-zonages"]
+  )::after { left:-26px; }
 }
 @media (prefers-reduced-motion:reduce){*,*:before,*:after{animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important;scroll-behavior:auto!important}}
 
