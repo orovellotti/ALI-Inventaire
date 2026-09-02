@@ -3,6 +3,7 @@ import test from "node:test";
 import {
   haversineM,
   isOccurrenceInStudyArea,
+  retainSourceResult,
   type PotentialOccurrence,
 } from "./potentialSpecies";
 
@@ -33,6 +34,20 @@ test("accepte une occurrence exactement sur la limite du rayon", () => {
     isOccurrenceInStudyArea(occurrence, center.lat, center.lng, exactRadius),
     true,
   );
+});
+
+test("conserve les preuves des sources abouties lorsqu'une autre source échoue", () => {
+  const errors: string[] = [];
+  const failed = retainSourceResult<string>(
+    { status: "rejected", reason: new Error("indisponible") },
+    errors,
+    "ZNIEFF indisponible",
+  );
+  // La fonction reçoit normalement Promise.allSettled; vérifier son contrat sans
+  // exécuter de services externes.
+  assert.equal(failed, null);
+  assert.deepEqual(errors, ["ZNIEFF indisponible"]);
+  assert.equal(retainSourceResult({ status: "fulfilled", value: "preuve Natura" }, errors, "ignoré"), "preuve Natura");
 });
 
 test("refuse une occurrence située au-delà du rayon sans tolérance implicite", () => {

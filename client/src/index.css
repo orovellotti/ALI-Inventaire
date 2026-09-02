@@ -558,6 +558,11 @@
 .conversation-panel [data-testid="results-scroll-area"] :is(.text-xs,[class*="text-[10px]"],[class*="text-[11px]"]) {
   color:#4d685f!important;
 }
+/* Les mentions de preuve, source et limite restent essentielles sur le terrain. */
+.conversation-panel :is([class*="text-[9px]"],[class*="text-[10px]"],[class*="text-[11px]"]) {
+  font-size:12px!important;
+  line-height:1.45!important;
+}
 .conversation-panel [data-testid="panel-overview"] > :is(
   [data-testid="card-issue-level"],
   [data-testid="card-key-findings"],

@@ -4,6 +4,7 @@ import { applyFrenchPriorityBoost, isFrenchPriority } from "./frenchPriority";
 import { isInvasiveExotic } from "./invasive";
 import { calculateConfidenceScore, emptyConfidence } from "./confidence";
 import { haversineDistance } from "./lib/geo";
+import { mapWithConcurrency } from "./lib/concurrency";
 import { enrichInventoryWithAliSpeciesMcp } from "./services/aliSpeciesMcp";
 import {
   searchOccurrences,
@@ -13,6 +14,9 @@ import {
 } from "./services/gbifApi";
 
 type AlertLevel = "high" | "medium" | "low";
+
+const SPECIES_ENRICHMENT_CONCURRENCY = 8;
+const MULTI_CIRCLE_SEARCH_CONCURRENCY = 3;
 
 const HIGH_ALERT_IUCN = new Set([
   "EX", "EXTINCT",
@@ -122,13 +126,17 @@ function deriveHabitatType(
 async function enrichSpecies(record: any): Promise<Occurrence> {
   const speciesKey = record.speciesKey || record.taxonKey;
 
-  const [imageUrl, iucnStatus, vernacularNames] = speciesKey
-    ? await Promise.all([
+  const [mediaResult, iucnResult, namesResult] = speciesKey
+    ? await Promise.allSettled([
         fetchSpeciesMedia(speciesKey),
         fetchSpeciesIucnStatus(speciesKey),
         fetchVernacularNames(speciesKey),
       ])
-    : [undefined, undefined, {}];
+    : [];
+  const imageUrl = mediaResult?.status === "fulfilled" ? mediaResult.value : undefined;
+  const iucnStatus = iucnResult?.status === "fulfilled" ? iucnResult.value : undefined;
+  const vernacularNames =
+    namesResult?.status === "fulfilled" ? namesResult.value : {};
 
   const baseLevel = getAlertLevelFromIucn(iucnStatus);
   const alertLevel = applyFrenchPriorityBoost(baseLevel, record.family, record.order, record.class);
@@ -343,7 +351,11 @@ export async function searchGBIF(
   // les taxons non identifiés à l'espèce dans la liste d'inventaire.
   const speciesLevelRecords = rawRecords.filter((r) => isSpeciesLevel(r.taxonRank));
   const uniqueRecords = dedupBySpecies(speciesLevelRecords);
-  const enriched = await Promise.all(uniqueRecords.map(enrichSpecies));
+  const enriched = await mapWithConcurrency(
+    uniqueRecords,
+    SPECIES_ENRICHMENT_CONCURRENCY,
+    enrichSpecies,
+  );
   for (const o of enriched) {
     const st = obsStats.get(o.scientificName);
     if (st) {
@@ -434,11 +446,13 @@ export async function searchGBIFMultiCircle(
     return options.skipAliSpeciesMcp ? result : enrichInventoryWithAliSpeciesMcp(result);
   }
 
-  const results = await Promise.all(
-    enabledCircles.map((c) => searchGBIF(c.center[0], c.center[1], c.radius, {
+  const results = await mapWithConcurrency(
+    enabledCircles,
+    MULTI_CIRCLE_SEARCH_CONCURRENCY,
+    (c) => searchGBIF(c.center[0], c.center[1], c.radius, {
       ...options,
       skipAliSpeciesMcp: true,
-    })),
+    }),
   );
 
   const merged = mergeMultiCircleOccurrences(results);
@@ -463,10 +477,13 @@ export async function searchGBIFMultiCircle(
 }
 
 export async function fetchSpeciesDetails(taxonKey: number) {
-  const [imageUrl, iucnStatus, vernacularNames] = await Promise.all([
+  const [mediaResult, iucnResult, namesResult] = await Promise.allSettled([
     fetchSpeciesMedia(taxonKey),
     fetchSpeciesIucnStatus(taxonKey),
     fetchVernacularNames(taxonKey),
   ]);
+  const imageUrl = mediaResult.status === "fulfilled" ? mediaResult.value : undefined;
+  const iucnStatus = iucnResult.status === "fulfilled" ? iucnResult.value : undefined;
+  const vernacularNames = namesResult.status === "fulfilled" ? namesResult.value : {};
   return { taxonKey, imageUrl, iucnStatus, vernacularName: vernacularNames.french, englishName: vernacularNames.english };
 }

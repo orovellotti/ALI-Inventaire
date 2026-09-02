@@ -17,10 +17,10 @@ export function AboutDialog({ open, onOpenChange }: AboutDialogProps) {
             <div className="bg-teal-600 p-1.5 rounded-md">
               <Leaf className="h-4 w-4 text-white" />
             </div>
-            Inventaire Flash - Méthodologie
+            ALi Inventaire — Méthodologie
           </DialogTitle>
           <DialogDescription className="sr-only">
-            Méthodologie, sources de données et indice de confiance de l'outil Inventaire Flash
+            Méthodologie, sources de données et indice de confiance d’ALi Inventaire
           </DialogDescription>
         </DialogHeader>
 
@@ -33,7 +33,7 @@ export function AboutDialog({ open, onOpenChange }: AboutDialogProps) {
                 Objectif
               </h3>
               <p>
-                Inventaire Flash est un outil de pré-diagnostic écologique rapide. Il permet de générer 
+                ALi Inventaire est un assistant de pré-étude documentaire biodiversité. Il permet de générer
                 instantanément un inventaire de la biodiversité connue autour d'un point donné, à partir 
                 des données d'observation publiques. Il est conçu pour les phases amont des études d'impact 
                 environnemental (EIE) et le cadrage préliminaire de projets.

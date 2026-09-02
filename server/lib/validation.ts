@@ -60,6 +60,53 @@ export const searchQuerySchema = z.object({
   q: z.string().trim().min(1, "Paramètre 'q' requis"),
 });
 
+const positionSchema = z
+  .tuple([lngSchema, latSchema])
+  .transform(([lng, lat]) => [lng, lat] as [number, number]);
+const linearRingSchema = z.array(positionSchema).min(4).max(10_000).refine(
+  (ring) => {
+    const first = ring[0];
+    const last = ring[ring.length - 1];
+    return first[0] === last[0] && first[1] === last[1];
+  },
+  "Chaque anneau doit être fermé",
+);
+const polygonCoordinatesSchema = z.array(linearRingSchema).min(1).max(100);
+const projectGeometrySchema = z.discriminatedUnion("type", [
+  z.object({ type: z.literal("Polygon"), coordinates: polygonCoordinatesSchema }),
+  z.object({
+    type: z.literal("MultiPolygon"),
+    coordinates: z.array(polygonCoordinatesSchema).min(1).max(100),
+  }),
+]);
+
+export const projectAreaSchema = z
+  .object({
+    type: z.literal("FeatureCollection"),
+    features: z.array(z.object({
+      type: z.literal("Feature"),
+      properties: z.record(z.unknown()).nullable().optional(),
+      geometry: projectGeometrySchema,
+    })).min(1).max(100),
+  })
+  .superRefine((collection, ctx) => {
+    let positions = 0;
+    for (const feature of collection.features) {
+      const polygons = feature.geometry.type === "Polygon"
+        ? [feature.geometry.coordinates]
+        : feature.geometry.coordinates;
+      for (const polygon of polygons) {
+        for (const ring of polygon) positions += ring.length;
+      }
+    }
+    if (positions > 10_000) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Emprise trop détaillée (maximum 10 000 sommets)",
+      });
+    }
+  });
+
 export const priorityBodySchema = z.object({
   toponym: z.string().min(1, "Champ 'toponym' requis"),
   coords: coordsSchema,
@@ -67,6 +114,7 @@ export const priorityBodySchema = z.object({
     .array(z.any())
     .min(1, "Champ 'occurrences' requis (tableau non vide)")
     .max(5000, "Maximum 5000 occurrences"),
+  projectArea: projectAreaSchema.optional(),
 });
 
 export const potentialSpeciesBodySchema = z.object({
@@ -84,7 +132,63 @@ export const potentialSpeciesBodySchema = z.object({
       }),
     )
     .max(5000, "Maximum 5000 occurrences"),
+  projectArea: projectAreaSchema.optional(),
 });
+
+export interface CostLimitDecision {
+  allowed: boolean;
+  retryAfterSeconds: number;
+  release: () => void;
+  reason?: "rate" | "concurrency";
+}
+
+/** Limiteur borné et sans dépendance, partagé par les routes LLM anonymes. */
+export class SlidingWindowCostLimiter {
+  private readonly clients = new Map<string, { startedAt: number; requests: number; active: number }>();
+  private readonly maxTrackedClients = 5_000;
+
+  constructor(
+    private readonly windowMs: number,
+    private readonly maxRequests: number,
+    private readonly maxConcurrent: number,
+  ) {}
+
+  acquire(key: string, now = Date.now()): CostLimitDecision {
+    let state = this.clients.get(key);
+    if (!state || now - state.startedAt >= this.windowMs) {
+      if (!state && this.clients.size >= this.maxTrackedClients) {
+        const oldestKey = this.clients.keys().next().value as string | undefined;
+        if (oldestKey) this.clients.delete(oldestKey);
+      }
+      state = { startedAt: now, requests: 0, active: 0 };
+      this.clients.set(key, state);
+    }
+    const noop = () => undefined;
+    if (state.active >= this.maxConcurrent) {
+      return { allowed: false, reason: "concurrency", retryAfterSeconds: 2, release: noop };
+    }
+    if (state.requests >= this.maxRequests) {
+      return {
+        allowed: false,
+        reason: "rate",
+        retryAfterSeconds: Math.max(1, Math.ceil((state.startedAt + this.windowMs - now) / 1000)),
+        release: noop,
+      };
+    }
+    state.requests++;
+    state.active++;
+    let released = false;
+    return {
+      allowed: true,
+      retryAfterSeconds: 0,
+      release: () => {
+        if (released) return;
+        released = true;
+        state!.active = Math.max(0, state!.active - 1);
+      },
+    };
+  }
+}
 
 export const MAX_REFORMAT_REPORT_CHARACTERS = 200_000;
 export const MAX_REFORMAT_CONTEXT_CHARACTERS = 120_000;

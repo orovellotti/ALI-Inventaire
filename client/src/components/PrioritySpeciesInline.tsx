@@ -2,11 +2,13 @@ import { Sparkles, AlertTriangle, AlertCircle, Info, Loader2, RefreshCw, Externa
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { Occurrence } from "@/lib/gbif";
 import { occurrenceKey } from "@/lib/resultKeys";
+import type { FeatureCollection } from "geojson";
 
 interface Props {
   toponym: string;
   coords: [number, number];
   occurrences: Occurrence[];
+  projectArea?: FeatureCollection;
   onAnalysisChange?: (a: Analysis | null) => void;
   initialAnalysis?: Analysis | null;
   /** Lance automatiquement l'analyse à l'affichage (si pas déjà disponible). */
@@ -61,16 +63,16 @@ const EVIDENCE_STYLE: Record<EvidenceClass, { color: string; short: string }> = 
 };
 
 const EVIDENCE_GROUP_LABEL: Record<EvidenceClass, string> = {
-  A: "Espèce avérée",
-  B: "Avérée à l'échelle du site",
+  A: "Occurrence publique documentée dans l’aire",
+  B: "Espèce documentée à l’échelle d’un site de référence",
   C: "Très probable localement",
   D: "Potentielle",
   E: "Peu pertinente localement",
 };
 
 const EVIDENCE_GROUP_DESC: Record<EvidenceClass, string> = {
-  A: "Avérée dans votre zone d'étude par les données GBIF ou iNaturalist.",
-  B: "Ayant justifié la désignation d'un site Natura 2000 proche.",
+  A: "Occurrence géolocalisée issue de GBIF ou iNaturalist dans l’aire documentaire. Une confirmation sur le terrain exige un relevé de terrain.",
+  B: "Ayant justifié la désignation d'un site Natura 2000 proche, sans preuve de présence dans l’emprise.",
   C: "Espèce Natura 2000 dont l'habitat est favorable dans votre emprise.",
   D: "Possible d'après le contexte, sans preuve locale directe.",
   E: "Faible pertinence à l'échelle de votre zone d'étude.",
@@ -146,7 +148,7 @@ const LEVEL_STYLE: Record<string, { color: string; icon: typeof AlertTriangle }>
   modéré: { color: "text-amber-700 bg-amber-50 border-amber-200", icon: Info },
 };
 
-export function PrioritySpeciesInline({ toponym, coords, occurrences, onAnalysisChange, initialAnalysis, autoStart }: Props) {
+export function PrioritySpeciesInline({ toponym, coords, occurrences, projectArea, onAnalysisChange, initialAnalysis, autoStart }: Props) {
   const [analysis, setAnalysis] = useState<Analysis | null>(initialAnalysis ?? null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -187,8 +189,8 @@ export function PrioritySpeciesInline({ toponym, coords, occurrences, onAnalysis
       .map(o => `${o.scientificName}|${o.iucnStatus || ""}|${o.alertLevel || ""}`)
       .sort()
       .join("§");
-    return `${toponym}|${coords[0].toFixed(5)},${coords[1].toFixed(5)}|${sig}`;
-  }, [toponym, coords, slim]);
+    return `${toponym}|${coords[0].toFixed(5)},${coords[1].toFixed(5)}|${projectArea ? "project-area" : "circle"}|${sig}`;
+  }, [toponym, coords, projectArea, slim]);
 
   useEffect(() => {
     if (initialAnalysis) setAnalysis(initialAnalysis);
@@ -206,7 +208,7 @@ export function PrioritySpeciesInline({ toponym, coords, occurrences, onAnalysis
     fetch("/api/llm/priority-species", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ toponym, coords, occurrences: slim }),
+      body: JSON.stringify({ toponym, coords, occurrences: slim, projectArea }),
     })
       .then(async (r) => {
         if (!r.ok) {
@@ -276,15 +278,16 @@ export function PrioritySpeciesInline({ toponym, coords, occurrences, onAnalysis
       )}
 
       {loading && (
-        <div className="flex items-center gap-2 py-3 px-2 text-xs text-gray-600">
+        <div className="flex items-center gap-2 py-3 px-2 text-xs text-gray-600" role="status" aria-live="polite">
           <Loader2 className="h-4 w-4 animate-spin text-teal-600" />
           Analyse IA en cours… (peut prendre 10-30 s)
         </div>
       )}
 
       {error && (
-        <div className="flex items-center gap-2 text-xs text-red-700 bg-red-50 border border-red-200 rounded-lg p-2">
-          <AlertCircle className="h-4 w-4 shrink-0" /> {error}
+        <div className="flex items-center gap-2 text-xs text-red-700 bg-red-50 border border-red-200 rounded-lg p-2" role="alert">
+          <AlertCircle className="h-4 w-4 shrink-0" /> <span className="flex-1">{error}</span>
+          <button type="button" onClick={() => runAnalysis(true)} className="rounded border border-red-300 px-2 py-1 font-semibold hover:bg-red-100">Réessayer</button>
         </div>
       )}
 
@@ -299,7 +302,7 @@ export function PrioritySpeciesInline({ toponym, coords, occurrences, onAnalysis
                 {analysis.natura2000.map((z, i) => {
                   const href = z.url && /^https?:\/\//i.test(z.url) ? z.url : null;
                   return (
-                    <div key={i} className="text-[11px] text-amber-800 leading-snug" data-testid={`natura2000-zone-${i}`}>
+                    <div key={`${z.code || z.url || z.name}::${z.type}`} className="text-[11px] text-amber-800 leading-snug" data-testid={`natura2000-zone-${i}`}>
                       <span className="font-semibold">{z.type}</span> — {z.name}
                       {href && (
                         <a
@@ -308,7 +311,7 @@ export function PrioritySpeciesInline({ toponym, coords, occurrences, onAnalysis
                           rel="noopener noreferrer"
                           className="inline-flex items-center gap-0.5 ml-1 text-amber-700 hover:underline"
                         >
-                          <ExternalLink className="h-2.5 w-2.5" />
+                            <ExternalLink className="h-2.5 w-2.5" aria-hidden="true" /><span className="sr-only">Ouvrir la fiche de {z.name}</span>
                         </a>
                       )}
                       {(() => {
@@ -329,7 +332,7 @@ export function PrioritySpeciesInline({ toponym, coords, occurrences, onAnalysis
                             <span className="font-medium">Habitats d'intérêt communautaire :</span>
                             <ul className="mt-0.5 space-y-0.5">
                               {habitats.map((h, hi) => (
-                                <li key={hi} data-testid={`natura2000-habitat-${i}-${hi}`}>
+                                <li key={`${h.code}::${h.description}`} data-testid={`natura2000-habitat-${i}-${hi}`}>
                                   <span className="font-medium">{h.code}</span>
                                   {h.description ? ` — ${h.description}` : ""}
                                   {h.cover != null ? (
@@ -379,7 +382,7 @@ export function PrioritySpeciesInline({ toponym, coords, occurrences, onAnalysis
               const StyleIcon = style.icon;
               return (
                 <div
-                  key={i}
+                   key={`${sp.scientificName}::${sp.evidenceClass ?? "D"}::${sp.source ?? ""}`}
                   className="border border-gray-200 rounded-lg p-2.5 bg-white"
                   data-testid={`priority-species-${i}`}
                 >
@@ -496,7 +499,7 @@ export function PrioritySpeciesInline({ toponym, coords, occurrences, onAnalysis
                           <div className="flex flex-wrap gap-1" data-testid={`statuses-species-${i}`}>
                             {sp.statuses.map((st, j) => (
                               <span
-                                key={j}
+                                 key={`${st.category}::${st.value}::${st.scope ?? ""}`}
                                 className={`inline-flex items-center gap-1 text-[9px] px-1.5 py-0.5 rounded border ${STATUS_TONE[st.tone] || STATUS_TONE.neutral}`}
                                 title={`${st.label}${st.scope ? ` — ${st.scope}` : ""}`}
                               >
@@ -511,7 +514,7 @@ export function PrioritySpeciesInline({ toponym, coords, occurrences, onAnalysis
                         <div className="mt-1.5 flex flex-wrap gap-1">
                           {sp.sources.map((src, j) => (
                             <span
-                              key={j}
+                               key={`${src}::${j}`}
                               className="inline-flex items-center gap-1 text-[9px] px-1.5 py-0.5 rounded bg-gray-100 text-gray-600 border border-gray-200"
                               title="Référentiel cité par l'IA"
                             >
@@ -574,6 +577,7 @@ export function PrioritySpeciesInline({ toponym, coords, occurrences, onAnalysis
             ))
           )}
           <div className="mt-2 pt-2 border-t border-teal-100 text-[10px] text-gray-500 space-y-1">
+            <p>Une occurrence publique documente un signal bibliographique ; seule une donnée de terrain adaptée peut confirmer la présence dans l’emprise.</p>
             <div className="font-semibold text-gray-600">Référentiels mobilisables :</div>
             <div className="flex flex-wrap gap-x-3 gap-y-0.5">
               <a href="https://uicn.fr/listes-rouges-france/" target="_blank" rel="noopener noreferrer" className="hover:text-teal-700 hover:underline">UICN France</a>

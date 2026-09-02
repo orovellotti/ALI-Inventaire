@@ -139,6 +139,20 @@ export interface InventoryRequest {
   circles: BufferCircle[];
 }
 
+/** Emprise projet bornée acceptée par les analyses serveur. Coordonnées GeoJSON [longitude, latitude]. */
+export type ProjectAreaGeometry =
+  | { type: "Polygon"; coordinates: number[][][] }
+  | { type: "MultiPolygon"; coordinates: number[][][][] };
+
+export interface ProjectAreaFeatureCollection {
+  type: "FeatureCollection";
+  features: Array<{
+    type: "Feature";
+    properties?: Record<string, unknown> | null;
+    geometry: ProjectAreaGeometry;
+  }>;
+}
+
 /** Statut d'un indice déterministe de compatibilité écologique (jamais une probabilité de présence). */
 export type PotentialSpeciesStatus =
   | "Très probable localement"
@@ -207,6 +221,8 @@ export interface PotentialSpeciesResult {
   siteCount: number;
   habitatCount: number;
   partial: boolean;
+  /** Sources non disponibles pendant cette exécution ; les autres preuves sont conservées. */
+  errors?: string[];
   reference: {
     id: string;
     title: string;

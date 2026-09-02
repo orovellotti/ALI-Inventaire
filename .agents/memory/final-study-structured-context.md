@@ -7,4 +7,4 @@ The final study model call must receive a canonical structured context in additi
 
 **Why:** A detailed system prompt cannot compensate for analysis data that never reaches the model. The previous flow sent mainly the UI summary and silently omitted several generated datasets.
 
-**How to apply:** Keep the context deduplicated and size-bounded. Each bounded collection must expose totalCount and omittedCount, and the final prompt must describe any abridged section as partial rather than exhaustive. The structured context prevails over the editorial summary.
+**How to apply:** Keep the context deduplicated and size-bounded. Each bounded collection must expose totalCount and omittedCount, and the final prompt must describe any abridged section as partial rather than exhaustive. The structured context prevails over the editorial summary. Distinguish the saved system prompt from the per-study user message: preserve enabled-agent prompts verbatim, and expose lengths plus stable fingerprints so a generated document can be traced to the exact prompt snapshot without logging scientific content.

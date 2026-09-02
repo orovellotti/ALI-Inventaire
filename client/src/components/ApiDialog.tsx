@@ -25,7 +25,7 @@ const TOOLS: McpTool[] = [
   {
     name: "inventory_simple",
     title: "Inventaire GBIF (un point)",
-    description: "Espèces avérées autour d'un point GPS dans un rayon donné. Renvoie la liste des espèces, statut UICN, classification, et un score de confiance.",
+    description: "Occurrences publiques documentées autour d'un point GPS dans un rayon donné. Renvoie la liste des espèces, statut UICN, classification, et un score de confiance.",
     input: `{ "lat": 43.5497, "lng": 5.0341, "radius": 2000 }`,
   },
   {
@@ -98,7 +98,7 @@ export function ApiDialog({ open, onOpenChange }: ApiDialogProps) {
   }
 }`;
 
-  const systemPrompt = `Tu es un assistant naturaliste qui utilise les outils Inventaire Flash pour répondre aux questions de pré-diagnostic écologique en France.
+  const systemPrompt = `Tu es un assistant naturaliste qui utilise les outils ALi Inventaire pour répondre aux questions de pré-étude documentaire biodiversité en France.
 
 Méthode :
 1. Si l'utilisateur donne un nom de lieu (commune, lieu-dit, adresse), commence par appeler "geocode" pour obtenir lat/lng.
@@ -124,10 +124,10 @@ Réponds en français, ton professionnel et concis.`;
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Bot className="h-5 w-5 text-teal-600" />
-            MCP — Agent IA Inventaire Flash
+            MCP — Agent IA ALi Inventaire
           </DialogTitle>
           <DialogDescription>
-            Connecte Claude, ChatGPT ou tout client compatible MCP à Inventaire Flash pour interroger la biodiversité française depuis une simple conversation.
+            Connecte Claude, ChatGPT ou tout client compatible MCP à ALi Inventaire pour interroger la biodiversité française depuis une simple conversation.
           </DialogDescription>
         </DialogHeader>
 
@@ -138,7 +138,7 @@ Réponds en français, ton professionnel et concis.`;
               <div className="text-xs text-teal-900 leading-relaxed">
                 <strong className="block mb-1">Qu'est-ce qu'un agent IA via MCP ?</strong>
                 Le <strong>Model Context Protocol</strong> (MCP) permet à un chatbot (Claude, ChatGPT…) d'utiliser
-                directement les outils d'Inventaire Flash : recherche d'espèces, géocodage, analyse d'enjeux, plateformes SINP…
+                directement les outils d’ALi Inventaire : recherche d'espèces, géocodage, analyse d'enjeux, plateformes SINP…
                 Tu décris ton besoin en langage naturel, l'agent appelle automatiquement les bons outils.
               </div>
             </div>
@@ -197,13 +197,13 @@ Réponds en français, ton professionnel et concis.`;
                   <li>Clique sur <strong>« Add custom connector »</strong> (Ajouter un connecteur personnalisé).</li>
                   <li>Renseigne :
                     <ul className="list-disc pl-4 mt-1">
-                      <li>Name : <code className="text-[11px] bg-gray-100 px-1 py-0.5 rounded">Inventaire Flash</code></li>
+                      <li>Name : <code className="text-[11px] bg-gray-100 px-1 py-0.5 rounded">ALi Inventaire</code></li>
                       <li>Description : <em>Pré-diagnostic écologique GBIF / iNaturalist / IUCN pour la France</em></li>
                       <li>MCP Server URL : l'URL ci-dessus</li>
                       <li>Authentication : <strong>None</strong></li>
                     </ul>
                   </li>
-                  <li>Active le connecteur, puis dans une nouvelle conversation utilise le bouton <strong>« + → Connectors »</strong> et coche <strong>Inventaire Flash</strong>.</li>
+                  <li>Active le connecteur, puis dans une nouvelle conversation utilise le bouton <strong>« + → Connectors »</strong> et coche <strong>ALi Inventaire</strong>.</li>
                   <li>Pour un GPT personnalisé permanent : <strong>Explore GPTs → Create</strong>, dans <em>Configure → Actions / Connectors</em> ajoute le même MCP, puis colle le prompt système ci-dessous.</li>
                 </ol>
               </div>

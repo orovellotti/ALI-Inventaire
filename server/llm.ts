@@ -1,6 +1,7 @@
 import OpenAI from "openai";
 import { z } from "zod";
-import type { Occurrence } from "@shared/types";
+import { createHash } from "node:crypto";
+import type { Occurrence, ProjectAreaFeatureCollection } from "@shared/types";
 import { fetchSpeciesStatuses, type SpeciesStatus, type Patrimonialite } from "./ali";
 import { isInvasiveExotic } from "./invasive";
 import { getNaturaZones, type Zonage } from "./services/geoservices";
@@ -8,6 +9,7 @@ import { getSpeciesForSite, type NaturaGrade } from "./services/natura2000Specie
 import { getSiteHabitatInfo, type SiteHabitat, type SiteGeometry } from "./services/natura2000Habitats";
 import {
   computeSiteMetrics,
+  computeProjectSiteMetrics,
   habitatCompatScore,
   type HabitatMetrics,
 } from "./services/habitatCompat";
@@ -26,7 +28,7 @@ const MAX_SAMPLED_SPECIES = 50;
 const MAX_RETURNED_SPECIES = 5;
 const MAX_FINAL_SPECIES = 10;
 // Places réservées, dans le top final, aux espèces Natura 2000 « très probables
-// localement » (classe C) ou « avérées à l'échelle du site » (classe B).
+// localement » (classe C) ou documentées à l'échelle du site (classe B).
 const NATURA_RESERVED_SLOTS = 4;
 const NATURA_PROXIMITY_M = 5000;
 const NATURA_FETCH_TIMEOUT_MS = 4000;
@@ -38,8 +40,8 @@ const PRIORITY_IUCN = new Set(["CR", "EN", "VU", "NT", "DD"]);
 const ALLOWED_LEVELS = ["majeur", "fort", "modéré"] as const;
 
 const EVIDENCE_LABELS: Record<EvidenceClass, string> = {
-  A: "Espèce observée",
-  B: "Avérée à l'échelle du site",
+  A: "Occurrence documentaire dans l’aire d’étude",
+  B: "Espèce documentée à l’échelle du site Natura 2000",
   C: "Très probable localement",
   D: "Potentielle",
   E: "Peu pertinente localement",
@@ -58,10 +60,10 @@ const SCORE_WEIGHTS = {
 
 // Compatibilité d'habitat (0–100) au-delà de laquelle une espèce désignatrice
 // non observée localement est jugée "très probable localement" (classe C)
-// plutôt que seulement "avérée à l'échelle du site" (classe B).
+// plutôt que seulement documentée à l'échelle du site (classe B).
 const HABITAT_C_THRESHOLD = 50;
 
-// Observation ≤ ce rayon depuis le centre de l'aire = "avéré localement" (A) ;
+// Occurrence publique ≤ ce rayon depuis le centre de l'aire = documentée localement (A) ;
 // au-delà (bord de l'aire d'étude) = "à proximité" → classe C pour une espèce du site.
 const EVIDENCE_LOCAL_RADIUS_M = 2000;
 
@@ -193,7 +195,7 @@ function classifyAndScore(
   //  A  observation locale dans l'aire d'étude proche (≤ EVIDENCE_LOCAL_RADIUS_M, ou sans coord.)
   //  C  espèce du site très probable localement : observée à proximité (bord de
   //     l'aire) OU habitat désigné favorable dans l'emprise (Phase 2)
-  //  B  espèce désignatrice Natura 2000 (grade significatif) sans habitat favorable → avérée au site
+  //  B  espèce désignatrice Natura 2000 (grade significatif) sans habitat favorable → documentée au site
   //  E  espèce du site au grade FSD non significatif "D", non observée → peu pertinente
   //  D  espèce du site sans observation locale, ou suggestion écorégionale → potentielle
   let evidenceClass: EvidenceClass;
@@ -305,6 +307,8 @@ export interface Natura2000Zone {
   overlapRatio: number | null;
   distanceM: number | null;
   habitats: SiteHabitat[];
+  /** Indique si le calcul repose sur l'emprise polygonale ou sur le cercle de repli. */
+  overlapBasis: "project-polygon" | "circular-fallback";
 }
 
 export interface PrioritySpeciesAnalysis {
@@ -368,6 +372,19 @@ Lorsque le projet est insuffisamment décrit, produis un état initial bibliogra
 
 Incarne un écologue senior pédagogue et rigoureux. Rédige avec le ton d’un bureau d’études expérimenté : professionnel et rassurant, clair et synthétique, factuel et prudent, orienté vers la décision et l’action. Explique les termes techniques utiles, les sources, les limites et les besoins d’expertise terrain. Ne sois jamais alarmiste ni excessivement affirmatif. Une expertise réglementaire fiable, expliquée simplement et tournée vers l’action.`;
 
+export function formatConfiguredAgentInstructions(
+  config: HarnessConfig,
+  nativeId?: string,
+): string {
+  const agents = config.agents.filter((agent) => agent.enabled && (!nativeId || agent.id === nativeId));
+  if (!agents.length) return "";
+  return `\n\nCONSIGNES CONFIGURÉES DU HARNAIS (subordonnées aux garde-fous ci-dessus)
+Applique intégralement chaque consigne ci-dessous lorsqu'elle ne contredit pas les garde-fous scientifiques. Ne l'ignore pas au motif qu'elle est détaillée ou multiligne.
+${agents
+    .map((agent) => `\n[DÉBUT CONSIGNE — ${agent.name}]\n${agent.prompt}\n[FIN CONSIGNE — ${agent.name}]`)
+    .join("\n")}`;
+}
+
 async function configuredAgentInstructions(
   nativeId?: string,
   suppliedConfig?: HarnessConfig,
@@ -375,11 +392,7 @@ async function configuredAgentInstructions(
   try {
     const config = suppliedConfig ??
       (migrateHarnessConfig(await storage.getHarnessConfig()) ?? DEFAULT_HARNESS_CONFIG);
-    const agents = config.agents.filter((agent) => agent.enabled && (!nativeId || agent.id === nativeId));
-    if (!agents.length) return "";
-    return `\n\nCONSIGNES CONFIGURÉES DU HARNAIS (subordonnées aux garde-fous ci-dessus) :\n${agents
-      .map((agent) => `- ${agent.name} : ${agent.prompt}`)
-      .join("\n")}`;
+    return formatConfiguredAgentInstructions(config, nativeId);
   } catch {
     return "";
   }
@@ -436,7 +449,7 @@ function baseFromOccurrence(o: Occurrence): PrioritySpecies {
     vernacularName: o.vernacularName,
     group: g.group,
     icon: g.icon,
-    reason: `Espèce observée dans l'aire d'étude${iucn}.`,
+    reason: `Occurrence publique documentée dans l'aire d'étude${iucn}.`,
     level: o.alertLevel === "high" ? "majeur" : o.alertLevel === "medium" ? "fort" : "modéré",
     sources: o.iucnStatus ? ["UICN"] : [],
     inInventory: true,
@@ -451,7 +464,7 @@ function baseFromNatura(name: string, grade: NaturaGrade): PrioritySpecies {
     scientificName: name,
     group: "Autres",
     icon: "🌿",
-    reason: `Espèce désignatrice d'un site Natura 2000 à proximité${grade ? ` (grade ${grade})` : ""}.`,
+    reason: `Espèce documentée comme désignatrice d'un site Natura 2000${grade ? ` (grade ${grade})` : ""}; cette donnée ne confirme pas sa présence dans l'emprise.`,
     level: "fort",
     sources: ["Natura 2000 (FSD)"],
     inInventory: false,
@@ -482,7 +495,7 @@ function buildPriorityPrompt(toponym: string, coords: [number, number], sample: 
           const sp = shown.length > 0 ? `\n  Espèces désignatrices : ${shown.join(", ")}${extra}` : "";
           return `- ${z.type} : ${z.name}${sp}`;
         })
-        .join("\n")}\nCes espèces désignatrices justifient la désignation des sites : tu peux en retenir même si elles n'apparaissent pas dans l'inventaire GBIF ci-dessus (elles seront classées comme avérées à l'échelle du site).\n`
+        .join("\n")}\nCes espèces désignatrices justifient la désignation des sites : tu peux en retenir même si elles n'apparaissent pas dans l'inventaire GBIF ci-dessus (elles seront signalées comme documentées à l’échelle du site, et non comme présentes dans l’emprise).\n`
     : "";
   return `Site : ${toponym} (lat ${coords[0].toFixed(4)}, lng ${coords[1].toFixed(4)})
 Inventaire GBIF (${totalCount} espèces) :
@@ -630,6 +643,7 @@ async function fetchNaturaZones(
   coords: [number, number],
   empriseRadiusM: number,
   includeHabitats: boolean,
+  projectArea?: ProjectAreaFeatureCollection,
 ): Promise<Natura2000Zone[]> {
   try {
     const zones = await Promise.race([
@@ -646,6 +660,7 @@ async function fetchNaturaZones(
       overlapRatio: null,
       distanceM: null,
       habitats: [] as SiteHabitat[],
+      overlapBasis: projectArea ? "project-polygon" : "circular-fallback",
     }));
 
     let index = 0;
@@ -676,12 +691,9 @@ async function fetchNaturaZones(
         // Repli sur la géométrie WFS (ex. ZPS : absentes de la couche EEA
         // Natura2000Sites, mais fournies par patrinat_zps du WFS IGN).
         if (!geometry && z.geometry) geometry = z.geometry;
-        const metrics = computeSiteMetrics(
-          coords[0],
-          coords[1],
-          empriseRadiusM,
-          geometry,
-        );
+        const metrics = projectArea
+          ? computeProjectSiteMetrics(projectArea, geometry)
+          : computeSiteMetrics(coords[0], coords[1], empriseRadiusM, geometry);
         if (metrics) {
           result[current].overlapRatio = metrics.overlapRatio;
           result[current].distanceM = metrics.distanceM;
@@ -701,6 +713,7 @@ export async function analyzePrioritySpecies(
   toponym: string,
   coords: [number, number],
   occurrences: Occurrence[],
+  projectArea?: ProjectAreaFeatureCollection,
 ): Promise<PrioritySpeciesAnalysis> {
   const picked = selectRelevantSpecies(occurrences);
   const sample = formatSpeciesForPrompt(picked);
@@ -709,7 +722,7 @@ export async function analyzePrioritySpecies(
   const habitatOperational = isAgentOperational(harnessConfig, "habitats");
   const taxonomyOperational = isAgentOperational(harnessConfig, "taxonomy-status");
   const natura2000 = isAgentEnabled(harnessConfig, "zonages")
-    ? await fetchNaturaZones(coords, EVIDENCE_LOCAL_RADIUS_M, habitatOperational)
+    ? await fetchNaturaZones(coords, EVIDENCE_LOCAL_RADIUS_M, habitatOperational, projectArea)
     : [];
   const executionAgents = harnessConfig.agents.filter((agent) => agent.enabled);
   const mcpTrace = await Promise.all(
@@ -860,7 +873,7 @@ export async function analyzePrioritySpecies(
     .map((sp) => classifyAndScore(sp, inventoryNorm, designatingMap, obsNearestM, obsQuality, habitatMap))
     .sort(byEvidenceThenScore);
   // Réserver quelques places aux espèces Natura 2000 « très probables localement »
-  // (classe C) ou « avérées à l'échelle du site » (classe B). Sinon, dès que l'aire
+  // (classe C) ou documentées à l'échelle du site (classe B). Sinon, dès que l'aire
   // compte déjà MAX_FINAL_SPECIES espèces observées (classe A), ces espèces sont
   // systématiquement évincées du top et l'apport des sites Natura 2000 reste invisible.
   const siteProbable = rankedAll.filter(
@@ -923,18 +936,45 @@ async function enrichWithAliStatuses(species: PrioritySpecies[]): Promise<Priori
   ]);
 }
 
-export async function reformatReport(rawReport: string, structuredContext: string): Promise<string> {
+export interface FinalStudyPromptTrace {
+  systemCharacters: number;
+  userCharacters: number;
+  totalCharacters: number;
+  systemFingerprint: string;
+  userFingerprint: string;
+}
+
+export function createFinalStudyPromptTrace(systemPrompt: string, userPrompt: string): FinalStudyPromptTrace {
+  const fingerprint = (content: string) =>
+    createHash("sha256").update(content, "utf8").digest("hex").slice(0, 16);
+  return {
+    systemCharacters: systemPrompt.length,
+    userCharacters: userPrompt.length,
+    totalCharacters: systemPrompt.length + userPrompt.length,
+    systemFingerprint: fingerprint(systemPrompt),
+    userFingerprint: fingerprint(userPrompt),
+  };
+}
+
+export async function reformatReport(
+  rawReport: string,
+  structuredContext: string,
+): Promise<{ reformatted: string; promptTrace: FinalStudyPromptTrace }> {
   const finalStudyPrompt = await getFinalStudyPrompt();
+  const userPrompt = buildReformatPrompt(rawReport, structuredContext);
   const completion = await openai.chat.completions.create({
     model: MODEL,
     messages: [
       { role: "system", content: finalStudyPrompt },
-      { role: "user", content: buildReformatPrompt(rawReport, structuredContext) },
+      { role: "user", content: userPrompt },
     ],
   });
   const content = completion.choices[0]?.message?.content?.trim();
   if (!content) throw new Error("Réponse LLM vide");
-  return content;
+  return {
+    reformatted: content,
+    promptTrace: createFinalStudyPromptTrace(finalStudyPrompt, userPrompt),
+  };
 }
 
 export async function getFinalStudyPrompt(): Promise<string> {

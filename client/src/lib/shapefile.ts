@@ -9,6 +9,7 @@ export interface ProjectPolygon {
 }
 
 const POLYGON_TYPES = new Set(["Polygon", "MultiPolygon"]);
+const MAX_PROJECT_COORDINATES = 10_000;
 
 function getPolygonRings(geometry: Geometry): Position[][] {
   if (geometry.type === "Polygon") {
@@ -28,6 +29,12 @@ function ringArea(ring: Position[]): number {
     area += x1 * y2 - x2 * y1;
   }
   return Math.abs(area) / 2;
+}
+
+function polygonComponents(geometry: Geometry): Position[][][] {
+  if (geometry.type === "Polygon") return [geometry.coordinates];
+  if (geometry.type === "MultiPolygon") return geometry.coordinates;
+  return [];
 }
 
 function ringCentroid(ring: Position[]): [number, number] {
@@ -51,21 +58,23 @@ function ringCentroid(ring: Position[]): [number, number] {
   return [cy, cx];
 }
 
-function computeCentroid(fc: FeatureCollection): [number, number] {
+export function computeCentroid(fc: FeatureCollection): [number, number] {
   let totalArea = 0;
   let weightedLat = 0;
   let weightedLng = 0;
 
   for (const feature of fc.features) {
     if (!feature.geometry) continue;
-    const rings = getPolygonRings(feature.geometry);
-    if (rings.length === 0) continue;
-    const outerRing = rings[0];
-    const area = ringArea(outerRing);
-    const [lat, lng] = ringCentroid(outerRing);
-    totalArea += area;
-    weightedLat += lat * area;
-    weightedLng += lng * area;
+    for (const polygon of polygonComponents(feature.geometry)) {
+      for (let index = 0; index < polygon.length; index++) {
+        const ring = polygon[index];
+        const area = ringArea(ring) * (index === 0 ? 1 : -1);
+        const [lat, lng] = ringCentroid(ring);
+        totalArea += area;
+        weightedLat += lat * area;
+        weightedLng += lng * area;
+      }
+    }
   }
 
   if (totalArea < 1e-12) {
@@ -138,6 +147,15 @@ export async function parseShapefile(file: File): Promise<ProjectPolygon> {
     type: "FeatureCollection",
     features: polyFeatures,
   };
+  const coordinateCount = polyFc.features.reduce(
+    (total, feature) => total + (feature.geometry ? flattenCoords(feature.geometry).length : 0),
+    0,
+  );
+  if (coordinateCount > MAX_PROJECT_COORDINATES) {
+    throw new Error(
+      `L'emprise est trop détaillée (${coordinateCount.toLocaleString("fr-FR")} sommets). Simplifiez-la à ${MAX_PROJECT_COORDINATES.toLocaleString("fr-FR")} sommets maximum.`,
+    );
+  }
 
   const centroid = computeCentroid(polyFc);
   const bounds = computeBounds(polyFc);

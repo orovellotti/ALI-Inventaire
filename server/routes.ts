@@ -4,7 +4,7 @@ import { ZodError } from "zod";
 import { searchGBIF, searchGBIFMultiCircle, fetchSpeciesDetails } from "./gbif";
 import { findSINPPlatforms, SINP_PLATFORMS } from "./sinp";
 import { STUDY_AREAS, PROJECT_PRESETS, TAXON_GROUPS } from "./constants";
-import { analyzePrioritySpecies, getFinalStudyPrompt, reformatReport } from "./llm";
+import { analyzePrioritySpecies, createFinalStudyPromptTrace, getFinalStudyPrompt, reformatReport } from "./llm";
 import { resolveAliUrl } from "./ali";
 import { getMcpServerRegistry, registerMcpEndpoint } from "./mcp";
 import { asyncHandler } from "./lib/asyncHandler";
@@ -22,6 +22,7 @@ import {
   zonagesQuerySchema,
   harnessConfigBodySchema,
   mcpDiscoveryBodySchema,
+  SlidingWindowCostLimiter,
 } from "./lib/validation";
 import { geocodePlace, reverseGeocode, searchLieuxDits } from "./services/nominatim";
 import { getZonages, getNaturaZones } from "./services/geoservices";
@@ -35,6 +36,29 @@ import { getRuntimeHarnessConfig, isAgentEnabled, isAgentOperational, isAgentToo
 
 const DATA_SOURCES_TTL_MS = 10 * 60 * 1000;
 let dataSourcesCache: { data: unknown; expires: number } | null = null;
+
+/** Petit garde-fou en mémoire : l'usage anonyme reste possible, mais borné par IP. */
+function createCostControl(limiter: SlidingWindowCostLimiter) {
+  return (req: Request, res: Response, next: NextFunction): void => {
+    const key = req.ip || req.socket.remoteAddress || "unknown";
+    const decision = limiter.acquire(key);
+    if (!decision.allowed) {
+      res.setHeader("Retry-After", String(decision.retryAfterSeconds));
+      res.status(429).json({
+        error: decision.reason === "concurrency"
+          ? "Une analyse coûteuse est déjà en cours pour cette adresse."
+          : "Limite temporaire d’analyses atteinte. Réessayez plus tard.",
+      });
+      return;
+    }
+    res.once("finish", decision.release);
+    res.once("close", decision.release);
+    next();
+  };
+}
+
+const priorityCostControl = createCostControl(new SlidingWindowCostLimiter(10 * 60_000, 6, 1));
+const reformatCostControl = createCostControl(new SlidingWindowCostLimiter(10 * 60_000, 3, 1));
 
 const ENDPOINTS_DOC = [
   { method: "POST", path: "/api/inventory", description: "Inventaire multi-aires (corps JSON avec circles[])" },
@@ -108,9 +132,13 @@ export async function registerRoutes(
   }));
 
   app.get("/api/runtime/final-study-prompt", asyncHandler(async (_req, res) => {
+    const prompt = await getFinalStudyPrompt();
+    const trace = createFinalStudyPromptTrace(prompt, "");
     res.json({
-      title: "Prompt final de génération de la pré-étude",
-      prompt: await getFinalStudyPrompt(),
+      title: "Prompt système enregistré pour la génération de la pré-étude",
+      prompt,
+      characters: trace.systemCharacters,
+      fingerprint: trace.systemFingerprint,
     });
   }));
 
@@ -327,7 +355,7 @@ export async function registerRoutes(
   app.post(
     "/api/potential-species",
     asyncHandler(async (req, res) => {
-      const { lat, lng, radius, occurrences } =
+      const { lat, lng, radius, occurrences, projectArea } =
         potentialSpeciesBodySchema.parse(req.body);
       const harness = await getRuntimeHarnessConfig();
       if (!isAgentEnabled(harness, "zonages")) {
@@ -335,6 +363,7 @@ export async function registerRoutes(
       }
       res.json(await getPotentialSpecies(lat, lng, radius, occurrences, {
         includeHabitats: isAgentOperational(harness, "habitats"),
+        projectArea,
       }));
     }),
   );
@@ -361,21 +390,23 @@ export async function registerRoutes(
 
   app.post(
     "/api/llm/priority-species",
+    priorityCostControl,
     asyncHandler(async (req, res) => {
-      const { toponym, coords, occurrences } = priorityBodySchema.parse(req.body);
+      const { toponym, coords, occurrences, projectArea } = priorityBodySchema.parse(req.body);
       const harness = await getRuntimeHarnessConfig();
       if (!isAgentEnabled(harness, "occurrences")) {
         throw new HttpError(409, "L’Agent Occurrences est désactivé dans le Harnais.");
       }
-      res.json(await analyzePrioritySpecies(toponym, coords, occurrences as any));
+      res.json(await analyzePrioritySpecies(toponym, coords, occurrences as any, projectArea));
     }),
   );
 
   app.post(
     "/api/llm/reformat-report",
+    reformatCostControl,
     asyncHandler(async (req, res) => {
       const { report, context } = reformatBodySchema.parse(req.body);
-      res.json({ reformatted: await reformatReport(report, context) });
+      res.json(await reformatReport(report, context));
     }),
   );
 
@@ -397,7 +428,7 @@ export async function registerRoutes(
   app.get("/api/health", (_req, res) => {
     res.json({
       status: "ok",
-      service: "Inventaire Flash API",
+      service: "ALi Inventaire API",
       version: "1.0.0",
       endpoints: ENDPOINTS_DOC,
     });

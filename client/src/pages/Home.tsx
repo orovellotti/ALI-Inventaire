@@ -97,7 +97,7 @@ export default function Home() {
   const [showHarness, setShowHarness] = useState(false);
   const [harnessConfig, setHarnessConfig] = useState<HarnessConfig>(DEFAULT_HARNESS_CONFIG);
   const [showLieuxDits, setShowLieuxDits] = useState(false);
-  const [currentToponym, setCurrentToponym] = useState<string>(INITIAL_PLACE.name);
+  const [currentToponym, setCurrentToponym] = useState<string>("Localisation à confirmer");
   const [activePresetId, setActivePresetId] = useState("custom");
   const [activeTaxonFilters, setActiveTaxonFilters] = useState<Set<string>>(
     () => new Set(TAXON_GROUPS.map(g => g.id))
@@ -387,6 +387,51 @@ export default function Home() {
         title: "Inventaire terminé",
         description: `${data.stats.speciesCount} espèces trouvées dans ${enabledCount} aire${enabledCount > 1 ? 's' : ''} d'étude.`,
       });
+      if (agentEnabled("zonages")) {
+        setPotentialSpeciesLoading(true);
+        void fetch("/api/potential-species", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          signal: potentialController.signal,
+          body: JSON.stringify({
+            lat: referenceCircle.center[0],
+            lng: referenceCircle.center[1],
+            radius: referenceCircle.radius,
+            projectArea: projectPolygon?.geojson,
+            occurrences: data.occurrences.slice(0, 5000).map((occurrence) => ({
+              key: occurrence.key,
+              scientificName: occurrence.scientificName,
+              decimalLatitude: occurrence.decimalLatitude,
+              decimalLongitude: occurrence.decimalLongitude,
+              source: occurrence.source ?? "gbif",
+            })),
+          }),
+        })
+          .then(async (response) => {
+            if (!response.ok) {
+              const payload = await response.json().catch(() => ({}));
+              throw new Error(payload.error || "Analyse du potentiel écologique indisponible");
+            }
+            return response.json() as Promise<PotentialSpeciesResult>;
+          })
+          .then((potential) => {
+            if (requestId !== inventoryRequestId.current) return;
+            setPotentialSpecies(potential);
+            setPotentialSpeciesError(false);
+          })
+          .catch((potentialError: unknown) => {
+            if (
+              requestId === inventoryRequestId.current &&
+              !(potentialError instanceof DOMException && potentialError.name === "AbortError")
+            ) {
+              setPotentialSpecies(null);
+              setPotentialSpeciesError(true);
+            }
+          })
+          .finally(() => {
+            if (requestId === inventoryRequestId.current) setPotentialSpeciesLoading(false);
+          });
+      }
     } catch (error) {
       if (requestId !== inventoryRequestId.current) return;
       zonagesController.abort();
@@ -696,7 +741,7 @@ export default function Home() {
           </span>
         </button>
         <div className="absolute left-1/2 hidden -translate-x-1/2 items-center gap-2 md:flex">
-          <span className="h-2 w-2 rounded-full bg-[#c4a642]" aria-hidden="true" /><span className="text-sm font-semibold text-[#315b4e]">Projet Lunaret</span><span className="text-xs text-[#7b8c83]">Pré-étude biodiversité · {currentToponym.split(",")[0]}</span>
+          <span className="h-2 w-2 rounded-full bg-[#c4a642]" aria-hidden="true" /><span className="text-sm font-semibold text-[#315b4e]">{isLocationReady ? currentToponym.split(",")[0] : "Nouvelle étude"}</span><span className="text-xs text-[#7b8c83]">Pré-étude biodiversité</span>
         </div>
         <div className="ml-auto flex items-center gap-2">
           {authLoaded && !isSignedIn && (
@@ -768,6 +813,7 @@ export default function Home() {
         potentialSpecies={potentialSpecies}
         potentialSpeciesLoading={potentialSpeciesLoading}
         potentialSpeciesError={potentialSpeciesError}
+        projectArea={projectPolygon?.geojson}
         selectedZonageId={selectedZonageId}
         onSelectZonage={setSelectedZonageId}
         composer={
@@ -881,9 +927,9 @@ export default function Home() {
           type="button"
           onClick={() => setShowApi(true)}
           className="flex items-center gap-1.5 rounded-xl border border-[#d9ddd1] bg-[#fffef9]/95 px-2.5 py-2 shadow-[0_4px_14px_rgba(29,70,57,.08)] backdrop-blur transition-colors hover:bg-[#fffef9]"
-          aria-label="MCP — connecter Claude ou ChatGPT à Inventaire Flash"
+          aria-label="MCP — connecter Claude ou ChatGPT à ALi Inventaire"
           data-testid="button-agent-ia"
-          title="MCP — connecter Claude / ChatGPT (agent IA) à Inventaire Flash"
+          title="MCP — connecter Claude / ChatGPT (agent IA) à ALi Inventaire"
         >
           <Bot className="h-4 w-4 text-[#1e594a]" />
           <span className="text-xs font-semibold text-[#426158]">MCP</span>

@@ -1,7 +1,7 @@
-import type { PotentialSpeciesResult } from "@shared/types";
+import type { PotentialSpeciesResult, ProjectAreaFeatureCollection } from "@shared/types";
 import { storage } from "../storage";
 import { getNaturaZones, getZnieffZones } from "./geoservices";
-import { computeSiteMetrics } from "./habitatCompat";
+import { computeProjectSiteMetrics, computeSiteMetrics } from "./habitatCompat";
 import { getSiteHabitatInfo } from "./natura2000Habitats";
 import {
   evaluatePotentialSpecies,
@@ -27,6 +27,19 @@ export interface PotentialOccurrence {
   decimalLatitude: number;
   decimalLongitude: number;
   source: "gbif" | "inaturalist";
+}
+
+/** Conserve le résultat des autres sources lorsqu'une source échoue. */
+export function retainSourceResult<T>(
+  settled: PromiseSettledResult<T | null>,
+  errors: string[],
+  message: string,
+): T | null {
+  if (settled.status === "rejected") {
+    errors.push(message);
+    return null;
+  }
+  return settled.value;
 }
 
 export function haversineM(
@@ -87,19 +100,25 @@ export async function getPotentialSpecies(
   lng: number,
   radius: number,
   occurrences: PotentialOccurrence[],
-  options: { includeHabitats?: boolean } = {},
+  options: { includeHabitats?: boolean; projectArea?: ProjectAreaFeatureCollection } = {},
 ): Promise<PotentialSpeciesResult> {
   const deadline = Date.now() + REQUEST_BUDGET_MS;
   let partial = false;
   let znieffPartial = false;
-  const [zonesResult, znieffZonesResult] = await Promise.all([
+  const errors: string[] = [];
+  const [zonesSettled, znieffZonesSettled] = await Promise.allSettled([
     withDeadline(getNaturaZones(lat, lng, radius), NATURA_ZONES_BUDGET_MS),
     withDeadline(getZnieffZones(lat, lng, radius), ZNIEFF_ZONES_BUDGET_MS),
   ]);
+  const zonesResult = retainSourceResult(zonesSettled, errors, "Natura 2000 : consultation des zones indisponible.");
+  const znieffZonesResult = retainSourceResult(znieffZonesSettled, errors, "ZNIEFF : consultation des zones indisponible.");
   const zones = zonesResult ?? [];
   if (!zonesResult) partial = true;
   const znieffZones = znieffZonesResult?.zones ?? [];
-  if (!znieffZonesResult || znieffZonesResult.partial) znieffPartial = true;
+  if (!znieffZonesResult || znieffZonesResult.partial) {
+    znieffPartial = true;
+    partial = true;
+  }
   const zoneByCode = new Map(
     zones
       .filter((zone) => zone.code && /^FR\d{7,}$/i.test(zone.code))
@@ -112,7 +131,7 @@ export async function getPotentialSpecies(
       .map((zone) => [zone.code!.trim(), zone] as const),
   );
   const znieffCodes = Array.from(znieffZoneByCode.keys());
-  const [rowsResult, znieffRowsResult, znieffMetaResult] = await Promise.all([
+  const [rowsSettled, znieffRowsSettled, znieffMetaSettled] = await Promise.allSettled([
     withDeadline(
       storage.getNaturaSpeciesForSites(codes),
       deadline - Date.now(),
@@ -126,10 +145,16 @@ export async function getPotentialSpecies(
       deadline - Date.now(),
     ),
   ]);
+  const rowsResult = retainSourceResult(rowsSettled, errors, "Natura 2000 : espèces désignatrices indisponibles.");
+  const znieffRowsResult = retainSourceResult(znieffRowsSettled, errors, "ZNIEFF : espèces documentaires indisponibles.");
+  const znieffMetaResult = retainSourceResult(znieffMetaSettled, errors, "ZNIEFF : métadonnées de référence indisponibles.");
   const rows = rowsResult ?? [];
   if (!rowsResult) partial = true;
   const znieffRows = znieffRowsResult ?? [];
-  if (!znieffRowsResult || !znieffMetaResult) znieffPartial = true;
+  if (!znieffRowsResult || !znieffMetaResult) {
+    znieffPartial = true;
+    partial = true;
+  }
   const evidenceCodes = Array.from(
     new Set(
       rows
@@ -156,7 +181,7 @@ export async function getPotentialSpecies(
             code,
             name: zone.name,
             habitats: [],
-            metrics: computeSiteMetrics(lat, lng, radius, zone.geometry ?? null),
+            metrics: options.projectArea ? computeProjectSiteMetrics(options.projectArea, zone.geometry ?? null) : computeSiteMetrics(lat, lng, radius, zone.geometry ?? null),
           });
           continue;
         }
@@ -170,7 +195,7 @@ export async function getPotentialSpecies(
           code,
           name: zone.name,
           habitats: info?.habitats ?? [],
-          metrics: computeSiteMetrics(lat, lng, radius, geometry),
+          metrics: options.projectArea ? computeProjectSiteMetrics(options.projectArea, geometry) : computeSiteMetrics(lat, lng, radius, geometry),
         });
       } catch {
         partial = true;
@@ -272,6 +297,7 @@ export async function getPotentialSpecies(
     siteCount: codes.length,
     habitatCount: habitatCodes.size,
     partial,
+    ...(errors.length ? { errors } : {}),
     reference: EEA_ECOLOGICAL_REFERENCE_META,
     znieff: {
       species: znieffSpecies,

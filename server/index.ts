@@ -10,6 +10,7 @@ import {
   clerkProxyMiddleware,
   getClerkProxyHost,
 } from "./middlewares/clerkProxyMiddleware";
+import { summarizeApiResponse } from "./lib/apiResponseSummary";
 
 const app = express();
 const httpServer = createServer(app);
@@ -55,11 +56,11 @@ export function log(message: string, source = "express") {
 app.use((req, res, next) => {
   const start = Date.now();
   const path = req.path;
-  let capturedJsonResponse: Record<string, any> | undefined = undefined;
+  let responseSummary: string | undefined;
 
   const originalResJson = res.json;
   res.json = function (bodyJson, ...args) {
-    capturedJsonResponse = bodyJson;
+    responseSummary = summarizeApiResponse(bodyJson);
     return originalResJson.apply(res, [bodyJson, ...args]);
   };
 
@@ -67,9 +68,7 @@ app.use((req, res, next) => {
     const duration = Date.now() - start;
     if (path.startsWith("/api")) {
       let logLine = `${req.method} ${path} ${res.statusCode} in ${duration}ms`;
-      if (capturedJsonResponse) {
-        logLine += ` :: ${JSON.stringify(capturedJsonResponse)}`;
-      }
+      if (responseSummary) logLine += ` ${responseSummary}`;
 
       log(logLine);
     }

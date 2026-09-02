@@ -302,15 +302,44 @@ export function Map({ center, circles, results, onMapClick, selectedSpecies, onS
       !(excludeMarine && isMarineSpecies(occ))
     ));
   }, [results, activeTaxonFilters, excludeMarine]);
+  const selectedOccurrence = selectedSpecies
+    ? filteredOccurrences.find((occ) => occurrenceKey(occ) === selectedSpecies)
+    : undefined;
 
   return (
-    <div id="map-container" className="h-full w-full relative z-0">
+    <div
+      id="map-container"
+      className="h-full w-full relative z-0"
+      role="region"
+      aria-label="Carte du site et des données documentaires"
+      aria-describedby="map-text-alternative"
+    >
+      <div id="map-text-alternative" className="sr-only">
+        <p>
+          Alternative textuelle synchronisée de la carte. Centre actuel : latitude {center[0].toFixed(5)},
+          longitude {center[1].toFixed(5)}.
+        </p>
+        <p>
+          {projectPolygon
+            ? `Emprise importée : ${projectPolygon.name}.`
+            : `${sortedCircles.length} aire${sortedCircles.length > 1 ? "s" : ""} circulaire${sortedCircles.length > 1 ? "s" : ""} affichée${sortedCircles.length > 1 ? "s" : ""}.`}
+          {" "}{filteredOccurrences.length} occurrence{filteredOccurrences.length > 1 ? "s" : ""} publique{filteredOccurrences.length > 1 ? "s" : ""} documentée{filteredOccurrences.length > 1 ? "s" : ""} affichée{filteredOccurrences.length > 1 ? "s" : ""}.
+          {" "}{(zonageFeatures || []).length} zonage{(zonageFeatures || []).length > 1 ? "s" : ""} avec emprise cartographique.
+        </p>
+        {selectedOccurrence && (
+          <p>
+            Taxon sélectionné : {selectedOccurrence.vernacularName || selectedOccurrence.scientificName}
+            {selectedOccurrence.vernacularName ? `, ${selectedOccurrence.scientificName}` : ""}.
+          </p>
+        )}
+      </div>
       <MapContainer 
         center={center} 
         zoom={13} 
         scrollWheelZoom={true} 
         className="h-full w-full outline-none"
         zoomControl={false}
+        aria-label="Carte interactive. Utilisez les flèches pour déplacer la carte et les touches plus ou moins pour zoomer."
       >
         <TileLayer
           key={baseLayer}
@@ -455,6 +484,33 @@ export function Map({ center, circles, results, onMapClick, selectedSpecies, onS
           );
         })}
       </MapContainer>
+
+      <div
+        className="absolute bottom-7 left-4 z-[400] hidden max-w-[250px] rounded-lg border border-gray-200 bg-white/95 px-3 py-2 text-[11px] text-gray-700 shadow-md backdrop-blur sm:block"
+        aria-label="Légende de la carte"
+      >
+        <p className="mb-1.5 font-bold text-[#17483d]">Légende</p>
+        <div className="space-y-1">
+          <p className="flex items-center gap-2"><span className="h-2.5 w-2.5 rounded-full bg-[#0d9488]" aria-hidden="true" /> Site ou centre d’étude</p>
+          {projectPolygon && <p className="flex items-center gap-2"><span className="h-2.5 w-4 border-2 border-[#0d9488] bg-[#0d9488]/15" aria-hidden="true" /> Emprise importée</p>}
+          {filteredOccurrences.length > 0 && (
+            <p className="flex items-center gap-2">
+              <span className="flex gap-0.5" aria-hidden="true">
+                <span className="h-2.5 w-2.5 rounded-full bg-red-600" />
+                <span className="h-2.5 w-2.5 rounded-full bg-amber-500" />
+                <span className="h-2.5 w-2.5 rounded-full bg-green-500" />
+              </span>
+              Occurrences publiques documentées
+            </p>
+          )}
+          {Array.from(activeOverlays).map((id) => (
+            <p key={`legend-${id}`} className="flex items-center gap-2">
+              <span className="h-2.5 w-4 rounded-sm" style={{ backgroundColor: OVERLAYS[id].color }} aria-hidden="true" />
+              {OVERLAYS[id].shortLabel}
+            </p>
+          ))}
+        </div>
+      </div>
 
       <div className="absolute top-3 right-3 z-[400]" data-testid="layer-control">
         <button

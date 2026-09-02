@@ -27,7 +27,7 @@ const sources: Source[] = [
   {
     name: "GBIF",
     role: "Occurrences géolocalisées",
-    body: "Fournit les observations publiées par son réseau de participants, collections et institutions. Inventaire Flash ne retient que les occurrences réellement situées dans le rayon demandé, après filtrage spatial.",
+    body: "Fournit les observations publiées par son réseau de participants, collections et institutions. ALi Inventaire ne retient que les occurrences réellement situées dans le rayon demandé, après filtrage spatial.",
     org: "Global Biodiversity Information Facility",
     url: "https://www.gbif.org/",
     tone: "teal",
@@ -35,7 +35,7 @@ const sources: Source[] = [
   {
     name: "iNaturalist",
     role: "Comptages agrégés par taxon",
-    body: "L’API species_counts renvoie les taxons signalés dans le cercle demandé et leur nombre d’observations. Inventaire Flash ne réutilise pas les coordonnées individuelles de ces observations : il présente ce résultat comme un signal agrégé, non comme un point précis.",
+    body: "L’API species_counts renvoie les taxons signalés dans le cercle demandé et leur nombre d’observations. ALi Inventaire ne réutilise pas les coordonnées individuelles de ces observations : il présente ce résultat comme un signal agrégé, non comme un point précis.",
     org: "iNaturalist / California Academy of Sciences",
     url: "https://api.inaturalist.org/v1/docs/",
     tone: "lime",
@@ -154,10 +154,10 @@ export default function Methodologie() {
     const previousTitle = document.title;
     const description = document.querySelector<HTMLMetaElement>('meta[name="description"]');
     const previousDescription = description?.content;
-    document.title = "Méthodologie et sources | Inventaire Flash";
+    document.title = "Méthodologie et sources | ALi Inventaire";
     if (description) {
       description.content =
-        "Comprendre la méthode, la hiérarchie des preuves et les sources publiques utilisées par Inventaire Flash.";
+        "Comprendre la méthode, la hiérarchie des preuves et les sources publiques utilisées par ALi Inventaire.";
     }
     return () => {
       document.title = previousTitle;
@@ -171,7 +171,7 @@ export default function Methodologie() {
         <div className="mx-auto flex max-w-6xl items-center justify-between px-5 py-4 sm:px-8">
           <Link href="/" className="inline-flex items-center gap-3 rounded-xl text-slate-900 outline-none focus-visible:ring-2 focus-visible:ring-teal-600">
             <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-teal-700 text-white shadow-sm"><Leaf className="h-5 w-5" /></span>
-            <span className="font-semibold tracking-tight">Inventaire Flash</span>
+            <span className="font-semibold tracking-tight">ALi Inventaire</span>
           </Link>
           <Link href="/" className="inline-flex items-center gap-2 rounded-full border border-slate-300 bg-white/60 px-3.5 py-2 text-sm font-semibold text-slate-700 transition-colors hover:border-teal-500 hover:text-teal-800 focus-visible:ring-2 focus-visible:ring-teal-600">
             <ArrowLeft className="h-4 w-4" /> Retour à la carte
@@ -189,7 +189,7 @@ export default function Methodologie() {
             Lire un territoire avant d’y aller.
           </h1>
           <p className="mt-7 max-w-2xl text-lg leading-8 text-slate-600">
-            Inventaire Flash assemble des informations publiques pour préparer un premier regard écologique. Cette page explique ce qui est mesuré, ce qui est seulement documenté, et ce que l’outil ne peut pas conclure.
+            ALi Inventaire assemble des informations publiques pour préparer un premier regard écologique. Cette page explique ce qui est mesuré, ce qui est seulement documenté, et ce que l’outil ne peut pas conclure.
           </p>
           <div className="mt-8 flex flex-wrap gap-3 text-sm">
             <a href="#preuves" className="rounded-full bg-teal-700 px-4 py-2.5 font-semibold text-white shadow-sm hover:bg-teal-800">Voir la hiérarchie des preuves</a>
@@ -301,7 +301,7 @@ export default function Methodologie() {
           <p className="mt-2 text-sm leading-6 text-slate-600">
             L’ensemble de ces outils — géocodage, inventaires, fiches espèces, analyse des espèces à enjeux — est aussi exposé
             via un serveur <strong className="text-slate-900">MCP</strong> (Model Context Protocol). Vous pouvez ainsi interroger
-            Inventaire Flash directement depuis Claude, ChatGPT ou tout client compatible. La configuration détaillée est
+            ALi Inventaire directement depuis Claude, ChatGPT ou tout client compatible. La configuration détaillée est
             accessible depuis le bouton <strong className="text-slate-900">MCP</strong> sur la carte.
           </p>
         </div>
@@ -316,7 +316,7 @@ export default function Methodologie() {
 
       <footer className="border-t border-[#dce6d7] bg-[#f3f6ef]">
         <div className="mx-auto flex max-w-6xl flex-col gap-3 px-5 py-7 text-xs text-slate-500 sm:flex-row sm:items-center sm:justify-between sm:px-8">
-          <span className="inline-flex items-center gap-2"><BookOpen className="h-4 w-4 text-teal-700" /> Méthode publique · Inventaire Flash</span>
+          <span className="inline-flex items-center gap-2"><BookOpen className="h-4 w-4 text-teal-700" /> Méthode publique · ALi Inventaire</span>
           <span>Une lecture rigoureuse commence par savoir ce que l’on ne sait pas.</span>
         </div>
       </footer>

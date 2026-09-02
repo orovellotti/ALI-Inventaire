@@ -15,6 +15,7 @@ import type {
   PotentialSpeciesResult,
   PotentialSpeciesStatus,
 } from "@shared/types";
+import type { FeatureCollection } from "geojson";
 import { reconcilePotentialSpecies } from "@/lib/potentialSpecies";
 import { zonageKey } from "@/lib/zonageMap";
 import type { ZonagesData, ZonageItem } from "@/lib/zonages";
@@ -129,6 +130,7 @@ interface ResultsPanelProps {
   potentialSpecies: PotentialSpeciesResult | null;
   potentialSpeciesLoading: boolean;
   potentialSpeciesError: boolean;
+  projectArea?: FeatureCollection;
   selectedZonageId?: string | null;
   onSelectZonage?: (id: string | null) => void;
   composer?: ReactNode;
@@ -143,7 +145,7 @@ interface ResultsPanelProps {
   harnessConfig?: HarnessConfig;
 }
 
-export function ResultsPanel({ isOpen, isAnalyzing = false, areaCount = 1, onClose, results, selectedSpecies, onSelectSpecies, activeTaxonFilters, onToggleTaxonFilter, onToggleAllTaxonFilters, excludeMarine, onToggleExcludeMarine, includeINaturalist, onToggleIncludeINaturalist, toponym, zonages, zonagesLoading, potentialSpecies, potentialSpeciesLoading, potentialSpeciesError, selectedZonageId, onSelectZonage, composer, conversations = [], activeConversationId = null, historyError, requestSummary, onSelectConversation, onNewConversation, onRenameConversation, onDeleteConversation, harnessConfig }: ResultsPanelProps) {
+export function ResultsPanel({ isOpen, isAnalyzing = false, areaCount = 1, onClose, results, selectedSpecies, onSelectSpecies, activeTaxonFilters, onToggleTaxonFilter, onToggleAllTaxonFilters, excludeMarine, onToggleExcludeMarine, includeINaturalist, onToggleIncludeINaturalist, toponym, zonages, zonagesLoading, potentialSpecies, potentialSpeciesLoading, potentialSpeciesError, projectArea, selectedZonageId, onSelectZonage, composer, conversations = [], activeConversationId = null, historyError, requestSummary, onSelectConversation, onNewConversation, onRenameConversation, onDeleteConversation, harnessConfig }: ResultsPanelProps) {
   const enabledAgentIds = useMemo(
     () => harnessConfig?.agents.filter((agent) => agent.enabled).map((agent) => agent.id) ?? [],
     [harnessConfig],
@@ -162,6 +164,13 @@ export function ResultsPanel({ isOpen, isAnalyzing = false, areaCount = 1, onClo
   const [showReportPreview, setShowReportPreview] = useState(false);
   const [copied, setCopied] = useState(false);
   const [reformattedReport, setReformattedReport] = useState<string | null>(null);
+  const [reportPromptTrace, setReportPromptTrace] = useState<{
+    systemCharacters: number;
+    userCharacters: number;
+    totalCharacters: number;
+    systemFingerprint: string;
+    userFingerprint: string;
+  } | null>(null);
   const [reformatting, setReformatting] = useState(false);
   const [reformatError, setReformatError] = useState<string | null>(null);
   const [showFilters, setShowFilters] = useState(false);
@@ -430,6 +439,7 @@ export function ResultsPanel({ isOpen, isAnalyzing = false, areaCount = 1, onClo
         toponym: toponym || `Point ${results.center[0].toFixed(4)}, ${results.center[1].toFixed(4)}`,
         coords: results.center,
         occurrences,
+        projectArea,
       }),
       signal: controller.signal,
     })
@@ -450,7 +460,7 @@ export function ResultsPanel({ isOpen, isAnalyzing = false, areaCount = 1, onClo
       });
 
     return () => controller.abort();
-  }, [isAnalyzing, results, toponym]);
+  }, [isAnalyzing, results, toponym, projectArea]);
 
   const enjeuxBuckets = useMemo(() => {
     // Les EEE sont retirées de tous les buckets de conservation.
@@ -608,7 +618,7 @@ export function ResultsPanel({ isOpen, isAnalyzing = false, areaCount = 1, onClo
     }
     if (zc > 0) factors.push(`${zc} zonage${zc > 1 ? "s" : ""} environnemental${zc > 1 ? "aux" : ""}`);
     if (hasMarine && hasTerrestrial) factors.push("Sensibilité marine et terrestre");
-    if (recentRatio >= 0.4) factors.push("Observations récentes à proximité");
+    if (recentRatio >= 0.4) factors.push("Occurrences publiques récentes à proximité");
     if (factors.length === 0) factors.push("Peu de signaux d'enjeu détectés localement");
 
     return { score, label, tone, factors };
@@ -831,7 +841,7 @@ export function ResultsPanel({ isOpen, isAnalyzing = false, areaCount = 1, onClo
 
   const handleExportExcel = () => {
     if (!results) return;
-    exportExcel({ results, filteredSpecies: allFilteredSpecies, activeTaxonFilters });
+    void exportExcel({ results, filteredSpecies: allFilteredSpecies, activeTaxonFilters });
   };
 
   const handleExportImage = async () => {
@@ -843,7 +853,7 @@ export function ResultsPanel({ isOpen, isAnalyzing = false, areaCount = 1, onClo
         ignoreElements: (element) => element.classList.contains("no-export")
       });
       const link = document.createElement("a");
-      link.download = `inventaire-flash-${Date.now()}.jpg`;
+      link.download = `pre-etude-documentaire-biodiversite-${Date.now()}.jpg`;
       link.href = canvas.toDataURL("image/jpeg", 0.9);
       link.click();
     }
@@ -933,7 +943,7 @@ ${formatCarhabSummary(carhabSummary)}
     ].filter(Boolean).join(", ");
 
     return `ALi INVENTAIRE
-PRÉ-ÉTUDE BIODIVERSITÉ À COMPLÉTER PAR DES INVESTIGATIONS DE TERRAIN
+PRÉ-ÉTUDE DOCUMENTAIRE BIODIVERSITÉ À COMPLÉTER PAR DES INVESTIGATIONS DE TERRAIN
 Version 1 — ${new Date().toLocaleDateString("fr-FR")}
 
 LOCALISATION ET PÉRIMÈTRE
@@ -955,7 +965,7 @@ ${results.aliSpeciesEnrichment ? `- Enrichissement territorial ALI Species MCP :
 - Garde-fou 5 : les espèces exotiques envahissantes relèvent d'un enjeu de gestion et non automatiquement d'un enjeu patrimonial.
 - Limite d'orchestration : aucun MCP, document utilisateur ou référentiel non cité ci-dessus ne doit être présenté comme mobilisé.
 
-DONNÉES MANQUANTES À SIGNALER DANS LA PRÉ-ÉTUDE BIODIVERSITÉ
+DONNÉES MANQUANTES À SIGNALER DANS LA PRÉ-ÉTUDE DOCUMENTAIRE BIODIVERSITÉ
 - Emprise parcellaire et emprise exacte des travaux : non documentées si seule l'aire circulaire est fournie.
 - Description détaillée, dimensions et méthodes des travaux : non documentées.
 - Calendrier de chantier et phase d'exploitation : non documentés.
@@ -978,7 +988,7 @@ ${sectionList("🟢 ENJEUX FAIBLES", sortedSpecies.low)}${aiAnalysis && aiAnalys
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 ${(["A", "C", "B", "D", "E"] as const)
   .map((cls) => {
-    const label: Record<string, string> = { A: "Espèce avérée", B: "Avérée à l'échelle du site", C: "Très probable localement", D: "Potentielle", E: "Peu pertinente localement" };
+    const label: Record<string, string> = { A: "Occurrence publique documentée dans l’aire", B: "Espèce documentée à l’échelle d’un site de référence", C: "Très probable localement", D: "Potentielle", E: "Peu pertinente localement" };
     const group = aiAnalysis.species.filter((sp) => (sp.evidenceClass ?? "D") === cls);
     if (group.length === 0) return "";
     return `\n[${cls}] ${label[cls]}\n${group
@@ -1000,7 +1010,7 @@ SOURCES SYNTHÉTIQUES
 ${mobilizedSources.split(", ").join(" • ")}
 
 STATUT ET LIMITES
-Pré-étude biodiversité documentaire produite par le harnais d'ALi à partir des seules sources indiquées.
+Pré-étude documentaire biodiversité produite par le harnais d'ALi à partir des seules sources indiquées.
 Ce document constitue un état initial bibliographique et une analyse de sensibilités. Il ne remplace ni des inventaires de terrain, ni un volet naturel d'étude d'impact réglementaire, ni la validation d'un écologue.
 ${shareUrl ? `\nReproduire cette analyse : ${shareUrl}` : ""}`;
   }, [results, sortedSpecies, activeTaxonFilters, presentGroups, isAllActive, aiAnalysis, carhabSummary, toponym, zonages, riskScore, includeINaturalist, harnessConfig, zonagesAgentActive]);
@@ -1008,7 +1018,7 @@ ${shareUrl ? `\nReproduire cette analyse : ${shareUrl}` : ""}`;
   const reportSubject = useMemo(() => {
     if (!results) return "ALi Inventaire";
     const place = toponym || `${results.center[0].toFixed(3)}, ${results.center[1].toFixed(3)}`;
-    return `ALi Inventaire — ${place} (${sortedSpecies.high.length + sortedSpecies.medium.length} espèces sensibles)`;
+    return `Pré-étude documentaire biodiversité — ${place} (${sortedSpecies.high.length + sortedSpecies.medium.length} espèces sensibles)`;
   }, [results, toponym, sortedSpecies]);
 
   const activeReportText = reformattedReport || reportText;
@@ -1083,7 +1093,7 @@ ${shareUrl ? `\nReproduire cette analyse : ${shareUrl}` : ""}`;
   </style>
 </head>
 <body>
-  <h1>Pré-étude biodiversité à compléter par des investigations de terrain</h1>
+  <h1>Pré-étude documentaire biodiversité à compléter par des investigations de terrain</h1>
   <div class="status">Document documentaire produit par le harnais d’ALi. Il ne remplace ni les investigations de terrain, ni la validation d’un écologue.</div>
   <pre>${escapeHtml(activeReportText)}</pre>
 </body>
@@ -1146,6 +1156,7 @@ ${shareUrl ? `\nReproduire cette analyse : ${shareUrl}` : ""}`;
       }
       const data = await r.json();
       setReformattedReport(data.reformatted);
+      setReportPromptTrace(data.promptTrace ?? null);
     } catch (e: any) {
       setReformatError(e.message || "Erreur reformulation IA");
     } finally {
@@ -1174,18 +1185,19 @@ ${shareUrl ? `\nReproduire cette analyse : ${shareUrl}` : ""}`;
   const activeConversationFailed = activeConversation?.status === "failed";
   const historyDrawer = historyOpen && (
     <motion.div
+      id="analysis-history-drawer"
       initial={{ opacity: 0, x: 18 }} animate={{ opacity: 1, x: 0 }}
       className="absolute inset-y-0 right-0 z-30 flex h-full max-h-full w-full max-w-[360px] flex-col overflow-hidden border-l border-slate-200 bg-[#fbfcfa] shadow-2xl"
       role="dialog" aria-modal="true" aria-label="Historique des analyses" data-testid="history-drawer"
       onWheel={(event) => event.stopPropagation()}
     >
       <div className="flex shrink-0 items-center justify-between border-b border-slate-200 px-4 py-3">
-        <div><h3 className="text-sm font-bold text-slate-800">Historique</h3><p className="text-[10px] text-slate-500">Vos 20 dernières analyses</p></div>
+        <div><h3 className="text-sm font-bold text-slate-800">Historique</h3><p className="text-[10px] text-slate-500">20 dernières analyses, enregistrées uniquement sur cet appareil</p></div>
         <Button variant="ghost" size="icon" onClick={() => setHistoryOpen(false)} aria-label="Fermer l'historique" className="h-8 w-8 rounded-full"><X className="h-4 w-4" /></Button>
       </div>
       <div className="h-0 min-h-0 flex-1 touch-pan-y overflow-y-auto overscroll-contain p-3" data-testid="history-scroll-area">
         <Button onClick={() => { onNewConversation?.(); setHistoryOpen(false); }} className="mb-3 h-9 w-full justify-center gap-2 bg-teal-700 text-xs text-white hover:bg-teal-800" data-testid="button-new-conversation"><Plus className="h-3.5 w-3.5" />Nouvelle conversation</Button>
-        {historyError && <p className="mb-2 rounded-lg bg-amber-50 px-2.5 py-2 text-[10px] text-amber-700">{historyError}</p>}
+        {historyError && <p className="mb-2 rounded-lg bg-amber-50 px-2.5 py-2 text-[10px] text-amber-700" role="alert">{historyError}</p>}
         {[...conversations].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)).slice(0, 20).map((conversation) => {
           const active = conversation.id === activeConversationId;
           const date = new Date(conversation.updatedAt).toLocaleString("fr-FR", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" });
@@ -1232,11 +1244,11 @@ ${shareUrl ? `\nReproduire cette analyse : ${shareUrl}` : ""}`;
                   <span className="truncate">{toponym}</span>
                 </p>
               )}
-              {historyError && <p className="mt-1 text-[10px] text-amber-700" role="status">{historyError}</p>}
+              {historyError && <p className="mt-1 text-[10px] text-amber-700" role="alert">{historyError}</p>}
             </div>
              <div className="flex items-center gap-1">
              <Button variant="outline" size="sm" onClick={() => onNewConversation?.()} className="h-8 gap-1 px-2 text-xs" aria-label="Nouvelle conversation" data-testid="button-new-conversation"><Plus className="h-3.5 w-3.5" /> Nouvelle</Button>
-             <Button variant="outline" size="sm" onClick={() => setHistoryOpen(true)} className="h-8 gap-1 px-2 text-xs" aria-label="Ouvrir l'historique" data-testid="button-history"><History className="h-3.5 w-3.5" /> Historique</Button>
+             <Button variant="outline" size="sm" onClick={() => setHistoryOpen(true)} className="h-8 gap-1 px-2 text-xs" aria-label="Ouvrir l'historique local des 20 dernières analyses" aria-expanded={historyOpen} aria-controls="analysis-history-drawer" data-testid="button-history"><History className="h-3.5 w-3.5" /> Historique</Button>
              <Button variant="ghost" size="icon" onClick={onClose} className="h-8 w-8 rounded-full" aria-label="Réduire le panneau">
               <X className="h-4 w-4" />
             </Button>
@@ -1245,9 +1257,9 @@ ${shareUrl ? `\nReproduire cette analyse : ${shareUrl}` : ""}`;
           <div ref={conversationFeedRef} className="min-h-0 flex-1 overflow-y-auto px-5 py-4" data-testid="conversation-feed">
              {requestSummary && (isAnalyzing || activeConversationFailed) && <div className="conversation-message mb-5" data-testid="message-user-request"><Search className="mt-1 h-5 w-5" aria-hidden="true" /><div><p><strong>Votre demande</strong></p><p>{requestSummary}</p></div></div>}
              {activeConversationFailed && !isAnalyzing && (
-               <div className="conversation-message mb-5" role="status">
+               <div className="conversation-message mb-5" role="alert">
                  <Bot className="mt-1 h-5 w-5" aria-hidden="true" />
-                 <div><p><strong>Ali</strong> <span>coordinateur</span></p>
+                 <div><p><strong>ALi</strong> <span>coordinateur</span></p>
                  <p>Cette analyse n’a pas pu être finalisée. Vous pouvez la relancer avec les mêmes paramètres ci-dessous.</p></div>
                </div>
              )}
@@ -1296,8 +1308,8 @@ ${shareUrl ? `\nReproduire cette analyse : ${shareUrl}` : ""}`;
               >
                   <Plus className="h-3 w-3" /> Nouvelle
               </Button>
-               <Button variant="outline" size="sm" onClick={() => setHistoryOpen(true)} className="h-8 gap-1 px-2 text-xs border-gray-200" aria-label="Ouvrir l'historique" data-testid="button-history"><History className="h-3 w-3" /> Historique</Button>
-              <DropdownMenu>
+               <Button variant="outline" size="sm" onClick={() => setHistoryOpen(true)} className="h-8 gap-1 px-2 text-xs border-gray-200" aria-label="Ouvrir l'historique local des 20 dernières analyses" aria-expanded={historyOpen} aria-controls="analysis-history-drawer" data-testid="button-history"><History className="h-3 w-3" /> Historique</Button>
+               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button variant="ghost" size="icon" className="hover:bg-gray-100 rounded-full h-8 w-8" data-testid="button-panel-settings" title="Sources & options" aria-label="Sources et options">
                     <Settings2 className="h-4 w-4 text-gray-500" />
@@ -1305,13 +1317,14 @@ ${shareUrl ? `\nReproduire cette analyse : ${shareUrl}` : ""}`;
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" className="w-56">
                   <DropdownMenuLabel className="text-xs">Sources de données</DropdownMenuLabel>
-                  {onToggleIncludeINaturalist && (
+                   <div className="px-2 pb-1 text-[11px] leading-snug text-muted-foreground">Paramètres utilisés pour ce résultat. Relancez l’analyse pour modifier une source.</div>
+                   {onToggleIncludeINaturalist && (
                     <DropdownMenuCheckboxItem
                       checked={!!includeINaturalist}
-                      onCheckedChange={() => onToggleIncludeINaturalist()}
+                       disabled
                       data-testid="checkbox-include-inaturalist"
                     >
-                      Inclure iNaturalist
+                       iNaturalist {includeINaturalist ? "inclus" : "non inclus"} — relancer pour modifier
                     </DropdownMenuCheckboxItem>
                   )}
                   {onToggleExcludeMarine && marineCount > 0 && (
@@ -1356,7 +1369,7 @@ ${shareUrl ? `\nReproduire cette analyse : ${shareUrl}` : ""}`;
                   </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
-              <Button variant="ghost" size="icon" onClick={onClose} className="hover:bg-gray-100 rounded-full h-8 w-8" data-testid="button-close-panel" aria-label="Fermer le panneau">
+               <Button variant="ghost" size="icon" onClick={onClose} className="hover:bg-gray-100 rounded-full h-8 w-8" data-testid="button-close-panel" aria-label="Fermer le panneau de résultats">
                 <X className="h-4 w-4" />
               </Button>
             </div>
@@ -1372,7 +1385,7 @@ ${shareUrl ? `\nReproduire cette analyse : ${shareUrl}` : ""}`;
           {/* ══════════ VUE DIAGNOSTIC (page unique à divulgation progressive) ══════════ */}
            <div className="space-y-4" data-testid="panel-overview">
              {requestSummary && <div className="conversation-message" data-testid="message-user-request"><Search className="mt-1 h-5 w-5" aria-hidden="true" /><div><p><strong>Votre demande</strong></p><p>{requestSummary}</p></div></div>}
-             {historyError && <p className="text-[10px] text-amber-700" role="status">{historyError}</p>}
+             {historyError && <p className="text-[10px] text-amber-700" role="alert">{historyError}</p>}
               {isAnalyzing && (
                 <AnalysisProgress
                   active
@@ -1394,7 +1407,7 @@ ${shareUrl ? `\nReproduire cette analyse : ${shareUrl}` : ""}`;
                    <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-[#1e594a] text-[#dcc05b]"><Check className="h-5 w-5" /></span>
                    <div className="min-w-0 flex-1">
                      <p className="font-semibold text-[#234f43]">Analyse terminée</p>
-                      <p className="text-[#60756d]">{harnessConfig?.agents.filter((agent) => agent.enabled).length ?? 0} agents mobilisés · {results.stats.speciesCount} espèces analysées · {zonages?.count ?? 0} zonages vérifiés</p>
+                       <p className="text-[#60756d]">{harnessConfig?.agents.filter((agent) => agent.enabled).length ?? 0} agents mobilisés · occurrences terminées · {zonagesLoading ? "zonages en cours" : zonages ? `zonages terminés (${zonages.count} retourné${zonages.count > 1 ? "s" : ""})` : "zonages indisponibles"}</p>
                    </div>
                  </div>
                  <button type="button" className="mt-2 flex min-h-11 items-center gap-1.5 text-sm font-semibold" onClick={() => setShowAnalysisDetails((value) => !value)} aria-expanded={showAnalysisDetails} aria-controls="analysis-transcript">
@@ -1405,7 +1418,7 @@ ${shareUrl ? `\nReproduire cette analyse : ${shareUrl}` : ""}`;
                      <ol className="space-y-3">
                         <li><strong>ALi — coordination</strong><p>Demande comprise, périmètre vérifié et analyse répartie entre les agents spécialisés.</p></li>
                         {occurrencesAgentActive && <li><strong>Agent Occurrences</strong><p>{results.stats.speciesCount} espèces consolidées à partir de {results.stats.total} données retenues.</p></li>}
-                        {zonagesAgentActive && <li><strong>Agent Zonages</strong><p>{zonagesLoading ? "Consultation des référentiels en cours." : `${zonages?.count ?? 0} zonage${(zonages?.count ?? 0) > 1 ? "s" : ""} vérifié${(zonages?.count ?? 0) > 1 ? "s" : ""}.`}</p></li>}
+                         {zonagesAgentActive && <li><strong>Agent Zonages</strong><p>{zonagesLoading ? "Consultation des référentiels en cours." : zonages ? `Consultation terminée : ${zonages.count} zonage${zonages.count > 1 ? "s" : ""} retourné${zonages.count > 1 ? "s" : ""}.` : "Consultation indisponible : aucun résultat de zonage n’est présenté."}</p></li>}
                          {habitatAgentActive && <li data-testid="analysis-transcript-ali-habitat"><strong>Agent Habitat — CARHAB</strong><p>{aliHabitatStatus ?? "Aucun bilan CARHAB enregistré pour cette analyse."}</p></li>}
                          {taxonomyAgentActive && <li><strong>Agent Taxonomie et statuts — ALI Species</strong><p>{results.aliSpeciesEnrichment ? results.aliSpeciesEnrichment.attempted > 0 ? `${results.aliSpeciesEnrichment.enriched}/${results.aliSpeciesEnrichment.attempted} taxons enrichis via ALI Species${results.aliSpeciesEnrichment.nameResolutionAttempted ? `, après résolution de ${results.aliSpeciesEnrichment.nameResolved ?? 0}/${results.aliSpeciesEnrichment.nameResolutionAttempted} noms dans TAXREF` : ""}.` : "Aucun taxon n’a pu être relié à TAXREF pour lancer l’enrichissement ALI Species." : "Aucun bilan ALI Species enregistré pour cette analyse."}</p></li>}
                      </ol>
@@ -1416,17 +1429,17 @@ ${shareUrl ? `\nReproduire cette analyse : ${shareUrl}` : ""}`;
              <section ref={resultsSummaryRef} className="conversation-message" data-testid="message-ally-summary" aria-live="polite">
                <Bot className="mt-1 h-5 w-5" aria-hidden="true" />
                <div>
-                 <p><strong>Synthèse de la pré-étude</strong></p>
-                 <p>Le potentiel écologique du site est <strong>{globalLevel.label.toLowerCase()}</strong>. {keyFindings.slice(0, 2).map((finding) => finding.text).join(" ")} Une vérification de terrain reste nécessaire avant toute décision de projet.</p>
-                 <div className="mt-3 flex flex-wrap gap-2" aria-label="Chiffres clés de la pré-étude">
+                  <p><strong>Synthèse de la Pré-étude documentaire biodiversité</strong></p>
+                  <p><strong>Éléments documentés :</strong> {results.stats.speciesCount} taxon{results.stats.speciesCount > 1 ? "s" : ""} avec occurrence publique dans l’aire documentaire. <strong>Éléments potentiels :</strong> {potentialSpeciesLoading ? "évaluation en cours" : potentialSpeciesError || !reconciledPotentialSpecies ? "évaluation indisponible" : `${reconciledPotentialSpecies.potentialCount} espèce${reconciledPotentialSpecies.potentialCount > 1 ? "s" : ""} retournée${reconciledPotentialSpecies.potentialCount > 1 ? "s" : ""}`}. Une occurrence publique n’est pas une confirmation dans l’emprise : celle-ci exige des relevés de terrain.</p>
+                 <div className="mt-3 flex flex-wrap gap-2" aria-label="Chiffres clés de la Pré-étude documentaire biodiversité">
                    <span className="rounded-full border border-[#d9e1d6] bg-[#edf2e9] px-2.5 py-1 text-[11px] font-semibold text-[#315b4e]">
-                     {results.stats.speciesCount} taxon{results.stats.speciesCount > 1 ? "s" : ""} connu{results.stats.speciesCount > 1 ? "s" : ""}
+                      {results.stats.speciesCount} taxon{results.stats.speciesCount > 1 ? "s" : ""} documenté{results.stats.speciesCount > 1 ? "s" : ""}
                    </span>
                    <span className="rounded-full border border-[#d9e1d6] bg-[#edf2e9] px-2.5 py-1 text-[11px] font-semibold text-[#315b4e]">
                      {results.stats.sensitiveCount} sensibilité{results.stats.sensitiveCount > 1 ? "s" : ""}
                    </span>
                    <span className="rounded-full border border-[#d9e1d6] bg-[#edf2e9] px-2.5 py-1 text-[11px] font-semibold text-[#315b4e]">
-                     {zonagesLoading ? "Zonages en cours" : `${zonages?.count ?? 0} zonage${(zonages?.count ?? 0) > 1 ? "s" : ""}`}
+                      {zonagesLoading ? "Zonages en cours" : zonages ? `${zonages.count} zonage${zonages.count > 1 ? "s" : ""} retourné${zonages.count > 1 ? "s" : ""}` : "Zonages indisponibles"}
                    </span>
                    <span className="rounded-full border border-[#d9e1d6] bg-[#edf2e9] px-2.5 py-1 text-[11px] font-semibold text-[#315b4e]">
                      {recommendations.length} recommandations
@@ -1447,7 +1460,7 @@ ${shareUrl ? `\nReproduire cette analyse : ${shareUrl}` : ""}`;
                data-level={globalLevel.level}
             >
               <div className="flex items-center justify-between gap-2">
-                  <div className="font-bold text-gray-700">Signaux écologiques documentaires</div>
+                   <div className="font-bold text-gray-700">Indice synthétique secondaire</div>
                 {zonagesLoading && <Loader2 className="h-3.5 w-3.5 animate-spin text-gray-400" aria-label="Chargement des zonages" />}
               </div>
               <div
@@ -1456,7 +1469,7 @@ ${shareUrl ? `\nReproduire cette analyse : ${shareUrl}` : ""}`;
                 }`}
                 data-testid="text-issue-level"
               >
-                {globalLevel.label}
+                 {globalLevel.label} <span className="text-sm font-semibold">(score automatisé)</span>
               </div>
               <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-gray-700">
                 <span className="flex items-center gap-1">
@@ -1469,7 +1482,7 @@ ${shareUrl ? `\nReproduire cette analyse : ${shareUrl}` : ""}`;
                 </span>
                 <span className="flex items-center gap-1">
                   <Layers className="h-3.5 w-3.5 text-teal-600" />
-                  {zonages?.count ?? "—"} zonage{(zonages?.count || 0) > 1 ? "s" : ""} identifié{(zonages?.count || 0) > 1 ? "s" : ""}
+                   {zonagesLoading ? "consultation en cours" : zonages ? `${zonages.count} zonage${zonages.count > 1 ? "s" : ""} retourné${zonages.count > 1 ? "s" : ""}` : "zonages indisponibles"}
                 </span>
               </div>
               <p className="mt-2 text-[10px] text-gray-400 leading-snug">
@@ -1482,17 +1495,17 @@ ${shareUrl ? `\nReproduire cette analyse : ${shareUrl}` : ""}`;
               <div className="mb-3 font-bold text-[#234f43]">Recommandations prioritaires</div>
               <ol className="space-y-2">
                 {recommendations.slice(0, 3).map((recommendation, index) => (
-                  <li key={recommendation} className="flex items-start gap-3 text-gray-700">
+                  <li key={`${recommendation}::${index}`} className="flex items-start gap-3 text-gray-700">
                     <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-[#edf2e9] text-xs font-bold text-[#315b4e]">{index + 1}</span>
                     <span>{recommendation}</span>
                   </li>
                 ))}
               </ol>
-              <button type="button" className="mt-3 flex min-h-11 items-center gap-1.5 text-sm font-semibold" onClick={() => setShowAllRecommendations((value) => !value)} aria-expanded={showAllRecommendations}>
+               <button type="button" className="mt-3 flex min-h-11 items-center gap-1.5 text-sm font-semibold" onClick={() => setShowAllRecommendations((value) => !value)} aria-expanded={showAllRecommendations} aria-controls="recommendations-complementaires">
                 {showAllRecommendations ? "Masquer les recommandations complémentaires" : "Voir toutes les recommandations"}
                 {showAllRecommendations ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
               </button>
-              {showAllRecommendations && <p className="border-t border-[#d9e1d6] pt-3">{recommendations[3]}</p>}
+               {showAllRecommendations && <p id="recommendations-complementaires" className="border-t border-[#d9e1d6] pt-3">{recommendations[3]}</p>}
             </div>
 
             {/* Section 5 — Niveau d'enjeu, qualité et limites (repliable) */}
@@ -1516,8 +1529,8 @@ ${shareUrl ? `\nReproduire cette analyse : ${shareUrl}` : ""}`;
               {openSections.has("pourquoi") && (
                 <div id="section-body-pourquoi" className="px-4 pb-3 space-y-3 border-t border-gray-100 pt-3">
                   <ul className="space-y-1.5">
-                    {riskScore.factors.slice(0, 3).map((f, i) => (
-                      <li key={i} className="flex items-start gap-2 text-xs text-gray-700">
+                     {riskScore.factors.slice(0, 3).map((f, i) => (
+                       <li key={`${f}::${i}`} className="flex items-start gap-2 text-xs text-gray-700">
                         <span className="mt-1.5 h-1.5 w-1.5 rounded-full bg-indigo-500 shrink-0" />
                         {f}
                       </li>
@@ -1574,13 +1587,14 @@ ${shareUrl ? `\nReproduire cette analyse : ${shareUrl}` : ""}`;
                     type="button"
                     onClick={() => setShowCalcDetail((v) => !v)}
                     aria-expanded={showCalcDetail}
+                     aria-controls="calculation-detail"
                     className="text-[11px] text-teal-700 font-semibold hover:underline px-1"
                     data-testid="button-toggle-calc-detail"
                   >
                     {showCalcDetail ? "Masquer le calcul détaillé" : "Afficher le calcul détaillé"}
                   </button>
                   {showCalcDetail && (
-                    <div className="space-y-3">
+                    <div id="calculation-detail" className="space-y-3">
                       <div className="rounded-xl border border-gray-200 bg-white p-4">
                         <div className="grid grid-cols-2 gap-2 text-center sm:grid-cols-5">
                           <div>
@@ -1681,7 +1695,7 @@ ${shareUrl ? `\nReproduire cette analyse : ${shareUrl}` : ""}`;
               })}
             </div>
             <p className="text-xs leading-relaxed text-gray-600">
-              Les espèces potentielles sont présentées séparément : elles reposent sur une compatibilité écologique documentaire et ne sont jamais comptées comme observations avérées.
+              Les espèces potentielles sont présentées séparément : elles reposent sur une compatibilité écologique documentaire et ne sont jamais comptées comme occurrences publiques documentées. Une confirmation de présence exige des relevés de terrain.
             </p>
 
             <div className="relative">
@@ -1850,8 +1864,8 @@ ${shareUrl ? `\nReproduire cette analyse : ${shareUrl}` : ""}`;
                       {carhabSummary.totalAreaHa !== null && <span>Surface analysée : {carhabSummary.totalAreaHa.toLocaleString("fr-FR", { maximumFractionDigits: 2 })} ha</span>}
                     </div>
                     <ol className="space-y-2">
-                      {carhabSummary.habitats.map((habitat) => (
-                        <li key={habitat.code} className="rounded-lg border border-emerald-100 bg-[#fbfdf8] p-3">
+                      {carhabSummary.habitats.map((habitat, index) => (
+                        <li key={`${habitat.code || habitat.label}::${index}`} className="rounded-lg border border-emerald-100 bg-[#fbfdf8] p-3">
                           <div className="flex items-start justify-between gap-3">
                             <div>
                               <span className="text-[11px] font-bold text-emerald-700">CARHAB {habitat.code}</span>
@@ -1883,7 +1897,7 @@ ${shareUrl ? `\nReproduire cette analyse : ${shareUrl}` : ""}`;
           {/* Message Agent Zonages — pièce jointe dépliable */}
           {zonagesAgentActive && <section className="w-full self-stretch overflow-hidden rounded-xl border border-sky-200 bg-sky-50/30" data-testid="message-agent-zonages">
             <button type="button" onClick={() => toggleSection("zonages")} aria-expanded={openSections.has("zonages")} aria-controls="attachment-zonages" className="w-full flex items-center justify-between gap-3 px-4 py-3 text-left hover:bg-sky-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400">
-              <span className="flex items-center gap-2"><Layers className="h-5 w-5 shrink-0" aria-hidden="true" /><span><span className="block text-xs font-bold text-sky-900">Agent Zonages</span><span className="block text-[11px] text-sky-700">{zonagesLoading ? "Recherche en cours…" : `${flatZonages.length} zonage${flatZonages.length > 1 ? "s" : ""} · IGN / PatriNat`}</span></span></span>
+              <span className="flex items-center gap-2"><Layers className="h-5 w-5 shrink-0" aria-hidden="true" /><span><span className="block text-xs font-bold text-sky-900">Agent Zonages</span><span className="block text-[11px] text-sky-700">{zonagesLoading ? "Recherche en cours…" : zonages ? `Consultation terminée · ${flatZonages.length} retourné${flatZonages.length > 1 ? "s" : ""} · IGN / PatriNat` : "Consultation indisponible · IGN / PatriNat"}</span></span></span>
               {openSections.has("zonages") ? <ChevronUp className="h-4 w-4 text-sky-700" /> : <ChevronDown className="h-4 w-4 text-sky-700" />}
             </button>
             {openSections.has("zonages") && <div id="attachment-zonages" className="space-y-4 border-t border-sky-200 bg-white p-4 sm:p-5" data-testid="panel-zonages-tab">
@@ -1894,7 +1908,7 @@ ${shareUrl ? `\nReproduire cette analyse : ${shareUrl}` : ""}`;
             )}
 
             {zonagesLoading && (
-              <div className="flex items-center gap-2 text-xs text-gray-400 py-4 justify-center">
+               <div className="flex items-center gap-2 text-xs text-gray-600 py-4 justify-center" role="status" aria-live="polite">
                 <Loader2 className="h-4 w-4 animate-spin" /> Chargement des zonages…
               </div>
             )}
@@ -1984,17 +1998,18 @@ ${shareUrl ? `\nReproduire cette analyse : ${shareUrl}` : ""}`;
               observedNames={observedNames}
             />
             <SINPPanel center={results.center} />
-            {!zonagesLoading && (!zonages || zonages.count === 0) && (
-              <p className="text-sm text-gray-400 italic">Aucun zonage environnemental recensé dans l'aire d'étude. Vous pouvez élargir le rayon d'analyse.</p>
+            {!zonagesLoading && zonages?.count === 0 && (
+              <p className="text-sm text-gray-600 italic">Consultation terminée : aucun zonage environnemental retourné dans l'aire d'étude. Vous pouvez élargir le rayon d'analyse.</p>
             )}
+            {!zonagesLoading && !zonages && <p className="text-sm text-red-700" role="alert">La source de zonages est indisponible ; aucun résultat n’est présenté.</p>}
                 </div>}
           </section>}
 
           <section className="conversation-message" data-testid="message-ally-report-action">
             <Bot className="mt-1 h-5 w-5" aria-hidden="true" />
             <div>
-              <p><strong>Ali — suite de la pré-étude</strong></p>
-              <p>Les résultats sont prêts. Je peux maintenant les organiser dans une note écologique structurée et copiable.</p>
+              <p><strong>ALi — suite de la Pré-étude documentaire biodiversité</strong></p>
+               <p>Les résultats sont prêts. Je peux maintenant les organiser dans une Pré-étude documentaire biodiversité structurée et copiable.</p>
               <Button
                 onClick={() => {
                   setShowReportPreview(true);
@@ -2004,7 +2019,7 @@ ${shareUrl ? `\nReproduire cette analyse : ${shareUrl}` : ""}`;
                 data-testid="button-report-text"
               >
                 <FileText className="h-4 w-4 text-[#dcc05b]" />
-                Générer la note écologique
+                 Générer la Pré-étude documentaire biodiversité
                 {aiAnalysis && (
                   <span className="ml-0.5 inline-flex items-center gap-0.5 rounded border border-[#dcc05b]/50 bg-[#dcc05b]/15 px-1 py-0.5 text-[9px] font-bold uppercase tracking-wider text-[#f2dc84]">
                     <Sparkles className="h-2.5 w-2.5" /> IA
@@ -2016,7 +2031,7 @@ ${shareUrl ? `\nReproduire cette analyse : ${shareUrl}` : ""}`;
 
           <p className="mt-4 px-1 text-[11px] text-gray-400 leading-snug flex gap-1.5 items-start">
             <Info className="h-3 w-3 shrink-0 mt-0.5" />
-            Indication rapide basée sur GBIF, iNaturalist et UICN — ne remplace pas un inventaire terrain.
+            Lecture documentaire basée sur les seules sources indiquées — la confirmation d’une présence exige des relevés de terrain.
           </p>
         </div>
          {historyDrawer}
@@ -2053,20 +2068,21 @@ ${shareUrl ? `\nReproduire cette analyse : ${shareUrl}` : ""}`;
                       Questions utiles pour cette vue
                     </div>
                     <ul className="space-y-1">
-                      {assistantSuggestions.map((q, i) => (
-                        <li key={i} className="text-xs text-gray-600 flex items-start gap-1.5">
+                      {assistantSuggestions.map((q, index) => (
+                        <li key={`${q}::${index}`} className="text-xs text-gray-600 flex items-start gap-1.5">
                           <ChevronRight className="h-3 w-3 shrink-0 mt-0.5 text-indigo-400" /> {q}
                         </li>
                       ))}
                     </ul>
                     <p className="mt-1.5 text-[10px] text-gray-400 leading-snug">
-                      L'analyse ci-dessous répond à ces questions à partir des données réelles de l'inventaire. Pour une note rédigée, utilisez « Générer la note écologique » puis « Reformuler ».
+                       L'analyse ci-dessous répond à ces questions à partir des données documentaires disponibles. Pour une note rédigée, utilisez « Générer la Pré-étude documentaire biodiversité » puis « Reformuler ».
                     </p>
                   </div>
                   <PrioritySpeciesInline
                     toponym={toponym || `Point ${results.center[0].toFixed(4)}, ${results.center[1].toFixed(4)}`}
                     coords={results.center}
                     occurrences={allFilteredSpecies}
+                    projectArea={projectArea}
                     onAnalysisChange={setAiAnalysis}
                     initialAnalysis={aiAnalysis}
                     autoStart={assistantOpen && habitatConsultationState !== "loading"}
@@ -2084,7 +2100,7 @@ ${shareUrl ? `\nReproduire cette analyse : ${shareUrl}` : ""}`;
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <FileText className="h-5 w-5" />
-              Pré-étude biodiversité
+               Pré-étude documentaire biodiversité
             </DialogTitle>
             <DialogDescription>
               Aperçu synthétique. L’étude complète reste disponible au téléchargement et doit être complétée par des investigations de terrain.
@@ -2093,10 +2109,13 @@ ${shareUrl ? `\nReproduire cette analyse : ${shareUrl}` : ""}`;
           {reformattedReport && (
             <div className="mt-3 flex items-center gap-2 text-xs text-teal-700 bg-teal-50 border border-teal-200 px-3 py-1.5 rounded-md">
               <Sparkles className="h-3.5 w-3.5" />
-              <span className="font-medium">Pré-étude biodiversité structurée par le harnais d’ALi</span>
+              <span className="font-medium">Pré-étude documentaire biodiversité structurée par le harnais d’ALi</span>
               <button
                 type="button"
-                onClick={() => setReformattedReport(null)}
+                onClick={() => {
+                  setReformattedReport(null);
+                  setReportPromptTrace(null);
+                }}
                 className="ml-auto text-[11px] text-teal-700 hover:underline"
                 data-testid="button-revert-report"
               >
@@ -2104,11 +2123,20 @@ ${shareUrl ? `\nReproduire cette analyse : ${shareUrl}` : ""}`;
               </button>
             </div>
           )}
+          {reformattedReport && reportPromptTrace && (
+            <p className="mt-1 text-[11px] text-[#557067]" data-testid="report-prompt-trace">
+              Généré avec le prompt système enregistré ({reportPromptTrace.systemCharacters.toLocaleString("fr-FR")} caractères,
+              empreinte {reportPromptTrace.systemFingerprint}) et le contexte de cette étude
+              ({reportPromptTrace.userCharacters.toLocaleString("fr-FR")} caractères).
+            </p>
+          )}
           {reformatError && (
-            <div className="mt-3 text-xs text-red-700 bg-red-50 border border-red-200 px-3 py-2 rounded-md">
-              {reformatError}
+            <div className="mt-3 flex items-center gap-2 text-xs text-red-700 bg-red-50 border border-red-200 px-3 py-2 rounded-md" role="alert">
+              <span className="flex-1">{reformatError}</span>
+              <button type="button" onClick={() => void handleReformatReport()} className="rounded border border-red-300 px-2 py-1 font-semibold">Réessayer</button>
             </div>
           )}
+          {reformatting && <p className="mt-3 text-xs text-teal-700" role="status" aria-live="polite">Génération de la Pré-étude documentaire biodiversité en cours…</p>}
           <div className="mt-3 rounded-lg border border-[#d9e1d6] bg-[#f4f6f1] px-4 py-3 text-xs text-[#52675f]">
             Seules les informations essentielles sont affichées ici pour faciliter la lecture. Le document téléchargé contient l’étude complète, ses résultats détaillés et ses sources.
           </div>
@@ -2131,7 +2159,7 @@ ${shareUrl ? `\nReproduire cette analyse : ${shareUrl}` : ""}`;
                   data-testid="button-reformat-report"
                 >
                   {reformatting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
-                  {reformatting ? "Génération de la pré-étude…" : "Générer la pré-étude complète"}
+                  {reformatting ? "Génération de la Pré-étude documentaire biodiversité…" : "Générer la Pré-étude documentaire biodiversité complète"}
                 </Button>
               )}
               <Button
@@ -2201,7 +2229,7 @@ function RiskScoreCard({ score, label, tone, factors }: { score: number; label: 
             <Icon className="h-3.5 w-3.5" /> {label}
           </span>
           <p className="text-[10px] text-gray-500 mt-1.5 leading-snug">
-            Estimé selon les espèces à enjeux, les zonages, la patrimonialité et la récence des données.
+             Indice synthétique automatisé, présenté en complément des preuves documentées et des indisponibilités.
           </p>
         </div>
       </div>
@@ -2211,7 +2239,7 @@ function RiskScoreCard({ score, label, tone, factors }: { score: number; label: 
       {factors.length > 0 && (
         <ul className="mt-3 space-y-1" data-testid="list-risk-factors">
           {factors.map((f, i) => (
-            <li key={i} className="flex items-start gap-1.5 text-[11px] text-gray-600">
+            <li key={`${f}::${i}`} className="flex items-start gap-1.5 text-[11px] text-gray-600">
               <span className="mt-1 h-1.5 w-1.5 rounded-full shrink-0" style={{ backgroundColor: s.ring }} />
               {f}
             </li>
@@ -2448,6 +2476,7 @@ function SpeciesCard({ occ, isSelected, onSelect, centerCoords }: { occ: Occurre
               rel="noopener noreferrer"
               className="flex items-center justify-center text-xs w-6 h-6 rounded text-gray-500 hover:bg-gray-100 hover:text-gray-700 transition-colors"
               title="Voir sur Wikipédia"
+               aria-label={`Ouvrir la page Wikipédia de ${occ.scientificName}`}
               onClick={(e) => e.stopPropagation()}
             >
               <BookOpen className="h-3.5 w-3.5" />
@@ -2459,6 +2488,7 @@ function SpeciesCard({ occ, isSelected, onSelect, centerCoords }: { occ: Occurre
                 rel="noopener noreferrer"
                 className="flex items-center justify-center text-xs w-6 h-6 rounded text-gray-500 hover:bg-gray-100 hover:text-gray-700 transition-colors"
                 title="Voir sur GBIF"
+                 aria-label={`Ouvrir la fiche GBIF de ${occ.scientificName}`}
                 onClick={(e) => e.stopPropagation()}
               >
                 <ExternalLink className="h-3.5 w-3.5" />
@@ -2470,6 +2500,7 @@ function SpeciesCard({ occ, isSelected, onSelect, centerCoords }: { occ: Occurre
               rel="noopener noreferrer"
               className="flex items-center justify-center text-xs w-6 h-6 rounded text-gray-500 hover:bg-gray-100 hover:text-gray-700 transition-colors"
               title="Voir sur iNaturalist"
+               aria-label={`Ouvrir la recherche iNaturalist pour ${occ.scientificName}`}
               onClick={(e) => e.stopPropagation()}
               data-testid={`link-inat-${occ.scientificName}`}
             >
@@ -2492,7 +2523,7 @@ function SpeciesCard({ occ, isSelected, onSelect, centerCoords }: { occ: Occurre
                                      "bg-gray-100 text-gray-600 border-gray-200";
             return (
               <span
-                key={i}
+                key={`${st.category}::${st.value}::${st.scope ?? ""}`}
                 className={`text-[10px] font-medium px-2 py-0.5 rounded-full border ${toneClass}`}
                 title={`${st.category}${st.scope ? ` — ${st.scope}` : ""} : ${st.label}`}
               >
@@ -2548,7 +2579,7 @@ function SpeciesCard({ occ, isSelected, onSelect, centerCoords }: { occ: Occurre
           <div className="mt-1 flex flex-wrap gap-1">
             {occ.enjeuWarnings.map((w, i) => (
               <span
-                key={i}
+                key={`${w}::${i}`}
                 className="inline-flex items-center gap-1 text-[9px] px-1.5 py-0.5 rounded bg-yellow-50 text-yellow-700 border border-yellow-200"
                 title={w}
               >
@@ -2691,7 +2722,7 @@ function NaturaSpeciesList({ code, index }: { code: string; index: number }) {
               <Loader2 className="h-3 w-3 animate-spin" /> Chargement des espèces…
             </div>
           )}
-          {error && <p className="text-[11px] text-red-500 py-1">Espèces indisponibles pour ce site.</p>}
+          {error && <p className="text-[11px] text-red-600 py-1" role="alert">Espèces indisponibles pour ce site.</p>}
           {loaded && !error && species.length === 0 && (
             <p className="text-[11px] text-gray-400 py-1">Aucune espèce désignatrice (grade A/B/C/D) référencée.</p>
           )}
@@ -2768,7 +2799,7 @@ function PotentialSpeciesRow({
         </td>
         <td className="px-2 py-2.5 text-[10px] font-medium text-slate-600">{SPECIES_GROUP_FR[item.speciesGroup] ?? item.speciesGroup}</td>
         <td className="px-2 py-2.5"><span className={`inline-flex rounded border px-1.5 py-0.5 text-[9px] font-bold ${style.badge}`}>{item.status}</span></td>
-        <td className="px-2 py-2.5">{item.observed ? <span className="inline-flex rounded border border-teal-200 bg-teal-50 px-1.5 py-0.5 text-[9px] font-bold text-teal-800">Avérée</span> : <span className="text-[10px] font-semibold text-slate-600">Potentielle</span>}</td>
+        <td className="px-2 py-2.5">{item.observed ? <span className="inline-flex rounded border border-teal-200 bg-teal-50 px-1.5 py-0.5 text-[9px] font-bold text-teal-800">Occurrence publique documentée</span> : <span className="text-[10px] font-semibold text-slate-600">Potentielle</span>}</td>
         <td className="px-2 py-2.5">
           <div className="flex items-center justify-end gap-1.5">
             <div className="h-1.5 w-12 overflow-hidden rounded-full bg-slate-100" role="meter" aria-label={`Score de compatibilité de ${item.scientificName}`} aria-valuemin={0} aria-valuemax={100} aria-valuenow={item.score ?? undefined} aria-valuetext={item.score === null ? "Non évalué" : `${item.score} sur 100`}>
@@ -2836,7 +2867,7 @@ function PotentialSpeciesTable({ items, testId }: { items: PotentialSpeciesItem[
                   {expanded ? <ChevronUp className="h-4 w-4 shrink-0 text-emerald-700" /> : <ChevronDown className="h-4 w-4 shrink-0 text-slate-400" />}
                 </span>
                 <span className="mt-2 grid grid-cols-2 gap-x-3 gap-y-2">
-                  <span><span className="block text-[9px] font-bold uppercase tracking-wide text-slate-400">Signal</span>{item.observed ? <span className="inline-flex rounded border border-teal-200 bg-teal-50 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide text-teal-800">Avérée</span> : <span className="text-[10px] font-medium text-slate-500">Potentielle</span>}</span>
+                  <span><span className="block text-[9px] font-bold uppercase tracking-wide text-slate-400">Signal</span>{item.observed ? <span className="inline-flex rounded border border-teal-200 bg-teal-50 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide text-teal-800">Occurrence publique documentée</span> : <span className="text-[10px] font-medium text-slate-500">Potentielle</span>}</span>
                   <span><span className="block text-[9px] font-bold uppercase tracking-wide text-slate-400">Compatibilité</span><span className={`inline-flex rounded border px-1.5 py-0.5 text-[9px] font-bold ${style.badge}`}>{item.status}</span></span>
                   <span><span className="block text-[9px] font-bold uppercase tracking-wide text-slate-400">Indice</span><span className="flex items-center gap-1.5"><span className="h-1.5 w-12 overflow-hidden rounded-full bg-slate-100" role="meter" aria-label={`Score de compatibilité de ${item.scientificName}`} aria-valuemin={0} aria-valuemax={100} aria-valuenow={item.score ?? undefined} aria-valuetext={item.score === null ? "Non évalué" : `${item.score} sur 100`}><span className={`block h-full rounded-full ${style.bar}`} style={{ width: `${item.score ?? 0}%` }} /></span><span className="text-[10px] font-bold tabular-nums text-slate-700">{item.score === null ? "—" : item.score}</span></span></span>
                   <span><span className="block text-[9px] font-bold uppercase tracking-wide text-slate-400">Confiance</span><span className="text-[10px] font-medium text-slate-600">{item.confidence}</span></span>
@@ -3110,7 +3141,7 @@ function PotentialSpeciesSection({
         ? "Calcul lancé avec l’inventaire"
         : currentResult.species.length === 0
           ? `${currentResult.znieff?.speciesCount ?? 0} espèce${(currentResult.znieff?.speciesCount ?? 0) > 1 ? "s" : ""} documentée${(currentResult.znieff?.speciesCount ?? 0) > 1 ? "s" : ""} en ZNIEFF`
-          : `${currentResult.potentialCount} espèce${currentResult.potentialCount > 1 ? "s" : ""} potentielle${currentResult.potentialCount > 1 ? "s" : ""}, ${currentResult.observedCount} espèce${currentResult.observedCount > 1 ? "s" : ""} avérée${currentResult.observedCount > 1 ? "s" : ""}${currentResult.znieff?.speciesCount ? ` · ${currentResult.znieff.speciesCount} documentée${currentResult.znieff.speciesCount > 1 ? "s" : ""} en ZNIEFF` : ""}`;
+          : `${currentResult.potentialCount} espèce${currentResult.potentialCount > 1 ? "s" : ""} potentielle${currentResult.potentialCount > 1 ? "s" : ""}, ${currentResult.observedCount} avec occurrence publique documentée${currentResult.znieff?.speciesCount ? ` · ${currentResult.znieff.speciesCount} documentée${currentResult.znieff.speciesCount > 1 ? "s" : ""} en ZNIEFF` : ""}`;
 
   return (
     <section
@@ -3152,7 +3183,7 @@ function PotentialSpeciesSection({
             écologiques explicites entre l’espèce et les habitats décrits sur
             les sites proches. La localisation précise de chaque habitat dans
             l’emprise n’est pas connue. Les occurrences servent uniquement à
-            distinguer les espèces avérées des espèces potentielles. Ce pré-diagnostic doit être validé
+            distinguer les occurrences publiques documentées des espèces potentielles. La confirmation sur le site exige des relevés de terrain. Ce pré-diagnostic doit être validé
             par un écologue.
             {currentResult?.reference && (
               <>
@@ -3180,7 +3211,7 @@ function PotentialSpeciesSection({
             </div>
           )}
           {error && (
-            <div className="flex items-start gap-2 rounded-lg border border-red-100 bg-red-50 p-2.5 text-[11px] text-red-700">
+            <div className="flex items-start gap-2 rounded-lg border border-red-100 bg-red-50 p-2.5 text-[11px] text-red-700" role="alert">
               <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
               Les données nécessaires sont temporairement indisponibles. Aucun
               score n’a été inventé.
@@ -3188,8 +3219,8 @@ function PotentialSpeciesSection({
           )}
           {!loading && !error && currentResult && currentResult.species.length === 0 && (
             <p className="py-2 text-xs italic text-gray-500">
-              Aucune espèce potentielle n’est disponible dans les sites Natura
-              2000 concernés.
+              Consultation terminée : aucune espèce potentielle n’a été retournée
+              pour les sites Natura 2000 concernés.
             </p>
           )}
           {!loading && !error && currentResult && currentResult.partial && (
@@ -3236,7 +3267,7 @@ function PotentialSpeciesSection({
               <div className="border-t border-gray-100 pt-3">
                 <div className="mb-1.5 flex items-center justify-between">
                   <h4 className="text-[11px] font-bold uppercase tracking-wide text-teal-800">
-                    Espèces avérées parmi les espèces attendues
+                    Espèces avec occurrence publique parmi les espèces attendues
                   </h4>
                   <span className="text-[10px] text-gray-400">
                     {observed.length}
@@ -3353,14 +3384,14 @@ function Natura2000ExpectedPanel({
       {expanded && (
         <div className="mt-3">
           {error && (
-            <p className="text-[11px] text-red-500">Espèces potentielles indisponibles.</p>
+            <p className="text-[11px] text-red-600" role="alert">Espèces potentielles indisponibles.</p>
           )}
           {loaded && !error && (
             <>
               <p className="text-[11px] text-gray-500 mb-2 leading-snug">
                 Espèces justifiant le classement des {siteCount} site{siteCount > 1 ? "s" : ""} Natura 2000 proche
                 {siteCount > 1 ? "s" : ""} (base EEA, France). Les espèces potentielles ne figurent
-                pas parmi les espèces avérées mais sont documentées pour ces sites proches.
+                pas parmi les espèces avec occurrence publique documentée mais sont documentées pour ces sites proches.
               </p>
               <ul className="space-y-1" data-testid="list-natura-expected">
                 {species.map((sp, i) => {
@@ -3377,9 +3408,9 @@ function Natura2000ExpectedPanel({
                             ? "bg-gray-100 text-gray-500"
                             : "bg-emerald-100 text-emerald-700"
                         }`}
-                        title={observed ? "Espèce avérée dans l'inventaire" : "Espèce potentielle documentée par Natura 2000"}
+                        title={observed ? "Occurrence publique documentée dans l’aire" : "Espèce potentielle documentée par Natura 2000"}
                       >
-                        {observed ? "avérée" : "potentielle"}
+                        {observed ? "occurrence publique" : "potentielle"}
                       </span>
                       <span className="flex-1">
                         <span className="italic font-medium">{sp.scientificName}</span>

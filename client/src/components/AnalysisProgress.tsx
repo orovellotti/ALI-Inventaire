@@ -213,7 +213,7 @@ export function AnalysisProgress({
         : zonagesReady
           ? zonageFeatureCount > 0
             ? `${zonageFeatureCount} emprise${zonageFeatureCount > 1 ? "s ont" : " a"} été retournée${zonageFeatureCount > 1 ? "s" : ""} par la source.`
-            : "Je n’ai trouvé aucune emprise dans l’aire."
+            : "Consultation terminée : aucune emprise retournée dans l’aire."
           : "Je ne peux pas récupérer les zonages ; l’inventaire continue.",
       detail: "Sources : IGN / PatriNat.",
     },
@@ -245,6 +245,11 @@ export function AnalysisProgress({
     if (agent.id !== "taxon-enrichment") return true;
     return done || (taxonEnrichmentStep >= 0 && stepIndex >= taxonEnrichmentStep);
   });
+  const potentialMessage = potentialSpeciesLoading
+    ? "Évaluation des compatibilités écologiques en cours."
+    : potentialSpeciesReady
+      ? `Évaluation terminée : ${potentialSpeciesCount} espèce${potentialSpeciesCount > 1 ? "s" : ""} potentielle${potentialSpeciesCount > 1 ? "s" : ""} retournée${potentialSpeciesCount > 1 ? "s" : ""}.`
+      : "Évaluation des espèces potentielles indisponible ; aucun résultat n’est déduit.";
 
   return (
     <div
@@ -286,6 +291,7 @@ export function AnalysisProgress({
         }
         role="status"
         aria-live="polite"
+        aria-atomic="true"
         data-testid="analysis-progress"
       >
         <div className="px-5 py-4">
@@ -331,7 +337,7 @@ export function AnalysisProgress({
             <ol className="space-y-3">
               <li className="flex gap-2">
                 <Bot className="mt-0.5 h-4 w-4 shrink-0 text-[#315b4e]" />
-                <div><strong>Ali — coordination</strong><p>{steps[stepIndex].label}</p></div>
+                <div><strong>ALi — coordination</strong><p>{steps[stepIndex].label}</p></div>
               </li>
               {sourceMessages.map((agent) => {
                 const Icon = agent.icon;
@@ -342,6 +348,10 @@ export function AnalysisProgress({
                   </li>
                 );
               })}
+              <li className="flex gap-2" data-testid="process-potential">
+                <Leaf className="mt-0.5 h-4 w-4 shrink-0 text-[#527349]" aria-hidden="true" />
+                <div><strong>Compatibilité écologique</strong><p>{potentialMessage} Une potentialité ne confirme pas une présence sur le terrain.</p></div>
+              </li>
             </ol>
           </div>
         )}

@@ -569,7 +569,7 @@ function buildMcpServer(): McpServer {
     {
       capabilities: { tools: {} },
       instructions:
-        "Inventaire Flash : pré-diagnostic écologique français basé sur GBIF, " +
+        "ALi Inventaire : pré-étude documentaire biodiversité française basée sur GBIF, " +
         "destiné aux études d'impact environnemental (EIE). Utilise les outils pour " +
         "interroger la biodiversité autour d'un point GPS, obtenir les détails " +
         "d'une espèce, géocoder un lieu, lister les plateformes SINP régionales " +

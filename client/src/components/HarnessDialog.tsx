@@ -29,6 +29,7 @@ export function HarnessDialog({
   const [access, setAccess] = useState<{ signedIn: boolean; canManage: boolean } | null>(null);
   const [activeTab, setActiveTab] = useState<"agents" | "final-prompt">("agents");
   const [finalStudyPrompt, setFinalStudyPrompt] = useState("");
+  const [finalStudyPromptInfo, setFinalStudyPromptInfo] = useState<{ characters: number; fingerprint: string } | null>(null);
 
   useEffect(() => setDraft(config), [config, open]);
   useEffect(() => {
@@ -36,6 +37,7 @@ export function HarnessDialog({
     setAccess(null);
     setMcpRegistry([]);
     setFinalStudyPrompt("");
+    setFinalStudyPromptInfo(null);
     setActiveTab("agents");
     setMessage(null);
     fetch("/api/harness/access")
@@ -47,6 +49,10 @@ export function HarnessDialog({
         if (promptResponse.ok) {
           const promptData = await promptResponse.json();
           setFinalStudyPrompt(promptData.prompt ?? "");
+          setFinalStudyPromptInfo({
+            characters: promptData.characters ?? (promptData.prompt?.length || 0),
+            fingerprint: promptData.fingerprint ?? "",
+          });
         }
         if (!data.canManage) return;
 
@@ -128,6 +134,10 @@ export function HarnessDialog({
       if (promptResponse.ok) {
         const promptData = await promptResponse.json();
         setFinalStudyPrompt(promptData.prompt ?? "");
+        setFinalStudyPromptInfo({
+          characters: promptData.characters ?? (promptData.prompt?.length || 0),
+          fingerprint: promptData.fingerprint ?? "",
+        });
       }
       setMessage("Configuration partagée enregistrée.");
     } catch (error) {
@@ -410,17 +420,23 @@ export function HarnessDialog({
         {activeTab === "final-prompt" && (
           <section className="space-y-3 rounded-2xl border border-[#dfe3da] bg-[#faf9f3] p-4">
             <div>
-              <h3 className="font-semibold text-[#17483d]">Prompt réellement envoyé au modèle</h3>
+              <h3 className="font-semibold text-[#17483d]">Prompt système enregistré</h3>
               <p className="mt-1 text-xs leading-5 text-[#6b7d76]">
-                Cet aperçu en lecture seule combine les garde-fous de rédaction et les prompts de tous les agents activés. Il est recalculé à l’ouverture du Harnais.
+                Cet aperçu en lecture seule combine les garde-fous et les prompts enregistrés de tous les agents activés. Lors de chaque génération, le rapport et le contexte scientifique sont ajoutés dans un second message.
               </p>
+              {finalStudyPromptInfo && (
+                <p className="mt-1 text-[11px] font-medium text-[#557067]">
+                  Version enregistrée : {finalStudyPromptInfo.characters.toLocaleString("fr-FR")} caractères
+                  {finalStudyPromptInfo.fingerprint ? ` · empreinte ${finalStudyPromptInfo.fingerprint}` : ""}
+                </p>
+              )}
             </div>
             <Textarea
               readOnly
               value={finalStudyPrompt}
               rows={24}
               className="min-h-[420px] resize-y border-[#cfd5ce] bg-[#ecefea] font-mono text-xs leading-5 text-[#66746f] shadow-inner focus-visible:ring-[#9aa79f]"
-              aria-label="Prompt final de génération de la pré-étude"
+              aria-label="Prompt système enregistré pour la génération de la pré-étude"
               data-testid="textarea-final-study-prompt"
             />
           </section>
