@@ -2,6 +2,7 @@ import { useState, useCallback, useEffect, useMemo, useRef } from "react";
 import { Map } from "@/components/Map";
 import { SearchPanel } from "@/components/SearchPanel";
 import { ResultsPanel } from "@/components/ResultsPanel";
+import { ALiBrandMark } from "@/components/ALiBrandMark";
 import { AboutDialog } from "@/components/AboutDialog";
 import { ApiDialog } from "@/components/ApiDialog";
 import { LieuxDitsDialog } from "@/components/LieuxDitsDialog";
@@ -683,7 +684,9 @@ export default function Home() {
     <div className="relative h-[100dvh] min-h-[100dvh] w-full overflow-hidden bg-[#f8f7f0]">
       <header className="ali-global-header absolute inset-x-0 top-0 z-[2500] flex h-[76px] items-center border-b border-[#dfe3d8] bg-[#faf9f3]/95 px-4 backdrop-blur-md sm:px-6">
         <button type="button" onClick={() => { if (results || isAnalyzing) setPendingLocationChange({ kind: "reset" }); else { setIsPanelOpen(true); resetForNewLocation(); } }} className="flex items-center gap-3 text-left" aria-label="Commencer une nouvelle analyse" data-testid="global-brand">
-          <span className="flex h-10 w-10 items-center justify-center rounded-[12px] bg-[#1e594a] text-[#dcc05b]"><Leaf className="h-5 w-5" /></span>
+          <span className="flex h-10 w-10 items-center justify-center rounded-[12px] bg-[#1e594a] text-[#dcc05b]">
+            <ALiBrandMark className="h-8 w-8" />
+          </span>
           <span className="leading-none">
             <span className="flex items-center gap-2">
               <strong className="block font-serif text-[22px] font-semibold tracking-[-.05em] text-[#17483d]">ALi</strong>
