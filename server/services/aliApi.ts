@@ -34,13 +34,13 @@ const searchCache = new Map<string, { hit: AliTaxonHit | null; ts: number }>();
 const statusCache = new Map<number, { statuses: RawAliStatus[]; ts: number }>();
 const CACHE_TTL = 1000 * 60 * 60 * 24;
 
-async function fetchJson(url: string): Promise<unknown> {
-  const r = await fetch(url, { signal: AbortSignal.timeout(TIMEOUT_MS) });
+async function fetchJson(url: string, timeoutMs = TIMEOUT_MS): Promise<unknown> {
+  const r = await fetch(url, { signal: AbortSignal.timeout(timeoutMs) });
   if (!r.ok) throw new Error(`ALI ${r.status}`);
   return r.json();
 }
 
-export async function searchAliTaxon(query: string): Promise<AliTaxonHit | null> {
+export async function searchAliTaxon(query: string, timeoutMs = TIMEOUT_MS): Promise<AliTaxonHit | null> {
   const q = query.trim();
   if (!q) return null;
 
@@ -50,7 +50,7 @@ export async function searchAliTaxon(query: string): Promise<AliTaxonHit | null>
 
   // Network/parse errors propagate (and are NOT cached) so a transient failure
   // does not poison the cache with a null result for CACHE_TTL.
-  const data = await fetchJson(`${ALI_BASE}/api/taxons/search?q=${encodeURIComponent(q)}&limit=5`);
+  const data = await fetchJson(`${ALI_BASE}/api/taxons/search?q=${encodeURIComponent(q)}&limit=5`, timeoutMs);
   const hits: RawSearchHit[] = Array.isArray(data) ? data : [];
   const best = hits.find((h) => h.rang === "ES") ?? hits[0];
   const cdRef = best?.cdRef ?? best?.cdNom;

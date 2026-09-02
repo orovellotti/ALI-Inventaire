@@ -128,6 +128,10 @@ export interface InventoryResult {
     failed: number;
     skipped: number;
     partial: boolean;
+    /** Noms sans cdNom proposés au résolveur ALI Species. */
+    nameResolutionAttempted?: number;
+    /** Noms effectivement reliés à un taxon TAXREF canonique. */
+    nameResolved?: number;
   };
 }
 

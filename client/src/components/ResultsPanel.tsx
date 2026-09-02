@@ -23,6 +23,7 @@ import type { HarnessConfig } from "@shared/harness";
 import { formatCarhabSummary, parseCarhabOutput } from "@shared/carhab";
 import { getPreferredTerritorialRedList, isPlantTaxon } from "@shared/iucn";
 import { occurrenceKey, uniqueOccurrences } from "@/lib/resultKeys";
+import { buildFinalStudyContext, serializeFinalStudyContext } from "@/lib/finalStudyContext";
 import React, { useState, useMemo, useEffect, useRef, type ReactNode } from "react";
 
 interface NaturaSpeciesItem {
@@ -1110,10 +1111,34 @@ ${shareUrl ? `\nReproduire cette analyse : ${shareUrl}` : ""}`;
     setReformatting(true);
     setReformatError(null);
     try {
+      const finalStudyContext = buildFinalStudyContext({
+        requestSummary,
+        toponym,
+        inventory: results!,
+        zonages,
+        potentialSpecies,
+        priorityAnalysis: aiAnalysis,
+        carhabSummary,
+        harnessConfig,
+        filters: {
+          activeTaxonGroups: Array.from(activeTaxonFilters),
+          excludeMarine: !!excludeMarine,
+          includeINaturalist: !!includeINaturalist,
+        },
+        states: {
+          zonagesLoading,
+          potentialSpeciesLoading,
+          potentialSpeciesError,
+          habitatConsultation: habitatConsultationState,
+        },
+      });
       const r = await fetch("/api/llm/reformat-report", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ report: reportText }),
+        body: JSON.stringify({
+          report: reportText,
+          context: serializeFinalStudyContext(finalStudyContext),
+        }),
       });
       if (!r.ok) {
         const err = await r.json().catch(() => ({}));
@@ -1382,7 +1407,7 @@ ${shareUrl ? `\nReproduire cette analyse : ${shareUrl}` : ""}`;
                         {occurrencesAgentActive && <li><strong>Agent Occurrences</strong><p>{results.stats.speciesCount} espèces consolidées à partir de {results.stats.total} données retenues.</p></li>}
                         {zonagesAgentActive && <li><strong>Agent Zonages</strong><p>{zonagesLoading ? "Consultation des référentiels en cours." : `${zonages?.count ?? 0} zonage${(zonages?.count ?? 0) > 1 ? "s" : ""} vérifié${(zonages?.count ?? 0) > 1 ? "s" : ""}.`}</p></li>}
                          {habitatAgentActive && <li data-testid="analysis-transcript-ali-habitat"><strong>Agent Habitat — CARHAB</strong><p>{aliHabitatStatus ?? "Aucun bilan CARHAB enregistré pour cette analyse."}</p></li>}
-                         {taxonomyAgentActive && <li><strong>Agent Taxonomie et statuts — ALI Species</strong><p>{results.aliSpeciesEnrichment ? `${results.aliSpeciesEnrichment.enriched}/${results.aliSpeciesEnrichment.attempted} taxons enrichis via ALI Species.` : "Aucun bilan ALI Species enregistré pour cette analyse."}</p></li>}
+                         {taxonomyAgentActive && <li><strong>Agent Taxonomie et statuts — ALI Species</strong><p>{results.aliSpeciesEnrichment ? results.aliSpeciesEnrichment.attempted > 0 ? `${results.aliSpeciesEnrichment.enriched}/${results.aliSpeciesEnrichment.attempted} taxons enrichis via ALI Species${results.aliSpeciesEnrichment.nameResolutionAttempted ? `, après résolution de ${results.aliSpeciesEnrichment.nameResolved ?? 0}/${results.aliSpeciesEnrichment.nameResolutionAttempted} noms dans TAXREF` : ""}.` : "Aucun taxon n’a pu être relié à TAXREF pour lancer l’enrichissement ALI Species." : "Aucun bilan ALI Species enregistré pour cette analyse."}</p></li>}
                      </ol>
                    </div>
                  )}

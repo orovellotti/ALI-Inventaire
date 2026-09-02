@@ -58,9 +58,9 @@ unambiguous region; otherwise retain non-regional statuses and mark local interp
 **Latency trap:** the `/api/taxons/search` endpoint (AI-powered, resolves name→cdNom) is the slow one
 — sequentially it takes ~1-13s per call, while `/statuts` stays fast (~180ms) once cdNom is known.
 ALI sends **no CORS headers**, so the browser can't call it cross-origin. Enrichment must stay
-server-side; wrap the whole enrichment pass in a global time budget (~40s) via Promise.race so a slow
-search never blocks/timeouts the entire /api/llm/priority-species response — degrade to un-enriched
-species instead. TAXREF (taxref.mnhn.fr) is not a reliable fallback (returns 521).
+server-side; wrap the whole enrichment pass in a global time budget (~40s) so a slow search never
+blocks/timeouts the analysis — degrade to un-enriched species instead. Direct TAXREF name resolution
+is not a reliable fallback: its public endpoint can be blocked by Cloudflare (403/521).
 
 **CRITICAL — search CANNOT be called concurrently.** The AI search endpoint saturates under parallel
 load: firing 5 requests at once makes ALL of them time out (verified: 5 parallel all abort even at
@@ -70,3 +70,8 @@ opposite — it breaks enrichment entirely. Per-call timeout must cover the slow
 in aliApi.ts) since a single search can hit ~13s.
 **Why:** debugged a case where patrimonialité/statuts silently came back empty for every species; root
 cause was concurrent search calls all timing out, NOT the timeout value or the formula.
+
+For inventory enrichment, resolve missing names only in the final ALI Species phase, sequentially and
+with a bounded number of priority taxa. Keep enough of the global budget in reserve for `get_statuts`.
+Report name-resolution counts separately from status-enrichment counts; `0/0` must never look like a
+successful enrichment.

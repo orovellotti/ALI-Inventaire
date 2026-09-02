@@ -6,7 +6,7 @@ import { isPlantTaxon } from "@shared/iucn";
 import { normalizeStatuses } from "../ali";
 import { checkConsistency, computeEnjeuLevel } from "../scoring";
 import { reverseGeocode } from "./nominatim";
-import type { RawAliStatus } from "./aliApi";
+import { searchAliTaxon, type RawAliStatus } from "./aliApi";
 
 const ALI_SPECIES_MCP_URL = "https://taxref-explorer.replit.app/api/mcp";
 const MAX_ENRICHED_TAXA = 80;
@@ -14,7 +14,10 @@ const CONCURRENCY = 4;
 const CONNECT_TIMEOUT_MS = 5_000;
 const TOOL_TIMEOUT_MS = 12_000;
 const REGION_LOOKUP_TIMEOUT_MS = 3_000;
-const PHASE_BUDGET_MS = 25_000;
+const PHASE_BUDGET_MS = 40_000;
+const STATUS_BUDGET_RESERVE_MS = 12_000;
+const MAX_NAME_RESOLUTIONS = 10;
+const NAME_RESOLUTION_TIMEOUT_MS = 8_000;
 
 interface McpDriver {
   label?: string;
@@ -204,6 +207,8 @@ export async function enrichInventoryWithAliSpeciesMcp(
         failed: 0,
         skipped: 0,
         partial: false,
+        nameResolutionAttempted: 0,
+        nameResolved: 0,
       },
     };
   }
@@ -237,10 +242,42 @@ export async function enrichInventoryWithAliSpeciesMcp(
   }
   const territorial = territorialScopeFromRegions(resolvedRegions, uniqueCenters.length);
   const region = territorial.region;
-  const candidates = [...inventory.occurrences]
-    .filter((occurrence) => Number.isInteger(occurrence.cdNom))
+  const prioritized = [...inventory.occurrences]
     .sort((a, b) => enrichmentPriority(b) - enrichmentPriority(a))
     .slice(0, MAX_ENRICHED_TAXA);
+  const candidates: Occurrence[] = [];
+  let nameResolutionAttempted = 0;
+  let nameResolved = 0;
+
+  for (const occurrence of prioritized) {
+    if (Number.isInteger(occurrence.cdNom)) {
+      candidates.push(occurrence);
+      continue;
+    }
+    if (
+      nameResolutionAttempted >= MAX_NAME_RESOLUTIONS ||
+      Date.now() >= deadline - STATUS_BUDGET_RESERVE_MS
+    ) {
+      continue;
+    }
+    nameResolutionAttempted++;
+    try {
+      const remainingForResolution = Math.max(
+        1,
+        deadline - STATUS_BUDGET_RESERVE_MS - Date.now(),
+      );
+      const hit = await searchAliTaxon(
+        occurrence.scientificName,
+        Math.min(NAME_RESOLUTION_TIMEOUT_MS, remainingForResolution),
+      );
+      if (!hit) continue;
+      occurrence.cdNom = hit.cdRef;
+      nameResolved++;
+      candidates.push(occurrence);
+    } catch {
+      // Une résolution en échec ne doit ni bloquer les suivantes ni être mise en cache.
+    }
+  }
   const statusesByCdNom = new Map<number, AliStatusSummary[]>();
   let failed = 0;
   let cursor = 0;
@@ -321,6 +358,8 @@ export async function enrichInventoryWithAliSpeciesMcp(
       failed,
       skipped,
       partial: failed > 0 || skipped > 0,
+      nameResolutionAttempted,
+      nameResolved,
     },
   };
 }

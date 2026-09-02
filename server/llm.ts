@@ -353,6 +353,9 @@ RÈGLES SCIENTIFIQUES ABSOLUES
 HARNAIS D'ALi
 Le harnais coordonne uniquement les agents activés dans la configuration reçue, consolide leurs réponses et applique les garde-fous scientifiques. Il mobilise uniquement les sources citées dans les données reçues. Décris cette orchestration dans la méthodologie et le registre des sources sans inventer de MCP, d’outil ou d’agent absent.
 
+CONTEXTE STRUCTURÉ
+Le message utilisateur contient un contexte canonique généré par l'application en plus du rapport source. Exploite toutes ses sections disponibles : demande et aires d'étude, inventaire et confiance, statuts territoriaux ALI Species, zonages, habitats CARHAB, espèces potentielles, documentation ZNIEFF, Natura 2000, traces du harnais, filtres, erreurs et états partiels. Le contexte structuré prévaut sur le résumé éditorial. Respecte les totalCount et omittedCount : une section abrégée ne doit jamais être présentée comme exhaustive.
+
 HIÉRARCHIE DES SOURCES
 Privilégie les textes réglementaires vérifiés, référentiels institutionnels français, DREAL/OFB/PatriNat/INPN, SINP, publications reconnues, bases internationales puis données contributives. Les inférences écologiques viennent toujours après les observations documentées.
 
@@ -510,8 +513,15 @@ Règles :
 - Si des zones Natura 2000 sont listées ci-dessus, tiens-en compte : privilégie les espèces qui justifient leur désignation (Directive Habitats Annexe II/IV, Directive Oiseaux Annexe I) et, le cas échéant, mentionne le site concerné dans "reason".`;
 }
 
-function buildReformatPrompt(rawReport: string): string {
-  return `Construis la pré-étude biodiversité documentaire à partir des seules données brutes ci-dessous.
+function buildReformatPrompt(rawReport: string, structuredContext: string): string {
+  return `Construis la pré-étude biodiversité documentaire à partir des seules données ci-dessous.
+
+Le CONTEXTE STRUCTURÉ est le registre canonique des données générées par l'application. Le RAPPORT SOURCE est une synthèse éditoriale utile, mais il peut être moins complet.
+- Exploite toutes les sections non nulles du contexte structuré.
+- Respecte les états loading, error, unavailable et partial.
+- Lorsqu'un omittedCount est supérieur à zéro, signale que la section est abrégée et conserve le totalCount.
+- Ne déduis jamais une géométrie, une présence, une absence ou un statut à partir d'un simple compteur.
+- Pour les statuts UICN, applique l'ordre régionale > nationale > européenne ; le mondial reste secondaire et ne doit jamais suffire seul pour la flore.
 
 Produis un document principal en Markdown avec ce plan proportionné :
 
@@ -567,7 +577,12 @@ Contraintes de sortie :
 - ne produis pas de JSON dans cette réponse : l'interface attend ici le document Markdown lisible ;
 - vise un document utile et structuré, sans remplissage artificiel.
 
-Données brutes et registre du harnais :
+CONTEXTE STRUCTURÉ GÉNÉRÉ PAR L'APPLICATION (JSON) :
+─────────
+${structuredContext}
+─────────
+
+RAPPORT SOURCE ET REGISTRE DU HARNAIS :
 ─────────
 ${rawReport}
 ─────────`;
@@ -908,13 +923,13 @@ async function enrichWithAliStatuses(species: PrioritySpecies[]): Promise<Priori
   ]);
 }
 
-export async function reformatReport(rawReport: string): Promise<string> {
+export async function reformatReport(rawReport: string, structuredContext: string): Promise<string> {
   const finalStudyPrompt = await getFinalStudyPrompt();
   const completion = await openai.chat.completions.create({
     model: MODEL,
     messages: [
       { role: "system", content: finalStudyPrompt },
-      { role: "user", content: buildReformatPrompt(rawReport) },
+      { role: "user", content: buildReformatPrompt(rawReport, structuredContext) },
     ],
   });
   const content = completion.choices[0]?.message?.content?.trim();

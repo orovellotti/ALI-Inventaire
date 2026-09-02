@@ -374,8 +374,8 @@ export async function registerRoutes(
   app.post(
     "/api/llm/reformat-report",
     asyncHandler(async (req, res) => {
-      const { report } = reformatBodySchema.parse(req.body);
-      res.json({ reformatted: await reformatReport(report) });
+      const { report, context } = reformatBodySchema.parse(req.body);
+      res.json({ reformatted: await reformatReport(report, context) });
     }),
   );
 

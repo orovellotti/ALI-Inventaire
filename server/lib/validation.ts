@@ -87,6 +87,7 @@ export const potentialSpeciesBodySchema = z.object({
 });
 
 export const MAX_REFORMAT_REPORT_CHARACTERS = 200_000;
+export const MAX_REFORMAT_CONTEXT_CHARACTERS = 120_000;
 
 export const reformatBodySchema = z.object({
   report: z
@@ -95,6 +96,13 @@ export const reformatBodySchema = z.object({
     .max(
       MAX_REFORMAT_REPORT_CHARACTERS,
       `Rapport trop long (max ${MAX_REFORMAT_REPORT_CHARACTERS.toLocaleString("fr-FR")} caractères)`,
+    ),
+  context: z
+    .string()
+    .min(2, "Champ 'context' requis")
+    .max(
+      MAX_REFORMAT_CONTEXT_CHARACTERS,
+      `Contexte trop long (max ${MAX_REFORMAT_CONTEXT_CHARACTERS.toLocaleString("fr-FR")} caractères)`,
     ),
 });
 

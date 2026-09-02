@@ -19,6 +19,7 @@
 - [ALi visual identity](ali-visual-identity.md) — use the light ivory, forest-green editorial shell with conversation first and the map as secondary context across the app.
 - [ALi editorial voice](ali-editorial-voice.md) — write as a senior ecology consultancy: calm, clear, evidence-led, decision-oriented, transparent about uncertainty and field validation.
 - [Approved MCP execution](approved-mcp-execution.md) — discover live capabilities, filter with a server allowlist, then enforce each agent’s tool grants before MCP invocation.
+- [Final study structured context](final-study-structured-context.md) — the final LLM call receives a bounded canonical context for every app-generated section, not only the UI report text.
 - [Clerk provider ownership](clerk-provider-ownership.md) — keep exactly one provider, inside the Wouter context, so Clerk navigation and ALi theming remain centralized.
 - [CARHAB output semantics](carhab-output-semantics.md) — display the service-provided area summary by habitat, deduped and sorted; never recast it as ALi-computed field mapping.
 - [Nominatim place hierarchy](nominatim-place-hierarchy.md) — never show municipality/state_district as the study commune; concise labels use local place, county, and region.

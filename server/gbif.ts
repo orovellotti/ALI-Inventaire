@@ -1,6 +1,5 @@
 import type { Occurrence, ConfidenceScore, BufferCircle, InventoryResult } from "@shared/types";
 import { searchINaturalist } from "./inaturalist";
-import { fetchTaxRefCdNom } from "./taxref";
 import { applyFrenchPriorityBoost, isFrenchPriority } from "./frenchPriority";
 import { isInvasiveExotic } from "./invasive";
 import { calculateConfidenceScore, emptyConfidence } from "./confidence";
@@ -123,14 +122,13 @@ function deriveHabitatType(
 async function enrichSpecies(record: any): Promise<Occurrence> {
   const speciesKey = record.speciesKey || record.taxonKey;
 
-  const [imageUrl, iucnStatus, vernacularNames, cdNom] = speciesKey
+  const [imageUrl, iucnStatus, vernacularNames] = speciesKey
     ? await Promise.all([
         fetchSpeciesMedia(speciesKey),
         fetchSpeciesIucnStatus(speciesKey),
         fetchVernacularNames(speciesKey),
-        fetchTaxRefCdNom(record.scientificName ?? ""),
       ])
-    : [undefined, undefined, {}, await fetchTaxRefCdNom(record.scientificName ?? "")];
+    : [undefined, undefined, {}];
 
   const baseLevel = getAlertLevelFromIucn(iucnStatus);
   const alertLevel = applyFrenchPriorityBoost(baseLevel, record.family, record.order, record.class);
@@ -157,7 +155,6 @@ async function enrichSpecies(record: any): Promise<Occurrence> {
     taxonKey: speciesKey,
     source: "gbif",
     sourceUrl: speciesKey ? `https://www.gbif.org/species/${speciesKey}` : undefined,
-    cdNom,
     frenchProtected,
     isInvasive,
     taxonRank,
@@ -174,14 +171,6 @@ function filterWithinRadius<T extends { decimalLatitude: number; decimalLongitud
   return records.filter((occ) =>
     haversineDistance(lat, lng, occ.decimalLatitude, occ.decimalLongitude) <= radiusMeters,
   );
-}
-
-async function assignCdNomsToInat(occurrences: Occurrence[], existing: Map<string, Occurrence>): Promise<void> {
-  const needing = occurrences.filter((o) => !existing.has(o.scientificName));
-  const cdNoms = await Promise.all(needing.map((o) => fetchTaxRefCdNom(o.scientificName).catch(() => undefined)));
-  needing.forEach((o, i) => {
-    o.cdNom = cdNoms[i];
-  });
 }
 
 function mergeInatWithGbif(gbifOccurrences: Occurrence[], inatOccurrences: Occurrence[]): Occurrence[] {
@@ -366,7 +355,6 @@ export async function searchGBIF(
 
   const inat = await inatPromise;
   const occurrencesMap = new Map<string, Occurrence>(gbifOccurrences.map((o) => [o.scientificName, o]));
-  await assignCdNomsToInat(inat.occurrences, occurrencesMap);
   const merged = mergeInatWithGbif(gbifOccurrences, inat.occurrences);
 
   if (inat.summary.species > 0) {
