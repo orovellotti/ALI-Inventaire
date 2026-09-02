@@ -107,6 +107,13 @@ export async function registerRoutes(
     });
   }));
 
+  app.get("/api/runtime/final-study-prompt", asyncHandler(async (_req, res) => {
+    res.json({
+      title: "Prompt final de génération de la pré-étude",
+      prompt: await getFinalStudyPrompt(),
+    });
+  }));
+
   app.get("/api/harness/access", asyncHandler(async (req, res) => {
     res.json(await getHarnessAccess(req));
   }));
@@ -118,13 +125,6 @@ export async function registerRoutes(
       await storage.saveHarnessConfig(config);
     }
     res.json(config);
-  }));
-
-  app.get("/api/harness/final-study-prompt", requireHarnessAdmin, asyncHandler(async (_req, res) => {
-    res.json({
-      title: "Prompt final de génération de la pré-étude",
-      prompt: await getFinalStudyPrompt(),
-    });
   }));
 
   app.get("/api/harness/mcp-registry", requireHarnessAdmin, asyncHandler(async (_req, res) => {

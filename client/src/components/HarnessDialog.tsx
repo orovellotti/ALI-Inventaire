@@ -43,24 +43,26 @@ export function HarnessDialog({
         const data = await response.json();
         if (!response.ok) throw new Error(data.error || "Vérification des droits impossible");
         setAccess(data);
+        const promptResponse = await fetch("/api/runtime/final-study-prompt");
+        if (promptResponse.ok) {
+          const promptData = await promptResponse.json();
+          setFinalStudyPrompt(promptData.prompt ?? "");
+        }
         if (!data.canManage) return;
 
-        const [configResponse, registryResponse, promptResponse] = await Promise.all([
+        const [configResponse, registryResponse] = await Promise.all([
           fetch("/api/harness"),
           fetch("/api/harness/mcp-registry"),
-          fetch("/api/harness/final-study-prompt"),
         ]);
-        if (!configResponse.ok || !registryResponse.ok || !promptResponse.ok) {
+        if (!configResponse.ok || !registryResponse.ok) {
           throw new Error("Chargement de la configuration d’administration impossible");
         }
-        const [adminConfig, registry, promptData] = await Promise.all([
+        const [adminConfig, registry] = await Promise.all([
           configResponse.json(),
           registryResponse.json(),
-          promptResponse.json(),
         ]);
         setDraft(adminConfig);
         setMcpRegistry(registry);
-        setFinalStudyPrompt(promptData.prompt ?? "");
         setLastPingAt(new Date());
       })
       .catch((error) => {
@@ -122,7 +124,7 @@ export function HarnessDialog({
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || "Sauvegarde impossible");
       onConfigChange(data);
-      const promptResponse = await fetch("/api/harness/final-study-prompt");
+      const promptResponse = await fetch("/api/runtime/final-study-prompt");
       if (promptResponse.ok) {
         const promptData = await promptResponse.json();
         setFinalStudyPrompt(promptData.prompt ?? "");
@@ -248,7 +250,7 @@ export function HarnessDialog({
         <p className="rounded-xl border border-[#dfe3da] bg-[#f3f6ef] p-3 text-xs leading-5 text-[#557067]">
           Les agents pilotent les consultations autorisées. L’Agent Taxonomie et statuts utilise ALI Species pour documenter les statuts territoriaux sans confirmer la présence sur le terrain.
         </p>
-        {access?.canManage && <div className="grid grid-cols-2 gap-1 rounded-xl border border-[#d9ddd1] bg-[#f3f6ef] p-1">
+        <div className="grid grid-cols-2 gap-1 rounded-xl border border-[#d9ddd1] bg-[#f3f6ef] p-1">
           <button
             type="button"
             onClick={() => setActiveTab("agents")}
@@ -263,7 +265,7 @@ export function HarnessDialog({
           >
             <FileText className="h-4 w-4" /> Prompt final de l’étude
           </button>
-        </div>}
+        </div>
         {activeTab === "agents" && <>
         {!readOnly && <section className="space-y-3 rounded-2xl border border-[#dfe3da] bg-[#f3f6ef] p-4">
           <div className="flex items-center justify-between gap-3">
@@ -405,7 +407,7 @@ export function HarnessDialog({
           ))}
         </div>
         </>}
-        {activeTab === "final-prompt" && access?.canManage && (
+        {activeTab === "final-prompt" && (
           <section className="space-y-3 rounded-2xl border border-[#dfe3da] bg-[#faf9f3] p-4">
             <div>
               <h3 className="font-semibold text-[#17483d]">Prompt réellement envoyé au modèle</h3>
