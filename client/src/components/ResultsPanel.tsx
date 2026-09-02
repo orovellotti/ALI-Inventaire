@@ -20,6 +20,7 @@ import { zonageKey } from "@/lib/zonageMap";
 import type { ZonagesData, ZonageItem } from "@/lib/zonages";
 import type { AnalysisConversation } from "@/lib/analysisHistory";
 import type { HarnessConfig } from "@shared/harness";
+import { formatCarhabSummary, parseCarhabOutput } from "@shared/carhab";
 import { occurrenceKey, uniqueOccurrences } from "@/lib/resultKeys";
 import React, { useState, useMemo, useEffect, useRef, type ReactNode } from "react";
 
@@ -155,6 +156,7 @@ export function ResultsPanel({ isOpen, isAnalyzing = false, areaCount = 1, onClo
   const [expandedZonages, setExpandedZonages] = useState<Set<string>>(new Set());
   const [speciesQuery, setSpeciesQuery] = useState("");
   const [speciesScope, setSpeciesScope] = useState<"prioritaires" | "toutes">("prioritaires");
+  const [speciesSortMode, setSpeciesSortMode] = useState<"recommended" | "french" | "latin">("recommended");
   const [showReportPreview, setShowReportPreview] = useState(false);
   const [copied, setCopied] = useState(false);
   const [reformattedReport, setReformattedReport] = useState<string | null>(null);
@@ -168,6 +170,16 @@ export function ResultsPanel({ isOpen, isAnalyzing = false, areaCount = 1, onClo
   const [editingTitle, setEditingTitle] = useState("");
   const [deleteConversationId, setDeleteConversationId] = useState<string | null>(null);
   const [aiAnalysis, setAiAnalysis] = useState<PrioritySpeciesAnalysis | null>(null);
+  const carhabSummary = useMemo(() => {
+    const trace = [...(aiAnalysis?.mcpTrace ?? [])].reverse().find(
+      (item) =>
+        item.mcpId === "ali-habitat" &&
+        item.toolId === "get_habitats" &&
+        item.status === "success" &&
+        item.output,
+    );
+    return trace?.output ? parseCarhabOutput(trace.output) : null;
+  }, [aiAnalysis]);
   const [habitatConsultationState, setHabitatConsultationState] = useState<"idle" | "loading" | "complete" | "error">("idle");
   const shouldRunHabitatAnalysisRef = useRef(false);
   useEffect(() => {
@@ -191,6 +203,7 @@ export function ResultsPanel({ isOpen, isAnalyzing = false, areaCount = 1, onClo
     setExpandedZonages(new Set());
     setAssistantOpen(false);
     setSpeciesScope("prioritaires");
+    setSpeciesSortMode("recommended");
     setSpeciesQuery("");
   }, [results]);
 
@@ -681,8 +694,10 @@ export function ResultsPanel({ isOpen, isAnalyzing = false, areaCount = 1, onClo
   // et fait défiler jusqu'à la fiche correspondante.
   useEffect(() => {
     if (!selectedSpecies || !isOpen) return;
+    const currentScope = speciesScope === "prioritaires" ? prioritySpeciesList : allFilteredSpecies;
+    const isAlreadyVisible = currentScope.some((o) => occurrenceKey(o) === selectedSpecies);
     const isPriority = prioritySpeciesList.some((o) => occurrenceKey(o) === selectedSpecies);
-    setSpeciesScope(isPriority ? "prioritaires" : "toutes");
+    if (!isAlreadyVisible) setSpeciesScope(isPriority ? "prioritaires" : "toutes");
     setSpeciesQuery("");
     setOpenSections((prev) => new Set(prev).add("especes"));
     // Attendre le rendu de la vue détaillée avant de faire défiler
@@ -693,7 +708,7 @@ export function ResultsPanel({ isOpen, isAnalyzing = false, areaCount = 1, onClo
     }, 100);
     return () => window.clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedSpecies]);
+  }, [selectedSpecies, isOpen, speciesScope, prioritySpeciesList, allFilteredSpecies]);
 
   const toggleSection = (key: SectionKey) => {
     setOpenSections((prev) => {
@@ -887,17 +902,14 @@ ${zonages.groups.map(g => `${g.label} (${g.count})\n${g.zonages.map(z => `• ${
     const mcpTraceSection = mcpTrace.length
       ? `\n- Journal d’exécution MCP :\n${mcpTrace.map((trace) => `  - ${trace.agentId}/${trace.toolId} — ${trace.status === "success" ? "succès" : trace.status === "denied" ? "refusé" : "échec"} (${trace.durationMs} ms) : ${trace.summary}`).join("\n")}`
       : "\n- Journal d’exécution MCP : aucun outil MCP exécuté.";
-    const aliHabitatOutputs = mcpTrace
-      .filter((trace) => trace.mcpId === "ali-habitat" && trace.toolId === "get_habitats" && trace.status === "success" && trace.output)
-      .map((trace) => trace.output);
-    const aliHabitatReportSection = aliHabitatOutputs.length
+    const aliHabitatReportSection = carhabSummary
       ? `
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 🌿 HABITATS DOCUMENTÉS PAR ALI HABITAT / CARHAB
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-${aliHabitatOutputs.join("\n\n")}
+${formatCarhabSummary(carhabSummary)}
 
-↳ Données documentaires issues de CARHAB autour de l’aire d’étude. Elles ne constituent ni une cartographie de terrain, ni une confirmation de présence dans l’emprise des travaux.
+↳ Surfaces et proportions fournies par CARHAB pour l’aire demandée, classées par surface décroissante. Elles ne constituent ni une cartographie de terrain, ni une confirmation de présence dans l’emprise des travaux.
 `
       : "";
     const mobilizedSources = [
@@ -907,7 +919,7 @@ ${aliHabitatOutputs.join("\n\n")}
       results.aliSpeciesEnrichment ? "ALI Species / TAXREF" : "TAXREF",
       zonagesAgentActive && zonages ? "IGN Géoplateforme" : false,
       zonagesAgentActive && zonages ? "PatriNat / INPN" : false,
-      aliHabitatOutputs.length > 0 ? "CARHAB" : false,
+      carhabSummary ? "CARHAB" : false,
       aiAnalysis?.natura2000?.length ? "données Natura 2000" : false,
     ].filter(Boolean).join(", ");
 
@@ -982,7 +994,7 @@ STATUT ET LIMITES
 Pré-étude biodiversité documentaire produite par le harnais d'ALi à partir des seules sources indiquées.
 Ce document constitue un état initial bibliographique et une analyse de sensibilités. Il ne remplace ni des inventaires de terrain, ni un volet naturel d'étude d'impact réglementaire, ni la validation d'un écologue.
 ${shareUrl ? `\nReproduire cette analyse : ${shareUrl}` : ""}`;
-  }, [results, sortedSpecies, activeTaxonFilters, presentGroups, isAllActive, aiAnalysis, toponym, zonages, riskScore, includeINaturalist, harnessConfig, zonagesAgentActive]);
+  }, [results, sortedSpecies, activeTaxonFilters, presentGroups, isAllActive, aiAnalysis, carhabSummary, toponym, zonages, riskScore, includeINaturalist, harnessConfig, zonagesAgentActive]);
 
   const reportSubject = useMemo(() => {
     if (!results) return "ALi Inventaire";
@@ -1176,6 +1188,7 @@ ${shareUrl ? `\nReproduire cette analyse : ${shareUrl}` : ""}`;
     return (
         <aside
           className="conversation-panel fixed right-0 z-[2000] flex flex-col bg-white inset-x-0 bottom-0 h-[80vh] rounded-t-2xl border-t md:inset-x-auto md:top-0 md:bottom-auto md:h-full md:w-[680px] md:max-w-[95vw] md:rounded-none md:border-l md:border-t-0"
+          data-phase="location"
           aria-label="Conversation ALi Inventaire"
         >
           <header className="conversation-header flex items-center justify-between gap-3 border-b border-gray-100 bg-white px-5 py-2">
@@ -1608,14 +1621,14 @@ ${shareUrl ? `\nReproduire cette analyse : ${shareUrl}` : ""}`;
               <strong>Sources :</strong> {includeINaturalist ? "GBIF et iNaturalist" : "GBIF"}. Une occurrence publique confirme un signal dans l’aire étudiée, mais ne remplace ni une prospection exhaustive ni une validation terrain.
             </p>
             <div className="rounded-lg border border-gray-200 bg-gray-50/60 px-3 py-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-gray-600" data-testid="species-summary">
-              <span><strong className="text-gray-900">{filteredTotal}</strong> espèce{filteredTotal > 1 ? "s" : ""} avérée{filteredTotal > 1 ? "s" : ""}</span>
-              <span><strong className="text-orange-700">{prioritySpeciesList.length}</strong> avérée{prioritySpeciesList.length > 1 ? "s" : ""}</span>
+              <span><strong className="text-gray-900">{filteredTotal}</strong> espèce{filteredTotal > 1 ? "s" : ""} documentée{filteredTotal > 1 ? "s" : ""} dans les sources</span>
+              <span><strong className="text-orange-700">{prioritySpeciesList.length}</strong> avec signal d’enjeu</span>
               <span><strong className="text-sky-700">{aVerifierCount}</strong> à vérifier</span>
             </div>
             <div className="flex flex-wrap gap-1.5" data-testid="species-attr-filters">
               {([
-                { key: "prioritaires", label: `Avérées (${prioritySpeciesList.length})` },
-                { key: "toutes", label: `Toutes (${filteredTotal})` },
+                { key: "prioritaires", label: `Avec signal d’enjeu (${prioritySpeciesList.length})` },
+                { key: "toutes", label: `Toutes documentées (${filteredTotal})` },
               ] as { key: "prioritaires" | "toutes"; label: string }[]).map((chip) => {
                 const active = speciesScope === chip.key;
                 return (
@@ -1634,6 +1647,9 @@ ${shareUrl ? `\nReproduire cette analyse : ${shareUrl}` : ""}`;
                 );
               })}
             </div>
+            <p className="text-xs leading-relaxed text-gray-600">
+              Les espèces potentielles sont présentées séparément : elles reposent sur une compatibilité écologique documentaire et ne sont jamais comptées comme observations avérées.
+            </p>
 
             <div className="relative">
               <label htmlFor="species-search" className="sr-only">Rechercher une espèce dans les résultats</label>
@@ -1684,7 +1700,7 @@ ${shareUrl ? `\nReproduire cette analyse : ${shareUrl}` : ""}`;
                     {isAllActive ? "Tout désélectionner" : "Tout sélectionner"}
                   </button>
                   <div className="grid grid-cols-2 gap-2" data-testid="group-cards">
-                    {presentGroups.map(group => {
+                    {TAXON_GROUPS.map(group => {
                       const count = taxonCounts.get(group.id) || 0;
                       const stats = groupStats.get(group.id);
                       const isActive = activeTaxonFilters.has(group.id);
@@ -1692,9 +1708,12 @@ ${shareUrl ? `\nReproduire cette analyse : ${shareUrl}` : ""}`;
                         <button
                           key={group.id}
                           type="button"
-                          onClick={() => onToggleTaxonFilter(group.id)}
+                          onClick={() => count > 0 && onToggleTaxonFilter(group.id)}
+                          disabled={count === 0}
                           className={`text-left p-2.5 rounded-lg border transition-all ${
-                            isActive ? "bg-white border-teal-300 ring-1 ring-teal-200" : "bg-white/60 border-gray-200 opacity-60 hover:opacity-100"
+                            count === 0
+                              ? "bg-white/40 border-gray-200 opacity-60"
+                              : isActive ? "bg-white border-teal-300 ring-1 ring-teal-200" : "bg-white/60 border-gray-200 opacity-60 hover:opacity-100"
                           }`}
                           data-testid={`taxon-filter-${group.id}`}
                         >
@@ -1710,6 +1729,7 @@ ${shareUrl ? `\nReproduire cette analyse : ${shareUrl}` : ""}`;
                               {stats.sensitive} sensible{stats.sensitive > 1 ? "s" : ""} · {stats.protected} protégée{stats.protected > 1 ? "s" : ""}
                             </div>
                           )}
+                          {!stats && <div className="mt-1 text-[10px] text-gray-500">Aucune donnée publique retenue</div>}
                           <div className="mt-0.5 text-[10px] text-gray-400 leading-tight">Période : {GROUP_SEASON[group.id] || "à préciser"}</div>
                         </button>
                       );
@@ -1720,8 +1740,21 @@ ${shareUrl ? `\nReproduire cette analyse : ${shareUrl}` : ""}`;
             </div>
 
             <div className="space-y-1.5" data-testid="species-list-compact">
-              <div className="flex items-center justify-between text-xs text-gray-500 px-1">
+              <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-gray-600 px-1">
                 <span>{especesList.length} espèce{especesList.length > 1 ? "s" : ""}</span>
+                <label className="flex items-center gap-2">
+                  <span>Trier par</span>
+                  <select
+                    value={speciesSortMode}
+                    onChange={(event) => setSpeciesSortMode(event.target.value as typeof speciesSortMode)}
+                    className="h-9 rounded-md border border-gray-300 bg-white px-2 text-xs text-gray-800"
+                    data-testid="select-species-sort"
+                  >
+                    <option value="recommended">Usage métier</option>
+                    <option value="french">Nom français</option>
+                    <option value="latin">Nom scientifique</option>
+                  </select>
+                </label>
               </div>
               {especesList.length === 0 ? (
                 <div className="flex flex-col items-center gap-2 px-1 py-5 text-center">
@@ -1745,6 +1778,7 @@ ${shareUrl ? `\nReproduire cette analyse : ${shareUrl}` : ""}`;
                   selectedSpecies={selectedSpecies}
                   onSelectSpecies={onSelectSpecies}
                   centerCoords={results.center}
+                  sortMode={speciesSortMode}
                 />
               )}
             </div>
@@ -1776,6 +1810,35 @@ ${shareUrl ? `\nReproduire cette analyse : ${shareUrl}` : ""}`;
                 <p className="rounded-lg border border-emerald-100 bg-emerald-50/60 px-3 py-2 text-xs leading-relaxed text-emerald-950">
                   <strong>Source : CARHAB.</strong> L’Agent Habitat documente les habitats disponibles autour de l’aire d’étude et les transmet à la synthèse.
                 </p>
+                {carhabSummary ? (
+                  <div className="space-y-2" data-testid="carhab-habitat-list">
+                    <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-emerald-950">
+                      <strong>{carhabSummary.habitats.length} habitat{carhabSummary.habitats.length > 1 ? "s" : ""} documenté{carhabSummary.habitats.length > 1 ? "s" : ""}</strong>
+                      {carhabSummary.totalAreaHa !== null && <span>Surface analysée : {carhabSummary.totalAreaHa.toLocaleString("fr-FR", { maximumFractionDigits: 2 })} ha</span>}
+                    </div>
+                    <ol className="space-y-2">
+                      {carhabSummary.habitats.map((habitat) => (
+                        <li key={habitat.code} className="rounded-lg border border-emerald-100 bg-[#fbfdf8] p-3">
+                          <div className="flex items-start justify-between gap-3">
+                            <div>
+                              <span className="text-[11px] font-bold text-emerald-700">CARHAB {habitat.code}</span>
+                              <p className="mt-0.5 text-sm font-semibold leading-snug text-[#24483e]">{habitat.label}</p>
+                            </div>
+                            <div className="shrink-0 text-right">
+                              {habitat.areaHa !== null && <strong className="block text-sm text-emerald-900">{habitat.areaHa.toLocaleString("fr-FR", { maximumFractionDigits: 2 })} ha</strong>}
+                              {habitat.percentage !== null && <span className="text-xs text-emerald-700">{habitat.percentage.toLocaleString("fr-FR", { maximumFractionDigits: 1 })} %</span>}
+                            </div>
+                          </div>
+                        </li>
+                      ))}
+                    </ol>
+                    <p className="text-[11px] leading-relaxed text-gray-600">
+                      Surfaces et proportions fournies par CARHAB pour l’aire demandée ; ALi ne les présente pas comme une cartographie de terrain.
+                    </p>
+                  </div>
+                ) : aliHabitatSucceeded ? (
+                  <p className="text-xs text-amber-800">CARHAB a répondu, mais aucun habitat structuré n’a pu être extrait de cette réponse.</p>
+                ) : null}
                 <p className="flex items-start gap-2 text-[11px] leading-relaxed text-gray-600">
                   <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber-600" aria-hidden="true" />
                   Ces informations sont documentaires : elles ne constituent ni une cartographie des habitats dans l’emprise des travaux, ni une confirmation de terrain.
@@ -2141,30 +2204,44 @@ const SPECIES_TABLE =
 const SPECIES_TABLE_HEAD =
   "border-b border-slate-200 bg-slate-50 text-[9px] font-bold uppercase tracking-[0.11em] text-slate-500";
 
-export function SpeciesInventoryTable({ species, selectedSpecies, onSelectSpecies, centerCoords }: {
+export function SpeciesInventoryTable({ species, selectedSpecies, onSelectSpecies, centerCoords, sortMode = "recommended" }: {
   species: Occurrence[];
   selectedSpecies: string | null;
   onSelectSpecies: (name: string | null) => void;
   centerCoords: [number, number];
+  sortMode?: "recommended" | "french" | "latin";
 }) {
   const uniqueSpecies = useMemo(() => uniqueOccurrences(species), [species]);
+  const groupedSpecies = useMemo(() => {
+    const vertebrates = new Set(["oiseaux", "mammiferes", "reptiles", "amphibiens", "poissons"]);
+    return TAXON_GROUPS.map((group) => {
+      const rows = uniqueSpecies
+        .filter((occ) => getTaxonGroupId(occ) === group.id)
+        .sort((a, b) => {
+          const useFrench = sortMode === "french" || (sortMode === "recommended" && vertebrates.has(group.id));
+          const aName = useFrench ? (a.vernacularName || a.scientificName) : a.scientificName;
+          const bName = useFrench ? (b.vernacularName || b.scientificName) : b.scientificName;
+          return aName.localeCompare(bName, "fr", { sensitivity: "base" });
+        });
+      return { group, rows };
+    }).filter(({ rows }) => rows.length > 0);
+  }, [uniqueSpecies, sortMode]);
 
   return (
     <div className={SPECIES_TABLE_FRAME}>
       <div className="divide-y divide-slate-100 md:hidden" data-testid="species-inventory-list">
-        {uniqueSpecies.map((occ) => {
-          const key = occurrenceKey(occ);
-          const selected = selectedSpecies === key;
-          return (
-            <SpeciesInventoryCard
-              key={key}
-              occ={occ}
-              selected={selected}
-              onSelect={() => onSelectSpecies(selected ? null : key)}
-              centerCoords={centerCoords}
-            />
-          );
-        })}
+        {groupedSpecies.map(({ group, rows }) => (
+          <React.Fragment key={group.id}>
+            <div className="bg-[#eef3eb] px-3 py-2 text-xs font-bold text-[#315b4e]">
+              {group.label} <span className="font-normal">({rows.length})</span>
+            </div>
+            {rows.map((occ) => {
+              const key = occurrenceKey(occ);
+              const selected = selectedSpecies === key;
+              return <SpeciesInventoryCard key={key} occ={occ} selected={selected} onSelect={() => onSelectSpecies(selected ? null : key)} centerCoords={centerCoords} />;
+            })}
+          </React.Fragment>
+        ))}
       </div>
       <div className="hidden overflow-x-auto md:block">
         <table className={SPECIES_TABLE} data-testid="species-inventory-table">
@@ -2180,19 +2257,20 @@ export function SpeciesInventoryTable({ species, selectedSpecies, onSelectSpecie
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
-            {uniqueSpecies.map((occ) => {
-              const key = occurrenceKey(occ);
-              const selected = selectedSpecies === key;
-              return (
-                <SpeciesTableRow
-                  key={key}
-                  occ={occ}
-                  selected={selected}
-                  onSelect={() => onSelectSpecies(selected ? null : key)}
-                  centerCoords={centerCoords}
-                />
-              );
-            })}
+            {groupedSpecies.map(({ group, rows }) => (
+              <React.Fragment key={group.id}>
+                <tr className="bg-[#eef3eb]">
+                  <th colSpan={6} scope="rowgroup" className="px-3 py-2 text-xs font-bold text-[#315b4e]">
+                    {group.label} <span className="font-normal">({rows.length})</span>
+                  </th>
+                </tr>
+                {rows.map((occ) => {
+                  const key = occurrenceKey(occ);
+                  const selected = selectedSpecies === key;
+                  return <SpeciesTableRow key={key} occ={occ} selected={selected} onSelect={() => onSelectSpecies(selected ? null : key)} centerCoords={centerCoords} />;
+                })}
+              </React.Fragment>
+            ))}
           </tbody>
         </table>
       </div>

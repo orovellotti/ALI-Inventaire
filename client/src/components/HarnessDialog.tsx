@@ -419,7 +419,7 @@ export function HarnessDialog({
               readOnly
               value={finalStudyPrompt}
               rows={24}
-              className="min-h-[420px] resize-y bg-white font-mono text-xs leading-5"
+              className="min-h-[420px] resize-y border-[#cfd5ce] bg-[#ecefea] font-mono text-xs leading-5 text-[#66746f] shadow-inner focus-visible:ring-[#9aa79f]"
               aria-label="Prompt final de génération de la pré-étude"
               data-testid="textarea-final-study-prompt"
             />

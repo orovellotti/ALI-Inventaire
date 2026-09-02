@@ -19,3 +19,4 @@
 - [ALi editorial voice](ali-editorial-voice.md) — write as a senior ecology consultancy: calm, clear, evidence-led, decision-oriented, transparent about uncertainty and field validation.
 - [Approved MCP execution](approved-mcp-execution.md) — discover live capabilities, filter with a server allowlist, then enforce each agent’s tool grants before MCP invocation.
 - [Clerk provider ownership](clerk-provider-ownership.md) — keep exactly one provider, inside the Wouter context, so Clerk navigation and ALi theming remain centralized.
+- [CARHAB output semantics](carhab-output-semantics.md) — display the service-provided area summary by habitat, deduped and sorted; never recast it as ALi-computed field mapping.

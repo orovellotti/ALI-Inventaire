@@ -39,3 +39,23 @@ test("deux taxons homonymes ont deux lignes et une sélection indépendante", ()
   assert.equal((markup.match(/aria-expanded="true"/g) ?? []).length, 2);
   assert.equal((markup.match(/aria-expanded="false"/g) ?? []).length, 2);
 });
+
+test("regroupe les taxons et applique le tri métier par défaut", () => {
+  const birdZ = { ...occurrence(30, 300), scientificName: "Aves zeta", vernacularName: "Zorzal", class: "Aves" };
+  const birdA = { ...occurrence(40, 400), scientificName: "Aves alpha", vernacularName: "Alouette", class: "Aves" };
+  const plantZ = { ...occurrence(50, 500), scientificName: "Zea test", vernacularName: "A plante", kingdom: "Plantae" };
+  const plantA = { ...occurrence(60, 600), scientificName: "Abies test", vernacularName: "Z plante", kingdom: "Plantae" };
+
+  const markup = renderToStaticMarkup(
+    <SpeciesInventoryTable
+      species={[plantZ, birdZ, plantA, birdA]}
+      selectedSpecies={null}
+      onSelectSpecies={() => undefined}
+      centerCoords={[43, 6]}
+    />,
+  );
+
+  assert.ok(markup.indexOf("Oiseaux") < markup.indexOf("Plantes"));
+  assert.ok(markup.indexOf("Alouette") < markup.indexOf("Zorzal"));
+  assert.ok(markup.indexOf("Abies test") < markup.indexOf("Zea test"));
+});

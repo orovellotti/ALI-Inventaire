@@ -46,32 +46,82 @@ function ZonageFitter({ features, selectedId, panelOpen, panelWidth }: { feature
     if (!feature || feature.polygons.length === 0) return;
     const bounds = L.latLngBounds(feature.polygons.flat(2) as [number, number][]);
     if (!bounds.isValid()) return;
-    map.fitBounds(bounds, {
-      padding: [60, 60],
-      paddingBottomRight: [60 + (panelOpen && panelWidth ? panelWidth : 0), 60],
-      maxZoom: 14,
-    } as any);
+    let firstFrame = 0;
+    let settleTimer = 0;
+    const fit = () => {
+      map.invalidateSize({ animate: false, pan: false });
+      const mapSize = map.getSize();
+      const isMobile = mapSize.x < 768;
+      const reservedWidth = !isMobile && panelOpen && panelWidth ? Math.min(panelWidth, mapSize.x * 0.72) : 0;
+      const reservedHeight = isMobile && panelOpen ? Math.round(mapSize.y * 0.72) : 0;
+      map.fitBounds(bounds, {
+        paddingTopLeft: [44, 44],
+        paddingBottomRight: [44 + reservedWidth, 44 + reservedHeight],
+        maxZoom: 14,
+        animate: false,
+      } as any);
+    };
+    firstFrame = window.requestAnimationFrame(fit);
+    settleTimer = window.setTimeout(fit, 260);
+    return () => {
+      window.cancelAnimationFrame(firstFrame);
+      window.clearTimeout(settleTimer);
+    };
   }, [selectedId, features, panelOpen, panelWidth, map]);
   return null;
 }
 
-function MapController({ center, projectPolygon, panelOpen, panelWidth }: { center: [number, number]; projectPolygon: ProjectPolygon | null; panelOpen?: boolean; panelWidth?: number }) {
+function circlesBounds(circles: BufferCircle[]): L.LatLngBounds | null {
+  const enabled = circles.filter((circle) => circle.enabled);
+  if (enabled.length === 0) return null;
+  const bounds = L.latLngBounds([]);
+  enabled.forEach((circle) => {
+    // A small geodesic approximation is sufficient at study-area scales and
+    // keeps the complete buffer visible, including on narrow mobile maps.
+    const latDelta = circle.radius / 111_320;
+    const lngDelta = circle.radius / (111_320 * Math.max(0.2, Math.cos(circle.center[0] * Math.PI / 180)));
+    bounds.extend([
+      [circle.center[0] - latDelta, circle.center[1] - lngDelta],
+      [circle.center[0] + latDelta, circle.center[1] + lngDelta],
+    ]);
+  });
+  return bounds.isValid() ? bounds : null;
+}
+
+function MapController({ center, circles, projectPolygon, panelOpen, panelWidth, selectedZonageId }: { center: [number, number]; circles: BufferCircle[]; projectPolygon: ProjectPolygon | null; panelOpen?: boolean; panelWidth?: number; selectedZonageId?: string | null }) {
   const map = useMap();
   useEffect(() => {
-    const offsetX = panelOpen && panelWidth ? Math.round(panelWidth / 2) : 0;
-    if (projectPolygon) {
-      map.fitBounds(projectPolygon.bounds, {
-        padding: [60, 60],
-        paddingBottomRight: [60 + (panelOpen && panelWidth ? panelWidth : 0), 60],
-        maxZoom: 15,
-      } as any);
-    } else {
-      map.flyTo(center, map.getZoom());
-      if (offsetX > 0) {
-        setTimeout(() => map.panBy([offsetX, 0], { animate: true }), 50);
+    if (selectedZonageId) return;
+    let firstFrame = 0;
+    let settleTimer = 0;
+    const fit = () => {
+      // The drawer changes the map's usable viewport after React has painted.
+      // Re-measuring before fitting prevents stale bounds on Android and when
+      // the drawer is opened during an analysis.
+      map.invalidateSize({ animate: false, pan: false });
+      const bounds = projectPolygon ? L.latLngBounds(projectPolygon.bounds as any) : circlesBounds(circles);
+      const mapSize = map.getSize();
+      const isMobile = mapSize.x < 768;
+      const reservedWidth = !isMobile && panelOpen && panelWidth ? Math.min(panelWidth, mapSize.x * 0.72) : 0;
+      const reservedHeight = isMobile && panelOpen ? Math.round(mapSize.y * 0.72) : 0;
+      if (bounds?.isValid()) {
+        map.fitBounds(bounds, {
+          paddingTopLeft: [44, 44],
+          paddingBottomRight: [44 + reservedWidth, 44 + reservedHeight],
+          maxZoom: projectPolygon ? 15 : 16,
+          animate: false,
+        } as any);
+      } else {
+        map.flyTo(center, map.getZoom(), { animate: false });
       }
-    }
-  }, [center, projectPolygon, panelOpen, panelWidth, map]);
+    };
+    firstFrame = window.requestAnimationFrame(fit);
+    settleTimer = window.setTimeout(fit, 260);
+    return () => {
+      window.cancelAnimationFrame(firstFrame);
+      window.clearTimeout(settleTimer);
+    };
+  }, [center, circles, projectPolygon, panelOpen, panelWidth, selectedZonageId, map]);
   return null;
 }
 
@@ -284,7 +334,7 @@ export function Map({ center, circles, results, onMapClick, selectedSpecies, onS
           );
         })}
 
-        <MapController center={center} projectPolygon={projectPolygon} panelOpen={panelOpen} panelWidth={panelWidth} />
+        <MapController center={center} circles={circles} projectPolygon={projectPolygon} panelOpen={panelOpen} panelWidth={panelWidth} selectedZonageId={selectedZonageId} />
         <MapEvents onMapClick={onMapClick} />
         <ZonageFitter features={zonageFeatures || []} selectedId={selectedZonageId} panelOpen={panelOpen} panelWidth={panelWidth} />
 

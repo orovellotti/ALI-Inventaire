@@ -306,3 +306,99 @@
   .ali-global-header { height:64px!important; }
   .ali-global-header + #map-container { padding-top:64px; }
 }
+
+/* Field use: comfortable Android targets and ink-dark labels. Keep the
+   hierarchy, but let adjacent sections share one paper plane instead of
+   stacking low-contrast frames. */
+.conversation-panel button,
+.conversation-panel input,
+.conversation-panel textarea,
+.conversation-panel select {
+  color:#234f43!important;
+}
+.conversation-panel button {
+  min-height:44px;
+  font-size:14px!important;
+  line-height:1.3!important;
+}
+.conversation-panel button svg { flex:0 0 auto; }
+.conversation-panel input,
+.conversation-panel textarea,
+.conversation-panel select {
+  min-height:44px;
+  font-size:16px!important; /* prevents Android WebView zoom on focus */
+}
+.conversation-panel [data-testid="results-scroll-area"] button {
+  min-height:44px;
+}
+.conversation-panel [data-testid="results-scroll-area"] :is(.text-xs,[class*="text-[10px]"],[class*="text-[11px]"]) {
+  color:#4d685f!important;
+}
+.conversation-panel [data-testid="panel-overview"] > :is(
+  [data-testid="card-issue-level"],
+  [data-testid="card-key-findings"],
+  [data-testid="section-pourquoi"],
+  [data-testid^="message-agent-"]
+) {
+  box-shadow:none!important;
+}
+.conversation-panel [data-testid="panel-overview"] > :is(
+  [data-testid="card-issue-level"],
+  [data-testid="card-key-findings"],
+  [data-testid="section-pourquoi"],
+  [data-testid^="message-agent-"]
+) > :is(div,section) {
+  border-color:#e4e8df!important;
+}
+.leaflet-control-zoom a {
+  width:40px!important;
+  height:40px!important;
+  line-height:38px!important;
+  font-size:22px!important;
+  font-weight:600;
+}
+.leaflet-control-attribution {
+  font-size:11px!important;
+}
+@media (max-width:767px) {
+  .conversation-panel {
+    font-size:15px!important;
+  }
+  .conversation-panel header h2 {
+    font-size:20px!important;
+  }
+  .conversation-panel .location-response {
+    grid-template-columns:18px minmax(0,1fr) 44px 44px;
+  }
+  .conversation-panel .location-response > button,
+  .conversation-panel .response-actions button,
+  .conversation-panel .settings-response > button {
+    min-height:44px!important;
+  }
+  .conversation-panel .conversation-header {
+    margin-inline:0!important;
+    border-inline:0!important;
+    border-radius:0!important;
+    padding-inline:2px!important;
+    background:transparent!important;
+  }
+  .conversation-panel [data-testid="conversation-feed"] {
+    background:#f7f6ee!important;
+  }
+  .conversation-panel .conversation-message > div,
+  .conversation-panel [data-testid="message-ally"] > div,
+  .conversation-panel .ali-message > div {
+    border-color:#d8dfd4!important;
+  }
+  .conversation-panel [data-testid="button-history"] {
+    min-height:44px!important;
+  }
+  .conversation-panel.fixed[data-phase="location"] {
+    top:auto!important;
+    bottom:0!important;
+    height:min(76dvh, 680px)!important;
+    border-top:1px solid #d8dfd4!important;
+    border-radius:18px 18px 0 0!important;
+    box-shadow:0 -14px 36px rgba(23,72,61,.14)!important;
+  }
+}
