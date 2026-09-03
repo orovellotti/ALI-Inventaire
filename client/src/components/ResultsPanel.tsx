@@ -2358,9 +2358,52 @@ ${shareUrl ? `\nReproduire cette analyse : ${shareUrl}` : ""}`;
               : "Aperçu des résultats sources : ce contenu n’est pas encore la pré-étude rédigée. Aucun document présenté comme étude complète ne peut être téléchargé avant la génération IA."}
           </div>
           <ScrollArea className="flex-1 mt-3 h-[42vh] overflow-auto">
-            <pre className={`text-sm whitespace-pre-wrap p-4 rounded-lg border text-gray-700 ${reformattedReport ? "bg-teal-50/30 border-teal-100 font-sans leading-relaxed" : "bg-gray-50 border-gray-200 font-mono"}`}>
-              {reportPreviewText}
-            </pre>
+            {reformattedReport ? (
+              <pre className="whitespace-pre-wrap rounded-lg border border-teal-100 bg-teal-50/30 p-4 font-sans text-sm leading-relaxed text-gray-700">
+                {reportPreviewText}
+              </pre>
+            ) : aggregatedIssues.length > 0 ? (
+              <div className="overflow-x-auto rounded-lg border border-slate-200 bg-white" data-testid="study-source-issues-table">
+                <table className="w-full min-w-[700px] border-collapse text-left text-xs">
+                  <caption className="sr-only">Tableau des enjeux utilisé comme base de la pré-étude</caption>
+                  <thead className="bg-[#eef3eb] text-[#315b4e]">
+                    <tr>
+                      <th className="px-3 py-2.5 font-bold">Niveau</th>
+                      <th className="px-3 py-2.5 font-bold">Objet</th>
+                      <th className="px-3 py-2.5 font-bold">Agents</th>
+                      <th className="px-3 py-2.5 font-bold">Preuve et interprétation</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {aggregatedIssues.map((issue) => (
+                      <tr key={`study-source::${issue.id}`} className="align-top">
+                        <td className="px-3 py-3">
+                          <span className={`inline-flex rounded-full border px-2 py-1 text-[10px] font-bold ${
+                            issue.level === "Critique" ? "border-red-300 bg-red-50 text-red-800"
+                              : issue.level === "Fort" ? "border-orange-300 bg-orange-50 text-orange-800"
+                                : issue.level === "Modéré" ? "border-amber-200 bg-amber-50 text-amber-800"
+                                  : "border-slate-200 bg-slate-50 text-slate-600"
+                          }`}>{issue.level}</span>
+                        </td>
+                        <td className="px-3 py-3">
+                          <div className="font-semibold text-slate-800">{issue.subject}</div>
+                          <div className="mt-0.5 text-[10px] uppercase tracking-wide text-slate-400">{issue.category}</div>
+                        </td>
+                        <td className="px-3 py-3 text-slate-600">{issue.agents.join(" · ")}</td>
+                        <td className="max-w-[360px] px-3 py-3 leading-relaxed text-slate-600">
+                          <div>{issue.evidence}</div>
+                          <div className="mt-1 text-slate-700">{issue.interpretation}</div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            ) : (
+              <p className="rounded-lg border border-slate-200 bg-slate-50 p-4 text-sm text-slate-600">
+                Aucun enjeu consolidé n’est disponible pour préparer la pré-étude.
+              </p>
+            )}
           </ScrollArea>
           <div className="flex flex-wrap justify-between items-center gap-2 mt-4 pt-4 border-t">
             <Button variant="ghost" onClick={() => setShowReportPreview(false)} className="text-gray-500">
