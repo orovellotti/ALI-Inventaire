@@ -4,10 +4,59 @@ import test from "node:test";
 import { DEFAULT_HARNESS_CONFIG, harnessAgentSchema, migrateHarnessConfig } from "@shared/harness";
 import {
   executeApprovedMcpTool,
+  getAliSpeciesStatutsArguments,
   getCustomToolCompatibility,
   getMcpServerRegistry,
   validatePublicMcpUrl,
 } from "./mcp";
+
+test("prépare get_statuts par identifiant TAXREF quand il est disponible", () => {
+  assert.deepEqual(
+    getAliSpeciesStatutsArguments({
+      cdNom: 60577,
+      scientificName: "Lutra lutra",
+      region: "Occitanie",
+    }),
+    { cdNom: 60577, region: "Occitanie" },
+  );
+});
+
+test("prépare get_statuts par nom scientifique quand l'identifiant TAXREF manque", () => {
+  assert.deepEqual(
+    getAliSpeciesStatutsArguments({
+      scientificName: "  Lutra lutra  ",
+      region: "Occitanie",
+    }),
+    { scientificName: "Lutra lutra", region: "Occitanie" },
+  );
+});
+
+test("enrichit les statuts via le MCP publié quand l'identifiant TAXREF manque", async () => {
+  const trace = await executeApprovedMcpTool(
+    {
+      id: "taxonomy-status",
+      name: "Agent taxonomie & statuts",
+      description: "",
+      prompt: "Tester le repli par nom scientifique",
+      enabled: true,
+      native: false,
+      mcpId: "ali-species",
+      mcpToolIds: ["get_statuts"],
+    },
+    "get_statuts",
+    { lat: 43.6, lng: 1.44, scientificName: "Lutra lutra", region: "Occitanie" },
+  );
+
+  assert.equal(trace.status, "success");
+  assert.match(trace.output ?? "", /Lutra lutra|60577/);
+});
+
+test("refuse get_statuts quand aucun identifiant de taxon n'est disponible", () => {
+  assert.throws(
+    () => getAliSpeciesStatutsArguments({}),
+    /identifiant TAXREF ni nom scientifique/i,
+  );
+});
 
 test("le registre vérifie la connexion MCP et découvre ses capacités", async () => {
   const registry = await getMcpServerRegistry();

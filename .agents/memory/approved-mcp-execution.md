@@ -20,3 +20,9 @@ The Harness configuration is the authoritative execution policy for both HTTP ro
 **Why:** UI-only switches and hidden fallbacks let disabled agents continue changing scientific results, while homonymous custom tools can cause false source attribution.
 
 **How to apply:** Build runtime capability checks server-side, gate every direct and MCP entry point, expose only the operational projection to the public UI, and derive process messages and report sources from what was actually scheduled.
+
+Alternative required inputs must be verified against the actual `tools/list` response, not only against the server-side parser.
+
+**Why:** Runtime parsing can succeed while Claude or ChatGPT rejects the call from an incomplete published contract.
+
+**How to apply:** Add contract tests that inspect discovery and exercise every accepted call shape plus the missing-identifier refusal.

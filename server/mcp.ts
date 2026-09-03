@@ -65,6 +65,27 @@ export interface McpExecutionTrace {
   output?: string;
 }
 
+type ManagedMcpToolInput = {
+  lat: number;
+  lng: number;
+  radius?: number;
+  scientificName?: string;
+  cdNom?: number;
+  region?: string;
+};
+
+export function getAliSpeciesStatutsArguments(
+  input: Pick<ManagedMcpToolInput, "cdNom" | "scientificName" | "region">,
+): Record<string, unknown> {
+  const region = input.region ? { region: input.region } : {};
+  if (typeof input.cdNom === "number" && Number.isInteger(input.cdNom)) {
+    return { cdNom: input.cdNom, ...region };
+  }
+  const scientificName = input.scientificName?.trim();
+  if (scientificName) return { scientificName, ...region };
+  throw new Error("Aucun identifiant TAXREF ni nom scientifique disponible pour interroger les statuts");
+}
+
 const MCP_CONTEXT_MAX_CHARACTERS = 50_000;
 
 function contextOutput(value: string): string {
@@ -373,7 +394,7 @@ export async function getMcpServerRegistry(customServers: CustomMcpServer[] = []
 export async function executeApprovedMcpTool(
   agent: HarnessAgent,
   toolId: string,
-  input: { lat: number; lng: number; radius?: number; scientificName?: string; cdNom?: number; region?: string },
+  input: ManagedMcpToolInput,
   registryProvider: () => Promise<McpRegistryEntry[]> = getMcpServerRegistry,
 ): Promise<McpExecutionTrace> {
   const started = Date.now();
@@ -458,8 +479,7 @@ export async function executeApprovedMcpTool(
           args = { query: input.scientificName, limit: 5 };
           break;
         case "get_statuts":
-          if (!Number.isInteger(input.cdNom)) throw new Error("Aucun identifiant TAXREF disponible pour interroger les statuts");
-          args = { cdNom: input.cdNom, ...(input.region ? { region: input.region } : {}) };
+          args = getAliSpeciesStatutsArguments(input);
           break;
         case "get_habitats":
           args = {
