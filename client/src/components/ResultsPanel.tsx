@@ -34,6 +34,16 @@ interface NaturaSpeciesItem {
 }
 /** Sections repliables du diagnostic. */
 type SectionKey = "especes" | "potentielles" | "zonages" | "habitats" | "pourquoi";
+type ResultView = "detail" | "issues";
+type AggregatedIssue = {
+  id: string;
+  subject: string;
+  category: "Espèce" | "Zonage" | "Habitat";
+  level: "Critique" | "Fort" | "Modéré" | "À qualifier";
+  agents: string[];
+  evidence: string;
+  interpretation: string;
+};
 
 /**
  * Niveau d'enjeu global du site (Faible / Modéré / Fort), dérivé du score de
@@ -179,6 +189,7 @@ export function ResultsPanel({ isOpen, isAnalyzing = false, areaCount = 1, onClo
   const [reformatError, setReformatError] = useState<string | null>(null);
   const [showFilters, setShowFilters] = useState(false);
   const [showAnalysisDetails, setShowAnalysisDetails] = useState(false);
+  const [resultView, setResultView] = useState<ResultView>("detail");
   const [showAllRecommendations, setShowAllRecommendations] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
   const [editingConversationId, setEditingConversationId] = useState<string | null>(null);
@@ -220,6 +231,7 @@ export function ResultsPanel({ isOpen, isAnalyzing = false, areaCount = 1, onClo
     setSpeciesScope("prioritaires");
     setSpeciesSortMode("recommended");
     setSpeciesQuery("");
+    setResultView("detail");
   }, [results]);
 
   useEffect(() => {
@@ -782,6 +794,99 @@ export function ResultsPanel({ isOpen, isAnalyzing = false, areaCount = 1, onClo
     return list;
   }, [zonages]);
 
+  const aggregatedIssues = useMemo(() => {
+    const rows = new Map<string, AggregatedIssue>();
+    const rank: Record<AggregatedIssue["level"], number> = { "À qualifier": 0, "Modéré": 1, "Fort": 2, "Critique": 3 };
+    const upsert = (key: string, issue: AggregatedIssue) => {
+      const existing = rows.get(key);
+      if (!existing) return void rows.set(key, issue);
+      rows.set(key, {
+        ...existing,
+        level: rank[issue.level] > rank[existing.level] ? issue.level : existing.level,
+        agents: Array.from(new Set([...existing.agents, ...issue.agents])),
+        evidence: Array.from(new Set([existing.evidence, issue.evidence])).join(" · "),
+        interpretation: Array.from(new Set([existing.interpretation, issue.interpretation])).join(" "),
+      });
+    };
+    const speciesKey = (name: string) => `species::${normalizedTaxonName(name)}`;
+
+    for (const occurrence of [...sortedSpecies.high, ...sortedSpecies.medium]) {
+      const level: AggregatedIssue["level"] = occurrence.enjeuLevel === "critique"
+        ? "Critique"
+        : occurrence.enjeuLevel === "fort" || occurrence.alertLevel === "high" ? "Fort" : "Modéré";
+      upsert(speciesKey(occurrence.scientificName), {
+        id: speciesKey(occurrence.scientificName),
+        subject: occurrence.scientificName,
+        category: "Espèce",
+        level,
+        agents: ["Occurrences", ...(occurrence.aliStatuses?.length ? ["Taxonomie et statuts"] : [])],
+        evidence: "Occurrence publique documentée dans l’aire d’étude",
+        interpretation: occurrence.enjeuWarnings?.join(" ") || "Signal territorial à examiner et à confirmer dans l’emprise par des investigations de terrain.",
+      });
+    }
+
+    for (const species of aiAnalysis?.species ?? []) {
+      const level: AggregatedIssue["level"] = species.level === "majeur" ? "Critique" : species.level === "fort" ? "Fort" : "Modéré";
+      upsert(speciesKey(species.scientificName), {
+        id: speciesKey(species.scientificName),
+        subject: species.scientificName,
+        category: "Espèce",
+        level,
+        agents: ["Taxonomie et statuts"],
+        evidence: species.inInventory ? "Taxon rapproché d’une occurrence documentaire" : "Signal documentaire sans occurrence dans l’inventaire",
+        interpretation: species.reason || "Statut territorial ou patrimonial à prendre en compte.",
+      });
+    }
+
+    for (const species of reconciledPotentialSpecies?.species ?? []) {
+      if (species.observed || species.score === null || species.score < 50 || species.status === "Peu compatible" || species.status === "Non évaluée") continue;
+      const regional = regionalRedListByPotentialName.get(normalizedTaxonName(species.scientificName));
+      const elevated = ["CR", "EN", "VU"].includes(regional?.value.toUpperCase() ?? "");
+      upsert(speciesKey(species.scientificName), {
+        id: speciesKey(species.scientificName),
+        subject: species.scientificName,
+        category: "Espèce",
+        level: elevated ? "Fort" : "Modéré",
+        agents: ["Habitats", ...(regional ? ["Taxonomie et statuts"] : [])],
+        evidence: `${species.status} · compatibilité ${species.score}/100${regional ? ` · liste rouge régionale ${regional.value}` : ""}`,
+        interpretation: elevated
+          ? "Enjeu documentaire potentiel élevé à confirmer sur le terrain ; aucune présence dans l’emprise n’est affirmée."
+          : "Présence potentielle fondée sur la compatibilité écologique, à vérifier sur le terrain.",
+      });
+    }
+
+    for (const zonage of flatZonages) {
+      const level: AggregatedIssue["level"] = zonage.priority <= 1 ? "Fort" : zonage.priority === 2 ? "Modéré" : "À qualifier";
+      const id = `zonage::${zonageKey(zonage)}`;
+      upsert(id, {
+        id,
+        subject: zonage.name,
+        category: "Zonage",
+        level,
+        agents: ["Zonages"],
+        evidence: `${zonage.type} · ${zonage.categoryLabel}`,
+        interpretation: "Contexte réglementaire ou d’inventaire à intégrer à la conception du projet ; la portée exacte dépend du zonage.",
+      });
+    }
+
+    for (const habitat of carhabSummary?.habitats ?? []) {
+      const id = `habitat::${habitat.code || normalizedTaxonName(habitat.label)}`;
+      upsert(id, {
+        id,
+        subject: habitat.label,
+        category: "Habitat",
+        level: "À qualifier",
+        agents: ["Habitats"],
+        evidence: `CARHAB${habitat.percentage !== null ? ` · ${habitat.percentage.toLocaleString("fr-FR")} % de la surface documentée` : ""}`,
+        interpretation: "Habitat cartographié à caractériser sur le terrain avant de conclure sur son enjeu écologique.",
+      });
+    }
+
+    return Array.from(rows.values()).sort((a, b) =>
+      rank[b.level] - rank[a.level] || a.category.localeCompare(b.category, "fr") || a.subject.localeCompare(b.subject, "fr"),
+    );
+  }, [aiAnalysis, carhabSummary, flatZonages, reconciledPotentialSpecies, regionalRedListByPotentialName, sortedSpecies]);
+
   // Un clic sur la carte ouvre et centre la ligne correspondante dans la liste.
   useEffect(() => {
     if (!selectedZonageId) return;
@@ -1111,6 +1216,7 @@ ${shareUrl ? `\nReproduire cette analyse : ${shareUrl}` : ""}`;
   };
 
   const handleDownloadWordReport = () => {
+    if (!reformattedReport) return;
     const escapeHtml = (value: string) =>
       value
         .replaceAll("&", "&amp;")
@@ -1131,7 +1237,7 @@ ${shareUrl ? `\nReproduire cette analyse : ${shareUrl}` : ""}`;
 <body>
   <h1>Pré-étude documentaire biodiversité à compléter par des investigations de terrain</h1>
   <div class="status">Document documentaire produit par le harnais d’ALi. Il ne remplace ni les investigations de terrain, ni la validation d’un écologue.</div>
-  <pre>${escapeHtml(activeReportText)}</pre>
+  <pre>${escapeHtml(reformattedReport)}</pre>
 </body>
 </html>`;
     const blob = new Blob(["\ufeff", documentHtml], {
@@ -1418,8 +1524,17 @@ ${shareUrl ? `\nReproduire cette analyse : ${shareUrl}` : ""}`;
            data-testid="results-scroll-area"
            onWheel={(event) => event.stopPropagation()}
          >
+           <div className="mb-4 grid grid-cols-2 rounded-xl border border-[#d9e1d6] bg-[#edf2e9] p-1" role="tablist" aria-label="Vues des résultats">
+             <button type="button" role="tab" aria-selected={resultView === "detail"} onClick={() => setResultView("detail")} className={`rounded-lg px-3 py-2 text-xs font-bold transition-colors ${resultView === "detail" ? "bg-white text-[#1e594a] shadow-sm" : "text-[#60756d] hover:text-[#1e594a]"}`} data-testid="tab-detailed-results">
+               Résultats détaillés
+             </button>
+             <button type="button" role="tab" aria-selected={resultView === "issues"} onClick={() => setResultView("issues")} className={`rounded-lg px-3 py-2 text-xs font-bold transition-colors ${resultView === "issues" ? "bg-white text-[#1e594a] shadow-sm" : "text-[#60756d] hover:text-[#1e594a]"}`} data-testid="tab-aggregated-issues">
+               Tableau des enjeux ({aggregatedIssues.length})
+             </button>
+           </div>
           {/* ══════════ VUE DIAGNOSTIC (page unique à divulgation progressive) ══════════ */}
-           <div className="space-y-4" data-testid="panel-overview">
+           {resultView === "detail" ? (<>
+           <div className="space-y-4" role="tabpanel" data-testid="panel-overview">
              {requestSummary && <div className="conversation-message" data-testid="message-user-request"><Search className="mt-1 h-5 w-5" aria-hidden="true" /><div><p><strong>Votre demande</strong></p><p>{requestSummary}</p></div></div>}
              {historyError && <p className="text-[10px] text-amber-700" role="alert">{historyError}</p>}
               {isAnalyzing && (
@@ -2049,13 +2164,12 @@ ${shareUrl ? `\nReproduire cette analyse : ${shareUrl}` : ""}`;
               <Button
                 onClick={() => {
                   setShowReportPreview(true);
-                  void handleReformatReport();
                 }}
                 className="mt-3 w-full justify-center gap-2 h-11 bg-[#1e594a] hover:bg-[#17483d] text-[#fffdf5] text-sm font-semibold shadow-md hover:shadow-lg ring-1 ring-[#c4a642]/40 transition-all"
                 data-testid="button-report-text"
               >
                 <FileText className="h-4 w-4 text-[#dcc05b]" />
-                 Générer la Pré-étude documentaire biodiversité
+                 Préparer la Pré-étude documentaire biodiversité
                 {aiAnalysis && (
                   <span className="ml-0.5 inline-flex items-center gap-0.5 rounded border border-[#dcc05b]/50 bg-[#dcc05b]/15 px-1 py-0.5 text-[9px] font-bold uppercase tracking-wider text-[#f2dc84]">
                     <Sparkles className="h-2.5 w-2.5" /> IA
@@ -2069,6 +2183,69 @@ ${shareUrl ? `\nReproduire cette analyse : ${shareUrl}` : ""}`;
             <Info className="h-3 w-3 shrink-0 mt-0.5" />
             Lecture documentaire basée sur les seules sources indiquées — la confirmation d’une présence exige des relevés de terrain.
           </p>
+        </> ) : (
+          <section role="tabpanel" className="space-y-4" data-testid="panel-aggregated-issues">
+            <div className="rounded-xl border border-[#d9e1d6] bg-[#f7f8f3] p-4">
+              <div className="flex items-start gap-3">
+                <ListChecks className="mt-0.5 h-5 w-5 shrink-0 text-[#1e594a]" />
+                <div>
+                  <h2 className="font-bold text-[#234f43]">Tableau transversal des enjeux</h2>
+                  <p className="mt-1 text-xs leading-relaxed text-[#60756d]">
+                    Les signaux produits par les agents sont regroupés par objet. Une même espèce n’apparaît qu’une fois, avec tous les agents contributeurs et la nature de chaque preuve.
+                  </p>
+                </div>
+              </div>
+            </div>
+            {aggregatedIssues.length === 0 ? (
+              <p className="rounded-xl border border-slate-200 bg-white p-5 text-sm text-slate-600">Aucun enjeu consolidé n’est encore disponible.</p>
+            ) : (
+              <div className="overflow-hidden rounded-xl border border-slate-200 bg-white">
+                <div className="overflow-x-auto">
+                  <table className="w-full min-w-[760px] border-collapse text-left text-xs">
+                    <caption className="sr-only">Enjeux agrégés issus des différents agents d’ALi</caption>
+                    <thead className="bg-[#eef3eb] text-[#315b4e]">
+                      <tr>
+                        <th className="px-3 py-3 font-bold">Niveau</th>
+                        <th className="px-3 py-3 font-bold">Objet</th>
+                        <th className="px-3 py-3 font-bold">Agents</th>
+                        <th className="px-3 py-3 font-bold">Preuve documentaire</th>
+                        <th className="px-3 py-3 font-bold">Interprétation</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {aggregatedIssues.map((issue) => (
+                        <tr key={issue.id} className="align-top">
+                          <td className="px-3 py-3">
+                            <span className={`inline-flex rounded-full border px-2 py-1 text-[10px] font-bold ${
+                              issue.level === "Critique" ? "border-red-300 bg-red-50 text-red-800"
+                                : issue.level === "Fort" ? "border-orange-300 bg-orange-50 text-orange-800"
+                                  : issue.level === "Modéré" ? "border-amber-200 bg-amber-50 text-amber-800"
+                                    : "border-slate-200 bg-slate-50 text-slate-600"
+                            }`}>{issue.level}</span>
+                          </td>
+                          <td className="px-3 py-3">
+                            <div className="font-semibold text-slate-800">{issue.subject}</div>
+                            <div className="mt-0.5 text-[10px] uppercase tracking-wide text-slate-400">{issue.category}</div>
+                          </td>
+                          <td className="px-3 py-3">
+                            <div className="flex max-w-[190px] flex-wrap gap-1">
+                              {issue.agents.map((agent) => <span key={agent} className="rounded border border-teal-100 bg-teal-50 px-1.5 py-0.5 text-[10px] font-semibold text-teal-800">{agent}</span>)}
+                            </div>
+                          </td>
+                          <td className="max-w-[260px] px-3 py-3 leading-relaxed text-slate-600">{issue.evidence}</td>
+                          <td className="max-w-[300px] px-3 py-3 leading-relaxed text-slate-700">{issue.interpretation}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+                <p className="border-t border-slate-100 bg-slate-50 px-3 py-2 text-[10px] leading-relaxed text-slate-500">
+                  Ce tableau consolide des informations documentaires. Les présences potentielles et habitats cartographiés ne constituent pas des confirmations de terrain.
+                </p>
+              </div>
+            )}
+          </section>
+        )}
         </div>
          {historyDrawer}
 
@@ -2136,10 +2313,12 @@ ${shareUrl ? `\nReproduire cette analyse : ${shareUrl}` : ""}`;
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <FileText className="h-5 w-5" />
-               Pré-étude documentaire biodiversité
+              {reformattedReport ? "Pré-étude biodiversité rédigée" : "Préparer la pré-étude biodiversité"}
             </DialogTitle>
             <DialogDescription>
-              Aperçu synthétique. L’étude complète reste disponible au téléchargement et doit être complétée par des investigations de terrain.
+              {reformattedReport
+                ? "Document complet rédigé par l’IA à partir des résultats et des consignes enregistrées dans le Harnais."
+                : "Les résultats sources sont prêts. Confirmez la génération IA pour obtenir une étude structurée et rédigée."}
             </DialogDescription>
           </DialogHeader>
           {reformattedReport && (
@@ -2174,7 +2353,9 @@ ${shareUrl ? `\nReproduire cette analyse : ${shareUrl}` : ""}`;
           )}
           {reformatting && <p className="mt-3 text-xs text-teal-700" role="status" aria-live="polite">Génération de la Pré-étude documentaire biodiversité en cours…</p>}
           <div className="mt-3 rounded-lg border border-[#d9e1d6] bg-[#f4f6f1] px-4 py-3 text-xs text-[#52675f]">
-            Seules les informations essentielles sont affichées ici pour faciliter la lecture. Le document téléchargé contient l’étude complète, ses résultats détaillés et ses sources.
+            {reformattedReport
+              ? "L’aperçu est abrégé pour faciliter la lecture. Le téléchargement contient l’intégralité de la pré-étude rédigée, ses résultats détaillés, ses sources et ses limites."
+              : "Aperçu des résultats sources : ce contenu n’est pas encore la pré-étude rédigée. Aucun document présenté comme étude complète ne peut être téléchargé avant la génération IA."}
           </div>
           <ScrollArea className="flex-1 mt-3 h-[42vh] overflow-auto">
             <pre className={`text-sm whitespace-pre-wrap p-4 rounded-lg border text-gray-700 ${reformattedReport ? "bg-teal-50/30 border-teal-100 font-sans leading-relaxed" : "bg-gray-50 border-gray-200 font-mono"}`}>
@@ -2187,42 +2368,51 @@ ${shareUrl ? `\nReproduire cette analyse : ${shareUrl}` : ""}`;
             </Button>
             <div className="flex flex-wrap gap-2">
               {!reformattedReport && (
-                <Button
-                  variant="outline"
-                  onClick={handleReformatReport}
-                  disabled={reformatting}
-                  className="gap-2 border-teal-300 text-teal-700 hover:bg-teal-50 hover:text-teal-800"
-                  data-testid="button-reformat-report"
-                >
-                  {reformatting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
-                  {reformatting ? "Génération de la Pré-étude documentaire biodiversité…" : "Générer la Pré-étude documentaire biodiversité complète"}
-                </Button>
+                <div className="flex flex-col items-end gap-1">
+                  <p className="max-w-md text-right text-[11px] leading-relaxed text-amber-700">
+                    Cette génération appelle le modèle d’IA et consomme des jetons. Elle ne démarre qu’après votre confirmation.
+                  </p>
+                  <Button
+                    variant="outline"
+                    onClick={handleReformatReport}
+                    disabled={reformatting}
+                    className="gap-2 border-teal-300 text-teal-700 hover:bg-teal-50 hover:text-teal-800"
+                    data-testid="button-reformat-report"
+                  >
+                    {reformatting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
+                    {reformatting ? "Génération de la Pré-étude documentaire biodiversité…" : "Confirmer et générer avec l’IA"}
+                  </Button>
+                </div>
               )}
-              <Button
-                onClick={handleDownloadWordReport}
-                className="gap-2 bg-[#1e594a] text-white shadow-md hover:bg-[#17483d]"
-                data-testid="button-download-word-report"
-              >
-                <Download className="h-4 w-4" />
-                Télécharger l’étude complète (.doc)
-              </Button>
-              <Button variant="outline" onClick={handleEmailReport} className="gap-2" data-testid="button-email-report">
-                <Mail className="h-4 w-4" />
-                Email
-              </Button>
-              <Button variant="outline" onClick={handleCopyReport} className="gap-2" data-testid="button-copy-report">
-                {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
-                {copied ? "Copié !" : "Copier"}
-              </Button>
-              <Button
-                onClick={handleShareReport}
-                variant="outline"
-                className="gap-2"
-                data-testid="button-share-report"
-              >
-                <Share2 className="h-4 w-4" />
-                Partager
-              </Button>
+              {reformattedReport && (
+                <>
+                  <Button
+                    onClick={handleDownloadWordReport}
+                    className="gap-2 bg-[#1e594a] text-white shadow-md hover:bg-[#17483d]"
+                    data-testid="button-download-word-report"
+                  >
+                    <Download className="h-4 w-4" />
+                    Télécharger la pré-étude rédigée (.doc)
+                  </Button>
+                  <Button variant="outline" onClick={handleEmailReport} className="gap-2" data-testid="button-email-report">
+                    <Mail className="h-4 w-4" />
+                    Email
+                  </Button>
+                  <Button variant="outline" onClick={handleCopyReport} className="gap-2" data-testid="button-copy-report">
+                    {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
+                    {copied ? "Copié !" : "Copier"}
+                  </Button>
+                  <Button
+                    onClick={handleShareReport}
+                    variant="outline"
+                    className="gap-2"
+                    data-testid="button-share-report"
+                  >
+                    <Share2 className="h-4 w-4" />
+                    Partager
+                  </Button>
+                </>
+              )}
             </div>
           </div>
         </DialogContent>
