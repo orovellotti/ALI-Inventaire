@@ -63,6 +63,14 @@ export function buildFinalStudyContext(input: FinalStudyContextInput) {
       geometryAvailable: !!zonage.geometry,
     })),
   ) ?? [];
+  const regionalRedListBySpecies = new Map(
+    (input.priorityAnalysis?.species ?? []).flatMap((species) => {
+      const regional = species.statuses?.find((status) => status.category === "Liste rouge régionale");
+      return regional
+        ? [[species.scientificName.trim().toLocaleLowerCase("fr").replace(/\s+/g, " "), regional] as const]
+        : [];
+    }),
+  );
 
   return {
     schemaVersion: 1,
@@ -130,17 +138,26 @@ export function buildFinalStudyContext(input: FinalStudyContextInput) {
             habitats: input.potentialSpecies.habitatCount,
           },
           reference: input.potentialSpecies.reference,
-          species: limited(input.potentialSpecies.species, MAX_POTENTIAL_SPECIES, (species) => ({
-            scientificName: species.scientificName,
-            group: species.speciesGroup,
-            observed: species.observed,
-            status: species.status,
-            score: species.score,
-            confidence: species.confidence,
-            reasons: species.reasons.map((reason) => short(reason)),
-            sites: species.sites,
-            habitats: species.habitats,
-          })),
+          species: limited(input.potentialSpecies.species, MAX_POTENTIAL_SPECIES, (species) => {
+            const regionalRedList = regionalRedListBySpecies.get(
+              species.scientificName.trim().toLocaleLowerCase("fr").replace(/\s+/g, " "),
+            );
+            return {
+              scientificName: species.scientificName,
+              group: species.speciesGroup,
+              observed: species.observed,
+              status: species.status,
+              score: species.score,
+              confidence: species.confidence,
+              regionalRedList: regionalRedList ?? null,
+              issueInterpretation: regionalRedList && ["CR", "EN", "VU"].includes(regionalRedList.value.toUpperCase())
+                ? "Enjeu documentaire potentiel élevé à confirmer sur le terrain ; aucune présence dans l’emprise n’est affirmée."
+                : undefined,
+              reasons: species.reasons.map((reason) => short(reason)),
+              sites: species.sites,
+              habitats: species.habitats,
+            };
+          }),
           znieffDocumentarySpecies: {
             partial: input.potentialSpecies.znieff.partial,
             reference: input.potentialSpecies.znieff.reference,

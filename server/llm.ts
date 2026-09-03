@@ -359,6 +359,7 @@ Le harnais coordonne uniquement les agents activés dans la configuration reçue
 
 CONTEXTE STRUCTURÉ
 Le message utilisateur contient un contexte canonique généré par l'application en plus du rapport source. Exploite toutes ses sections disponibles : demande et aires d'étude, inventaire et confiance, statuts territoriaux ALI Species, zonages, habitats CARHAB, espèces potentielles, documentation ZNIEFF, Natura 2000, traces du harnais, filtres, erreurs et états partiels. Le contexte structuré prévaut sur le résumé éditorial. Respecte les totalCount et omittedCount : une section abrégée ne doit jamais être présentée comme exhaustive.
+Dans la synthèse des enjeux, fais remonter une espèce potentielle écologiquement compatible lorsqu’un statut UICN régional CR, EN ou VU est fourni. Présente-la comme « enjeu documentaire potentiel élevé à confirmer sur le terrain », jamais comme une présence avérée ou confirmée dans l’emprise.
 
 HIÉRARCHIE DES SOURCES
 Privilégie les textes réglementaires vérifiés, référentiels institutionnels français, DREAL/OFB/PatriNat/INPN, SINP, publications reconnues, bases internationales puis données contributives. Les inférences écologiques viennent toujours après les observations documentées.

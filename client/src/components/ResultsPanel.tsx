@@ -109,6 +109,10 @@ function isNotEvaluated(iucn: string | undefined): boolean {
   return !s || ["NE", "NOT_EVALUATED", "NA", "NOT_APPLICABLE"].includes(s);
 }
 
+function normalizedTaxonName(name: string): string {
+  return name.trim().toLocaleLowerCase("fr").replace(/\s+/g, " ");
+}
+
 interface ResultsPanelProps {
   isOpen: boolean;
   isAnalyzing?: boolean;
@@ -528,19 +532,42 @@ export function ResultsPanel({ isOpen, isAnalyzing = false, areaCount = 1, onClo
     );
   }, [potentialSpecies, results]);
 
+  const regionalRedListByPotentialName = useMemo(() => {
+    const statuses = new Map<string, { value: string; label: string; scope?: string }>();
+    for (const species of aiAnalysis?.species ?? []) {
+      if (species.inInventory) continue;
+      const regional = species.statuses?.find((status) => status.category === "Liste rouge régionale");
+      if (regional) statuses.set(normalizedTaxonName(species.scientificName), regional);
+    }
+    return statuses;
+  }, [aiAnalysis]);
+
   const potentialIssueSignals = useMemo(() => {
     if (
       potentialSpeciesLoading ||
       potentialSpeciesError ||
       !reconciledPotentialSpecies
     ) {
-      return { strong: 0, moderate: 0, count: 0, points: 0 };
+      return { strong: 0, moderate: 0, regionalThreatened: 0, count: 0, points: 0 };
     }
 
     let strong = 0;
     let moderate = 0;
+    let regionalThreatened = 0;
     for (const item of reconciledPotentialSpecies.species) {
       if (item.observed || item.score === null || item.status === "Non évaluée") continue;
+      const regionalStatus = regionalRedListByPotentialName.get(normalizedTaxonName(item.scientificName));
+      const regionalCode = regionalStatus?.value.toUpperCase();
+      const hasElevatedRegionalStatus =
+        item.score >= 50 &&
+        item.status !== "Peu compatible" &&
+        item.confidence !== "Faible" &&
+        ["CR", "EN", "VU"].includes(regionalCode ?? "");
+      if (hasElevatedRegionalStatus) {
+        regionalThreatened += 1;
+        strong += 1;
+        continue;
+      }
       if (
         item.score >= 70 &&
         item.status === "Très probable localement" &&
@@ -558,15 +585,17 @@ export function ResultsPanel({ isOpen, isAnalyzing = false, areaCount = 1, onClo
     return {
       strong,
       moderate,
+      regionalThreatened,
       count: strong + moderate,
       // Une compatibilité n'est pas une occurrence : contribution prudente,
       // plafonnée à 15 % de l'indice global.
-      points: Math.min(15, strong * 2 + moderate),
+      points: Math.min(15, regionalThreatened * 3 + (strong - regionalThreatened) * 2 + moderate),
     };
   }, [
     potentialSpeciesLoading,
     potentialSpeciesError,
     reconciledPotentialSpecies,
+    regionalRedListByPotentialName,
   ]);
 
   const riskScore = useMemo(() => {
@@ -614,6 +643,11 @@ export function ResultsPanel({ isOpen, isAnalyzing = false, areaCount = 1, onClo
     if (potentialIssueSignals.count > 0) {
       factors.push(
         `${potentialIssueSignals.count} espèce${potentialIssueSignals.count > 1 ? "s" : ""} potentielle${potentialIssueSignals.count > 1 ? "s" : ""} retenue${potentialIssueSignals.count > 1 ? "s" : ""} comme signal d’enjeu à confirmer`,
+      );
+    }
+    if (potentialIssueSignals.regionalThreatened > 0) {
+      factors.push(
+        `${potentialIssueSignals.regionalThreatened} espèce${potentialIssueSignals.regionalThreatened > 1 ? "s" : ""} potentielle${potentialIssueSignals.regionalThreatened > 1 ? "s" : ""} avec statut UICN régional CR, EN ou VU`,
       );
     }
     if (zc > 0) factors.push(`${zc} zonage${zc > 1 ? "s" : ""} environnemental${zc > 1 ? "aux" : ""}`);
@@ -799,7 +833,9 @@ export function ResultsPanel({ isOpen, isAnalyzing = false, areaCount = 1, onClo
     if (items.length < 3 && potentialIssueSignals.count > 0) {
       items.push({
         icon: "info",
-        text: `${potentialIssueSignals.count} espèce${potentialIssueSignals.count > 1 ? "s" : ""} potentielle${potentialIssueSignals.count > 1 ? "s" : ""} contribue${potentialIssueSignals.count > 1 ? "nt" : ""} prudemment au niveau d’enjeu.`,
+        text: potentialIssueSignals.regionalThreatened > 0
+          ? `${potentialIssueSignals.regionalThreatened} espèce${potentialIssueSignals.regionalThreatened > 1 ? "s" : ""} potentielle${potentialIssueSignals.regionalThreatened > 1 ? "s" : ""}, écologiquement compatible${potentialIssueSignals.regionalThreatened > 1 ? "s" : ""}, présente${potentialIssueSignals.regionalThreatened > 1 ? "nt" : ""} un statut UICN régional élevé à vérifier sur le terrain.`
+          : `${potentialIssueSignals.count} espèce${potentialIssueSignals.count > 1 ? "s" : ""} potentielle${potentialIssueSignals.count > 1 ? "s" : ""} contribue${potentialIssueSignals.count > 1 ? "nt" : ""} prudemment au niveau d’enjeu.`,
       });
     }
     if (items.length < 3) {
