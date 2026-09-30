@@ -59,7 +59,7 @@ export async function fetchPotentialSpecies(
   });
   if (!response.ok) {
     const body = await response.json().catch(() => null);
-    throw new Error(body?.error || "Évaluation indisponible");
+    throw new Error(body?.error || "Assessment unavailable");
   }
   return response.json();
 }
@@ -131,7 +131,7 @@ export function reconcilePotentialSpecies(
       (a, b) =>
         Number(a.observed) - Number(b.observed) ||
         (b.score ?? -1) - (a.score ?? -1) ||
-        a.scientificName.localeCompare(b.scientificName, "fr"),
+        a.scientificName.localeCompare(b.scientificName, "en"),
     );
 
   return {

@@ -161,8 +161,8 @@ function applyStatuses(
       enjeuWarnings: occurrence.isInvasive
         ? undefined
         : [isPlant
-          ? "Flore : statuts territoriaux ALI Species indisponibles — le statut UICN mondial n’est pas utilisé seul"
-          : "Statuts territoriaux ALI Species indisponibles — enjeu local à confirmer"],
+          ? "Plants: ALI Species territorial statuses unavailable; global IUCN alone is insufficient"
+          : "ALI Species territorial statuses unavailable; local concern requires confirmation"],
     };
   }
   const { enjeuLevel, enjeuWarnings } = computeEnjeuLevel({
@@ -199,6 +199,7 @@ function enrichmentPriority(occurrence: Occurrence): number {
 export async function enrichInventoryWithAliSpeciesMcp(
   inventory: InventoryResult,
 ): Promise<InventoryResult> {
+  if (inventory.coverage && !inventory.coverage.frenchSources) return inventory;
   if (inventory.occurrences.length === 0) {
     return {
       ...inventory,
@@ -262,7 +263,7 @@ export async function enrichInventoryWithAliSpeciesMcp(
     await withTimeout(
       client.connect(new StreamableHTTPClientTransport(new URL(ALI_SPECIES_MCP_URL))),
       CONNECT_TIMEOUT_MS,
-      "Connexion ALI Species MCP expirée",
+      "ALI Species MCP connection timed out",
     );
     const workers = Array.from({ length: Math.min(CONCURRENCY, prioritized.length) }, async () => {
       while (cursor < prioritized.length && Date.now() < deadline) {

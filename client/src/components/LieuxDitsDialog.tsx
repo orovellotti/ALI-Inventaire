@@ -27,20 +27,20 @@ interface Props {
 }
 
 const TYPE_LABEL: Record<string, string> = {
-  hamlet: "Hameau",
-  isolated_dwelling: "Habitation isolée",
-  farm: "Ferme",
-  locality: "Lieu-dit",
-  neighbourhood: "Quartier",
-  quarter: "Quartier",
+  hamlet: "Hamlet",
+  isolated_dwelling: "Isolated dwelling",
+  farm: "Farm",
+  locality: "Locality",
+  neighbourhood: "Neighborhood",
+  quarter: "District",
   village: "Village",
-  suburb: "Faubourg",
-  allotments: "Jardins",
-  city: "Ville",
-  town: "Commune",
-  municipality: "Commune",
-  administrative: "Commune",
-  boundary: "Limite administrative",
+  suburb: "Suburb",
+  allotments: "Allotments",
+  city: "City",
+  town: "Town",
+  municipality: "Municipality",
+  administrative: "Administrative area",
+  boundary: "Administrative boundary",
 };
 
 function bboxToBounds(bbox: [number, number, number, number]): [[number, number], [number, number]] {
@@ -63,11 +63,11 @@ export function LieuxDitsDialog({ open, onOpenChange, onSelectPolygon, onSelectP
     setResults(null);
     try {
       const res = await fetch(`/api/lieux-dits?q=${encodeURIComponent(query.trim())}`);
-      if (!res.ok) throw new Error("Recherche impossible");
+      if (!res.ok) throw new Error("Search failed");
       const data = await res.json();
       setResults(data.results || []);
     } catch (err: any) {
-      setError(err.message || "Erreur de recherche");
+      setError(err.message || "Search error");
     } finally {
       setLoading(false);
     }
@@ -97,13 +97,13 @@ export function LieuxDitsDialog({ open, onOpenChange, onSelectPolygon, onSelectP
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <MapPin className="h-5 w-5 text-teal-600" />
-            Rechercher un lieu ou une commune
+            Search for a place or locality
           </DialogTitle>
           <DialogDescription>
-            Recherchez un hameau, lieu-dit, quartier ou commune dans le référentiel
-            OpenStreetMap. Pour éviter les homonymes, ajoutez la commune ou le département.
-            La couverture des petits lieux dépend des contributions disponibles. Si un
-            contour est fourni, il sera utilisé ; sinon les aires seront centrées sur le point.
+            Search OpenStreetMap for a hamlet, neighborhood, town or other place worldwide.
+            Add a region or country to distinguish places with the same name.
+            Coverage depends on local contributions. If a boundary is available, it will be used;
+            otherwise the study areas will be centered on the point.
           </DialogDescription>
         </DialogHeader>
 
@@ -114,7 +114,8 @@ export function LieuxDitsDialog({ open, onOpenChange, onSelectPolygon, onSelectP
               type="text"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              placeholder="ex : Les Gondoins, Champoléon"
+              placeholder="e.g. Banff, Alberta, Canada"
+              aria-label="Search for a place"
               className="w-full pl-9 pr-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500/30 focus:border-teal-500"
               data-testid="input-lieu-dit-query"
               autoFocus
@@ -126,7 +127,7 @@ export function LieuxDitsDialog({ open, onOpenChange, onSelectPolygon, onSelectP
             className="px-4 py-2 text-sm font-medium bg-teal-600 text-white rounded-lg hover:bg-teal-700 disabled:opacity-50 disabled:cursor-not-allowed"
             data-testid="button-search-lieux-dits"
           >
-            {loading ? "…" : "Chercher"}
+            {loading ? "…" : "Search"}
           </button>
         </form>
 
@@ -138,7 +139,7 @@ export function LieuxDitsDialog({ open, onOpenChange, onSelectPolygon, onSelectP
           )}
           {results && results.length === 0 && (
             <div className="text-center py-8 text-sm text-gray-500">
-              Aucun lieu trouvé. Essayez d’ajouter la commune ou le département.
+              No places found. Try adding a region or country.
             </div>
           )}
           <div className="space-y-2">
@@ -159,7 +160,7 @@ export function LieuxDitsDialog({ open, onOpenChange, onSelectPolygon, onSelectP
                       </span>
                       {lieu.geometry && (
                         <span className="inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full bg-teal-50 text-teal-700 border border-teal-200">
-                          <Shapes className="h-3 w-3" /> Contour disponible
+                          <Shapes className="h-3 w-3" /> Boundary available
                         </span>
                       )}
                     </div>

@@ -92,12 +92,12 @@ export function parseCarhabOutput(text: string): CarhabSummary | null {
 
 export function formatCarhabSummary(summary: CarhabSummary): string {
   const header = summary.totalAreaHa === null
-    ? "Surface analysée non précisée"
-    : `Surface analysée par CARHAB : ${summary.totalAreaHa.toLocaleString("fr-FR", { maximumFractionDigits: 2 })} ha`;
+    ? "Analysed area not specified"
+    : `Area analysed by CARHAB: ${summary.totalAreaHa.toLocaleString("en-US", { maximumFractionDigits: 2 })} ha`;
   const rows = summary.habitats.map((habitat) => {
     const metrics = [
-      habitat.areaHa === null ? null : `${habitat.areaHa.toLocaleString("fr-FR", { maximumFractionDigits: 2 })} ha`,
-      habitat.percentage === null ? null : `${habitat.percentage.toLocaleString("fr-FR", { maximumFractionDigits: 1 })} %`,
+      habitat.areaHa === null ? null : `${habitat.areaHa.toLocaleString("en-US", { maximumFractionDigits: 2 })} ha`,
+      habitat.percentage === null ? null : `${habitat.percentage.toLocaleString("en-US", { maximumFractionDigits: 1 })} %`,
     ].filter(Boolean).join(" · ");
     return `• [${habitat.code}] ${habitat.label}${metrics ? ` — ${metrics}` : ""}`;
   });

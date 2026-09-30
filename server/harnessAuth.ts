@@ -64,7 +64,7 @@ export function createRequireHarnessAdmin(
         const user = await loadUser(userId);
         if (!isHarnessAdmin(userId, user, adminIds)) {
           response.status(403).json({
-            error: "Votre compte n’est pas autorisé à administrer le Harnais.",
+            error: "Your account is not authorized to administer the analysis configuration.",
           });
           return;
         }
@@ -73,7 +73,7 @@ export function createRequireHarnessAdmin(
     } catch (error) {
       console.error("[harness] administrator verification failed:", error);
       response.status(503).json({
-        error: "Vérification des droits d’administration temporairement indisponible.",
+        error: "Administrator authorization check is temporarily unavailable.",
       });
     }
   };

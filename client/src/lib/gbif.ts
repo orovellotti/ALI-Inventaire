@@ -23,25 +23,25 @@ export interface TaxonGroup {
 }
 
 export const TAXON_GROUPS: TaxonGroup[] = [
-  { id: "oiseaux", label: "Oiseaux", icon: "🐦", match: (o) => o.class === "Aves" },
-  { id: "mammiferes", label: "Mammifères", icon: "🦊", match: (o) => o.class === "Mammalia" },
+  { id: "oiseaux", label: "Birds", icon: "🐦", match: (o) => o.class === "Aves" },
+  { id: "mammiferes", label: "Mammals", icon: "🦊", match: (o) => o.class === "Mammalia" },
   { id: "reptiles", label: "Reptiles", icon: "🦎", match: (o) => o.class === "Reptilia" },
-  { id: "amphibiens", label: "Amphibiens", icon: "🐸", match: (o) => o.class === "Amphibia" },
-  { id: "poissons", label: "Poissons", icon: "🐟", match: (o) => ["Actinopterygii", "Chondrichthyes", "Petromyzonti", "Cephalaspidomorphi"].includes(o.class || "") },
-  { id: "insectes", label: "Insectes", icon: "🦋", match: (o) => o.class === "Insecta" },
-  { id: "arachnides", label: "Arachnides", icon: "🕷️", match: (o) => o.class === "Arachnida" },
-  { id: "crustaces", label: "Crustacés", icon: "🦀", match: (o) => ["Malacostraca", "Branchiopoda", "Ostracoda", "Maxillopoda", "Thecostraca", "Remipedia", "Cephalocarida"].includes(o.class || "") },
-  { id: "myriapodes", label: "Myriapodes", icon: "〰️", match: (o) => ["Chilopoda", "Diplopoda", "Pauropoda", "Symphyla"].includes(o.class || "") },
-  { id: "mollusques", label: "Mollusques", icon: "🐌", match: (o) => o.phylum === "Mollusca" },
-  { id: "annelides", label: "Annélides", icon: "〰️", match: (o) => o.phylum === "Annelida" },
-  { id: "cnidaires", label: "Cnidaires", icon: "◉", match: (o) => o.phylum === "Cnidaria" },
-  { id: "echinodermes", label: "Échinodermes", icon: "★", match: (o) => o.phylum === "Echinodermata" },
-  { id: "eponges", label: "Éponges", icon: "◌", match: (o) => o.phylum === "Porifera" },
-  { id: "autres-invertebres", label: "Autres invertébrés", icon: "◇", match: (o) => o.kingdom === "Animalia" },
-  { id: "algues", label: "Algues", icon: "≋", match: (o) => ["Rhodophyta", "Ochrophyta", "Chlorophyta", "Haptophyta", "Cryptophyta"].includes(o.phylum || "") || ["Phaeophyceae", "Florideophyceae", "Ulvophyceae"].includes(o.class || "") },
-  { id: "plantes", label: "Plantes terrestres", icon: "🌿", match: (o) => o.kingdom === "Plantae" },
-  { id: "champignons", label: "Champignons", icon: "🍄", match: (o) => o.kingdom === "Fungi" },
-  { id: "autres", label: "Autres organismes", icon: "🔬", match: () => true },
+  { id: "amphibiens", label: "Amphibians", icon: "🐸", match: (o) => o.class === "Amphibia" },
+  { id: "poissons", label: "Fish", icon: "🐟", match: (o) => ["Actinopterygii", "Chondrichthyes", "Petromyzonti", "Cephalaspidomorphi"].includes(o.class || "") },
+  { id: "insectes", label: "Insects", icon: "🦋", match: (o) => o.class === "Insecta" },
+  { id: "arachnides", label: "Arachnids", icon: "🕷️", match: (o) => o.class === "Arachnida" },
+  { id: "crustaces", label: "Crustaceans", icon: "🦀", match: (o) => ["Malacostraca", "Branchiopoda", "Ostracoda", "Maxillopoda", "Thecostraca", "Remipedia", "Cephalocarida"].includes(o.class || "") },
+  { id: "myriapodes", label: "Myriapods", icon: "〰️", match: (o) => ["Chilopoda", "Diplopoda", "Pauropoda", "Symphyla"].includes(o.class || "") },
+  { id: "mollusques", label: "Molluscs", icon: "🐌", match: (o) => o.phylum === "Mollusca" },
+  { id: "annelides", label: "Annelids", icon: "〰️", match: (o) => o.phylum === "Annelida" },
+  { id: "cnidaires", label: "Cnidarians", icon: "◉", match: (o) => o.phylum === "Cnidaria" },
+  { id: "echinodermes", label: "Echinoderms", icon: "★", match: (o) => o.phylum === "Echinodermata" },
+  { id: "eponges", label: "Sponges", icon: "◌", match: (o) => o.phylum === "Porifera" },
+  { id: "autres-invertebres", label: "Other invertebrates", icon: "◇", match: (o) => o.kingdom === "Animalia" },
+  { id: "algues", label: "Algae", icon: "≋", match: (o) => ["Rhodophyta", "Ochrophyta", "Chlorophyta", "Haptophyta", "Cryptophyta"].includes(o.phylum || "") || ["Phaeophyceae", "Florideophyceae", "Ulvophyceae"].includes(o.class || "") },
+  { id: "plantes", label: "Terrestrial plants", icon: "🌿", match: (o) => o.kingdom === "Plantae" },
+  { id: "champignons", label: "Fungi", icon: "🍄", match: (o) => o.kingdom === "Fungi" },
+  { id: "autres", label: "Other organisms", icon: "🔬", match: () => true },
 ];
 
 export function getTaxonGroupId(occ: Occurrence): string {
@@ -92,50 +92,50 @@ export function isMarineSpecies(occ: Occurrence): boolean {
 }
 
 export const STUDY_AREAS = [
-  { id: "immediate", label: "Aire d'étude immédiate", radius: 500, color: "#0d9488", dashArray: undefined as string | undefined },
-  { id: "rapprochee", label: "Aire d'étude rapprochée", radius: 2000, color: "#2563eb", dashArray: "10, 8" },
-  { id: "eloignee", label: "Aire d'étude éloignée", radius: 6000, color: "#6366f1", dashArray: "5, 10" },
+  { id: "immediate", label: "Immediate study area", radius: 500, color: "#0d9488", dashArray: undefined as string | undefined },
+  { id: "rapprochee", label: "Nearby study area", radius: 2000, color: "#2563eb", dashArray: "10, 8" },
+  { id: "eloignee", label: "Wider study area", radius: 6000, color: "#6366f1", dashArray: "5, 10" },
 ] as const;
 
 export const PROJECT_PRESETS: ProjectPreset[] = [
   {
-    id: "custom", label: "Personnalisé", icon: "⚙️",
-    description: "Configuration manuelle des aires d'étude",
+    id: "custom", label: "Custom", icon: "⚙️",
+    description: "Configure study areas manually",
     zones: { immediate: { radius: 500, enabled: true }, rapprochee: { radius: 2000, enabled: false }, eloignee: { radius: 6000, enabled: false } },
   },
   {
-    id: "eolien", label: "Éolien", icon: "💨",
-    description: "Parc éolien terrestre",
+    id: "eolien", label: "Wind farm", icon: "💨",
+    description: "Onshore wind farm",
     zones: { immediate: { radius: 500, enabled: true }, rapprochee: { radius: 5000, enabled: true }, eloignee: { radius: 15000, enabled: true } },
   },
   {
-    id: "pv_petit", label: "PV sol petit", icon: "☀️",
-    description: "Photovoltaïque au sol < 3 ha",
+    id: "pv_petit", label: "Small ground-mounted solar", icon: "☀️",
+    description: "Ground-mounted solar < 3 ha",
     zones: { immediate: { radius: 200, enabled: true }, rapprochee: { radius: 1000, enabled: true }, eloignee: { radius: 3000, enabled: true } },
   },
   {
-    id: "pv_moyen", label: "PV sol moyen", icon: "☀️",
-    description: "Photovoltaïque au sol 3-50 ha",
+    id: "pv_moyen", label: "Medium ground-mounted solar", icon: "☀️",
+    description: "Ground-mounted solar 3–50 ha",
     zones: { immediate: { radius: 500, enabled: true }, rapprochee: { radius: 2000, enabled: true }, eloignee: { radius: 6000, enabled: true } },
   },
   {
-    id: "pv_grand", label: "PV sol grand", icon: "☀️",
-    description: "Photovoltaïque au sol > 50 ha",
+    id: "pv_grand", label: "Large ground-mounted solar", icon: "☀️",
+    description: "Ground-mounted solar > 50 ha",
     zones: { immediate: { radius: 1000, enabled: true }, rapprochee: { radius: 3000, enabled: true }, eloignee: { radius: 10000, enabled: true } },
   },
   {
-    id: "urbanisation", label: "Urbanisation", icon: "🏗️",
-    description: "Aménagement urbain, lotissement, ZAC",
+    id: "urbanisation", label: "Urban development", icon: "🏗️",
+    description: "Urban development, residential estates, development zones",
     zones: { immediate: { radius: 300, enabled: true }, rapprochee: { radius: 1000, enabled: true }, eloignee: { radius: 3000, enabled: true } },
   },
   {
-    id: "route", label: "Infrastructure linéaire", icon: "🛣️",
-    description: "Route, voie ferrée, canalisation",
+    id: "route", label: "Linear infrastructure", icon: "🛣️",
+    description: "Road, railway, pipeline",
     zones: { immediate: { radius: 500, enabled: true }, rapprochee: { radius: 2000, enabled: true }, eloignee: { radius: 5000, enabled: true } },
   },
   {
-    id: "carriere", label: "Carrière / ICPE", icon: "⛏️",
-    description: "Carrière, installation classée",
+    id: "carriere", label: "Quarry / classified facility", icon: "⛏️",
+    description: "Quarry or regulated industrial facility",
     zones: { immediate: { radius: 500, enabled: true }, rapprochee: { radius: 2000, enabled: true }, eloignee: { radius: 6000, enabled: true } },
   },
 ];
@@ -143,33 +143,33 @@ export const PROJECT_PRESETS: ProjectPreset[] = [
 // Territoire/source de l'évaluation UICN telle que fournie par GBIF : il s'agit
 // de la Liste rouge mondiale. À expliciter systématiquement (une espèce « NT »
 // mondiale n'a pas le même sens qu'une « NT » régionale).
-export const IUCN_SOURCE_LABEL = "Liste rouge mondiale (UICN)";
+export const IUCN_SOURCE_LABEL = "IUCN Global Red List";
 
 export function getIucnLabel(code: string | undefined): string {
   const labels: Record<string, string> = {
-    "EX": "Éteint", "EXTINCT": "Éteint",
-    "EW": "Éteint à l'état sauvage", "EXTINCT_IN_THE_WILD": "Éteint à l'état sauvage",
-    "RE": "Éteint régionalement", "REGIONALLY_EXTINCT": "Éteint régionalement",
-    "CR": "En danger critique", "CRITICALLY_ENDANGERED": "En danger critique",
-    "EN": "En danger", "ENDANGERED": "En danger",
-    "VU": "Vulnérable", "VULNERABLE": "Vulnérable",
-    "NT": "Quasi menacé", "NEAR_THREATENED": "Quasi menacé",
-    "LC": "Préoccupation mineure", "LEAST_CONCERN": "Préoccupation mineure",
-    "DD": "Données insuffisantes", "DATA_DEFICIENT": "Données insuffisantes",
-    "NA": "Non applicable", "NOT_APPLICABLE": "Non applicable",
-    "NE": "Non évalué", "NOT_EVALUATED": "Non évalué"
+    "EX": "Extinct", "EXTINCT": "Extinct",
+    "EW": "Extinct in the Wild", "EXTINCT_IN_THE_WILD": "Extinct in the Wild",
+    "RE": "Regionally Extinct", "REGIONALLY_EXTINCT": "Regionally Extinct",
+    "CR": "Critically Endangered", "CRITICALLY_ENDANGERED": "Critically Endangered",
+    "EN": "Endangered", "ENDANGERED": "Endangered",
+    "VU": "Vulnerable", "VULNERABLE": "Vulnerable",
+    "NT": "Near Threatened", "NEAR_THREATENED": "Near Threatened",
+    "LC": "Least Concern", "LEAST_CONCERN": "Least Concern",
+    "DD": "Data Deficient", "DATA_DEFICIENT": "Data Deficient",
+    "NA": "Not Applicable", "NOT_APPLICABLE": "Not Applicable",
+    "NE": "Not Evaluated", "NOT_EVALUATED": "Not Evaluated"
   };
-  return labels[code || ""] || "Non évalué";
+  return labels[code || ""] || "Not Evaluated";
 }
 
 // Renvoie le statut avec son territoire/source, toujours. Distingue « statut non
 // renseigné » (aucune donnée GBIF) de « non évalué » (évalué comme NE par l'UICN).
 export function getIucnFullLabel(code: string | undefined): string {
   const c = (code || "").toUpperCase();
-  if (!c) return "Statut UICN non renseigné (source GBIF)";
-  if (c === "NE" || c === "NOT_EVALUATED") return `Non évalué — ${IUCN_SOURCE_LABEL}`;
-  if (c === "DD" || c === "DATA_DEFICIENT") return `Données insuffisantes — ${IUCN_SOURCE_LABEL}`;
-  if (c === "NA" || c === "NOT_APPLICABLE") return `Non applicable — ${IUCN_SOURCE_LABEL}`;
+  if (!c) return "IUCN status not provided (GBIF source)";
+  if (c === "NE" || c === "NOT_EVALUATED") return `Not Evaluated — ${IUCN_SOURCE_LABEL}`;
+  if (c === "DD" || c === "DATA_DEFICIENT") return `Data Deficient — ${IUCN_SOURCE_LABEL}`;
+  if (c === "NA" || c === "NOT_APPLICABLE") return `Not Applicable — ${IUCN_SOURCE_LABEL}`;
   return `${getIucnLabel(code)} — ${IUCN_SOURCE_LABEL}`;
 }
 
@@ -187,7 +187,7 @@ export function getPatrimonialite(
   if (isInvasive) {
     return {
       level: 0,
-      label: "Exotique envahissante",
+      label: "Invasive alien species",
       color: "bg-fuchsia-100 text-fuchsia-700 border-fuchsia-200",
     };
   }
@@ -211,11 +211,11 @@ export function getPatrimonialite(
   if (alertLevel === "medium" && level < 2) level = 2;
 
   const meta: Record<number, { label: string; color: string }> = {
-    5: { label: "Majeure", color: "bg-red-100 text-red-700 border-red-200" },
-    4: { label: "Forte", color: "bg-orange-100 text-orange-700 border-orange-200" },
-    3: { label: "Modérée", color: "bg-amber-100 text-amber-700 border-amber-200" },
-    2: { label: "Faible", color: "bg-sky-100 text-sky-700 border-sky-200" },
-    1: { label: "Très faible", color: "bg-gray-100 text-gray-500 border-gray-200" },
+    5: { label: "Major", color: "bg-red-100 text-red-700 border-red-200" },
+    4: { label: "High", color: "bg-orange-100 text-orange-700 border-orange-200" },
+    3: { label: "Moderate", color: "bg-amber-100 text-amber-700 border-amber-200" },
+    2: { label: "Low", color: "bg-sky-100 text-sky-700 border-sky-200" },
+    1: { label: "Very low", color: "bg-gray-100 text-gray-500 border-gray-200" },
   };
   return { level, ...meta[level] };
 }
@@ -231,8 +231,8 @@ export async function searchGBIFMultiCircle(
   });
 
   if (!response.ok) {
-    const err = await response.json().catch(() => ({ error: "Erreur serveur" }));
-    throw new Error(err.error || `Erreur ${response.status}`);
+    const err = await response.json().catch(() => ({ error: "Server error" }));
+    throw new Error(err.error || `Error ${response.status}`);
   }
 
   return response.json();

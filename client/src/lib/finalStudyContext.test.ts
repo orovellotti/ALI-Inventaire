@@ -128,6 +128,32 @@ test("relie une espèce potentielle à son statut UICN régional sans affirmer s
 
   const potential = context.potentialSpecies.species.items[0];
   assert.equal(potential.regionalRedList?.value, "EN");
-  assert.match(potential.issueInterpretation ?? "", /potentiel élevé.*terrain/i);
+  assert.match(potential.issueInterpretation ?? "", /Potentially high.*field confirmation/i);
   assert.equal(potential.observed, false);
+});
+
+test("out-of-coverage French sources stay unavailable, not zero findings, in the generation context", () => {
+  const context = buildFinalStudyContext({
+    inventory: {
+      occurrences: [{
+        key: 1, scientificName: "Testus documented", decimalLatitude: 51, decimalLongitude: 0,
+        alertLevel: "low", frenchProtected: false,
+        aliStatuses: [{ category: "Liste rouge régionale", value: "VU", label: "Vulnerable", tone: "warn" }],
+      }],
+      stats: { total: 1, speciesCount: 1, sensitiveCount: 0 },
+      center: [51, 0], radius: 2000, circles: [],
+      coverage: { countryCode: "GB", country: "United Kingdom", globalOccurrences: true, frenchSources: false, unavailableSources: ["French SINP", "CARHAB habitats"] },
+      confidence: { total: 70, geo: 70, tax: 70, time: 70, trace: 70, issues: 70, dup: 70, interpretation: "good", message: "Good", rawCount: 1, filteredCount: 1, dedupCount: 1 },
+    },
+    zonages: null, potentialSpecies: null, priorityAnalysis: null, carhabSummary: null,
+    filters: { activeTaxonGroups: [], excludeMarine: false, includeINaturalist: true },
+    states: { zonagesLoading: false, potentialSpeciesLoading: false, potentialSpeciesError: false, habitatConsultation: "idle" },
+  });
+  assert.equal(context.zonages.state, "out_of_coverage");
+  assert.equal(context.potentialSpecies.state, "out_of_coverage");
+  assert.equal(context.habitats.consultationState, "out_of_coverage");
+  assert.equal(context.inventory.species.totalCount, 1);
+  assert.equal(context.inventory.species.items[0].territorialStatuses, null);
+  assert.equal(context.inventory.species.items[0].protectedInFrance, null);
+  assert.match(context.coverageCaveat ?? "", /never be interpreted as zero findings/i);
 });

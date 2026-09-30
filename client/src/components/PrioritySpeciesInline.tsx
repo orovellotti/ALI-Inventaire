@@ -63,19 +63,19 @@ const EVIDENCE_STYLE: Record<EvidenceClass, { color: string; short: string }> = 
 };
 
 const EVIDENCE_GROUP_LABEL: Record<EvidenceClass, string> = {
-  A: "Occurrence publique documentée dans l’aire",
-  B: "Espèce documentée à l’échelle d’un site de référence",
-  C: "Très probable localement",
-  D: "Potentielle",
-  E: "Peu pertinente localement",
+  A: "Documented public observation in the area",
+  B: "Species documented at a reference site",
+  C: "Highly likely locally",
+  D: "Potential",
+  E: "Low local relevance",
 };
 
 const EVIDENCE_GROUP_DESC: Record<EvidenceClass, string> = {
-  A: "Occurrence géolocalisée issue de GBIF ou iNaturalist dans l’aire documentaire. Une confirmation sur le terrain exige un relevé de terrain.",
-  B: "Ayant justifié la désignation d'un site Natura 2000 proche, sans preuve de présence dans l’emprise.",
-  C: "Espèce Natura 2000 dont l'habitat est favorable dans votre emprise.",
-  D: "Possible d'après le contexte, sans preuve locale directe.",
-  E: "Faible pertinence à l'échelle de votre zone d'étude.",
+  A: "Georeferenced GBIF or iNaturalist observation in the study area. Field surveys are needed to confirm on-site presence.",
+  B: "Species associated with a nearby Natura 2000 site, without proof of presence in the project area.",
+  C: "Natura 2000 species with potentially suitable habitat in the project area.",
+  D: "Possible based on context, without direct local evidence.",
+  E: "Low relevance to this study area.",
 };
 
 // C (très probable localement, habitat favorable dans l'emprise) avant B
@@ -213,7 +213,7 @@ export function PrioritySpeciesInline({ toponym, coords, occurrences, projectAre
       .then(async (r) => {
         if (!r.ok) {
           const err = await r.json().catch(() => ({}));
-          throw new Error(err.error || "Erreur d'analyse");
+           throw new Error(err.error || "Analysis failed");
         }
         return r.json();
       })
@@ -245,8 +245,8 @@ export function PrioritySpeciesInline({ toponym, coords, occurrences, projectAre
         <div className="flex items-center gap-2 min-w-0">
           <Sparkles className="h-3.5 w-3.5 text-teal-600 shrink-0" />
           <div className="min-w-0">
-            <div className="text-xs font-semibold text-gray-700 truncate">Analyse IA — espèces à enjeux</div>
-            <div className="text-[10px] text-gray-400">À valider par un écologue</div>
+             <div className="text-xs font-semibold text-gray-700 truncate">AI analysis — priority species</div>
+             <div className="text-[10px] text-gray-400">Requires review by an ecologist</div>
           </div>
         </div>
         {analysis && (
@@ -256,10 +256,10 @@ export function PrioritySpeciesInline({ toponym, coords, occurrences, projectAre
             disabled={loading || slim.length === 0}
             className="text-xs flex items-center gap-1 px-2.5 py-1.5 rounded-md bg-white hover:bg-gray-50 text-teal-700 border border-teal-200 disabled:opacity-50 shrink-0"
             data-testid="button-run-priority"
-            title="Relancer l'analyse"
+             title="Run analysis again"
           >
             {loading ? <Loader2 className="h-3 w-3 animate-spin" /> : <RefreshCw className="h-3 w-3" />}
-            Relancer
+             Run again
           </button>
         )}
       </div>
@@ -273,21 +273,21 @@ export function PrioritySpeciesInline({ toponym, coords, occurrences, projectAre
           className="w-full flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-md bg-teal-50 hover:bg-teal-100 text-teal-700 font-medium text-xs border border-teal-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
         >
           <Sparkles className="h-3 w-3" />
-          Lancer l'analyse IA <span className="text-[10px] opacity-70">(~5 s)</span>
+           Run AI analysis <span className="text-[10px] opacity-70">(~5 s)</span>
         </button>
       )}
 
       {loading && (
         <div className="flex items-center gap-2 py-3 px-2 text-xs text-gray-600" role="status" aria-live="polite">
           <Loader2 className="h-4 w-4 animate-spin text-teal-600" />
-          Analyse IA en cours… (peut prendre 10-30 s)
+           AI analysis in progress… (may take 10–30 s)
         </div>
       )}
 
       {error && (
         <div className="flex items-center gap-2 text-xs text-red-700 bg-red-50 border border-red-200 rounded-lg p-2" role="alert">
           <AlertCircle className="h-4 w-4 shrink-0" /> <span className="flex-1">{error}</span>
-          <button type="button" onClick={() => runAnalysis(true)} className="rounded border border-red-300 px-2 py-1 font-semibold hover:bg-red-100">Réessayer</button>
+           <button type="button" onClick={() => runAnalysis(true)} className="rounded border border-red-300 px-2 py-1 font-semibold hover:bg-red-100">Retry</button>
         </div>
       )}
 
@@ -296,7 +296,7 @@ export function PrioritySpeciesInline({ toponym, coords, occurrences, projectAre
           {analysis.natura2000 && analysis.natura2000.length > 0 && (
             <div className="rounded-lg border border-amber-200 bg-amber-50/60 p-2.5" data-testid="natura2000-nearby">
               <div className="text-[9px] font-semibold text-amber-700 uppercase tracking-wider mb-1.5 flex items-center gap-1">
-                <Layers className="h-3 w-3" /> Zones Natura 2000 à proximité ({analysis.natura2000.length})
+                 <Layers className="h-3 w-3" /> Nearby Natura 2000 sites ({analysis.natura2000.length})
               </div>
               <div className="space-y-1">
                 {analysis.natura2000.map((z, i) => {
@@ -311,7 +311,7 @@ export function PrioritySpeciesInline({ toponym, coords, occurrences, projectAre
                           rel="noopener noreferrer"
                           className="inline-flex items-center gap-0.5 ml-1 text-amber-700 hover:underline"
                         >
-                            <ExternalLink className="h-2.5 w-2.5" aria-hidden="true" /><span className="sr-only">Ouvrir la fiche de {z.name}</span>
+                             <ExternalLink className="h-2.5 w-2.5" aria-hidden="true" /><span className="sr-only">Open details for {z.name}</span>
                         </a>
                       )}
                       {(() => {
@@ -319,7 +319,7 @@ export function PrioritySpeciesInline({ toponym, coords, occurrences, projectAre
                         if (desig.length === 0) return null;
                         return (
                           <div className="mt-0.5 text-[10px] text-amber-700/90 leading-snug" data-testid={`natura2000-species-${i}`}>
-                            <span className="font-medium">Espèces justifiant le classement :</span>{" "}
+                             <span className="font-medium">Species supporting designation:</span>{" "}
                             <span className="italic">{desig.join(", ")}</span>
                           </div>
                         );
@@ -329,7 +329,7 @@ export function PrioritySpeciesInline({ toponym, coords, occurrences, projectAre
                         if (habitats.length === 0) return null;
                         return (
                           <div className="mt-0.5 text-[10px] text-amber-700/90 leading-snug" data-testid={`natura2000-habitats-${i}`}>
-                            <span className="font-medium">Habitats d'intérêt communautaire :</span>
+                             <span className="font-medium">Habitats of Community interest:</span>
                             <ul className="mt-0.5 space-y-0.5">
                               {habitats.map((h, hi) => (
                                 <li key={`${h.code}::${h.description}`} data-testid={`natura2000-habitat-${i}-${hi}`}>
@@ -352,7 +352,7 @@ export function PrioritySpeciesInline({ toponym, coords, occurrences, projectAre
           )}
           {analysis.species.length === 0 ? (
             <div className="text-xs text-gray-500 text-center py-3">
-              Aucune espèce à enjeux notable identifiée.
+               No notable priority species identified in the available data.
             </div>
           ) : (
             EVIDENCE_GROUP_ORDER.filter((cls) =>
@@ -396,41 +396,41 @@ export function PrioritySpeciesInline({ toponym, coords, occurrences, projectAre
                         {sp.evidenceClass && (
                           <span
                             className={`inline-flex items-center gap-1 text-[9px] font-semibold px-1.5 py-0.5 rounded-full border ${EVIDENCE_STYLE[sp.evidenceClass].color}`}
-                            title="Niveau de preuve (indépendant de l'importance)"
+                             title="Evidence level (independent of conservation importance)"
                             data-testid={`evidence-species-${i}`}
                           >
-                            Preuve {EVIDENCE_STYLE[sp.evidenceClass].short} · {sp.evidenceLabel}
+                             Evidence {EVIDENCE_STYLE[sp.evidenceClass].short} · {EVIDENCE_GROUP_LABEL[sp.evidenceClass]}
                           </span>
                         )}
                         {sp.isInvasive ? (
                           <span
                             className="inline-flex items-center gap-1 text-[9px] font-semibold px-1.5 py-0.5 rounded-full border bg-fuchsia-100 text-fuchsia-800 border-fuchsia-300"
-                            title="Espèce exotique envahissante : enjeu de gestion, sans valeur patrimoniale de conservation."
+                             title="Invasive alien species: a management concern, not a native conservation priority."
                             data-testid={`score-species-${i}`}
                           >
-                            EEE · enjeu de gestion
+                             Invasive · management concern
                           </span>
                         ) : typeof sp.score === "number" && (
                           <span
                             className={`inline-flex items-center gap-1 text-[9px] font-semibold px-1.5 py-0.5 rounded-full border ${scoreColor(sp.score)}`}
                             title={[
-                              "Score d'enjeu 0–100 (statut, importance du site, occurrence, qualité)",
+                               "Priority score 0–100 (status, site importance, observation, data quality)",
                               typeof sp.qualiteScore === "number"
-                                ? `Qualité de la donnée : ${sp.qualiteScore}/100` +
+                                 ? `Data quality: ${sp.qualiteScore}/100` +
                                   (typeof sp.observationCount === "number"
                                     ? ` — ${sp.observationCount} observation${sp.observationCount > 1 ? "s" : ""}`
                                     : "") +
                                   (typeof sp.lastObservationYear === "number"
-                                    ? `, dernière en ${sp.lastObservationYear}`
+                                     ? `, last recorded in ${sp.lastObservationYear}`
                                     : "") +
-                                  (sp.source ? `, source ${SOURCE_LABEL[sp.source] || sp.source}` : "")
+                                   (sp.source ? `, source: ${SOURCE_LABEL[sp.source] || sp.source}` : "")
                                 : "",
                             ]
                               .filter(Boolean)
                               .join("\n")}
                             data-testid={`score-species-${i}`}
                           >
-                            Enjeu {sp.score}/100{sp.scoreLabel ? ` · ${sp.scoreLabel}` : ""}
+                             Priority {sp.score}/100
                           </span>
                         )}
                       </div>
@@ -446,10 +446,10 @@ export function PrioritySpeciesInline({ toponym, coords, occurrences, projectAre
                         {sp.isInvasive && (
                           <span
                             className="inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full border bg-fuchsia-100 text-fuchsia-800 border-fuchsia-300"
-                            title="Espèce exotique envahissante : aucune valeur patrimoniale de conservation. Son statut UICN reflète son aire d'origine, pas un enjeu local."
+                             title="Invasive alien species: no native conservation priority. IUCN status reflects its native range, not local importance."
                             data-testid={`invasive-species-${i}`}
                           >
-                            Exotique envahissante (EEE)
+                             Invasive alien species
                           </span>
                         )}
                       </div>
@@ -457,10 +457,10 @@ export function PrioritySpeciesInline({ toponym, coords, occurrences, projectAre
                         <div className="mt-1">
                           <span
                             className={`inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full border ${PATRIMONIALITE_STYLE[sp.patrimonialite.level] || PATRIMONIALITE_STYLE.faible}`}
-                            title="Score de patrimonialité ALI Species (0,5 × écologique + 0,3 × réglementaire + 0,2 × territorial)"
+                             title="ALI Species conservation-value score (0.5 × ecological + 0.3 × regulatory + 0.2 × territorial)"
                             data-testid={`patrimonialite-species-${i}`}
                           >
-                            Patrimonialité {sp.patrimonialite.level} · {sp.patrimonialite.score}/100
+                             Conservation value {{ majeure: "major", forte: "high", modérée: "moderate", faible: "low" }[sp.patrimonialite.level]} · {sp.patrimonialite.score}/100
                           </span>
                         </div>
                       )}
@@ -469,14 +469,14 @@ export function PrioritySpeciesInline({ toponym, coords, occurrences, projectAre
                         <div
                           className="mt-1 flex flex-wrap items-center gap-1.5 text-[10px] text-gray-500"
                           data-testid={`freshness-species-${i}`}
-                          title="Fraîcheur de la donnée derrière le score de qualité"
+                           title="Record recency contributing to data-quality score"
                         >
                           <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-gray-100 border border-gray-200">
                             {sp.observationCount} observation{sp.observationCount > 1 ? "s" : ""}
                           </span>
                           {typeof sp.lastObservationYear === "number" && (
                             <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-gray-100 border border-gray-200">
-                              dernière en {sp.lastObservationYear}
+                               last recorded in {sp.lastObservationYear}
                             </span>
                           )}
                           {sp.source && (
@@ -486,7 +486,7 @@ export function PrioritySpeciesInline({ toponym, coords, occurrences, projectAre
                           )}
                           {typeof sp.qualiteScore === "number" && (
                             <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-gray-100 border border-gray-200">
-                              qualité {sp.qualiteScore}/100
+                               quality {sp.qualiteScore}/100
                             </span>
                           )}
                         </div>
@@ -494,7 +494,7 @@ export function PrioritySpeciesInline({ toponym, coords, occurrences, projectAre
                       {sp.statuses && sp.statuses.length > 0 && (
                         <div className="mt-1.5">
                           <div className="text-[9px] font-semibold text-gray-400 uppercase tracking-wider mb-1">
-                            Statuts réglementaires (ALI / TAXREF)
+                             Legal statuses (ALI / TAXREF; coverage varies)
                           </div>
                           <div className="flex flex-wrap gap-1" data-testid={`statuses-species-${i}`}>
                             {sp.statuses.map((st, j) => (
@@ -516,7 +516,7 @@ export function PrioritySpeciesInline({ toponym, coords, occurrences, projectAre
                             <span
                                key={`${src}::${j}`}
                               className="inline-flex items-center gap-1 text-[9px] px-1.5 py-0.5 rounded bg-gray-100 text-gray-600 border border-gray-200"
-                              title="Référentiel cité par l'IA"
+                               title="Source cited by AI"
                             >
                               <BookOpen className="h-2 w-2" />
                               {src}
@@ -554,20 +554,20 @@ export function PrioritySpeciesInline({ toponym, coords, occurrences, projectAre
                           target="_blank"
                           rel="noopener noreferrer"
                           className="inline-flex items-center gap-0.5 text-teal-700 hover:underline"
-                          title="Fiche statuts ALI / TAXREF"
+                           title="ALI / TAXREF status profile"
                         >
                           ALI <ExternalLink className="h-2.5 w-2.5" />
                         </a>
                         {sp.inInventory === false && (
                           <span className="text-[9px] text-amber-700 bg-amber-50 px-1.5 py-0.5 rounded border border-amber-200">
-                            hors inventaire (suggestion IA)
+                             not in inventory (AI suggestion)
                           </span>
                         )}
                       </div>
                     </div>
                     <span className={`inline-flex items-center gap-1 text-[9px] px-1.5 py-0.5 rounded-full border shrink-0 ${style.color}`}>
                       <StyleIcon className="h-2.5 w-2.5" />
-                      {sp.level}
+                       {{ majeur: "Major", fort: "High", modéré: "Moderate" }[sp.level]}
                     </span>
                   </div>
                 </div>
@@ -577,18 +577,18 @@ export function PrioritySpeciesInline({ toponym, coords, occurrences, projectAre
             ))
           )}
           <div className="mt-2 pt-2 border-t border-teal-100 text-[10px] text-gray-500 space-y-1">
-            <p>Une occurrence publique documente un signal bibliographique ; seule une donnée de terrain adaptée peut confirmer la présence dans l’emprise.</p>
-            <div className="font-semibold text-gray-600">Référentiels mobilisables :</div>
+             <p>Public observations are documentary signals; only suitable field surveys can confirm presence on site. Regional reference coverage varies worldwide.</p>
+             <div className="font-semibold text-gray-600">Relevant references (check geographic scope):</div>
             <div className="flex flex-wrap gap-x-3 gap-y-0.5">
               <a href="https://uicn.fr/listes-rouges-france/" target="_blank" rel="noopener noreferrer" className="hover:text-teal-700 hover:underline">UICN France</a>
-              <a href="https://www.iucnredlist.org/" target="_blank" rel="noopener noreferrer" className="hover:text-teal-700 hover:underline">UICN Monde</a>
-              <a href="https://www.legifrance.gouv.fr/loda/id/JORFTEXT000021384277/" target="_blank" rel="noopener noreferrer" className="hover:text-teal-700 hover:underline">Arrêté 29 oct. 2009 (oiseaux)</a>
-              <a href="https://eur-lex.europa.eu/legal-content/FR/TXT/?uri=CELEX:32009L0147" target="_blank" rel="noopener noreferrer" className="hover:text-teal-700 hover:underline">Directive Oiseaux</a>
-              <a href="https://eur-lex.europa.eu/legal-content/FR/TXT/?uri=CELEX:31992L0043" target="_blank" rel="noopener noreferrer" className="hover:text-teal-700 hover:underline">Directive Habitats</a>
+               <a href="https://www.iucnredlist.org/" target="_blank" rel="noopener noreferrer" className="hover:text-teal-700 hover:underline">IUCN global</a>
+               <a href="https://www.legifrance.gouv.fr/loda/id/JORFTEXT000021384277/" target="_blank" rel="noopener noreferrer" className="hover:text-teal-700 hover:underline">French bird protection order (2009)</a>
+               <a href="https://eur-lex.europa.eu/legal-content/FR/TXT/?uri=CELEX:32009L0147" target="_blank" rel="noopener noreferrer" className="hover:text-teal-700 hover:underline">EU Birds Directive</a>
+               <a href="https://eur-lex.europa.eu/legal-content/FR/TXT/?uri=CELEX:31992L0043" target="_blank" rel="noopener noreferrer" className="hover:text-teal-700 hover:underline">EU Habitats Directive</a>
               <a href="https://inpn.mnhn.fr/programme/inventaire-znieff/presentation" target="_blank" rel="noopener noreferrer" className="hover:text-teal-700 hover:underline">ZNIEFF (INPN)</a>
             </div>
             <div className="text-right text-[9px] text-gray-400 pt-1">
-              Généré le {new Date(analysis.generatedAt).toLocaleString("fr-FR")} · gpt-5-mini
+               Generated {new Date(analysis.generatedAt).toLocaleString("en")} · gpt-5-mini
             </div>
           </div>
         </div>

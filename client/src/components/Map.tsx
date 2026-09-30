@@ -134,7 +134,7 @@ function MapEvents({ onMapClick }: { onMapClick: (lat: number, lng: number) => v
   return null;
 }
 
-type BaseLayer = "ignplan" | "ignortho" | "carto" | "osm" | "nature" | "satellite";
+type BaseLayer = "ignplan" | "ignortho" | "osm" | "nature" | "satellite";
 
 const IGN_WMTS = "https://data.geopf.fr/wmts?SERVICE=WMTS&VERSION=1.0.0&REQUEST=GetTile&STYLE=normal&TILEMATRIXSET=PM";
 
@@ -149,18 +149,11 @@ const BASE_LAYERS: Record<BaseLayer, {
     url: `${IGN_WMTS}&FORMAT=image/png&LAYER=GEOGRAPHICALGRIDSYSTEMS.PLANIGNV2&TILEMATRIX={z}&TILEROW={y}&TILECOL={x}`,
     attribution: '&copy; <a href="https://geoservices.ign.fr/">IGN</a> Plan IGN v2',
     maxZoom: 19,
-    label: "Carte IGN",
-    category: "clair",
-  },
-  carto: {
-    url: "https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png",
-    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a> &copy; <a href="https://carto.com/attributions">CARTO</a>',
-    maxZoom: 19,
-    label: "Carte épurée (claire)",
+    label: "IGN map (France)",
     category: "clair",
   },
   osm: {
-    url: "https://tile.openstreetmap.org/{z}/{x}/{y}.png",
+    url: "https://tile.openstreetmap.de/{z}/{x}/{y}.png",
     attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
     maxZoom: 19,
     label: "OpenStreetMap",
@@ -170,21 +163,21 @@ const BASE_LAYERS: Record<BaseLayer, {
     url: "https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png",
     attribution: 'Map data: &copy; <a href="https://www.openstreetmap.org/copyright">OSM</a> contributors, SRTM | Map style: &copy; <a href="https://opentopomap.org">OpenTopoMap</a> (CC-BY-SA)',
     maxZoom: 17,
-    label: "Carte topographique (reliefs)",
+    label: "Topographic map (worldwide)",
     category: "nature",
   },
   ignortho: {
     url: `${IGN_WMTS}&FORMAT=image/jpeg&LAYER=ORTHOIMAGERY.ORTHOPHOTOS&TILEMATRIX={z}&TILEROW={y}&TILECOL={x}`,
     attribution: '&copy; <a href="https://geoservices.ign.fr/">IGN</a> Orthophotographies',
     maxZoom: 21,
-    label: "Photo aérienne IGN (France)",
+    label: "IGN aerial imagery (France)",
     category: "satellite",
   },
   satellite: {
     url: "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
     attribution: 'Tiles &copy; Esri &mdash; Source: Esri, Maxar, Earthstar Geographics, USDA, USGS, AeroGRID, IGN, and the GIS User Community',
     maxZoom: 19,
-    label: "Vue satellite (monde)",
+    label: "Satellite imagery (worldwide)",
     category: "satellite",
   },
 };
@@ -206,7 +199,7 @@ const OVERLAYS: Record<OverlayId, {
   natura2000_sic: {
     url: IGN_WMS_V,
     layers: "Patrinat_SIC_France",
-    label: "Natura 2000 — Sites d'intérêt communautaire (Habitats, ZSC/SIC)",
+    label: "Natura 2000 — Sites of Community Importance (habitats, SAC/SCI; Europe)",
     shortLabel: "Natura 2000 — habitats",
     attribution: "MNHN / Patrinat — IGN Géoplateforme",
     color: "#16a34a",
@@ -215,8 +208,8 @@ const OVERLAYS: Record<OverlayId, {
   natura2000_zps: {
     url: IGN_WMS_V,
     layers: "Patrinat_ZPS_France",
-    label: "Natura 2000 — Zones de protection spéciale (Oiseaux)",
-    shortLabel: "Natura 2000 — oiseaux",
+    label: "Natura 2000 — Special Protection Areas (birds; Europe)",
+    shortLabel: "Natura 2000 — birds",
     attribution: "MNHN / Patrinat — IGN Géoplateforme",
     color: "#0ea5e9",
     group: "Espaces protégés",
@@ -224,8 +217,8 @@ const OVERLAYS: Record<OverlayId, {
   znieff1: {
     url: IGN_WMS_V,
     layers: "Patrinat_ZNIEFF1_France",
-    label: "ZNIEFF type I (zones de fort intérêt biologique)",
-    shortLabel: "Zones d'intérêt fort (ZNIEFF I)",
+    label: "ZNIEFF type I (areas of biological interest; France)",
+    shortLabel: "ZNIEFF type I (France)",
     attribution: "MNHN / Patrinat — IGN Géoplateforme",
     color: "#f59e0b",
     group: "Espaces protégés",
@@ -233,8 +226,8 @@ const OVERLAYS: Record<OverlayId, {
   znieff2: {
     url: IGN_WMS_V,
     layers: "Patrinat_ZNIEFF2_France",
-    label: "ZNIEFF type II (grands ensembles naturels)",
-    shortLabel: "Grands ensembles naturels (ZNIEFF II)",
+    label: "ZNIEFF type II (large natural areas; France)",
+    shortLabel: "ZNIEFF type II (France)",
     attribution: "MNHN / Patrinat — IGN Géoplateforme",
     color: "#fbbf24",
     group: "Espaces protégés",
@@ -242,8 +235,8 @@ const OVERLAYS: Record<OverlayId, {
   hydro: {
     url: IGN_WMS_V,
     layers: "BDTOPO-GEOPO-HYDROGRAPHIE_WLD_WGS84G",
-    label: "Hydrographie BD TOPO (cours d'eau, plans d'eau)",
-    shortLabel: "Cours d'eau et plans d'eau",
+    label: "BD TOPO hydrography (rivers and lakes; France)",
+    shortLabel: "Rivers and lakes (France)",
     attribution: "IGN — BD TOPO Hydrographie",
     color: "#06b6d4",
     group: "Eau",
@@ -251,8 +244,8 @@ const OVERLAYS: Record<OverlayId, {
   clc: {
     url: IGN_WMS_R,
     layers: "LANDCOVER.CLC18",
-    label: "Corine Land Cover 2018 (occupation du sol)",
-    shortLabel: "Occupation du sol (2018)",
+    label: "Corine Land Cover 2018 (Europe)",
+    shortLabel: "Land cover (2018)",
     attribution: "Copernicus — IGN Géoplateforme",
     color: "#a855f7",
     group: "Habitats / Sol",
@@ -263,8 +256,8 @@ export function Map({ center, circles, results, onMapClick, selectedSpecies, onS
   const [baseLayer, setBaseLayer] = useState<BaseLayer>(() => {
     try {
       const v = localStorage.getItem("if.baseLayer");
-      return v && v in BASE_LAYERS ? (v as BaseLayer) : "ignplan";
-    } catch { return "ignplan"; }
+      return v && v in BASE_LAYERS ? (v as BaseLayer) : "osm";
+    } catch { return "osm"; }
   });
   const [activeOverlays, setActiveOverlays] = useState<Set<OverlayId>>(() => {
     try {
@@ -311,24 +304,24 @@ export function Map({ center, circles, results, onMapClick, selectedSpecies, onS
       id="map-container"
       className="h-full w-full relative z-0"
       role="region"
-      aria-label="Carte du site et des données documentaires"
+      aria-label="Map of the site and public data"
       aria-describedby="map-text-alternative"
     >
       <div id="map-text-alternative" className="sr-only">
         <p>
-          Alternative textuelle synchronisée de la carte. Centre actuel : latitude {center[0].toFixed(5)},
+           Synchronized text alternative for the map. Current center: latitude {center[0].toFixed(5)},
           longitude {center[1].toFixed(5)}.
         </p>
         <p>
           {projectPolygon
-            ? `Emprise importée : ${projectPolygon.name}.`
-            : `${sortedCircles.length} aire${sortedCircles.length > 1 ? "s" : ""} circulaire${sortedCircles.length > 1 ? "s" : ""} affichée${sortedCircles.length > 1 ? "s" : ""}.`}
-          {" "}{filteredOccurrences.length} occurrence{filteredOccurrences.length > 1 ? "s" : ""} publique{filteredOccurrences.length > 1 ? "s" : ""} documentée{filteredOccurrences.length > 1 ? "s" : ""} affichée{filteredOccurrences.length > 1 ? "s" : ""}.
-          {" "}{(zonageFeatures || []).length} zonage{(zonageFeatures || []).length > 1 ? "s" : ""} avec emprise cartographique.
+             ? `Imported boundary: ${projectPolygon.name}.`
+             : `${sortedCircles.length} circular study area${sortedCircles.length !== 1 ? "s" : ""} shown.`}
+           {" "}{filteredOccurrences.length} public observation{filteredOccurrences.length !== 1 ? "s" : ""} shown.
+           {" "}{(zonageFeatures || []).length} designated area{(zonageFeatures || []).length !== 1 ? "s" : ""} with mapped boundaries.
         </p>
         {selectedOccurrence && (
           <p>
-            Taxon sélectionné : {selectedOccurrence.vernacularName || selectedOccurrence.scientificName}
+             Selected taxon: {selectedOccurrence.vernacularName || selectedOccurrence.scientificName}
             {selectedOccurrence.vernacularName ? `, ${selectedOccurrence.scientificName}` : ""}.
           </p>
         )}
@@ -339,7 +332,7 @@ export function Map({ center, circles, results, onMapClick, selectedSpecies, onS
         scrollWheelZoom={true} 
         className="h-full w-full outline-none"
         zoomControl={false}
-        aria-label="Carte interactive. Utilisez les flèches pour déplacer la carte et les touches plus ou moins pour zoomer."
+         aria-label="Interactive map. Use arrow keys to pan and plus or minus keys to zoom."
       >
         <TileLayer
           key={baseLayer}
@@ -392,7 +385,7 @@ export function Map({ center, circles, results, onMapClick, selectedSpecies, onS
                 <div className="text-xs">
                   <div className="font-semibold">{f.name}</div>
                   <div className="text-gray-600">{f.type}</div>
-                  <div className="text-[10px] text-gray-400 mt-0.5">Cliquer pour voir dans la liste</div>
+                   <div className="text-[10px] text-gray-400 mt-0.5">Click to view in the list</div>
                 </div>
               </LeafletTooltip>
             </Polygon>
@@ -475,9 +468,9 @@ export function Map({ center, circles, results, onMapClick, selectedSpecies, onS
                     <div className="italic text-gray-600">{occ.scientificName}</div>
                   )}
                   {occ.iucnStatus && (
-                    <div className="text-gray-500 mt-0.5">UICN : {occ.iucnStatus}</div>
+                     <div className="text-gray-500 mt-0.5">IUCN: {occ.iucnStatus}</div>
                   )}
-                  <div className="text-[10px] text-gray-400 mt-0.5">Cliquer pour voir la fiche</div>
+                   <div className="text-[10px] text-gray-400 mt-0.5">Click to view species details</div>
                 </div>
               </LeafletTooltip>
             </CircleMarker>
@@ -487,12 +480,12 @@ export function Map({ center, circles, results, onMapClick, selectedSpecies, onS
 
       <div
         className="absolute bottom-7 left-4 z-[400] hidden max-w-[250px] rounded-lg border border-gray-200 bg-white/95 px-3 py-2 text-[11px] text-gray-700 shadow-md backdrop-blur sm:block"
-        aria-label="Légende de la carte"
+         aria-label="Map legend"
       >
-        <p className="mb-1.5 font-bold text-[#17483d]">Légende</p>
+         <p className="mb-1.5 font-bold text-[#17483d]">Legend</p>
         <div className="space-y-1">
-          <p className="flex items-center gap-2"><span className="h-2.5 w-2.5 rounded-full bg-[#0d9488]" aria-hidden="true" /> Site ou centre d’étude</p>
-          {projectPolygon && <p className="flex items-center gap-2"><span className="h-2.5 w-4 border-2 border-[#0d9488] bg-[#0d9488]/15" aria-hidden="true" /> Emprise importée</p>}
+           <p className="flex items-center gap-2"><span className="h-2.5 w-2.5 rounded-full bg-[#0d9488]" aria-hidden="true" /> Site or study center</p>
+           {projectPolygon && <p className="flex items-center gap-2"><span className="h-2.5 w-4 border-2 border-[#0d9488] bg-[#0d9488]/15" aria-hidden="true" /> Imported boundary</p>}
           {filteredOccurrences.length > 0 && (
             <p className="flex items-center gap-2">
               <span className="flex gap-0.5" aria-hidden="true">
@@ -500,7 +493,7 @@ export function Map({ center, circles, results, onMapClick, selectedSpecies, onS
                 <span className="h-2.5 w-2.5 rounded-full bg-amber-500" />
                 <span className="h-2.5 w-2.5 rounded-full bg-green-500" />
               </span>
-              Occurrences publiques documentées
+               Documented public observations
             </p>
           )}
           {Array.from(activeOverlays).map((id) => (
@@ -518,12 +511,12 @@ export function Map({ center, circles, results, onMapClick, selectedSpecies, onS
           onClick={() => setLayerPanelOpen(o => !o)}
           className="flex items-center gap-1.5 text-xs px-3 py-2 rounded-lg bg-white/95 backdrop-blur shadow-md border border-gray-200 text-gray-700 hover:bg-gray-50 font-medium"
           data-testid="button-toggle-layers"
-          title="Choisir le fond de carte et les couches écologiques"
+           title="Choose a basemap and ecological layers"
           aria-expanded={layerPanelOpen}
           aria-controls="map-layer-options"
         >
           <Layers className="h-3.5 w-3.5 text-teal-600" />
-          <span>Affichage de la carte</span>
+           <span>Map layers</span>
           {activeOverlays.size > 0 && (
             <span className="text-[10px] bg-teal-100 text-teal-700 px-1.5 py-0.5 rounded-full font-bold">
               {activeOverlays.size}
@@ -535,7 +528,7 @@ export function Map({ center, circles, results, onMapClick, selectedSpecies, onS
         {layerPanelOpen && (
           <div id="map-layer-options" className="mt-1 w-72 bg-white/98 backdrop-blur rounded-lg shadow-xl border border-gray-200 overflow-hidden">
             <div className="px-3 pt-2.5 pb-1.5 border-b border-gray-100">
-              <p className="text-[10px] font-bold uppercase tracking-wider text-gray-500">Choisir une carte de fond</p>
+               <p className="text-[10px] font-bold uppercase tracking-wider text-gray-500">Choose a basemap</p>
             </div>
             <div className="px-2 py-1.5 max-h-72 overflow-y-auto">
               {(["clair", "nature", "satellite"] as const).map(cat => {
@@ -546,7 +539,7 @@ export function Map({ center, circles, results, onMapClick, selectedSpecies, onS
                   <div key={cat} className="mb-1">
                     <div className="flex items-center gap-1.5 px-2 py-1 text-[10px] font-semibold text-gray-400 uppercase tracking-wider">
                       <Icon className="h-3 w-3" />
-                      {cat === "clair" ? "Cartes lisibles" : cat === "nature" ? "Reliefs et nature" : "Photos et satellite"}
+                       {cat === "clair" ? "Street maps" : cat === "nature" ? "Terrain and nature" : "Aerial and satellite"}
                     </div>
                     {layers.map(([id, l]) => (
                       <button
@@ -568,11 +561,11 @@ export function Map({ center, circles, results, onMapClick, selectedSpecies, onS
               })}
             </div>
             <div className="px-3 pt-2.5 pb-1.5 border-t border-gray-100 bg-gray-50/50">
-              <p className="text-[10px] font-bold uppercase tracking-wider text-gray-500">Afficher des zones nature</p>
+               <p className="text-[10px] font-bold uppercase tracking-wider text-gray-500">Ecological layers (regional coverage)</p>
             </div>
             <div className="px-2 py-1.5 max-h-64 overflow-y-auto bg-gray-50/30">
               {(["Espaces protégés", "Eau", "Habitats / Sol"] as const).map(group => {
-                const groupLabel = group === "Espaces protégés" ? "Zones protégées" : group === "Eau" ? "Eau et rivières" : "Occupation du sol";
+                 const groupLabel = group === "Espaces protégés" ? "Protected areas" : group === "Eau" ? "Water and rivers" : "Land cover";
                 const items = (Object.entries(OVERLAYS) as [OverlayId, typeof OVERLAYS[OverlayId]][])
                   .filter(([, o]) => o.group === group);
                 const Icon = group === "Espaces protégés" ? Trees : group === "Eau" ? Droplets : Building2;
@@ -615,7 +608,7 @@ export function Map({ center, circles, results, onMapClick, selectedSpecies, onS
                   className="w-full text-[10px] text-teal-600 hover:text-teal-800 font-semibold uppercase tracking-wider py-1.5 mt-1"
                   data-testid="button-clear-overlays"
                 >
-                  Tout désactiver
+                   Turn off all
                 </button>
               )}
             </div>
@@ -624,7 +617,7 @@ export function Map({ center, circles, results, onMapClick, selectedSpecies, onS
       </div>
 
       <div className="absolute bottom-1 right-1 bg-white/50 backdrop-blur px-2 py-0.5 text-[10px] text-gray-500 rounded z-[400] pointer-events-none">
-        Données GBIF · iNat | {layer.label}{activeOverlays.size > 0 && ` + ${activeOverlays.size} couche${activeOverlays.size > 1 ? "s" : ""}`}
+         GBIF · iNat data | {layer.label}{activeOverlays.size > 0 && ` + ${activeOverlays.size} layer${activeOverlays.size > 1 ? "s" : ""}`}
       </div>
     </div>
   );

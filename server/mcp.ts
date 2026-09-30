@@ -14,6 +14,7 @@ import { findSINPPlatforms, SINP_PLATFORMS } from "./sinp";
 import { STUDY_AREAS, PROJECT_PRESETS, TAXON_GROUPS } from "./constants";
 import { analyzePrioritySpecies } from "./llm";
 import { getZonages } from "./services/geoservices";
+import { getStudyCoverage } from "./services/coverage";
 import type { BufferCircle, Occurrence, InventoryResult } from "@shared/types";
 import type { CustomMcpServer, HarnessAgent, McpRegistryEntry } from "@shared/harness";
 import { getRuntimeHarnessConfig, isAgentEnabled, isAgentToolEnabled } from "./harnessRuntime";
@@ -83,14 +84,14 @@ export function getAliSpeciesStatutsArguments(
   }
   const scientificName = input.scientificName?.trim();
   if (scientificName) return { scientificName, ...region };
-  throw new Error("Aucun identifiant TAXREF ni nom scientifique disponible pour interroger les statuts");
+  throw new Error("Neither a TAXREF identifier nor a scientific name is available for status lookup");
 }
 
 const MCP_CONTEXT_MAX_CHARACTERS = 50_000;
 
 function contextOutput(value: string): string {
   return value.length > MCP_CONTEXT_MAX_CHARACTERS
-    ? `${value.slice(0, MCP_CONTEXT_MAX_CHARACTERS)}\n[Réponse tronquée à ${MCP_CONTEXT_MAX_CHARACTERS} caractères]`
+    ? `${value.slice(0, MCP_CONTEXT_MAX_CHARACTERS)}\n[Response truncated to ${MCP_CONTEXT_MAX_CHARACTERS} characters]`
     : value;
 }
 
@@ -137,13 +138,13 @@ async function resolvePublicMcpUrl(rawUrl: string): Promise<{ url: URL; addresse
   try {
     url = new URL(rawUrl);
   } catch {
-    throw new Error("URL MCP invalide.");
+    throw new Error("Invalid MCP URL.");
   }
-  if (url.protocol !== "https:") throw new Error("Le serveur MCP doit utiliser HTTPS.");
-  if (url.username || url.password) throw new Error("Les identifiants dans l’URL MCP sont interdits.");
+  if (url.protocol !== "https:") throw new Error("The MCP server must use HTTPS.");
+  if (url.username || url.password) throw new Error("Credentials in the MCP URL are prohibited.");
   const hostname = url.hostname.toLowerCase().replace(/\.$/, "");
   if (!hostname || BLOCKED_HOSTNAMES.has(hostname) || hostname.endsWith(".local") || hostname.endsWith(".internal")) {
-    throw new Error("Cette adresse MCP n’est pas autorisée.");
+    throw new Error("This MCP address is not permitted.");
   }
   let addresses = isIP(hostname)
     ? [{ address: hostname, family: isIP(hostname) }]
@@ -174,7 +175,7 @@ async function resolvePublicMcpUrl(rawUrl: string): Promise<{ url: URL; addresse
     }
   }
   if (!addresses.length || addresses.some(({ address }) => isPrivateAddress(address))) {
-    throw new Error("Le serveur MCP doit résoudre vers une adresse publique.");
+    throw new Error("The MCP server must resolve to a public address.");
   }
   return { url, addresses };
 }
@@ -206,7 +207,7 @@ export function getCustomToolCompatibility(inputSchema: unknown): Pick<McpRegist
   ) {
     return {
       supported: false,
-      unsupportedReason: "ALi prend uniquement en charge un schéma objet simple avec des propriétés explicites.",
+      unsupportedReason: "ALi supports only a simple object schema with explicit properties.",
     };
   }
   const properties = schema.properties as Record<string, unknown>;
@@ -219,7 +220,7 @@ export function getCustomToolCompatibility(inputSchema: unknown): Pick<McpRegist
   if (unsupported.length) {
     return {
       supported: false,
-      unsupportedReason: `Paramètres obligatoires non fournis par ALi : ${unsupported.join(", ")}`,
+      unsupportedReason: `Required parameters not supplied by ALi: ${unsupported.join(", ")}`,
     };
   }
   const incompatibleTypes = Object.entries(properties)
@@ -235,7 +236,7 @@ export function getCustomToolCompatibility(inputSchema: unknown): Pick<McpRegist
   if (incompatibleTypes.length) {
     return {
       supported: false,
-      unsupportedReason: `Types de paramètres incompatibles avec ALi : ${incompatibleTypes.join(", ")}`,
+      unsupportedReason: `Parameter types incompatible with ALi: ${incompatibleTypes.join(", ")}`,
     };
   }
   return { supported: true };
@@ -265,14 +266,14 @@ async function connectExternalMcp(rawUrl: string): Promise<{ client: Client; cle
     const announcedLength = Number(response.headers.get("content-length"));
     if (Number.isFinite(announcedLength) && announcedLength > MCP_RESPONSE_MAX_BYTES) {
       await response.body?.cancel();
-      throw new Error("La réponse MCP dépasse la taille maximale autorisée.");
+      throw new Error("MCP response exceeds the allowed size.");
     }
     let received = 0;
     const limiter = new TransformStream<Uint8Array, Uint8Array>({
       transform(chunk, controller) {
         received += chunk.byteLength;
         if (received > MCP_RESPONSE_MAX_BYTES) {
-          controller.error(new Error("La réponse MCP dépasse la taille maximale autorisée."));
+          controller.error(new Error("MCP response exceeds the allowed size."));
           return;
         }
         controller.enqueue(chunk);
@@ -295,7 +296,7 @@ async function connectExternalMcp(rawUrl: string): Promise<{ client: Client; cle
       client.connect(transport),
       new Promise<never>((_resolve, reject) => {
         timeout = setTimeout(
-          () => reject(new Error("Délai de connexion MCP dépassé.")),
+          () => reject(new Error("MCP connection timed out.")),
           MCP_CONNECT_TIMEOUT_MS,
         );
       }),
@@ -375,8 +376,11 @@ export async function getMcpServerRegistry(customServers: CustomMcpServer[] = []
              supported: true,
           })),
       };
-    } catch {
-      return { id, label, url, managed: true, connected: false, tools: [] };
+    } catch (error) {
+      return {
+        id, label, url, managed: true, connected: false, tools: [],
+        error: error instanceof Error ? error.message : "MCP connection or tool discovery failed",
+      };
     } finally {
       await connection?.client.close().catch(() => undefined);
       await connection?.server?.close().catch(() => undefined);
@@ -416,19 +420,19 @@ export async function executeApprovedMcpTool(
         : agent.mcpId === "ali-habitat" && APPROVED_ALI_HABITAT_TOOL_IDS.has(toolId)) ||
     !agent.mcpToolIds?.includes(toolId)
   ) {
-    return { ...base, status: "denied", durationMs: Date.now() - started, summary: "Outil non approuvé pour cet agent." };
+    return { ...base, status: "denied", durationMs: Date.now() - started, summary: "Tool not approved for this agent." };
   }
   const registry = (await registryProvider()).find((entry) => entry.id === agent.mcpId);
   const registeredTool = registry?.tools.find((tool) => tool.id === toolId);
   if (!registry?.connected || !registeredTool) {
-    return { ...base, status: "error", durationMs: Date.now() - started, summary: "MCP indisponible ou capacité introuvable." };
+    return { ...base, status: "error", durationMs: Date.now() - started, summary: "MCP unavailable or tool not found." };
   }
   if (registeredTool.supported === false) {
     return {
       ...base,
       status: "denied",
       durationMs: Date.now() - started,
-      summary: registeredTool.unsupportedReason ?? "Schéma d’entrée MCP incompatible avec ALi.",
+      summary: registeredTool.unsupportedReason ?? "MCP input schema incompatible with ALi.",
     };
   }
   let connection: { client: Client; server?: McpServer; cleanup?: () => Promise<void> } | undefined;
@@ -461,7 +465,7 @@ export async function executeApprovedMcpTool(
       );
       const unsupported = (schema?.required ?? []).filter((name) => args[name] === undefined);
       if (unsupported.length) {
-        throw new Error(`Paramètres MCP requis non disponibles : ${unsupported.join(", ")}`);
+        throw new Error(`Required MCP parameters unavailable: ${unsupported.join(", ")}`);
       }
     } else {
       switch (toolId) {
@@ -475,7 +479,7 @@ export async function executeApprovedMcpTool(
           args = { kind: "study_areas" };
           break;
         case "search_taxons":
-          if (!input.scientificName) throw new Error("Aucun taxon disponible pour interroger ALI Species");
+          if (!input.scientificName) throw new Error("No taxon available for ALI Species lookup");
           args = { query: input.scientificName, limit: 5 };
           break;
         case "get_statuts":
@@ -526,7 +530,7 @@ export async function executeApprovedMcpTool(
       ...base,
       status: "error",
       durationMs: Date.now() - started,
-      summary: error instanceof Error ? error.message : "Échec MCP",
+      summary: error instanceof Error ? error.message : "MCP failure",
     };
   } finally {
     await connection?.client.close().catch(() => undefined);
@@ -574,6 +578,7 @@ function summariseInventory(result: InventoryResult, max = 200) {
   );
 
   return {
+    coverage: result.coverage,
     totalSpecies: species.length,
     totalOccurrences: result.stats.total,
     sensitiveCount: result.stats.sensitiveCount,
@@ -589,11 +594,10 @@ function buildMcpServer(): McpServer {
     {
       capabilities: { tools: {} },
       instructions:
-        "ALi Inventaire : pré-étude documentaire biodiversité française basée sur GBIF, " +
-        "destiné aux études d'impact environnemental (EIE). Utilise les outils pour " +
-        "interroger la biodiversité autour d'un point GPS, obtenir les détails " +
-        "d'une espèce, géocoder un lieu, lister les plateformes SINP régionales " +
-        "et obtenir une analyse IA des espèces à enjeux.",
+        "ALi Inventaire supports preliminary biodiversity studies worldwide in English. " +
+        "GBIF and iNaturalist occurrence data are globally searchable, but French SINP, ZNIEFF, " +
+        "Natura 2000, CARHAB and ALI/TAXREF territorial statuses apply only where country coverage confirms France. " +
+        "Do not mistake a missing local source for absence of ecological concern. Field validation is required.",
     },
   );
 
@@ -609,11 +613,10 @@ function buildMcpServer(): McpServer {
   server.registerTool(
     "inventory_simple",
     {
-      title: "Inventaire GBIF (un point)",
+      title: "GBIF inventory (single location)",
       description:
-        "Récupère les espèces observées (occurrences GBIF) autour d'un point GPS dans un rayon donné. " +
-        "Renvoie la liste des espèces avec statut UICN, nom vernaculaire, classification taxonomique, " +
-        "et un score de confiance des données.",
+        "Retrieves documented species occurrences within a GPS study radius worldwide. " +
+        "Returns species, available IUCN data, names, taxonomy, source coverage and data confidence.",
       inputSchema: {
         lat: z.number().min(-90).max(90).describe("Latitude WGS84"),
         lng: z.number().min(-180).max(180).describe("Longitude WGS84"),
@@ -622,19 +625,19 @@ function buildMcpServer(): McpServer {
           .positive()
           .max(50000)
           .default(500)
-          .describe("Rayon en mètres (défaut 500, max 50 000)"),
+          .describe("Radius in metres (default 500, maximum 50,000)"),
       },
     },
     async ({ lat, lng, radius }) => {
       try {
         const harness = await getRuntimeHarnessConfig();
-        if (!isAgentEnabled(harness, "occurrences")) return fail("Agent Occurrences désactivé dans le Harnais");
+        if (!isAgentEnabled(harness, "occurrences")) return fail("Occurrence analysis is disabled");
         const result = await searchGBIF(lat, lng, radius ?? 500, {
           skipAliSpeciesMcp: !isAgentToolEnabled(harness, "taxonomy-status", "ali-species", "get_statuts"),
         });
         return ok(summariseInventory(result));
       } catch (e: any) {
-        return fail(e.message || "Erreur inventaire");
+        return fail(e.message || "Inventory error");
       }
     },
   );
@@ -642,10 +645,10 @@ function buildMcpServer(): McpServer {
   server.registerTool(
     "inventory_multi",
     {
-      title: "Inventaire EIE multi-aires",
+      title: "Multi-area biodiversity inventory",
       description:
-        "Inventaire sur plusieurs aires concentriques (standard EIE : aire immédiate, rapprochée, éloignée). " +
-        "Chaque cercle a un id, un centre [lat, lng], un rayon en mètres et peut être activé.",
+        "Inventory across several concentric study areas. Each circle has an id, a [lat, lng] centre, " +
+        "a radius in metres and an enabled flag.",
       inputSchema: {
         circles: z
           .array(
@@ -662,13 +665,13 @@ function buildMcpServer(): McpServer {
           )
           .min(1)
           .max(10)
-          .describe("Liste des cercles (1 à 10)"),
+          .describe("Study circles (1 to 10)"),
       },
     },
     async ({ circles }) => {
       try {
         const harness = await getRuntimeHarnessConfig();
-        if (!isAgentEnabled(harness, "occurrences")) return fail("Agent Occurrences désactivé dans le Harnais");
+        if (!isAgentEnabled(harness, "occurrences")) return fail("Occurrence analysis is disabled");
         const normalised = (circles as any[]).map((c) => ({
           id: c.id,
           label: c.label ?? c.id,
@@ -681,7 +684,7 @@ function buildMcpServer(): McpServer {
         });
         return ok(summariseInventory(result));
       } catch (e: any) {
-        return fail(e.message || "Erreur inventaire");
+        return fail(e.message || "Inventory error");
       }
     },
   );
@@ -689,17 +692,17 @@ function buildMcpServer(): McpServer {
   server.registerTool(
     "species_details",
     {
-      title: "Détails d'une espèce GBIF",
-      description: "Détails d'une espèce : nom vernaculaire FR, statut UICN, image, taxonomie.",
+      title: "GBIF species details",
+      description: "Species details: available English/French names, IUCN status, image and taxonomy.",
       inputSchema: {
-        taxonKey: z.number().int().describe("Identifiant GBIF (taxonKey)"),
+        taxonKey: z.number().int().describe("GBIF species identifier (taxonKey)"),
       },
     },
     async ({ taxonKey }) => {
       try {
         return ok(await fetchSpeciesDetails(taxonKey));
       } catch (e: any) {
-        return fail(e.message || "Erreur espèce");
+        return fail(e.message || "Species details error");
       }
     },
   );
@@ -707,9 +710,9 @@ function buildMcpServer(): McpServer {
   server.registerTool(
     "geocode",
     {
-      title: "Géocodage (Nominatim)",
-      description: "Convertit un nom de lieu en coordonnées GPS via OpenStreetMap.",
-      inputSchema: { q: z.string().min(1).describe("Lieu, commune ou adresse") },
+      title: "Geocoding (Nominatim)",
+      description: "Converts a place name to GPS coordinates via OpenStreetMap.",
+      inputSchema: { q: z.string().min(1).describe("Place name or address") },
     },
     async ({ q }) => {
       try {
@@ -723,16 +726,16 @@ function buildMcpServer(): McpServer {
           `https://nominatim.openstreetmap.org/search?${params.toString()}`,
           { headers: { "User-Agent": "InventaireFlash-MCP/1.0" } },
         );
-        if (!r.ok) return fail("Service de géocodage indisponible");
+        if (!r.ok) return fail("Geocoding service unavailable");
         const data = await r.json();
-        if (!data?.length) return fail("Lieu introuvable");
+        if (!data?.length) return fail("Place not found");
         return ok({
           lat: parseFloat(data[0].lat),
           lng: parseFloat(data[0].lon),
           displayName: data[0].display_name,
         });
       } catch (e: any) {
-        return fail(e.message || "Erreur géocodage");
+        return fail(e.message || "Geocoding error");
       }
     },
   );
@@ -740,10 +743,10 @@ function buildMcpServer(): McpServer {
   server.registerTool(
     "sinp_links",
     {
-      title: "Plateformes SINP régionales",
+      title: "French regional SINP platforms",
       description:
-        "Renvoie les plateformes SINP (Système d'Information Nature et Paysages) " +
-        "couvrant les coordonnées données — sources de données complémentaires régionales.",
+        "Returns French regional SINP platforms covering the coordinates. " +
+        "Outside France, returns an explicit coverage limitation.",
       inputSchema: {
         lat: z.number().min(-90).max(90),
         lng: z.number().min(-180).max(180),
@@ -751,9 +754,10 @@ function buildMcpServer(): McpServer {
     },
     async ({ lat, lng }) => {
       try {
-        return ok({ platforms: findSINPPlatforms(lat, lng) });
+        const coverage = await getStudyCoverage(lat, lng);
+        return ok({ platforms: coverage.frenchSources ? findSINPPlatforms(lat, lng) : [], coverage });
       } catch (e: any) {
-        return fail(e.message || "Erreur SINP");
+        return fail(e.message || "SINP error");
       }
     },
   );
@@ -761,11 +765,10 @@ function buildMcpServer(): McpServer {
   server.registerTool(
     "zonages_for_location",
     {
-      title: "Zonages environnementaux (ZNIEFF, Natura 2000…)",
+      title: "French environmental zoning (ZNIEFF, Natura 2000)",
       description:
-        "Renvoie les zonages environnementaux (inventaire ZNIEFF I/II, Natura 2000 ZSC/ZPS, réserves naturelles, " +
-        "parcs, arrêtés de protection de biotope, Ramsar, etc.) qui intersectent l'aire d'étude autour d'un point GPS. " +
-        "Source : IGN Géoplateforme / PatriNat (MNHN). Chaque zonage inclut son nom et le lien vers sa fiche INPN.",
+        "Returns French environmental designations intersecting the study area. " +
+        "Source: IGN Géoplateforme / PatriNat. Unavailable outside covered French territories.",
       inputSchema: {
         lat: z.number().min(-90).max(90).describe("Latitude WGS84"),
         lng: z.number().min(-180).max(180).describe("Longitude WGS84"),
@@ -774,16 +777,16 @@ function buildMcpServer(): McpServer {
           .positive()
           .max(50000)
           .default(2000)
-          .describe("Rayon de recherche en mètres autour du point (défaut 2000, max 50 000)"),
+          .describe("Search radius in metres (default 2,000, maximum 50,000)"),
       },
     },
     async ({ lat, lng, radius }) => {
       try {
         const harness = await getRuntimeHarnessConfig();
-        if (!isAgentEnabled(harness, "zonages")) return fail("Agent Zonages désactivé dans le Harnais");
+        if (!isAgentEnabled(harness, "zonages")) return fail("Zoning analysis is disabled");
         return ok(await getZonages(lat, lng, radius ?? 2000));
       } catch (e: any) {
-        return fail(e.message || "Erreur zonages");
+        return fail(e.message || "Zoning error");
       }
     },
   );
@@ -791,12 +794,12 @@ function buildMcpServer(): McpServer {
   server.registerTool(
     "priority_species_for_location",
     {
-      title: "Top 5 espèces à enjeux (analyse IA)",
+      title: "Priority species analysis",
       description:
-        "Lance un inventaire GBIF autour du point puis demande à un LLM expert d'identifier " +
-        "les 5 espèces les plus sensibles pour une étude d'impact (UICN, protégées France, ZNIEFF, directives Habitats/Oiseaux).",
+        "Runs a study-radius inventory and identifies up to five species needing further attention. " +
+        "French legal and territorial sources are used only where country coverage confirms France.",
       inputSchema: {
-        toponym: z.string().describe("Nom du lieu (utilisé dans l'analyse)"),
+        toponym: z.string().describe("Study place name"),
         lat: z.number().min(-90).max(90),
         lng: z.number().min(-180).max(180),
         radius: z
@@ -804,18 +807,18 @@ function buildMcpServer(): McpServer {
           .positive()
           .max(50000)
           .default(2000)
-          .describe("Rayon d'inventaire en mètres (défaut 2000)"),
+          .describe("Inventory radius in metres (default 2,000)"),
       },
     },
     async ({ toponym, lat, lng, radius }) => {
       try {
         const harness = await getRuntimeHarnessConfig();
-        if (!isAgentEnabled(harness, "occurrences")) return fail("Agent Occurrences désactivé dans le Harnais");
+        if (!isAgentEnabled(harness, "occurrences")) return fail("Occurrence analysis is disabled");
         const inv = await searchGBIF(lat, lng, radius ?? 2000, {
           skipAliSpeciesMcp: !isAgentToolEnabled(harness, "taxonomy-status", "ali-species", "get_statuts"),
         });
         if (inv.occurrences.length === 0) {
-          return fail("Aucune occurrence GBIF dans le rayon, analyse impossible");
+          return fail("No documented occurrences within the study radius; priority analysis is unavailable");
         }
         const analysis = await analyzePrioritySpecies(
           toponym,
@@ -831,7 +834,7 @@ function buildMcpServer(): McpServer {
           analysis,
         });
       } catch (e: any) {
-        return fail(e.message || "Erreur analyse IA");
+        return fail(e.message || "AI analysis error");
       }
     },
   );
@@ -839,14 +842,13 @@ function buildMcpServer(): McpServer {
   server.registerTool(
     "list_reference_data",
     {
-      title: "Référentiels (presets, aires, groupes, SINP)",
+      title: "Reference data (presets, areas, groups, SINP)",
       description:
-        "Renvoie les référentiels embarqués : presets de projets EIE, définitions d'aires d'étude, " +
-        "groupes taxonomiques et toutes les plateformes SINP. Utile pour construire un appel à inventory_multi.",
+        "Returns built-in project presets, study-area definitions, taxon groups and French SINP platform references.",
       inputSchema: {
         kind: z
           .enum(["presets", "study_areas", "taxon_groups", "sinp_all"])
-          .describe("Référentiel à retourner"),
+          .describe("Reference dataset to return"),
       },
     },
     async ({ kind }) => {

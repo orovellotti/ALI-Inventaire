@@ -3,23 +3,23 @@ import { customMcpServerSchema, harnessConfigSchema } from "@shared/harness";
 
 export const latSchema = z.coerce
   .number()
-  .refine((v) => !Number.isNaN(v), "Latitude invalide")
-  .refine((v) => v >= -90 && v <= 90, "Latitude doit être entre -90 et 90");
+  .refine((v) => !Number.isNaN(v), "Invalid latitude")
+  .refine((v) => v >= -90 && v <= 90, "Latitude must be between -90 and 90");
 
 export const lngSchema = z.coerce
   .number()
-  .refine((v) => !Number.isNaN(v), "Longitude invalide")
-  .refine((v) => v >= -180 && v <= 180, "Longitude doit être entre -180 et 180");
+  .refine((v) => !Number.isNaN(v), "Invalid longitude")
+  .refine((v) => v >= -180 && v <= 180, "Longitude must be between -180 and 180");
 
 export const radiusSchema = z.coerce
   .number()
-  .positive("'radius' doit être un nombre positif en mètres")
-  .max(50000, "Rayon maximum 50 km");
+  .positive("'radius' must be positive in metres")
+  .max(50000, "Maximum radius is 50 km");
 
 export const coordsSchema = z
   .tuple([z.number(), z.number()])
-  .refine(([lat]) => lat >= -90 && lat <= 90, "Latitude hors limites")
-  .refine(([, lng]) => lng >= -180 && lng <= 180, "Longitude hors limites");
+  .refine(([lat]) => lat >= -90 && lat <= 90, "Latitude out of range")
+  .refine(([, lng]) => lng >= -180 && lng <= 180, "Longitude out of range");
 
 export const bufferCircleSchema = z.object({
   id: z.string(),
@@ -31,7 +31,7 @@ export const bufferCircleSchema = z.object({
 });
 
 export const inventoryBodySchema = z.object({
-  circles: z.array(bufferCircleSchema).min(1, "Au moins un cercle requis").max(10, "Maximum 10 cercles par requête"),
+  circles: z.array(bufferCircleSchema).min(1, "At least one circle is required").max(10, "Maximum 10 circles per request"),
   includeINaturalist: z.boolean().optional(),
 });
 
@@ -57,7 +57,7 @@ export const zonagesQuerySchema = z.object({
 });
 
 export const searchQuerySchema = z.object({
-  q: z.string().trim().min(1, "Paramètre 'q' requis"),
+  q: z.string().trim().min(1, "Parameter 'q' is required"),
 });
 
 const positionSchema = z
@@ -69,7 +69,7 @@ const linearRingSchema = z.array(positionSchema).min(4).max(10_000).refine(
     const last = ring[ring.length - 1];
     return first[0] === last[0] && first[1] === last[1];
   },
-  "Chaque anneau doit être fermé",
+  "Each polygon ring must be closed",
 );
 const polygonCoordinatesSchema = z.array(linearRingSchema).min(1).max(100);
 const projectGeometrySchema = z.discriminatedUnion("type", [
@@ -102,18 +102,18 @@ export const projectAreaSchema = z
     if (positions > 10_000) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
-        message: "Emprise trop détaillée (maximum 10 000 sommets)",
+        message: "Project footprint too detailed (maximum 10,000 vertices)",
       });
     }
   });
 
 export const priorityBodySchema = z.object({
-  toponym: z.string().min(1, "Champ 'toponym' requis"),
+  toponym: z.string().min(1, "'toponym' is required"),
   coords: coordsSchema,
   occurrences: z
     .array(z.any())
-    .min(1, "Champ 'occurrences' requis (tableau non vide)")
-    .max(5000, "Maximum 5000 occurrences"),
+    .min(1, "'occurrences' must be a non-empty array")
+    .max(5000, "Maximum 5,000 occurrences"),
   projectArea: projectAreaSchema.optional(),
 });
 
@@ -125,13 +125,13 @@ export const potentialSpeciesBodySchema = z.object({
     .array(
       z.object({
         key: z.number().int(),
-        scientificName: z.string().trim().min(1, "Nom scientifique requis"),
+        scientificName: z.string().trim().min(1, "Scientific name is required"),
         decimalLatitude: latSchema,
         decimalLongitude: lngSchema,
         source: z.enum(["gbif", "inaturalist"]),
       }),
     )
-    .max(5000, "Maximum 5000 occurrences"),
+    .max(5000, "Maximum 5,000 occurrences"),
   projectArea: projectAreaSchema.optional(),
 });
 
@@ -196,17 +196,17 @@ export const MAX_REFORMAT_CONTEXT_CHARACTERS = 120_000;
 export const reformatBodySchema = z.object({
   report: z
     .string()
-    .min(1, "Champ 'report' requis")
+    .min(1, "'report' is required")
     .max(
       MAX_REFORMAT_REPORT_CHARACTERS,
-      `Rapport trop long (max ${MAX_REFORMAT_REPORT_CHARACTERS.toLocaleString("fr-FR")} caractères)`,
+      `Report too long (maximum ${MAX_REFORMAT_REPORT_CHARACTERS.toLocaleString("en-US")} characters)`,
     ),
   context: z
     .string()
-    .min(2, "Champ 'context' requis")
+    .min(2, "'context' is required")
     .max(
       MAX_REFORMAT_CONTEXT_CHARACTERS,
-      `Contexte trop long (max ${MAX_REFORMAT_CONTEXT_CHARACTERS.toLocaleString("fr-FR")} caractères)`,
+      `Context too long (maximum ${MAX_REFORMAT_CONTEXT_CHARACTERS.toLocaleString("en-US")} characters)`,
     ),
 });
 
@@ -214,7 +214,7 @@ export const harnessConfigBodySchema = harnessConfigSchema;
 export const mcpDiscoveryBodySchema = customMcpServerSchema.pick({ label: true, url: true });
 
 export const taxonKeyParamSchema = z.object({
-  taxonKey: z.coerce.number().int().positive("taxonKey doit être un entier"),
+  taxonKey: z.coerce.number().int().positive("taxonKey must be a positive integer"),
 });
 
 export function formatZodError(err: z.ZodError): string {

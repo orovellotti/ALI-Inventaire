@@ -54,17 +54,25 @@ test("enrichit les statuts via le MCP publié quand l'identifiant TAXREF manque"
 test("refuse get_statuts quand aucun identifiant de taxon n'est disponible", () => {
   assert.throws(
     () => getAliSpeciesStatutsArguments({}),
-    /identifiant TAXREF ni nom scientifique/i,
+    /neither a TAXREF identifier nor a scientific name/i,
   );
 });
 
 test("le registre vérifie la connexion MCP et découvre ses capacités", async () => {
   const registry = await getMcpServerRegistry();
-  assert.ok(registry.length > 0);
+  assert.deepEqual(registry.map((mcp) => mcp.id), ["ali-internal", "ali-species", "ali-habitat"]);
+  const internal = registry.find((mcp) => mcp.id === "ali-internal")!;
+  assert.equal(internal.connected, true);
+  assert.ok(internal.tools.some((tool) => tool.id === "sinp_links"));
   for (const mcp of registry) {
-    assert.equal(mcp.connected, true);
-    assert.ok(mcp.tools.length > 0);
-    assert.equal(new Set(mcp.tools.map((tool) => tool.id)).size, mcp.tools.length);
+    if (mcp.connected) {
+      assert.ok(mcp.tools.length > 0, `${mcp.id}: connected servers expose approved tools`);
+      assert.equal(new Set(mcp.tools.map((tool) => tool.id)).size, mcp.tools.length);
+    } else {
+      assert.notEqual(mcp.id, "ali-internal");
+      assert.deepEqual(mcp.tools, []);
+      assert.ok(mcp.error, `${mcp.id}: unavailable servers must report why discovery failed`);
+    }
   }
 });
 
@@ -120,7 +128,7 @@ test("refuse un outil qui n'est pas explicitement approuvé pour l'agent", async
   );
 
   assert.equal(trace.status, "denied");
-  assert.match(trace.summary, /non approuvé/i);
+  assert.match(trace.summary, /not approved/i);
 });
 
 test("exécute réellement un outil approuvé via le transport MCP", async () => {
@@ -162,7 +170,7 @@ test("distingue une panne MCP d'un refus d'autorisation", async () => {
   );
 
   assert.equal(trace.status, "error");
-  assert.match(trace.summary, /indisponible/i);
+  assert.match(trace.summary, /unavailable/i);
 });
 
 test("le schéma navigateur rejette toute adresse de serveur MCP", () => {
@@ -183,11 +191,11 @@ test("le schéma navigateur rejette toute adresse de serveur MCP", () => {
 
 test("refuse les URL MCP locales, privées ou non chiffrées", async () => {
   await assert.rejects(() => validatePublicMcpUrl("http://example.com/mcp"), /HTTPS/i);
-  await assert.rejects(() => validatePublicMcpUrl("https://localhost/mcp"), /pas autorisée/i);
-  await assert.rejects(() => validatePublicMcpUrl("https://127.0.0.1/mcp"), /adresse publique/i);
-  await assert.rejects(() => validatePublicMcpUrl("https://10.0.0.5/mcp"), /adresse publique/i);
-  await assert.rejects(() => validatePublicMcpUrl("https://[::ffff:7f00:1]/mcp"), /(publique|invalide|ENOTFOUND)/i);
-  await assert.rejects(() => validatePublicMcpUrl("https://user:pass@example.com/mcp"), /identifiants/i);
+  await assert.rejects(() => validatePublicMcpUrl("https://localhost/mcp"), /not permitted/i);
+  await assert.rejects(() => validatePublicMcpUrl("https://127.0.0.1/mcp"), /public address/i);
+  await assert.rejects(() => validatePublicMcpUrl("https://10.0.0.5/mcp"), /public address/i);
+  await assert.rejects(() => validatePublicMcpUrl("https://[::ffff:7f00:1]/mcp"), /(public|invalid|ENOTFOUND)/i);
+  await assert.rejects(() => validatePublicMcpUrl("https://user:pass@example.com/mcp"), /credential/i);
 });
 
 test("découvre les outils d'un serveur MCP administré", async () => {

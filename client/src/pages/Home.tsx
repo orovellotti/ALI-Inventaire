@@ -14,7 +14,7 @@ import { parseShapefile, ProjectPolygon } from "@/lib/shapefile";
 import { toZonageMapFeatures } from "@/lib/zonageMap";
 import { occurrenceKey } from "@/lib/resultKeys";
 import { fetchZonages, type ZonagesData } from "@/lib/zonages";
-import type { PotentialSpeciesResult } from "@shared/types";
+import type { PotentialSpeciesResult, StudyCoverage } from "@shared/types";
 import { DEFAULT_HARNESS_CONFIG, type HarnessConfig } from "@shared/harness";
 import {
   createAnalysisConversationId,
@@ -49,31 +49,16 @@ function createDefaultCircles(center: [number, number]): BufferCircle[] {
 }
 
 const RANDOM_PLACES: { name: string; coords: [number, number] }[] = [
-  { name: "Pointe du Raz, Finistère", coords: [48.0386, -4.7361] },
-  { name: "Camargue, Bouches-du-Rhône", coords: [43.5396, 4.4697] },
-  { name: "Mont-Saint-Michel, Manche", coords: [48.6361, -1.5115] },
-  { name: "Calanques de Cassis, Bouches-du-Rhône", coords: [43.2089, 5.5394] },
-  { name: "Forêt de Brocéliande, Ille-et-Vilaine", coords: [48.0167, -2.1833] },
-  { name: "Gorges du Verdon, Alpes-de-Haute-Provence", coords: [43.7472, 6.3789] },
-  { name: "Puy de Sancy, Puy-de-Dôme", coords: [45.5278, 2.8133] },
-  { name: "Lac d'Annecy, Haute-Savoie", coords: [45.8467, 6.1681] },
-  { name: "Dune du Pilat, Gironde", coords: [44.5908, -1.2128] },
-  { name: "Massif de la Vanoise, Savoie", coords: [45.3833, 6.7833] },
-  { name: "Marais Poitevin, Vendée", coords: [46.3167, -0.7] },
-  { name: "Cirque de Gavarnie, Hautes-Pyrénées", coords: [42.7028, -0.0086] },
-  { name: "Baie de Somme, Somme", coords: [50.2167, 1.6167] },
-  { name: "Gorges de l'Ardèche, Ardèche", coords: [44.3, 4.5] },
-  { name: "Forêt de Fontainebleau, Seine-et-Marne", coords: [48.4042, 2.6981] },
-  { name: "Lac du Der, Marne", coords: [48.5667, 4.7333] },
-  { name: "Étang de Berre, Bouches-du-Rhône", coords: [43.4667, 5.1] },
-  { name: "Massif des Vosges, Vosges", coords: [48.0, 7.0] },
-  { name: "Plateau de Millevaches, Corrèze", coords: [45.6833, 2.0333] },
-  { name: "Cap Fréhel, Côtes-d'Armor", coords: [48.6839, -2.3175] },
-  { name: "Île de Porquerolles, Var", coords: [43.0089, 6.2058] },
-  { name: "Marais de l'Estuaire de la Seine, Seine-Maritime", coords: [49.4333, 0.2667] },
-  { name: "Lac de Grand-Lieu, Loire-Atlantique", coords: [47.0833, -1.6667] },
-  { name: "Plateau de l'Aubrac, Aveyron", coords: [44.6167, 3.0] },
-  { name: "Cirque de Mafate, La Réunion", coords: [-21.0667, 55.4333] },
+  { name: "Camargue, France", coords: [43.5396, 4.4697] },
+  { name: "Lake District, United Kingdom", coords: [54.46, -3.09] },
+  { name: "Everglades, United States", coords: [25.86, -80.89] },
+  { name: "Serengeti, Tanzania", coords: [-2.33, 34.83] },
+  { name: "Sundarbans, Bangladesh", coords: [21.95, 89.18] },
+  { name: "Melbourne, Australia", coords: [-37.8136, 144.9631] },
+  { name: "Amazon rainforest, Brazil", coords: [-3.47, -62.22] },
+  { name: "Banff National Park, Canada", coords: [51.5, -116.05] },
+  { name: "Doñana National Park, Spain", coords: [37.0, -6.44] },
+  { name: "Fiordland National Park, New Zealand", coords: [-45.42, 167.72] },
 ];
 
 function pickRandomPlace() {
@@ -97,7 +82,7 @@ export default function Home() {
   const [showHarness, setShowHarness] = useState(false);
   const [harnessConfig, setHarnessConfig] = useState<HarnessConfig>(DEFAULT_HARNESS_CONFIG);
   const [showLieuxDits, setShowLieuxDits] = useState(false);
-  const [currentToponym, setCurrentToponym] = useState<string>("Localisation à confirmer");
+  const [currentToponym, setCurrentToponym] = useState<string>("Location to confirm");
   const [activePresetId, setActivePresetId] = useState("custom");
   const [activeTaxonFilters, setActiveTaxonFilters] = useState<Set<string>>(
     () => new Set(TAXON_GROUPS.map(g => g.id))
@@ -111,6 +96,8 @@ export default function Home() {
   const [potentialSpecies, setPotentialSpecies] = useState<PotentialSpeciesResult | null>(null);
   const [potentialSpeciesLoading, setPotentialSpeciesLoading] = useState(false);
   const [potentialSpeciesError, setPotentialSpeciesError] = useState(false);
+  const [coverage, setCoverage] = useState<StudyCoverage | null>(null);
+  const [coverageError, setCoverageError] = useState<string | null>(null);
   const [selectedZonageId, setSelectedZonageId] = useState<string | null>(null);
   const [isLoadingShapefile, setIsLoadingShapefile] = useState(false);
   const [isLocationReady, setIsLocationReady] = useState(false);
@@ -141,11 +128,14 @@ export default function Home() {
   const openHarness = () => setShowHarness(true);
 
   const inventoryRequestId = useRef(0);
+  const coverageAbortController = useRef<AbortController | null>(null);
   const zonagesAbortController = useRef<AbortController | null>(null);
   const potentialSpeciesAbortController = useRef<AbortController | null>(null);
   const suppressNextHistorySave = useRef(false);
   const resetForNewLocation = useCallback((locationReady = false) => {
     inventoryRequestId.current++;
+    coverageAbortController.current?.abort();
+    coverageAbortController.current = null;
     zonagesAbortController.current?.abort();
     zonagesAbortController.current = null;
     potentialSpeciesAbortController.current?.abort();
@@ -156,6 +146,8 @@ export default function Home() {
     setPotentialSpecies(null);
     setPotentialSpeciesLoading(false);
     setPotentialSpeciesError(false);
+    setCoverage(null);
+    setCoverageError(null);
     setAnalysisFailed(false);
     setZonagesError(false);
     setSelectedSpecies(null);
@@ -169,6 +161,8 @@ export default function Home() {
 
   const restoreConversation = useCallback((conversation: AnalysisConversation) => {
     inventoryRequestId.current++;
+    coverageAbortController.current?.abort();
+    coverageAbortController.current = null;
     zonagesAbortController.current?.abort();
     potentialSpeciesAbortController.current?.abort();
     zonagesAbortController.current = null;
@@ -184,6 +178,8 @@ export default function Home() {
     setIncludeINaturalist(conversation.parameters.includeINaturalist);
     setProjectPolygon(conversation.parameters.projectPolygon);
     setResults(conversation.results.inventory);
+    setCoverage(conversation.results.inventory?.coverage ?? null);
+    setCoverageError(null);
     setZonages(conversation.results.zonages);
     setPotentialSpecies(conversation.results.potentialSpecies);
     setZonagesLoading(false);
@@ -213,13 +209,13 @@ export default function Home() {
             agentErrors: {
               ...conversation.agentErrors,
               ...(!hasInventory
-                ? { inventory: "Cette analyse a été interrompue avant la réponse de l'agent Occurrences." }
+                 ? { inventory: "This analysis was interrupted before the observations agent responded." }
                 : {}),
               ...(hasInventory && !conversation.results.zonages
-                ? { zonages: "Cette étape a été interrompue avant sa finalisation." }
+                 ? { zonages: "This step was interrupted before completion." }
                 : {}),
               ...(hasInventory && !conversation.results.potentialSpecies
-                ? { potentialSpecies: "Cette étape a été interrompue avant sa finalisation." }
+                 ? { potentialSpecies: "This step was interrupted before completion." }
                 : {}),
             },
           };
@@ -232,7 +228,7 @@ export default function Home() {
       })
       .catch((error: unknown) => {
         if (cancelled) return;
-        setHistoryError(error instanceof Error ? error.message : "L'historique local est indisponible.");
+         setHistoryError(error instanceof Error ? error.message : "Local history is unavailable.");
       })
       .finally(() => {
         if (!cancelled) setHistoryReady(true);
@@ -254,20 +250,20 @@ export default function Home() {
         resetForNewLocation(true);
         setCurrentToponym(place.display_name);
         toast({
-          title: "Lieu trouvé",
+           title: "Location found",
           description: place.display_name,
         });
       } else {
         toast({
-          title: "Lieu introuvable",
-          description: `Nous n'avons pas pu localiser "${query}".`,
+           title: "Location not found",
+           description: `Could not locate "${query}".`,
           variant: "destructive",
         });
       }
     } catch (error) {
       toast({
-        title: "Erreur de géocodage",
-        description: "Impossible de contacter le service de localisation.",
+         title: "Geocoding error",
+         description: "Could not contact the location service.",
         variant: "destructive",
       });
     } finally {
@@ -278,15 +274,15 @@ export default function Home() {
   const handleLaunchAnalysis = async () => {
     const agentEnabled = (id: string) => harnessConfig.agents.find((agent) => agent.id === id)?.enabled === true;
     if (!agentEnabled("occurrences")) {
-      toast({ title: "Agent Occurrences désactivé", description: "Activez-le dans le Harnais pour lancer une pré-étude.", variant: "destructive" });
+       toast({ title: "Observations agent disabled", description: "Enable it in the Harness to start an assessment.", variant: "destructive" });
       return;
     }
     const enabledCircles = circles.filter(c => c.enabled);
     const enabledCount = enabledCircles.length;
     if (enabledCount === 0) {
       toast({
-        title: "Aucune aire sélectionnée",
-        description: "Activez au moins une aire d'étude pour lancer l'analyse.",
+         title: "No study area selected",
+         description: "Enable at least one study area to start the analysis.",
         variant: "destructive",
       });
       return;
@@ -300,7 +296,7 @@ export default function Home() {
     const initialConversation: AnalysisConversation = {
       version: 1,
       id: conversationId,
-      title: currentToponym.split(",")[0].trim() || "Nouvelle analyse",
+       title: currentToponym.split(",")[0].trim() || "New analysis",
       status: "running",
       parameters: {
         toponym: currentToponym,
@@ -324,6 +320,9 @@ export default function Home() {
     setActiveConversationId(conversationId);
     setConversations((previous) => [initialConversation, ...previous].slice(0, 20));
     setHistoryError(null);
+    coverageAbortController.current?.abort();
+    const coverageController = new AbortController();
+    coverageAbortController.current = coverageController;
     zonagesAbortController.current?.abort();
     const zonagesController = new AbortController();
     zonagesAbortController.current = zonagesController;
@@ -336,23 +335,64 @@ export default function Home() {
     setLocationKey((key) => key + 1);
     setZonages(null);
     setSelectedZonageId(null);
-    setZonagesLoading(agentEnabled("zonages"));
+    setZonagesLoading(false);
     setPotentialSpecies(null);
     setPotentialSpeciesLoading(false);
     setPotentialSpeciesError(false);
+    setCoverage(null);
+    setCoverageError(null);
     setAnalysisFailed(false);
     setZonagesError(false);
     setIsAnalyzing(true);
+    // Global inventory does not depend on France-specific coverage. Start it
+    // immediately, while country coverage is resolved for the regional calls.
+    const inventoryPromise = searchGBIFMultiCircle(circles, { includeINaturalist })
+      .then((data) => ({ data, error: null as unknown }))
+      .catch((error: unknown) => ({ data: null, error }));
 
     try {
       await saveAnalysisConversation(initialConversation);
     } catch (error) {
-      setHistoryError(error instanceof Error ? error.message : "L'analyse n'a pas pu être ajoutée à l'historique.");
+       setHistoryError(error instanceof Error ? error.message : "Could not add this analysis to history.");
     }
 
-    // Les zonages partent dès le clic, en parallèle de GBIF/iNaturalist.
-    // Leur échec reste non bloquant : l'inventaire d'espèces s'ouvre quand même.
-    if (agentEnabled("zonages")) void fetchZonages(
+    let resolvedCoverage: StudyCoverage | null = null;
+    const coverageTimeout = window.setTimeout(() => coverageController.abort(), 12_000);
+    try {
+      const params = new URLSearchParams({
+        lat: String(referenceCircle.center[0]),
+        lng: String(referenceCircle.center[1]),
+      });
+      const response = await fetch(`/api/coverage?${params.toString()}`, {
+        signal: coverageController.signal,
+      });
+      if (!response.ok) {
+        const payload = await response.json().catch(() => ({}));
+        throw new Error(payload.error || `Country coverage lookup failed (${response.status})`);
+      }
+      const value: StudyCoverage = await response.json();
+      if (typeof value.countryCode !== "string" || typeof value.frenchSources !== "boolean") {
+        throw new Error("Country coverage response was incomplete");
+      }
+      resolvedCoverage = value;
+      if (requestId === inventoryRequestId.current) setCoverage(value);
+    } catch (error) {
+      if (requestId === inventoryRequestId.current) {
+        setCoverageError(
+          `Country coverage could not be verified (${error instanceof Error && error.name !== "AbortError" ? error.message : "request timed out"}). France-only sources were skipped; this is not evidence of absence.`,
+        );
+      }
+    } finally {
+      window.clearTimeout(coverageTimeout);
+      if (coverageAbortController.current === coverageController) coverageAbortController.current = null;
+    }
+    if (requestId !== inventoryRequestId.current) return;
+
+    // Never query French-only endpoints outside confirmed French coverage.
+    // An unknown country is not a negative finding; global inventory continues.
+    if (agentEnabled("zonages") && resolvedCoverage?.frenchSources) {
+      setZonagesLoading(true);
+      void fetchZonages(
       referenceCircle.center[0],
       referenceCircle.center[1],
       referenceCircle.radius,
@@ -376,18 +416,23 @@ export default function Home() {
       .finally(() => {
         if (requestId === inventoryRequestId.current) setZonagesLoading(false);
       });
+    }
 
     try {
-      const data = await searchGBIFMultiCircle(circles, { includeINaturalist });
+      const inventoryOutcome = await inventoryPromise;
+      if (!inventoryOutcome.data) {
+        throw inventoryOutcome.error ?? new Error("Global inventory unavailable");
+      }
+      const data = inventoryOutcome.data;
       if (requestId !== inventoryRequestId.current) return;
-      setResults(data);
+      setResults({ ...data, coverage: data.coverage ?? resolvedCoverage ?? undefined });
       setAnalysisFailed(false);
       setIsPanelOpen(true);
       toast({
-        title: "Inventaire terminé",
-        description: `${data.stats.speciesCount} espèces trouvées dans ${enabledCount} aire${enabledCount > 1 ? 's' : ''} d'étude.`,
+         title: "Inventory complete",
+         description: `${data.stats.speciesCount} species found across ${enabledCount} study area${enabledCount > 1 ? 's' : ''}.`,
       });
-      if (agentEnabled("zonages")) {
+      if (agentEnabled("zonages") && resolvedCoverage?.frenchSources) {
         setPotentialSpeciesLoading(true);
         void fetch("/api/potential-species", {
           method: "POST",
@@ -410,7 +455,7 @@ export default function Home() {
           .then(async (response) => {
             if (!response.ok) {
               const payload = await response.json().catch(() => ({}));
-              throw new Error(payload.error || "Analyse du potentiel écologique indisponible");
+               throw new Error(payload.error || "Ecological potential analysis unavailable");
             }
             return response.json() as Promise<PotentialSpeciesResult>;
           })
@@ -442,8 +487,8 @@ export default function Home() {
       setPotentialSpeciesLoading(false);
       setAnalysisFailed(true);
       toast({
-        title: "Erreur",
-        description: "Impossible de récupérer les données GBIF.",
+         title: "Error",
+         description: "Could not retrieve GBIF data.",
         variant: "destructive",
       });
     } finally {
@@ -556,13 +601,13 @@ export default function Home() {
       resetForNewLocation(true);
       setCurrentToponym(polygon.name);
       toast({
-        title: "Shapefile chargé",
-        description: `${polygon.geojson.features.length} entité(s) — "${polygon.name}"`,
+         title: "Shapefile loaded",
+         description: `${polygon.geojson.features.length} feature(s) — "${polygon.name}"`,
       });
     } catch (error) {
-      const msg = error instanceof Error ? error.message : "Format non reconnu";
+       const msg = error instanceof Error ? error.message : "Unrecognized format";
       toast({
-        title: "Erreur de chargement",
+         title: "Upload error",
         description: msg,
         variant: "destructive",
       });
@@ -579,8 +624,8 @@ export default function Home() {
     resetForNewLocation(true);
     setCurrentToponym(polygon.name);
     toast({
-      title: "Lieu-dit chargé",
-      description: `Contour utilisé comme emprise — "${polygon.name}"`,
+       title: "Place loaded",
+       description: `Using the boundary for "${polygon.name}"`,
     });
   }, [resetForNewLocation, toast]);
 
@@ -592,16 +637,16 @@ export default function Home() {
     resetForNewLocation(true);
     setCurrentToponym(name);
     toast({
-      title: "Lieu-dit localisé",
-      description: `Aires d'étude centrées sur "${name}" (pas de contour OSM disponible)`,
+       title: "Place located",
+       description: `Study areas centered on "${name}" (no OSM boundary available)`,
     });
   }, [resetForNewLocation, projectPolygon, toast]);
 
   const handleShapefileClear = useCallback(() => {
     setProjectPolygon(null);
     toast({
-      title: "Shapefile supprimé",
-      description: "Mode point restauré. Cliquez sur la carte pour placer le centre.",
+       title: "Shapefile removed",
+       description: "Point mode restored. Click the map to set the center.",
     });
   }, [toast]);
 
@@ -643,9 +688,9 @@ export default function Home() {
         potentialSpecies,
       },
       agentErrors: {
-        ...(analysisFailed ? { inventory: "L'agent Occurrences n'a pas pu terminer l'inventaire." } : {}),
-        ...(zonagesError ? { zonages: "L'agent Zonages n'a pas pu récupérer les emprises." } : {}),
-        ...(potentialSpeciesError ? { potentialSpecies: "L'agent Potentiel écologique est indisponible." } : {}),
+         ...(analysisFailed ? { inventory: "The observations agent could not complete the inventory." } : {}),
+         ...(zonagesError ? { zonages: "The protected-area agent could not retrieve boundaries." } : {}),
+         ...(potentialSpeciesError ? { potentialSpecies: "The ecological potential agent is unavailable." } : {}),
       },
       updatedAt: new Date().toISOString(),
     };
@@ -658,7 +703,7 @@ export default function Home() {
     void saveAnalysisConversation(updated)
       .then(() => setHistoryError(null))
       .catch((error: unknown) => {
-        setHistoryError(error instanceof Error ? error.message : "L'analyse n'a pas pu être enregistrée.");
+         setHistoryError(error instanceof Error ? error.message : "Could not save this analysis.");
       });
   }, [
     activeConversationId,
@@ -700,7 +745,7 @@ export default function Home() {
       );
       setHistoryError(null);
     } catch (error) {
-      setHistoryError(error instanceof Error ? error.message : "La conversation n'a pas pu être renommée.");
+       setHistoryError(error instanceof Error ? error.message : "Could not rename this conversation.");
     }
   }, []);
 
@@ -711,49 +756,63 @@ export default function Home() {
       if (id === activeConversationId) resetForNewLocation();
       setHistoryError(null);
     } catch (error) {
-      setHistoryError(error instanceof Error ? error.message : "La conversation n'a pas pu être supprimée.");
+       setHistoryError(error instanceof Error ? error.message : "Could not delete this conversation.");
     }
   }, [activeConversationId, resetForNewLocation]);
 
   const requestSummary = useMemo(() => {
     const enabled = circles.filter((circle) => circle.enabled);
-    const siteLabel = projectPolygon?.name || currentToponym.split(",")[0]?.trim() || "Site sélectionné";
+     const siteLabel = projectPolygon?.name || currentToponym.split(",")[0]?.trim() || "Selected site";
     const areaLabel = enabled
-      .map((circle) => `${circle.label.replace("Aire d'étude ", "")} (${circle.radius >= 1000 ? `${circle.radius / 1000} km` : `${circle.radius} m`})`)
+       .map((circle) => `${circle.label} (${circle.radius >= 1000 ? `${circle.radius / 1000} km` : `${circle.radius} m`})`)
       .join(", ");
-    const sources = `GBIF${includeINaturalist ? " et iNaturalist" : ""}`;
-    return `Site : ${siteLabel}. Aire${enabled.length > 1 ? "s" : ""} : ${areaLabel}. Sources : ${sources}.${projectPolygon ? " Emprise importée." : ""}`;
+     const sources = `GBIF${includeINaturalist ? " and iNaturalist" : ""}`;
+     return `Site: ${siteLabel}. Study areas: ${areaLabel}. Sources: ${sources}.${projectPolygon ? " Imported boundary." : ""}`;
   }, [circles, currentToponym, includeINaturalist, projectPolygon]);
 
   return (
     <div className="relative h-[100dvh] min-h-[100dvh] w-full overflow-hidden bg-[#f8f7f0]">
       <header className="ali-global-header absolute inset-x-0 top-0 z-[2500] flex h-[76px] items-center border-b border-[#dfe3d8] bg-[#faf9f3]/95 px-4 backdrop-blur-md sm:px-6">
-        <button type="button" onClick={() => { if (results || isAnalyzing) setPendingLocationChange({ kind: "reset" }); else { setIsPanelOpen(true); resetForNewLocation(); } }} className="flex items-center gap-3 text-left" aria-label="Commencer une nouvelle analyse" data-testid="global-brand">
+         <button type="button" onClick={() => { if (results || isAnalyzing) setPendingLocationChange({ kind: "reset" }); else { setIsPanelOpen(true); resetForNewLocation(); } }} className="flex items-center gap-3 text-left" aria-label="Start a new analysis" data-testid="global-brand">
           <span className="flex h-10 w-10 items-center justify-center rounded-[12px] bg-[#1e594a] text-[#dcc05b]">
             <ALiBrandMark className="h-8 w-8" />
           </span>
           <span className="leading-none">
             <span className="flex items-center gap-2">
               <strong className="block font-serif text-[22px] font-semibold tracking-[-.05em] text-[#17483d]">ALi</strong>
-              <span className="rounded-full border border-[#b9c9bb] bg-[#edf2e9] px-1.5 py-0.5 text-[8px] font-bold uppercase tracking-[.12em] text-[#426158]">Bêta</span>
+               <span className="rounded-full border border-[#b9c9bb] bg-[#edf2e9] px-1.5 py-0.5 text-[8px] font-bold uppercase tracking-[.12em] text-[#426158]">Beta</span>
             </span>
-            <small className="mt-1 block text-[9px] font-semibold uppercase tracking-[.19em] text-[#6b8076]">France · Pré-étude</small>
+             <small className="mt-1 block text-[9px] font-semibold uppercase tracking-[.19em] text-[#6b8076]">Global · Biodiversity</small>
           </span>
         </button>
         <div className="absolute left-1/2 hidden -translate-x-1/2 items-center gap-2 md:flex">
-          <span className="h-2 w-2 rounded-full bg-[#c4a642]" aria-hidden="true" /><span className="text-sm font-semibold text-[#315b4e]">{isLocationReady ? currentToponym.split(",")[0] : "Nouvelle étude"}</span><span className="text-xs text-[#7b8c83]">Pré-étude biodiversité</span>
+           <span className="h-2 w-2 rounded-full bg-[#c4a642]" aria-hidden="true" /><span className="text-sm font-semibold text-[#315b4e]">{isLocationReady ? currentToponym.split(",")[0] : "New study"}</span><span className="text-xs text-[#7b8c83]">Preliminary biodiversity assessment</span>
         </div>
         <div className="ml-auto flex items-center gap-2">
           {authLoaded && !isSignedIn && (
             <SignInButton mode="modal">
-              <button type="button" className="hidden items-center gap-2 rounded-xl border border-[#d5ddd2] bg-[#fffef9] px-3 py-2 text-xs font-semibold text-[#426158] shadow-sm transition-colors hover:bg-[#edf2e9] sm:flex">Connexion</button>
+               <button type="button" className="hidden items-center gap-2 rounded-xl border border-[#d5ddd2] bg-[#fffef9] px-3 py-2 text-xs font-semibold text-[#426158] shadow-sm transition-colors hover:bg-[#edf2e9] sm:flex">Sign in</button>
             </SignInButton>
           )}
-          <button type="button" onClick={openHarness} className="hidden items-center gap-2 rounded-xl border border-[#d5ddd2] bg-[#fffef9] px-3 py-2 text-xs font-semibold text-[#426158] shadow-sm transition-colors hover:bg-[#edf2e9] sm:flex" aria-label="Consulter le harnais de l’agent" data-testid="button-harness"><Bot className="h-4 w-4 text-[#1e594a]" /> Harnais</button>
+           <button type="button" onClick={openHarness} className="hidden items-center gap-2 rounded-xl border border-[#d5ddd2] bg-[#fffef9] px-3 py-2 text-xs font-semibold text-[#426158] shadow-sm transition-colors hover:bg-[#edf2e9] sm:flex" aria-label="View agent harness" data-testid="button-harness"><Bot className="h-4 w-4 text-[#1e594a]" /> Harness</button>
           {isSignedIn && <UserButton />}
-          <button type="button" onClick={() => { const text = requestSummary || `Pré-étude biodiversité — ${currentToponym}`; if (navigator.share) void navigator.share({ title: "ALi Inventaire", text }); else void navigator.clipboard?.writeText(text); }} className="flex items-center gap-2 rounded-xl border border-[#d5ddd2] bg-[#fffef9] px-3 py-2 text-xs font-semibold text-[#426158] shadow-sm transition-colors hover:bg-[#edf2e9]" aria-label="Partager cette étude" data-testid="button-share"><Share2 className="h-4 w-4 text-[#1e594a]" /> <span className="hidden sm:inline">Partager</span></button>
+           <button type="button" onClick={() => { const text = requestSummary || `Preliminary biodiversity assessment — ${currentToponym}`; if (navigator.share) void navigator.share({ title: "ALi Inventory", text }); else void navigator.clipboard?.writeText(text); }} className="flex items-center gap-2 rounded-xl border border-[#d5ddd2] bg-[#fffef9] px-3 py-2 text-xs font-semibold text-[#426158] shadow-sm transition-colors hover:bg-[#edf2e9]" aria-label="Share this study" data-testid="button-share"><Share2 className="h-4 w-4 text-[#1e594a]" /> <span className="hidden sm:inline">Share</span></button>
         </div>
       </header>
+      {(coverageError || (coverage && !coverage.frenchSources && (!isPanelOpen || !results?.coverage))) && (
+        <aside
+          role="note"
+          aria-live="polite"
+          className="absolute left-4 top-[84px] z-[2600] max-w-[min(90vw,29rem)] rounded-xl border border-sky-200 bg-sky-50/95 px-4 py-3 text-xs leading-5 text-sky-900 shadow-sm"
+          data-testid="coverage-gap-notice"
+        >
+          {coverageError ? (
+            <><strong>Regional coverage unknown.</strong> {coverageError} Global observation sources are still queried where available.</>
+          ) : (
+            <><strong>{coverage?.country || coverage?.countryCode}: regional data gap.</strong> GBIF and iNaturalist observations remain available, but France-only zoning, habitats and territorial statuses were not queried here. Missing French data does not mean species or protected areas are absent.</>
+          )}
+        </aside>
+      )}
       
       <Map 
         center={center} 
@@ -783,7 +842,7 @@ export default function Home() {
           type="button"
           onClick={() => setIsPanelOpen(true)}
           className="absolute bottom-6 right-4 z-[1000] flex items-center gap-2 rounded-full border border-[#1e594a] bg-[#1e594a] px-4 py-2.5 text-sm font-semibold text-[#fffdf5] shadow-[0_10px_25px_rgba(25,70,58,.18)] transition-colors hover:bg-[#17483d] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#c4a642] focus-visible:ring-offset-2"
-          aria-label="Ouvrir la conversation d'analyse"
+           aria-label="Open analysis conversation"
           data-testid="button-open-conversation"
         >
           <MessageSquare className="h-4 w-4" />
@@ -865,16 +924,16 @@ export default function Home() {
         <AlertDialogContent className="z-[4000] max-w-md">
           <AlertDialogHeader>
             <AlertDialogTitle>
-              {pendingLocationChange?.kind === "map" ? "Déplacer le centre de l’étude ?" : "Commencer une nouvelle analyse ?"}
+               {pendingLocationChange?.kind === "map" ? "Move the study center?" : "Start a new analysis?"}
             </AlertDialogTitle>
             <AlertDialogDescription>
-              La conversation actuelle restera dans l'historique. Une nouvelle analyse sera préparée pour la nouvelle emprise.
+               This conversation will remain in your history. A new analysis will be prepared for the new area.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Conserver les résultats</AlertDialogCancel>
+             <AlertDialogCancel>Keep results</AlertDialogCancel>
             <AlertDialogAction onClick={confirmLocationChange} className="bg-[#1e594a] text-[#fffdf5] hover:bg-[#17483d]">
-              {pendingLocationChange?.kind === "map" ? "Déplacer le centre" : "Nouvelle analyse"}
+               {pendingLocationChange?.kind === "map" ? "Move center" : "New analysis"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -891,23 +950,23 @@ export default function Home() {
               resetForNewLocation();
             }
           }}
-          aria-label="Commencer une nouvelle analyse"
-          title="Commencer une nouvelle analyse"
+           aria-label="Start a new analysis"
+           title="Start a new analysis"
           data-testid="button-reset"
         >
           <div className="rounded-[10px] bg-[#1e594a] p-1.5">
             <Leaf className="h-4 w-4 text-[#dcc05b]" />
           </div>
           <span className="font-serif text-lg font-semibold tracking-[-0.04em] text-[#17483d]">ALi</span>
-          <span className="rounded-full border border-[#b9c9bb] bg-[#edf2e9] px-1.5 py-0.5 text-[8px] font-bold uppercase tracking-[.12em] text-[#426158]">Bêta</span>
-          <span className="hidden text-[9px] font-semibold uppercase tracking-[.18em] text-[#668075] sm:inline">France · Pré-étude</span>
+           <span className="rounded-full border border-[#b9c9bb] bg-[#edf2e9] px-1.5 py-0.5 text-[8px] font-bold uppercase tracking-[.12em] text-[#426158]">Beta</span>
+           <span className="hidden text-[9px] font-semibold uppercase tracking-[.18em] text-[#668075] sm:inline">Global · Biodiversity</span>
         </button>
 
         <button
           type="button"
           onClick={() => setShowAbout(true)}
           className="rounded-xl border border-[#d9ddd1] bg-[#fffef9]/95 p-2 shadow-[0_4px_14px_rgba(29,70,57,.08)] backdrop-blur transition-colors hover:bg-[#fffef9]"
-          aria-label="À propos de la méthodologie"
+           aria-label="About the methodology"
           data-testid="button-about"
         >
           <HelpCircle className="h-4 w-4 text-[#557067]" />
@@ -916,20 +975,20 @@ export default function Home() {
         <Link
           href="/methodologie"
           className="flex items-center gap-1.5 rounded-xl border border-[#d9ddd1] bg-[#fffef9]/95 px-2.5 py-2 text-[#426158] shadow-[0_4px_14px_rgba(29,70,57,.08)] backdrop-blur transition-colors hover:bg-[#fffef9]"
-          aria-label="Lire la méthodologie"
-          title="Lire la méthodologie"
+           aria-label="Read the methodology"
+           title="Read the methodology"
         >
           <BookOpen className="h-4 w-4 text-[#1e594a]" />
-          <span className="hidden text-xs font-semibold sm:inline">Méthode</span>
+           <span className="hidden text-xs font-semibold sm:inline">Method</span>
         </Link>
 
         <button
           type="button"
           onClick={() => setShowApi(true)}
           className="flex items-center gap-1.5 rounded-xl border border-[#d9ddd1] bg-[#fffef9]/95 px-2.5 py-2 shadow-[0_4px_14px_rgba(29,70,57,.08)] backdrop-blur transition-colors hover:bg-[#fffef9]"
-          aria-label="MCP — connecter Claude ou ChatGPT à ALi Inventaire"
+           aria-label="MCP — connect Claude or ChatGPT to ALi Inventory"
           data-testid="button-agent-ia"
-          title="MCP — connecter Claude / ChatGPT (agent IA) à ALi Inventaire"
+           title="MCP — connect Claude / ChatGPT to ALi Inventory"
         >
           <Bot className="h-4 w-4 text-[#1e594a]" />
           <span className="text-xs font-semibold text-[#426158]">MCP</span>

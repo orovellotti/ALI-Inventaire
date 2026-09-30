@@ -55,17 +55,24 @@ export async function searchOccurrences({
   limit = 1000,
 }: GbifOccurrenceQuery): Promise<any[]> {
   const bbox = getBoundingBox(lat, lng, radiusMeters);
-  const url = new URL(`${GBIF_BASE}/occurrence/search`);
-  url.searchParams.set("decimalLatitude", `${bbox.minLat.toFixed(4)},${bbox.maxLat.toFixed(4)}`);
-  url.searchParams.set("decimalLongitude", `${bbox.minLng.toFixed(4)},${bbox.maxLng.toFixed(4)}`);
-  url.searchParams.set("hasCoordinate", "true");
-  url.searchParams.set("hasGeospatialIssue", "false");
-  url.searchParams.set("limit", String(limit));
-
-  const response = await fetchWithTimeout(url, OCCURRENCE_TIMEOUT_MS);
-  if (!response.ok) throw new Error(`GBIF API Error: ${response.status}`);
-  const data = await response.json();
-  return data.results ?? [];
+  const longitudeRanges: Array<[number, number]> =
+    bbox.maxLng - bbox.minLng >= 360 ? [[-180, 180]]
+      : bbox.minLng <= -180 ? [[-180, Math.min(180, bbox.maxLng)], [Math.max(-180, bbox.minLng + 360), 180]]
+      : bbox.maxLng >= 180 ? [[Math.max(-180, bbox.minLng), 180], [-180, Math.min(180, bbox.maxLng - 360)]]
+        : [[bbox.minLng, bbox.maxLng]];
+  const records = await Promise.all(longitudeRanges.map(async ([minLng, maxLng]) => {
+    const url = new URL(`${GBIF_BASE}/occurrence/search`);
+    url.searchParams.set("decimalLatitude", `${Math.max(-90, bbox.minLat).toFixed(4)},${Math.min(90, bbox.maxLat).toFixed(4)}`);
+    url.searchParams.set("decimalLongitude", `${minLng.toFixed(4)},${maxLng.toFixed(4)}`);
+    url.searchParams.set("hasCoordinate", "true");
+    url.searchParams.set("hasGeospatialIssue", "false");
+    url.searchParams.set("limit", String(limit));
+    const response = await fetchWithTimeout(url, OCCURRENCE_TIMEOUT_MS);
+    if (!response.ok) throw new Error(`GBIF API Error: ${response.status}`);
+    const data = await response.json();
+    return (data.results ?? []) as any[];
+  }));
+  return records.flat();
 }
 
 export async function fetchSpeciesMedia(speciesKey: number): Promise<string | undefined> {

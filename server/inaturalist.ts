@@ -48,7 +48,8 @@ const MAX_PAGES = 5;
 export async function searchINaturalist(
   lat: number,
   lng: number,
-  radiusMeters: number
+  radiusMeters: number,
+  french = false,
 ): Promise<{ occurrences: Occurrence[]; summary: INatRawSummary }> {
   const radiusKm = Math.max(0.1, Math.min(radiusMeters / 1000, 100));
   const speciesMap = new Map<string, Occurrence>();
@@ -64,8 +65,7 @@ export async function searchINaturalist(
       quality_grade: "research,needs_id",
       geoprivacy: "open",
       hrank: "species",
-      locale: "fr",
-      preferred_place_id: "6753",
+      locale: "en",
     });
 
     let results: any[] = [];
@@ -97,10 +97,13 @@ export async function searchINaturalist(
       const mapping: { kingdom?: string; phylum?: string; class?: string } =
         iconic ? ICONIC_MAP[iconic] ?? {} : {};
 
-      const consStatus =
-        taxon?.conservation_status?.iucn_status_code ||
-        taxon?.conservation_status?.status ||
-        undefined;
+      // iNaturalist taxon-level conservation_status can be scoped to a place.
+      // Only use it outside France if it is not tied to any place; a regional
+      // assessment cannot be mistaken for a global or study-country assessment.
+      const status = taxon?.conservation_status;
+      const consStatus = french || !status?.place_id
+        ? status?.iucn_status_code || status?.status || undefined
+        : undefined;
 
       const occ: Occurrence = {
         key: Number(taxon.id) || Date.now() + Math.random(),
@@ -113,14 +116,14 @@ export async function searchINaturalist(
         class: mapping.class,
         order: undefined,
         family: undefined,
-        alertLevel: applyFrenchPriorityBoost(
+        alertLevel: french ? applyFrenchPriorityBoost(
           getAlertLevelFromStatus(consStatus),
           undefined,
           undefined,
           mapping.class,
-        ),
-        frenchProtected: isFrenchPriority(undefined, undefined, mapping.class),
-        isInvasive: isInvasiveExotic(scientificName),
+        ) : getAlertLevelFromStatus(consStatus),
+        frenchProtected: french ? isFrenchPriority(undefined, undefined, mapping.class) : undefined,
+        isInvasive: french ? isInvasiveExotic(scientificName) : undefined,
         imageUrl: taxon.default_photo?.medium_url || taxon.default_photo?.square_url || undefined,
         iucnStatus: consStatus,
         taxonKey: undefined,

@@ -16,9 +16,9 @@ async function nominatimFetch(
   params: Record<string, string>,
   signal?: AbortSignal,
 ) {
-  const url = `${NOMINATIM_BASE}${path}?${new URLSearchParams(params).toString()}`;
+  const url = `${NOMINATIM_BASE}${path}?${new URLSearchParams({ "accept-language": "en", ...params }).toString()}`;
   const response = await fetch(url, { headers: { "User-Agent": USER_AGENT }, signal });
-  if (!response.ok) throw badGateway("Erreur du service de géocodage");
+  if (!response.ok) throw badGateway("Geocoding service unavailable");
   return response.json();
 }
 
@@ -26,6 +26,8 @@ export interface GeocodeResult {
   lat: number;
   lon: number;
   display_name: string;
+  countryCode?: string;
+  country?: string;
 }
 
 export function formatGeocodeDisplayName(row: any): string {
@@ -48,11 +50,13 @@ export async function geocodePlace(query: string): Promise<GeocodeResult> {
     limit: "1",
     addressdetails: "1",
   });
-  if (!data?.length) throw notFound("Lieu introuvable");
+  if (!data?.length) throw notFound("Place not found");
   return {
     lat: parseFloat(data[0].lat),
     lon: parseFloat(data[0].lon),
     display_name: formatGeocodeDisplayName(data[0]),
+    ...(data[0].address?.country_code ? { countryCode: data[0].address.country_code.toUpperCase() } : {}),
+    ...(data[0].address?.country ? { country: data[0].address.country } : {}),
   };
 }
 
@@ -65,6 +69,8 @@ export interface ReverseGeocodeResult {
   commune: string;
   departement: string;
   region: string;
+  countryCode?: string;
+  country?: string;
 }
 
 function extractPlace(addr: any, fallbackName: string): string {
@@ -91,7 +97,7 @@ export async function reverseGeocode(
     zoom: "14",
     addressdetails: "1",
   }, signal);
-  if (!data || data.error) throw notFound("Aucun toponyme trouvé");
+  if (!data || data.error) throw notFound("No place found at these coordinates");
 
   const addr = data.address ?? {};
   const place = extractPlace(addr, data.name);
@@ -111,6 +117,8 @@ export async function reverseGeocode(
     commune,
     departement,
     region,
+    ...(addr.country_code ? { countryCode: addr.country_code.toUpperCase() } : {}),
+    ...(addr.country ? { country: addr.country } : {}),
   };
 }
 
@@ -159,7 +167,6 @@ export async function searchLieuxDits(query: string): Promise<LieuDitResult[]> {
     limit: "15",
     addressdetails: "1",
     polygon_geojson: "1",
-    countrycodes: "fr,gp,mq,gf,re,yt,pm",
   });
   return (Array.isArray(data) ? data : []).filter(isAcceptedPlace).map(mapLieuDit);
 }

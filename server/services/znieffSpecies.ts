@@ -62,7 +62,7 @@ export function buildZnieffReference(
 ): ZnieffDocumentaryResult["reference"] {
   return {
     id: ZNIEFF_REFERENCE_ID,
-    title: "Base de référence des ZNIEFF terrestres et marines",
+    title: "Reference database of terrestrial and marine ZNIEFF sites",
     publisher: "PatriNat / INPN",
     sourceUrl: meta?.sourceUrl || ZNIEFF_SOURCE_URL,
     sourceUpdated: meta?.sourceUpdated || "inconnue",

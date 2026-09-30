@@ -20,7 +20,7 @@ test("conserve une limite explicite contre les requêtes démesurées", () => {
   });
   assert.equal(result.success, false);
   if (!result.success) {
-    assert.match(result.error.issues[0]?.message ?? "", /200[  ]000 caractères/);
+    assert.match(result.error.issues[0]?.message ?? "", /Report too long \(maximum 200,000 characters\)/);
   }
 });
 
@@ -31,7 +31,7 @@ test("borne séparément le contexte scientifique structuré", () => {
   });
   assert.equal(result.success, false);
   if (!result.success) {
-    assert.match(result.error.issues[0]?.message ?? "", /Contexte trop long/);
+    assert.match(result.error.issues[0]?.message ?? "", /Context too long \(maximum 120,000 characters\)/);
   }
 });
 

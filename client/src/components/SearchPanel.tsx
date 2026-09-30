@@ -44,49 +44,49 @@ export function SearchPanel(props: SearchPanelProps) {
   };
   const formatRadius = (radius: number) => radius >= 1000 ? `${radius / 1000} km` : `${radius} m`;
 
-  if (isCollapsed) return <button type="button" onClick={onExpand} className={embedded ? "w-full" : "absolute top-6 left-1/2 z-[1000] -translate-x-1/2"} data-testid="button-expand-search">Modifier la recherche</button>;
+  if (isCollapsed) return <button type="button" onClick={onExpand} className={embedded ? "w-full" : "absolute top-6 left-1/2 z-[1000] -translate-x-1/2"} data-testid="button-expand-search">Edit search</button>;
 
   return <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className={embedded ? "search-dialogue" : "search-dialogue absolute top-6 left-1/2 z-[1000] w-[92%] max-w-md -translate-x-1/2"}>
     <AliMessage>
-      <p>Bonjour, je suis ALi Inventaire.</p>
-      <p>Je peux préparer une première lecture écologique à partir des données disponibles, puis vous indiquer les points à vérifier sur le terrain.</p>
-      <p>Pour commencer, où se trouve le site à étudier&nbsp;?</p>
+      <p>Hello, I'm ALi Inventory.</p>
+      <p>I can prepare an initial ecological assessment from available public data and identify what needs checking in the field. Public-data coverage varies around the world.</p>
+      <p>Where is the site you want to study?</p>
     </AliMessage>
     <div className="user-response location-response" data-testid="response-location">
       <Search aria-hidden="true" />
-       <Input value={query} onChange={(event) => setQuery(event.target.value)} onKeyDown={(event) => event.key === "Enter" && locate()} placeholder="Adresse, commune ou coordonnées GPS" aria-label="Adresse, commune ou coordonnées GPS" data-testid="input-search" />
-      <Button onClick={locate} disabled={isSearching || !query.trim()} aria-label="Localiser" data-testid="button-goto">{isSearching ? <Loader2 className="animate-spin" /> : <MapPin />}</Button>
-       <button type="button" onClick={() => setMoreOpen(!moreOpen)} aria-expanded={moreOpen} aria-controls="location-methods" aria-label="Autres méthodes de localisation" data-testid="button-more-location"><ChevronDown /></button>
+        <Input value={query} onChange={(event) => setQuery(event.target.value)} onKeyDown={(event) => event.key === "Enter" && locate()} placeholder="Place, address or GPS coordinates worldwide" aria-label="Place, address or GPS coordinates" data-testid="input-search" />
+      <Button onClick={locate} disabled={isSearching || !query.trim()} aria-label="Find location" data-testid="button-goto">{isSearching ? <Loader2 className="animate-spin" /> : <MapPin />}</Button>
+        <button type="button" onClick={() => setMoreOpen(!moreOpen)} aria-expanded={moreOpen} aria-controls="location-methods" aria-label="Other ways to select a location" data-testid="button-more-location"><ChevronDown /></button>
        <AnimatePresence>{moreOpen && <motion.div id="location-methods" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="location-methods">
-        <button type="button" onClick={() => chooseAlternate(onOpenLieuxDits)} data-testid="popover-lieu-dit"><Landmark /> Rechercher un lieu ou une commune</button>
-        <button type="button" onClick={() => chooseAlternate(() => fileInputRef.current?.click())} disabled={isLoadingShapefile} data-testid="popover-shapefile">{isLoadingShapefile ? <Loader2 className="animate-spin" /> : <Upload />} Importer une emprise shapefile (.zip)</button>
+         <button type="button" onClick={() => chooseAlternate(onOpenLieuxDits)} data-testid="popover-lieu-dit"><Landmark /> Search for a place or locality</button>
+         <button type="button" onClick={() => chooseAlternate(() => fileInputRef.current?.click())} disabled={isLoadingShapefile} data-testid="popover-shapefile">{isLoadingShapefile ? <Loader2 className="animate-spin" /> : <Upload />} Import a shapefile boundary (.zip)</button>
       </motion.div>}</AnimatePresence>
       <input ref={fileInputRef} type="file" accept=".zip" onChange={(event) => { const file = event.target.files?.[0]; if (file) onShapefileLoad(file); event.target.value = ""; }} className="hidden" data-testid="input-shapefile" />
     </div>
     {locationReady && <>
       <AliMessage>
-        <p>L’adresse correspond au secteur suivant&nbsp;:</p>
+        <p>Selected location:</p>
         <p className="site-confirmation"><MapPin /> {projectPolygon ? projectPolygon.name : toponym}</p>
-        {projectPolygon && <p className="site-confirmation"><FileArchive /> Emprise importée&nbsp;: {projectPolygon.geojson.features.length} entité{projectPolygon.geojson.features.length > 1 ? "s" : ""} <button type="button" onClick={onShapefileClear} aria-label="Supprimer l'emprise" data-testid="button-clear-shapefile"><X /></button></p>}
-        <p>Le périmètre est-il correct&nbsp;? Vous pouvez le confirmer ou le modifier directement sur la carte.</p>
+        {projectPolygon && <p className="site-confirmation"><FileArchive /> Imported boundary: {projectPolygon.geojson.features.length} feature{projectPolygon.geojson.features.length > 1 ? "s" : ""} <button type="button" onClick={onShapefileClear} aria-label="Remove boundary" data-testid="button-clear-shapefile"><X /></button></p>}
+        <p>Is this the right area? Confirm it or adjust the location on the map.</p>
       </AliMessage>
       <div className="response-actions" data-testid="response-perimeter">
-        <button type="button" className={perimeterConfirmed ? "selected" : ""} onClick={() => { setPerimeterConfirmed(true); setSettingsOpen(false); }}><Check /> Oui, ce périmètre est correct</button>
-        <button type="button" onClick={() => { setPerimeterConfirmed(true); setSettingsOpen(true); }}><Pencil /> Modifier les paramètres</button>
+        <button type="button" className={perimeterConfirmed ? "selected" : ""} onClick={() => { setPerimeterConfirmed(true); setSettingsOpen(false); }}><Check /> Yes, this area is correct</button>
+        <button type="button" onClick={() => { setPerimeterConfirmed(true); setSettingsOpen(true); }}><Pencil /> Adjust settings</button>
       </div>
     </>}
     {perimeterConfirmed && <>
-      <AliMessage><p>Pour adapter la Pré-étude documentaire biodiversité, choisissez la nature de votre projet et les aires à prendre en compte.</p></AliMessage>
+      <AliMessage><p>Choose your project type and study areas to tailor the preliminary biodiversity assessment.</p></AliMessage>
       <div className="user-response settings-response" data-testid="response-study-settings">
-         <button type="button" onClick={() => setSettingsOpen(!settingsOpen)} aria-expanded={settingsOpen} aria-controls="study-settings-detail" data-testid="button-toggle-settings"><Settings2 /> <span>{PROJECT_PRESETS.find((preset) => preset.id === activePresetId)?.label || "Paramètres personnalisés"}</span>{settingsOpen ? <ChevronUp /> : <ChevronDown />}</button>
+          <button type="button" onClick={() => setSettingsOpen(!settingsOpen)} aria-expanded={settingsOpen} aria-controls="study-settings-detail" data-testid="button-toggle-settings"><Settings2 /> <span>{PROJECT_PRESETS.find((preset) => preset.id === activePresetId)?.label || "Custom settings"}</span>{settingsOpen ? <ChevronUp /> : <ChevronDown />}</button>
          <AnimatePresence>{settingsOpen && <motion.div id="study-settings-detail" initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="settings-detail">
-          <p>Nature du projet</p><div className="preset-list">{PROJECT_PRESETS.filter((preset) => preset.id !== "custom").map((preset) => <button key={preset.id} type="button" onClick={() => onApplyPreset(preset)} className={activePresetId === preset.id ? "selected" : ""} data-testid={`preset-${preset.id}`}>{preset.label}</button>)}</div>
-          <p><Target /> Aires d’étude</p>
-           {circles.map((circle) => <div key={circle.id} className="circle-control" data-testid={`circle-item-${circle.id}`}><button type="button" onClick={() => onToggleCircle(circle.id)} className={circle.enabled ? "selected" : ""} aria-pressed={circle.enabled} data-testid={`toggle-circle-${circle.id}`}><Check /> {circle.label}</button>{circle.enabled && <><button type="button" onClick={() => setExpandedCircle(expandedCircle === circle.id ? null : circle.id)} aria-expanded={expandedCircle === circle.id} aria-controls={`radius-${circle.id}`}>{formatRadius(circle.radius)} <ChevronDown /></button>{expandedCircle === circle.id && <div id={`radius-${circle.id}`}><Slider value={[circle.radius]} onValueChange={(values) => onRadiusChange(circle.id, values[0])} min={100} max={circle.id === "eloignee" ? 15000 : circle.id === "rapprochee" ? 5000 : 2000} step={100} aria-label={`Rayon de l’aire ${circle.label}`} data-testid={`slider-radius-${circle.id}`} /></div>}</>}</div>)}
+           <p>Project type</p><div className="preset-list">{PROJECT_PRESETS.filter((preset) => preset.id !== "custom").map((preset) => <button key={preset.id} type="button" onClick={() => onApplyPreset(preset)} className={activePresetId === preset.id ? "selected" : ""} data-testid={`preset-${preset.id}`}>{preset.label}</button>)}</div>
+           <p><Target /> Study areas</p>
+            {circles.map((circle) => <div key={circle.id} className="circle-control" data-testid={`circle-item-${circle.id}`}><button type="button" onClick={() => onToggleCircle(circle.id)} className={circle.enabled ? "selected" : ""} aria-pressed={circle.enabled} data-testid={`toggle-circle-${circle.id}`}><Check /> {circle.label}</button>{circle.enabled && <><button type="button" onClick={() => setExpandedCircle(expandedCircle === circle.id ? null : circle.id)} aria-expanded={expandedCircle === circle.id} aria-controls={`radius-${circle.id}`}>{formatRadius(circle.radius)} <ChevronDown /></button>{expandedCircle === circle.id && <div id={`radius-${circle.id}`}><Slider value={[circle.radius]} onValueChange={(values) => onRadiusChange(circle.id, values[0])} min={100} max={circle.id === "eloignee" ? 15000 : circle.id === "rapprochee" ? 5000 : 2000} step={100} aria-label={`Radius for ${circle.label}`} data-testid={`slider-radius-${circle.id}`} /></div>}</>}</div>)}
         </motion.div>}</AnimatePresence>
       </div>
-      <AliMessage><p>La Pré-étude documentaire biodiversité va croiser les occurrences publiques documentées à proximité, les compatibilités écologiques et les zonages disponibles.</p><p><strong>Les résultats orientent la décision, mais ne confirment pas une présence sur le site : cette confirmation exige des relevés de terrain et l’expertise d’un écologue.</strong></p></AliMessage>
-       <div className="response-actions launch-response"><button type="button" onClick={onLaunchAnalysis} disabled={isAnalyzing || enabledCount === 0} aria-busy={isAnalyzing} data-testid="button-launch-analysis">{isAnalyzing ? <Loader2 className="animate-spin" aria-hidden="true" /> : <Zap aria-hidden="true" />} Lancer la Pré-étude documentaire biodiversité</button>{isAnalyzing && <p role="status" aria-live="polite">Pré-étude documentaire biodiversité en cours…</p>}</div>
+      <AliMessage><p>The preliminary biodiversity assessment combines nearby public observations, ecological compatibility and available protected-area data. Coverage varies by country and source.</p><p><strong>These results support decisions but do not confirm species presence on site. Field surveys and an ecologist's expertise are needed for confirmation.</strong></p></AliMessage>
+       <div className="response-actions launch-response"><button type="button" onClick={onLaunchAnalysis} disabled={isAnalyzing || enabledCount === 0} aria-busy={isAnalyzing} data-testid="button-launch-analysis">{isAnalyzing ? <Loader2 className="animate-spin" aria-hidden="true" /> : <Zap aria-hidden="true" />} Start preliminary biodiversity assessment</button>{isAnalyzing && <p role="status" aria-live="polite">Preliminary biodiversity assessment in progress…</p>}</div>
     </>}
   </motion.div>;
 }

@@ -20,7 +20,7 @@ test("déduplique et trie les habitats CARHAB par surface décroissante", () => 
   assert.equal(parsed.habitats[0].code, "5100");
   assert.equal(parsed.habitats[1].areaHa, 6);
   assert.equal(parsed.habitats[1].percentage, 30);
-  assert.match(formatCarhabSummary(parsed), /Surface analysée par CARHAB : 20 ha/);
+  assert.match(formatCarhabSummary(parsed), /Area analysed by CARHAB: 20 ha/);
 });
 
 test("accepte le résumé textuel si le JSON est absent", () => {

@@ -78,7 +78,7 @@ export function PrioritySpeciesDialog({ open, onOpenChange, toponym, coords, occ
       .then(async (r) => {
         if (!r.ok) {
           const err = await r.json().catch(() => ({}));
-          throw new Error(err.error || "Erreur d'analyse");
+           throw new Error(err.error || "Analysis failed");
         }
         return r.json();
       })
@@ -96,12 +96,12 @@ export function PrioritySpeciesDialog({ open, onOpenChange, toponym, coords, occ
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Sparkles className="h-5 w-5 text-teal-600" />
-            Top 5 — espèces à enjeux
+             Top 5 — priority species
           </DialogTitle>
           <DialogDescription>
-            Sélection IA des 5 espèces les plus sensibles sur "{toponym}".
+             AI-selected species of potential concern near "{toponym}".
             <span className="block mt-1 text-amber-700 text-[11px]">
-              Production IA — à valider par un écologue.
+               AI-generated: requires review by an ecologist. Regional data coverage varies.
             </span>
           </DialogDescription>
         </DialogHeader>
@@ -110,7 +110,7 @@ export function PrioritySpeciesDialog({ open, onOpenChange, toponym, coords, occ
           {loading && (
             <div className="flex flex-col items-center justify-center py-12 gap-3 text-sm text-gray-500">
               <Loader2 className="h-6 w-6 animate-spin text-teal-600" />
-              Analyse en cours…
+               Analyzing…
             </div>
           )}
 
@@ -124,7 +124,7 @@ export function PrioritySpeciesDialog({ open, onOpenChange, toponym, coords, occ
             <div className="space-y-2">
               {analysis.species.length === 0 ? (
                 <div className="text-sm text-gray-500 text-center py-6">
-                  Aucune espèce à enjeux notable identifiée.
+                   No notable priority species identified in the available data.
                 </div>
               ) : (
                 analysis.species.map((sp, i) => {
@@ -158,7 +158,7 @@ export function PrioritySpeciesDialog({ open, onOpenChange, toponym, coords, occ
                         </div>
                         <span className={`inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full border shrink-0 ${style.color}`}>
                           <StyleIcon className="h-3 w-3" />
-                          {sp.level}
+                           {{ majeur: "Major", fort: "High", modéré: "Moderate" }[sp.level]}
                         </span>
                       </div>
                     </div>
@@ -167,7 +167,7 @@ export function PrioritySpeciesDialog({ open, onOpenChange, toponym, coords, occ
               )}
 
               <div className="text-[10px] text-gray-400 text-right pt-2">
-                Généré le {new Date(analysis.generatedAt).toLocaleString("fr-FR")}
+                 Generated {new Date(analysis.generatedAt).toLocaleString("en")}
               </div>
             </div>
           )}

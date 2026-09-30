@@ -118,6 +118,8 @@ export interface InventoryResult {
   radius: number;
   circles: BufferCircle[];
   confidence: ConfidenceScore;
+  /** Coverage of data sources at the study location; missing fields are not negative findings. */
+  coverage?: StudyCoverage;
   /** Traçabilité de la phase d'enrichissement territorial ALI Species. */
   aliSpeciesEnrichment?: {
     source: "ALI Species MCP";
@@ -133,6 +135,14 @@ export interface InventoryResult {
     /** Noms effectivement reliés à un taxon TAXREF canonique. */
     nameResolved?: number;
   };
+}
+
+export interface StudyCoverage {
+  countryCode: string;
+  country?: string;
+  globalOccurrences: boolean;
+  frenchSources: boolean;
+  unavailableSources: string[];
 }
 
 export interface InventoryRequest {
@@ -238,6 +248,8 @@ export interface GeocodingResult {
   lat: number;
   lon: number;
   display_name: string;
+  countryCode?: string;
+  country?: string;
 }
 
 export interface SINPPlatform {

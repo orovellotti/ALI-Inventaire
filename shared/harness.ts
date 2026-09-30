@@ -52,8 +52,8 @@ const NATIVE_AGENT_IDS = ["occurrences", "zonages", "habitats", "taxonomy-status
 const NATIVE_HABITAT_AGENT = {
   id: "habitats",
   name: "Agent Habitat",
-  description: "Documente les habitats disponibles autour de l’aire d’étude via CARHAB.",
-  prompt: "Distingue les habitats documentés par CARHAB des habitats Natura 2000 et des habitats à confirmer sur le terrain.",
+  description: "Documents available habitats in French study areas using CARHAB.",
+  prompt: "Use CARHAB only for covered French locations. Distinguish mapped habitats from Natura 2000 habitats and habitats requiring field confirmation. Write in English.",
   enabled: true,
   native: true,
   mcpId: "ali-habitat",
@@ -62,9 +62,9 @@ const NATIVE_HABITAT_AGENT = {
 
 const NATIVE_TAXONOMY_STATUS_AGENT = {
   id: "taxonomy-status",
-  name: "Agent Taxonomie et statuts",
-  description: "Vérifie l’identité TAXREF et enrichit les taxons avec leurs statuts territoriaux via ALI Species.",
-  prompt: "Utilise les statuts documentaires du territoire étudié sans les présenter comme une preuve de présence. En cas d’incertitude territoriale ou d’indisponibilité, conserve un enjeu local à confirmer.",
+  name: "Taxonomy and status agent",
+  description: "Verifies TAXREF identity and enriches French taxa with territorial ALI Species statuses.",
+  prompt: "Use French territorial statuses only in covered French locations, never as evidence of presence. If geographic coverage or local status is uncertain, flag the local concern for field confirmation. Write in English.",
   enabled: true,
   native: true,
   mcpId: "ali-species",
@@ -75,27 +75,27 @@ export const harnessConfigSchema = z.object({
   version: z.literal(5),
   agents: z.array(harnessAgentSchema).min(1).max(20).refine(
     (agents) => new Set(agents.map((agent) => agent.id)).size === agents.length,
-    "Chaque agent doit avoir un identifiant unique",
+    "Each agent must have a unique identifier",
   ),
   mcpServers: z.array(customMcpServerSchema).max(10).default([]),
 }).superRefine((config, context) => {
   for (const id of NATIVE_AGENT_IDS) {
     const agent = config.agents.find((candidate) => candidate.id === id);
     if (!agent || !agent.native) {
-      context.addIssue({ code: z.ZodIssueCode.custom, message: `L’agent natif ${id} est obligatoire` });
+      context.addIssue({ code: z.ZodIssueCode.custom, message: `Native agent ${id} is required` });
     }
   }
   for (const agent of config.agents) {
     const reserved = NATIVE_AGENT_IDS.includes(agent.id as (typeof NATIVE_AGENT_IDS)[number]);
     if (agent.native !== reserved) {
-      context.addIssue({ code: z.ZodIssueCode.custom, message: `Identité native invalide pour ${agent.id}` });
+      context.addIssue({ code: z.ZodIssueCode.custom, message: `Invalid native identity for ${agent.id}` });
     }
     if (agent.mcpId.startsWith("custom-") && !config.mcpServers.some((server) => server.id === agent.mcpId)) {
-      context.addIssue({ code: z.ZodIssueCode.custom, message: `Serveur MCP inconnu pour ${agent.name}` });
+      context.addIssue({ code: z.ZodIssueCode.custom, message: `Unknown MCP server for ${agent.name}` });
     }
   }
   if (new Set(config.mcpServers.map((server) => server.id)).size !== config.mcpServers.length) {
-    context.addIssue({ code: z.ZodIssueCode.custom, message: "Chaque serveur MCP doit avoir un identifiant unique" });
+    context.addIssue({ code: z.ZodIssueCode.custom, message: "Each MCP server must have a unique identifier" });
   }
 });
 
@@ -142,9 +142,9 @@ export const DEFAULT_HARNESS_CONFIG: HarnessConfig = {
   agents: [
     {
       id: "occurrences",
-      name: "Agent Occurrences",
-      description: "Consolide les données naturalistes disponibles dans les aires d’étude.",
-      prompt: "Consolide et déduplique les occurrences. Distingue toujours donnée bibliographique et présence confirmée sur le terrain.",
+      name: "Occurrence agent",
+      description: "Consolidates biodiversity occurrence data in study areas worldwide.",
+      prompt: "Consolidate and deduplicate records. Distinguish public occurrence data from field-confirmed presence. Write in English.",
       enabled: true,
       native: true,
       mcpId: "ali-internal",
@@ -152,9 +152,9 @@ export const DEFAULT_HARNESS_CONFIG: HarnessConfig = {
     },
     {
       id: "zonages",
-      name: "Agent Zonages",
-      description: "Recherche et qualifie les zonages environnementaux proches du site.",
-      prompt: "Qualifie chaque zonage sans confondre inventaire patrimonial et protection réglementaire.",
+      name: "Zoning agent",
+      description: "Reviews environmental designations near covered French study sites.",
+      prompt: "Use French zoning only for covered French sites. Distinguish inventory designations from regulatory protection. Write in English.",
       enabled: true,
       native: true,
       mcpId: "ali-internal",

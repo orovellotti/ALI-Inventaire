@@ -13,7 +13,7 @@ async function bootstrap(): Promise<void> {
   try {
     await clearHistoryAfterRepublish();
   } catch (error) {
-    console.warn("Impossible de réinitialiser l’historique pour cette publication.", error);
+    console.warn("Could not reset history for this release.", error);
   }
   createRoot(document.getElementById("root")!).render(<App />);
 }

@@ -1,4 +1,5 @@
 import { badGateway } from "../lib/httpError";
+import { requireFrenchCoverage } from "./coverage";
 import type { SiteGeometry } from "./natura2000Habitats";
 
 const WFS_BASE = "https://data.geopf.fr/wfs/ows";
@@ -17,33 +18,33 @@ interface LayerDef {
 }
 
 export const ZONAGE_LAYERS: LayerDef[] = [
-  { key: "znieff1", typeName: "patrinat_znieff1:znieff1", type: "ZNIEFF de type I", category: "znieff" },
-  { key: "znieff2", typeName: "patrinat_znieff2:znieff2", type: "ZNIEFF de type II", category: "znieff" },
-  { key: "znieff1_mer", typeName: "patrinat_znieff1_mer:znieff1_mer", type: "ZNIEFF de type I (mer)", category: "znieff" },
-  { key: "znieff2_mer", typeName: "patrinat_znieff2_mer:znieff2_mer", type: "ZNIEFF de type II (mer)", category: "znieff" },
+  { key: "znieff1", typeName: "patrinat_znieff1:znieff1", type: "ZNIEFF type I", category: "znieff" },
+  { key: "znieff2", typeName: "patrinat_znieff2:znieff2", type: "ZNIEFF type II", category: "znieff" },
+  { key: "znieff1_mer", typeName: "patrinat_znieff1_mer:znieff1_mer", type: "ZNIEFF type I (marine)", category: "znieff" },
+  { key: "znieff2_mer", typeName: "patrinat_znieff2_mer:znieff2_mer", type: "ZNIEFF type II (marine)", category: "znieff" },
 
-  { key: "sic", typeName: "patrinat_sic:sic", type: "Natura 2000 — ZSC/SIC (Directive Habitats)", category: "natura2000" },
-  { key: "zps", typeName: "patrinat_zps:zps", type: "Natura 2000 — ZPS (Directive Oiseaux)", category: "natura2000" },
+  { key: "sic", typeName: "patrinat_sic:sic", type: "Natura 2000 — SAC/SCI (Habitats Directive)", category: "natura2000" },
+  { key: "zps", typeName: "patrinat_zps:zps", type: "Natura 2000 — SPA (Birds Directive)", category: "natura2000" },
 
-  { key: "pn", typeName: "patrinat_pn:parc_national", type: "Parc national", category: "reglementaire" },
-  { key: "rnn", typeName: "patrinat_rnn:rnn", type: "Réserve naturelle nationale", category: "reglementaire" },
-  { key: "rnr", typeName: "patrinat_rnr:rnr", type: "Réserve naturelle régionale", category: "reglementaire" },
-  { key: "rb", typeName: "patrinat_rb:reserve_biologique", type: "Réserve biologique", category: "reglementaire" },
-  { key: "apb", typeName: "patrinat_apb:apb", type: "Arrêté de protection de biotope (APPB)", category: "reglementaire" },
-  { key: "aphn", typeName: "patrinat_aphn:aire_protection_habitats_naturels", type: "Aire de protection des habitats naturels", category: "reglementaire" },
+  { key: "pn", typeName: "patrinat_pn:parc_national", type: "National park", category: "reglementaire" },
+  { key: "rnn", typeName: "patrinat_rnn:rnn", type: "National nature reserve", category: "reglementaire" },
+  { key: "rnr", typeName: "patrinat_rnr:rnr", type: "Regional nature reserve", category: "reglementaire" },
+  { key: "rb", typeName: "patrinat_rb:reserve_biologique", type: "Biological reserve", category: "reglementaire" },
+  { key: "apb", typeName: "patrinat_apb:apb", type: "Biotope protection order (APPB)", category: "reglementaire" },
+  { key: "aphn", typeName: "patrinat_aphn:aire_protection_habitats_naturels", type: "Natural habitat protection area", category: "reglementaire" },
 
-  { key: "pnr", typeName: "patrinat_pnr:pnr", type: "Parc naturel régional", category: "autre" },
-  { key: "pnm", typeName: "patrinat_pnm:pnm", type: "Parc naturel marin", category: "autre" },
-  { key: "ramsar", typeName: "patrinat_ramsar:pnm", type: "Site Ramsar (zone humide)", category: "autre" },
-  { key: "bios", typeName: "patrinat_bios:bios", type: "Réserve de biosphère (MAB)", category: "autre" },
-  { key: "cdl", typeName: "patrinat_cdl:conservatoire_littoral", type: "Terrain du Conservatoire du littoral", category: "autre" },
+  { key: "pnr", typeName: "patrinat_pnr:pnr", type: "Regional nature park", category: "autre" },
+  { key: "pnm", typeName: "patrinat_pnm:pnm", type: "Marine nature park", category: "autre" },
+  { key: "ramsar", typeName: "patrinat_ramsar:pnm", type: "Ramsar wetland site", category: "autre" },
+  { key: "bios", typeName: "patrinat_bios:bios", type: "Biosphere reserve (MAB)", category: "autre" },
+  { key: "cdl", typeName: "patrinat_cdl:conservatoire_littoral", type: "Coastal Conservancy land", category: "autre" },
 ];
 
 export const CATEGORY_LABELS: Record<ZonageCategory, string> = {
-  znieff: "Inventaire ZNIEFF",
+  znieff: "ZNIEFF inventory",
   natura2000: "Natura 2000",
-  reglementaire: "Protection réglementaire",
-  autre: "Autres zonages et reconnaissances",
+  reglementaire: "Regulatory protection",
+  autre: "Other environmental designations",
 };
 
 export interface Zonage {
@@ -302,6 +303,7 @@ export async function getZonages(
   radius: number,
   opts?: { includeGeometry?: boolean },
 ): Promise<ZonagesResult> {
+  await requireFrenchCoverage(lat, lng, "French protected-area zoning");
   const bbox = bboxFromRadius(lat, lng, radius);
   const errors: string[] = [];
   const center = opts?.includeGeometry ? { lat, lng } : undefined;
@@ -310,13 +312,13 @@ export async function getZonages(
     try {
       return await fetchLayer(layer, bbox, center);
     } catch (e: any) {
-      errors.push(`${layer.type}: ${e?.name === "AbortError" ? "délai dépassé" : e?.message || "erreur"}`);
+      errors.push(`${layer.type}: ${e?.name === "AbortError" ? "request timed out" : e?.message || "request failed"}`);
       return [] as Zonage[];
     }
   });
 
   if (perLayer.every((z) => z.length === 0) && errors.length === ZONAGE_LAYERS.length) {
-    throw badGateway("Service de zonages (IGN Géoplateforme) indisponible");
+    throw badGateway("French zoning service (IGN Géoplateforme) unavailable");
   }
 
   const all = perLayer.flat();
@@ -332,6 +334,7 @@ export async function getZonages(
 }
 
 export async function getNaturaZones(lat: number, lng: number, radius: number): Promise<Zonage[]> {
+  await requireFrenchCoverage(lat, lng, "French Natura 2000 zoning");
   const bbox = bboxFromRadius(lat, lng, radius);
   const naturaLayers = ZONAGE_LAYERS.filter((l) => l.category === "natura2000");
   const perLayer = await runWithConcurrency(naturaLayers, CONCURRENCY, async (layer) => {
@@ -360,6 +363,7 @@ export async function getZnieffZones(
   lng: number,
   radius: number,
 ): Promise<ZnieffZonesResult> {
+  await requireFrenchCoverage(lat, lng, "French ZNIEFF zoning");
   const bbox = bboxFromRadius(lat, lng, radius);
   const znieffLayers = ZONAGE_LAYERS.filter((layer) => layer.category === "znieff");
   const perLayer = await runWithConcurrency(znieffLayers, CONCURRENCY, async (layer) => {

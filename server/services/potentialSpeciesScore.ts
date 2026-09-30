@@ -43,10 +43,10 @@ const PREFERENCE_SCORE: Record<string, number> = {
 
 const PREFERENCE_LABEL: Record<string, string> = {
   E: "exclusive",
-  P: "préférentielle",
-  "1": "associée",
+  P: "preferred",
+  "1": "associated",
   S: "compatible",
-  O: "occasionnelle",
+  O: "occasional",
 };
 
 function statusFromScore(score: number): PotentialSpeciesStatus {
@@ -110,11 +110,11 @@ export function evaluatePotentialSpecies(
   );
 
   if (candidate.observed) {
-    reasons.push("Occurrence réelle recensée dans l’aire d’étude.");
+    reasons.push("Documented occurrence within the study area; not confirmed on the project footprint.");
   }
   if (candidate.sites.length > 0) {
     reasons.push(
-      `Espèce référencée sur ${candidate.sites.length} site${candidate.sites.length > 1 ? "s" : ""} Natura 2000 concerné${candidate.sites.length > 1 ? "s" : ""}.`,
+      `Species listed for ${candidate.sites.length} relevant Natura 2000 site${candidate.sites.length > 1 ? "s" : ""}.`,
     );
   }
 
@@ -126,20 +126,20 @@ export function evaluatePotentialSpecies(
     hasIncompleteSite
   ) {
     if (!profile) {
-      reasons.push("Cette espèce est absente du référentiel écologique EEA DAT-143.");
+      reasons.push("This species is not represented in the EEA DAT-143 ecological reference.");
     } else if (profile.availability === "not sufficient") {
-      reasons.push("Le référentiel signale des connaissances écologiques insuffisantes pour cette espèce.");
+      reasons.push("The reference identifies insufficient ecological knowledge for this species.");
     }
     if (sitesWithHabitats.length === 0) {
-      reasons.push("Aucun habitat exploitable n’est décrit pour les sites associés.");
+      reasons.push("No usable habitat description is available for the associated sites.");
     } else if (usableSites.length === 0) {
-      reasons.push("La géométrie disponible ne permet pas de comparer les habitats à l’emprise.");
+      reasons.push("Available geometry does not allow comparison with the project footprint.");
     } else if (mappedHabitatCount === 0) {
-      reasons.push("Les habitats identifiés sont absents du référentiel écologique EEA DAT-143.");
+      reasons.push("Identified habitats are not represented in the EEA DAT-143 ecological reference.");
     }
     if (hasIncompleteSite) {
       reasons.push(
-        "Au moins un site associé manque d’habitats ou de géométrie exploitable ; aucun score partiel n’est produit.",
+        "At least one associated site lacks usable habitats or geometry; no partial score is produced.",
       );
     }
     return notEvaluated(candidate, reasons);
@@ -180,7 +180,7 @@ export function evaluatePotentialSpecies(
   const best = scoredSites[0];
   if (best.matches.length === 0) {
     reasons.push(
-      "Aucun groupe écologique commun entre l’espèce et les habitats identifiés dans le référentiel EEA.",
+      "No shared ecological group links this species to the mapped habitats in the EEA reference.",
     );
     return notEvaluated(candidate, reasons);
   }
@@ -209,16 +209,16 @@ export function evaluatePotentialSpecies(
       (PREFERENCE_SCORE[a.speciesGroup.preference] ?? 0),
   )[0];
   reasons.push(
-    `Correspondance EEA ${PREFERENCE_LABEL[bestMatch.speciesGroup.preference] ?? "documentée"} avec le groupe « ${bestMatch.ecologicalLabel} ».`,
+    `EEA ${PREFERENCE_LABEL[bestMatch.speciesGroup.preference] ?? "documented"} match with ecological group “${bestMatch.ecologicalLabel}”.`,
   );
   reasons.push(
-    "Association établie à l’échelle du site Natura 2000 ; la localisation précise de l’habitat dans l’emprise n’est pas connue.",
+    "Association is documented at Natura 2000 site scale; precise habitat location within the project footprint is unknown.",
   );
   const namedHabitats = habitatList
     .slice(0, 2)
     .map((habitat) => habitat.description || `habitat ${habitat.code}`);
   if (namedHabitats.length > 0) {
-    reasons.push(`Habitats compatibles : ${namedHabitats.join(" ; ")}.`);
+    reasons.push(`Compatible habitats: ${namedHabitats.join("; ")}.`);
   }
 
   return {

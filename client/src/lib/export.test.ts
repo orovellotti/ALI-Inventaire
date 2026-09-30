@@ -3,7 +3,7 @@ import test from "node:test";
 import type { Occurrence } from "@shared/types";
 import { buildSpeciesRows } from "./export";
 
-test("l’export privilégie l’enjeu territorial et explicite la preuve documentaire", () => {
+test("export prioritises territorial concern and explains desk-based evidence", () => {
   const occurrence: Occurrence = {
     key: 12,
     scientificName: "Testus documentatus",
@@ -25,15 +25,15 @@ test("l’export privilégie l’enjeu territorial et explicite la preuve docume
   };
 
   const [row] = buildSpeciesRows([occurrence]) as Array<Record<string, unknown>>;
-  assert.equal(row["Niveau d'enjeu territorial"], "Fort");
-  assert.equal(row["Statut UICN prioritaire"], "VU");
-  assert.match(String(row["Territoire / source du statut"]), /Provence-Alpes-Côte d’Azur/);
-  assert.equal(row["Provenance des occurrences"], "GBIF | iNaturalist");
-  assert.match(String(row["Nature de la preuve"]), /relevés de terrain/);
-  assert.equal(row["Nombre d'occurrences documentées"], 3);
+  assert.equal(row["Territorial concern level"], "High");
+  assert.equal(row["Priority IUCN status"], "VU");
+  assert.match(String(row["Status territory / source"]), /Provence-Alpes-Côte d’Azur/);
+  assert.equal(row["Occurrence sources"], "GBIF | iNaturalist");
+  assert.match(String(row["Evidence type"]), /field confirmation/);
+  assert.equal(row["Documented occurrence count"], 3);
 });
 
-test("l’export signale explicitement un enjeu territorial non enrichi", () => {
+test("export explicitly flags a territorial concern not enriched", () => {
   const occurrence: Occurrence = {
     key: 13,
     scientificName: "Testus incertus",
@@ -42,7 +42,7 @@ test("l’export signale explicitement un enjeu territorial non enrichi", () => 
     alertLevel: "medium",
   };
   const [row] = buildSpeciesRows([occurrence]) as Array<Record<string, unknown>>;
-  assert.equal(row["Niveau d'enjeu territorial"], "Modéré (heuristique)");
-  assert.match(String(row["Incertitudes / réserves"]), /non enrichi/);
-  assert.equal(row["Provenance des occurrences"], "Non renseignée");
+  assert.equal(row["Territorial concern level"], "Moderate (heuristic)");
+  assert.match(String(row["Uncertainties / caveats"]), /not enriched/);
+  assert.equal(row["Occurrence sources"], "Not provided");
 });

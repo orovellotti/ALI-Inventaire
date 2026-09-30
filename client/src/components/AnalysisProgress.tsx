@@ -26,49 +26,49 @@ function buildSteps(
 ): Step[] {
   const enabled = new Set(enabledAgentIds);
   const activeSources = [
-    enabled.has("occurrences") && (includeINaturalist ? "GBIF et iNaturalist" : "GBIF"),
-    enabled.has("zonages") && "les référentiels territoriaux",
+    enabled.has("occurrences") && (includeINaturalist ? "GBIF and iNaturalist" : "GBIF"),
+    enabled.has("zonages") && "available regional datasets",
     enabled.has("habitats") && "CARHAB",
   ].filter(Boolean).join(", ");
   const steps: Step[] = [
     {
-      label: "Préparation de l’aire d’étude et contrôle des paramètres.",
+      label: "Preparing the study area and checking settings.",
       detail:
         areaCount > 1
-          ? `Je vais analyser ${areaCount} aires en parallèle.`
-          : "Je vérifie le périmètre et les paramètres de recherche.",
+          ? `I will analyze ${areaCount} study areas in parallel.`
+          : "I am checking the boundary and search settings.",
       duration: 900,
       effort: 1,
     },
     {
-      label: "Consultation des sources disponibles en parallèle.",
-      detail: `Mes agents interrogent ${activeSources || "les sources activées"}.`,
+      label: "Querying available sources in parallel.",
+      detail: `Agents are querying ${activeSources || "enabled sources"}.`,
       duration: 6800,
       effort: 3,
     },
     ...(enabled.has("habitats") ? [{
-      label: "Lecture documentaire des habitats autour de l’aire d’étude.",
-      detail: "L’Agent Habitat consulte CARHAB, sans confirmer une présence sur le terrain.",
+      label: "Reviewing documented habitats near the study area.",
+      detail: "The habitat agent checks CARHAB; this does not confirm conditions in the field.",
       duration: 3200,
       effort: 2 as Effort,
     }] : []),
     {
-      label: "Consolidation de l’inventaire naturaliste.",
-      detail: "Je fusionne et déduplique les espèces documentées avant tout enrichissement taxonomique.",
+      label: "Consolidating the species inventory.",
+      detail: "I am merging and deduplicating documented species before taxonomic enrichment.",
       duration: 2400,
       effort: 2,
     },
     ...(enabled.has("taxonomy-status") ? [{
-      label: "Enrichissement final de l’inventaire avec ALI Species.",
-      detail: "Une fois l’inventaire consolidé, ALI Species vérifie les listes rouges UICN régionales et les statuts réglementaires de chaque taxon.",
+      label: "Enriching the inventory with ALI Species.",
+      detail: "ALI Species checks available regional IUCN Red Lists and legal statuses after the inventory is consolidated.",
       duration: 5200,
       effort: 3 as Effort,
     }] : []),
   ];
   steps.push(
     {
-      label: "Contrôle automatisé de cohérence.",
-      detail: "La synthèse précisera ses sources, ses limites et les vérifications à prévoir.",
+      label: "Checking consistency.",
+      detail: "The summary will identify sources, limitations and recommended checks.",
       duration: 6000,
       effort: 1,
     },
@@ -195,47 +195,47 @@ export function AnalysisProgress({
   const sourceMessages = [
     {
       id: "occurrences" as const,
-      name: "Agent Occurrences",
+      name: "Observations agent",
       icon: Database,
       tone: "text-[#2f705a]",
       message: observationsSearching
-        ? "Je consulte les occurrences disponibles."
-        : "Je recoupe les occurrences avec l’inventaire.",
-      detail: `Sources : ${includeINaturalist ? "GBIF et iNaturalist" : "GBIF"}.`,
+        ? "I am checking available observations."
+        : "I am cross-checking observations against the inventory.",
+      detail: `Sources: ${includeINaturalist ? "GBIF and iNaturalist" : "GBIF"}.`,
     },
     {
       id: "zonages" as const,
-      name: "Agent Zonages",
+      name: "Designated areas agent",
       icon: Layers3,
       tone: "text-[#50718a]",
       message: zonagesLoading
-        ? "Je recherche les zonages autour de l’aire d’étude."
+        ? "I am checking designated areas near the study site."
         : zonagesReady
           ? zonageFeatureCount > 0
-            ? `${zonageFeatureCount} emprise${zonageFeatureCount > 1 ? "s ont" : " a"} été retournée${zonageFeatureCount > 1 ? "s" : ""} par la source.`
-            : "Consultation terminée : aucune emprise retournée dans l’aire."
-          : "Je ne peux pas récupérer les zonages ; l’inventaire continue.",
-      detail: "Sources : IGN / PatriNat.",
+            ? `${zonageFeatureCount} mapped area${zonageFeatureCount !== 1 ? "s" : ""} returned by the source.`
+            : "Search complete: no mapped areas returned here."
+          : "Designated areas could not be retrieved; the inventory continues.",
+      detail: "Sources: IGN / PatriNat (primarily France).",
     },
     {
       id: "habitats" as const,
-      name: "Agent Habitat",
+      name: "Habitat agent",
       icon: Leaf,
       tone: "text-[#527349]",
       message: habitatsSearching
-        ? "Je consulte les habitats documentés autour de l’aire d’étude."
-        : "J’intègre les informations d’habitats disponibles à la synthèse.",
-      detail: "Source : CARHAB — donnée documentaire à vérifier sur le terrain.",
+        ? "I am checking documented habitats near the study area."
+        : "I am including available habitat information in the summary.",
+      detail: "Source: CARHAB (France) — documentary data to verify in the field.",
     },
     {
       id: "taxon-enrichment" as const,
-      name: "Agent Taxonomie et statuts",
+      name: "Taxonomy and status agent",
       icon: Tags,
       tone: "text-[#795f1f]",
       message: taxonEnrichmentActive
-        ? "L’inventaire est consolidé. J’interroge maintenant ALI Species pour qualifier les statuts locaux."
-        : "J’ai intégré les listes rouges UICN régionales et les protections disponibles à l’inventaire.",
-      detail: "Source : ALI Species MCP / TAXREF — statut documentaire, non preuve de présence.",
+        ? "The inventory is consolidated. I am checking available local statuses with ALI Species."
+        : "Available regional IUCN Red Lists and legal protections are included.",
+      detail: "Source: ALI Species MCP / TAXREF — documentary status, not proof of presence.",
     },
   ].filter((agent) => {
     const agentEnabled = enabled.has(
@@ -246,10 +246,10 @@ export function AnalysisProgress({
     return done || (taxonEnrichmentStep >= 0 && stepIndex >= taxonEnrichmentStep);
   });
   const potentialMessage = potentialSpeciesLoading
-    ? "Évaluation des compatibilités écologiques en cours."
+    ? "Assessing ecological compatibility."
     : potentialSpeciesReady
-      ? `Évaluation terminée : ${potentialSpeciesCount} espèce${potentialSpeciesCount > 1 ? "s" : ""} potentielle${potentialSpeciesCount > 1 ? "s" : ""} retournée${potentialSpeciesCount > 1 ? "s" : ""}.`
-      : "Évaluation des espèces potentielles indisponible ; aucun résultat n’est déduit.";
+      ? `Assessment complete: ${potentialSpeciesCount} potential species returned.`
+      : "Potential species assessment unavailable; no results inferred.";
 
   return (
     <div
@@ -301,12 +301,12 @@ export function AnalysisProgress({
             </span>
             <div className="min-w-0 flex-1">
               <p className="font-semibold text-[#19362d]">
-                {done ? "Analyse terminée" : "Analyse écologique en cours…"}
+                 {done ? "Analysis complete" : "Ecological analysis in progress…"}
               </p>
               <p className="mt-0.5 text-[#60756d]">
                 {done
-                  ? `${steps.length} phases terminées · ${zonageFeatureCount} zonage${zonageFeatureCount > 1 ? "s" : ""} vérifié${zonageFeatureCount > 1 ? "s" : ""}`
-                  : `${Math.min(steps.length - 1, Math.max(0, stepIndex))} étapes sur ${steps.length} terminées`}
+                   ? `${steps.length} phases complete · ${zonageFeatureCount} designated area${zonageFeatureCount !== 1 ? "s" : ""} checked`
+                   : `${Math.min(steps.length - 1, Math.max(0, stepIndex))} of ${steps.length} steps complete`}
               </p>
             </div>
             {!done && <span className="tabular-nums text-[#60756d]">{progress}%</span>}
@@ -319,7 +319,7 @@ export function AnalysisProgress({
             />
           </div>
           <p className="mt-3 text-sm text-[#315b4e]" data-testid="analysis-current-step">
-            {done ? "Toutes les consultations sont terminées." : steps[stepIndex].label}
+             {done ? "All source queries are complete." : steps[stepIndex].label}
           </p>
           <button
             type="button"
@@ -328,7 +328,7 @@ export function AnalysisProgress({
             aria-expanded={openSourceDetail === "ally"}
             aria-controls="analysis-technical-details"
           >
-            Voir les détails
+             View details
             {openSourceDetail === "ally" ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
           </button>
         </div>
@@ -337,7 +337,7 @@ export function AnalysisProgress({
             <ol className="space-y-3">
               <li className="flex gap-2">
                 <Bot className="mt-0.5 h-4 w-4 shrink-0 text-[#315b4e]" />
-                <div><strong>ALi — coordination</strong><p>{steps[stepIndex].label}</p></div>
+                 <div><strong>ALi — coordination</strong><p>{steps[stepIndex].label}</p></div>
               </li>
               {sourceMessages.map((agent) => {
                 const Icon = agent.icon;
@@ -350,7 +350,7 @@ export function AnalysisProgress({
               })}
               <li className="flex gap-2" data-testid="process-potential">
                 <Leaf className="mt-0.5 h-4 w-4 shrink-0 text-[#527349]" aria-hidden="true" />
-                <div><strong>Compatibilité écologique</strong><p>{potentialMessage} Une potentialité ne confirme pas une présence sur le terrain.</p></div>
+                 <div><strong>Ecological compatibility</strong><p>{potentialMessage} Potential presence is not confirmation in the field.</p></div>
               </li>
             </ol>
           </div>

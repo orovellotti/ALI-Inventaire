@@ -26,32 +26,32 @@ type Source = {
 const sources: Source[] = [
   {
     name: "GBIF",
-    role: "Occurrences géolocalisées",
-    body: "Fournit les observations publiées par son réseau de participants, collections et institutions. ALi Inventaire ne retient que les occurrences réellement situées dans le rayon demandé, après filtrage spatial.",
+    role: "Georeferenced observations",
+    body: "Publishes observations from contributors, collections and institutions worldwide. ALi Inventory spatially filters records to retain only points within the selected radius.",
     org: "Global Biodiversity Information Facility",
     url: "https://www.gbif.org/",
     tone: "teal",
   },
   {
     name: "iNaturalist",
-    role: "Comptages agrégés par taxon",
-    body: "L’API species_counts renvoie les taxons signalés dans le cercle demandé et leur nombre d’observations. ALi Inventaire ne réutilise pas les coordonnées individuelles de ces observations : il présente ce résultat comme un signal agrégé, non comme un point précis.",
+    role: "Aggregated counts by taxon",
+    body: "The species_counts API returns taxa reported within the requested circle and their observation counts. ALi Inventory treats this as an aggregate signal, not as precisely located individual observations.",
     org: "iNaturalist / California Academy of Sciences",
     url: "https://api.inaturalist.org/v1/docs/",
     tone: "lime",
   },
   {
-    name: "UICN",
-    role: "Statut de menace",
-    body: "Indique le statut de conservation mondial d’une espèce. Ce statut ne décrit ni sa présence locale ni son niveau d’enjeu territorial.",
-    org: "Union internationale pour la conservation de la nature",
+    name: "IUCN",
+    role: "Conservation status",
+    body: "Provides global conservation status, which does not establish local presence or local conservation priority.",
+    org: "International Union for Conservation of Nature",
     url: "https://www.iucnredlist.org/",
     tone: "amber",
   },
   {
     name: "TAXREF / ALI",
-    role: "Référentiel et statuts territoriaux",
-    body: "TAXREF stabilise les noms et l’identité taxonomique. ALI apporte, quand disponible, des informations de statut à l’échelle du territoire.",
+    role: "Taxonomy and regional status",
+    body: "TAXREF resolves taxonomy. ALI provides territorial status information where available; coverage is not global.",
     org: "PatriNat — OFB, MNHN",
     url: "https://inpn.mnhn.fr/programme/referentiel-taxonomique-taxref",
     links: [{ label: "ALI Species", url: "https://alispecies.io/" }],
@@ -59,50 +59,50 @@ const sources: Source[] = [
   },
   {
     name: "IGN Géoplateforme",
-    role: "Références géographiques",
-    body: "Fournit les fonds, référentiels géographiques et services WFS des zonages, dont les zonages PatriNat utilisés pour contextualiser l’aire. Ce n’est pas une source d’observations d’espèces.",
-    org: "Institut national de l’information géographique et forestière",
+    role: "French geographic reference data",
+    body: "Provides French basemaps and WFS services, including PatriNat designated areas. These are contextual layers, not species observations, and do not have global coverage.",
+    org: "French National Institute of Geographic and Forest Information",
     url: "https://geoservices.ign.fr/",
     tone: "blue",
   },
   {
     name: "EEA Natura 2000",
-    role: "Espèces et sites Natura 2000",
-    body: "Documente les espèces d’intérêt communautaire et les sites Natura 2000. Une espèce listée pour un site n’est pas automatiquement une occurrence dans votre rayon.",
-    org: "Agence européenne pour l’environnement",
+    role: "European protected sites and species",
+    body: "Documents Natura 2000 sites and species of Community interest in Europe. A species listed for a site is not necessarily observed within your study radius.",
+    org: "European Environment Agency",
     url: "https://www.eea.europa.eu/en/datahub/datahubitem-view/6fc8ad2d-195d-40f4-bdec-576e7d1268e4",
     tone: "green",
   },
   {
     name: "EEA DAT-143",
-    role: "Groupes d’habitats compatibles",
-    body: "Relie une espèce Natura 2000 à un habitat uniquement lorsqu’ils partagent exactement le même code de groupe écologique EEA DAT-143. Le niveau du groupe sert ensuite à pondérer le score.",
-    org: "Agence européenne pour l’environnement",
+    role: "Compatible habitat groups",
+    body: "Links a Natura 2000 species to a habitat only when their EEA DAT-143 ecological group codes match exactly. The group level then weights the score.",
+    org: "European Environment Agency",
     url: "https://www.eea.europa.eu/en/datahub/datahubitem-view/e6c5dc03-4df2-4f43-a423-792ed9b4a9d3",
     tone: "orange",
   },
   {
     name: "PatriNat ZNIEFF",
-    role: "Mentions documentaires",
-    body: "Signale les mentions ZNIEFF de type D, E ou A à l’échelle de la zone. Elles contextualisent le territoire : elles ne sont jamais transformées en occurrences.",
+    role: "French area records",
+    body: "Provides ZNIEFF area-level records of types D, E or A in France. These contextual records are never treated as observations.",
     org: "PatriNat — OFB, MNHN",
     url: "https://www.patrinat.fr/fr/page-temporaire-de-telechargement-des-referentiels-de-donnees-lies-linpn-7353",
     tone: "rose",
   },
   {
     name: "Nominatim / OpenStreetMap",
-    role: "Recherche et repérage des lieux",
-    body: "Localise un toponyme et aide à nommer le point d’étude. Le service ne valide ni une observation ni un statut écologique.",
-    org: "OpenStreetMap Foundation et communauté OSM",
+    role: "Worldwide place search",
+    body: "Locates and names study sites worldwide. It does not verify species observations or ecological status.",
+    org: "OpenStreetMap Foundation and contributors",
     url: "https://nominatim.org/",
     links: [{ label: "OpenStreetMap", url: "https://www.openstreetmap.org/" }],
     tone: "slate",
   },
   {
     name: "SINP",
-    role: "Portails régionaux à consulter",
-    body: "Oriente vers les plateformes régionales du Système d’information de l’inventaire du patrimoine naturel pour approfondir l’analyse.",
-    org: "Ministère de la Transition écologique",
+    role: "French regional data portals",
+    body: "Directs users to French regional natural heritage information portals for further research. Outside France, consult the relevant local authorities.",
+    org: "French Ministry for Ecological Transition",
     url: "https://www.naturefrance.fr/sinp",
     tone: "cyan",
   },
@@ -136,7 +136,7 @@ function SourceCard({ source }: { source: Source }) {
         <span className="text-xs leading-4 text-slate-400">{source.org}</span>
         <div className="flex shrink-0 flex-wrap justify-end gap-x-3 gap-y-1">
           <a href={source.url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-xs font-semibold text-teal-700 hover:text-teal-900">
-            Source officielle <ArrowUpRight className="h-3.5 w-3.5" />
+             Official source <ArrowUpRight className="h-3.5 w-3.5" />
           </a>
           {source.links?.map((link) => (
             <a key={link.label} href={link.url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-xs font-semibold text-teal-700 hover:text-teal-900">
@@ -154,10 +154,10 @@ export default function Methodologie() {
     const previousTitle = document.title;
     const description = document.querySelector<HTMLMetaElement>('meta[name="description"]');
     const previousDescription = description?.content;
-    document.title = "Méthodologie et sources | ALi Inventaire";
+    document.title = "Methodology and sources | ALi Inventory";
     if (description) {
       description.content =
-        "Comprendre la méthode, la hiérarchie des preuves et les sources publiques utilisées par ALi Inventaire.";
+        "Understand the methodology, evidence hierarchy and public sources used by ALi Inventory. Global data coverage varies.";
     }
     return () => {
       document.title = previousTitle;
@@ -171,10 +171,10 @@ export default function Methodologie() {
         <div className="mx-auto flex max-w-6xl items-center justify-between px-5 py-4 sm:px-8">
           <Link href="/" className="inline-flex items-center gap-3 rounded-xl text-slate-900 outline-none focus-visible:ring-2 focus-visible:ring-teal-600">
             <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-teal-700 text-white shadow-sm"><Leaf className="h-5 w-5" /></span>
-            <span className="font-semibold tracking-tight">ALi Inventaire</span>
+             <span className="font-semibold tracking-tight">ALi Inventory</span>
           </Link>
           <Link href="/" className="inline-flex items-center gap-2 rounded-full border border-slate-300 bg-white/60 px-3.5 py-2 text-sm font-semibold text-slate-700 transition-colors hover:border-teal-500 hover:text-teal-800 focus-visible:ring-2 focus-visible:ring-teal-600">
-            <ArrowLeft className="h-4 w-4" /> Retour à la carte
+             <ArrowLeft className="h-4 w-4" /> Back to map
           </Link>
         </div>
       </header>
@@ -183,17 +183,17 @@ export default function Methodologie() {
         <div className="pointer-events-none absolute -right-32 -top-28 h-80 w-80 rounded-full border-[36px] border-[#d7e7d3] opacity-70" />
         <div className="relative max-w-3xl">
           <p className="mb-5 flex items-center gap-2 font-mono text-xs font-semibold uppercase tracking-[0.2em] text-teal-700">
-            <span className="h-px w-8 bg-teal-600" /> Carnet de méthode
+             <span className="h-px w-8 bg-teal-600" /> Methodology notes
           </p>
           <h1 className="max-w-2xl font-serif text-5xl leading-[0.98] tracking-[-0.035em] text-[#193c32] sm:text-7xl">
-            Lire un territoire avant d’y aller.
+             Understand a place before you visit.
           </h1>
           <p className="mt-7 max-w-2xl text-lg leading-8 text-slate-600">
-            ALi Inventaire assemble des informations publiques pour préparer un premier regard écologique. Cette page explique ce qui est mesuré, ce qui est seulement documenté, et ce que l’outil ne peut pas conclure.
+             ALi Inventory brings together public information for an initial ecological assessment worldwide. This page explains what is measured, what is only documented and what cannot be concluded. Public-data coverage varies by region.
           </p>
           <div className="mt-8 flex flex-wrap gap-3 text-sm">
-            <a href="#preuves" className="rounded-full bg-teal-700 px-4 py-2.5 font-semibold text-white shadow-sm hover:bg-teal-800">Voir la hiérarchie des preuves</a>
-            <a href="#sources" className="rounded-full border border-slate-300 bg-white/60 px-4 py-2.5 font-semibold text-slate-700 hover:border-teal-500 hover:text-teal-800">Explorer les sources</a>
+             <a href="#preuves" className="rounded-full bg-teal-700 px-4 py-2.5 font-semibold text-white shadow-sm hover:bg-teal-800">Explore the evidence hierarchy</a>
+             <a href="#sources" className="rounded-full border border-slate-300 bg-white/60 px-4 py-2.5 font-semibold text-slate-700 hover:border-teal-500 hover:text-teal-800">Explore the sources</a>
           </div>
         </div>
       </section>
@@ -201,17 +201,17 @@ export default function Methodologie() {
       <section id="preuves" className="border-y border-[#dce6d7] bg-[#e8f0e5]">
         <div className="mx-auto grid max-w-6xl gap-12 px-5 py-16 sm:px-8 lg:grid-cols-[0.8fr_1.2fr] lg:py-20">
           <div>
-            <p className="font-mono text-xs font-semibold uppercase tracking-[0.18em] text-teal-700">01 · Hiérarchie de lecture</p>
-            <h2 className="mt-4 font-serif text-4xl leading-tight text-[#193c32]">Toutes les informations n’ont pas le même poids.</h2>
-            <p className="mt-5 max-w-md leading-7 text-slate-600">Le résultat distingue les faits localisés, les référentiels qui les qualifient et les indices de contexte. C’est cette séparation qui évite les raccourcis.</p>
+             <p className="font-mono text-xs font-semibold uppercase tracking-[0.18em] text-teal-700">01 · Evidence hierarchy</p>
+             <h2 className="mt-4 font-serif text-4xl leading-tight text-[#193c32]">Not all information carries equal weight.</h2>
+             <p className="mt-5 max-w-md leading-7 text-slate-600">Results distinguish located observations, reference data describing them and contextual indicators. This separation prevents overinterpretation.</p>
           </div>
           <div className="space-y-3">
             {[
-              ["01", "Occurrence GBIF dans le rayon", "Point d’observation GBIF dont les coordonnées sont vérifiées par distance et tombent effectivement dans l’aire sélectionnée.", FileCheck2],
-              ["02", "Signal iNaturalist dans le cercle", "Taxon retourné par le comptage agrégé species_counts pour le centre et le rayon demandés. Ses coordonnées individuelles ne sont pas réutilisées par l’outil.", FileCheck2],
-              ["03", "Statut de l’espèce", "Qualification TAXREF/ALI ou UICN. Un statut décrit une espèce, pas la preuve de sa présence ici.", ShieldCheck],
-              ["04", "Compatibilité écologique", "Une espèce Natura 2000 et un habitat ne sont rapprochés que s’ils partagent exactement le même code de groupe écologique EEA DAT-143.", Layers3],
-              ["05", "Preuve documentaire territoriale", "ZNIEFF et zonages IGN/PatriNat décrivent le contexte de la zone. Ils ne sont jamais convertis en occurrences.", Layers3],
+               ["01", "GBIF observation within the radius", "A georeferenced GBIF observation verified by distance to fall within the selected area.", FileCheck2],
+               ["02", "iNaturalist signal within the circle", "A taxon returned by aggregate species_counts for the requested center and radius. Individual coordinates are not reused.", FileCheck2],
+               ["03", "Species status", "TAXREF/ALI or IUCN classifications describe a species, not proof of its presence here.", ShieldCheck],
+               ["04", "Ecological compatibility", "A Natura 2000 species is linked to a habitat only when their EEA DAT-143 ecological group codes match exactly.", Layers3],
+               ["05", "Regional documentary evidence", "French ZNIEFF and IGN/PatriNat layers describe local context. They are never converted into observations.", Layers3],
             ].map(([number, title, body, Icon]) => (
               <div key={number as string} className="flex gap-4 rounded-2xl border border-[#cbdcc8] bg-[#f7faf5] p-5">
                 <span className="font-mono text-xs font-bold text-teal-700">{number as string}</span>
@@ -226,19 +226,19 @@ export default function Methodologie() {
       <section className="mx-auto max-w-6xl px-5 py-16 sm:px-8 lg:py-20">
         <div className="grid gap-8 lg:grid-cols-[1.15fr_0.85fr]">
           <div className="rounded-3xl bg-[#193c32] p-7 text-[#eef5ea] sm:p-10">
-            <p className="font-mono text-xs uppercase tracking-[0.18em] text-[#a9d1a0]">02 · Ce que calcule l’outil</p>
-            <h2 className="mt-4 max-w-xl font-serif text-4xl leading-tight">Un filtre spatial, pas une promesse d’exhaustivité.</h2>
+             <p className="font-mono text-xs uppercase tracking-[0.18em] text-[#a9d1a0]">02 · What the tool calculates</p>
+             <h2 className="mt-4 max-w-xl font-serif text-4xl leading-tight">Spatial filtering, not a promise of completeness.</h2>
             <div className="mt-8 space-y-5 text-sm leading-7 text-[#d2e1cf]">
-              <p><strong className="text-white">Données naturalistes :</strong> les coordonnées GBIF sont filtrées par distance pour ne conserver que les points dans les rayons actifs. iNaturalist est interrogé séparément avec ces rayons et renvoie un comptage agrégé par taxon ; l’outil ne récupère ni ne re-filtre les coordonnées individuelles correspondantes.</p>
-              <p><strong className="text-white">Aires :</strong> immédiate, rapprochée et éloignée sont indépendantes et ajustables. Le résultat fusionne les espèces des aires actives, en conservant la possibilité de lire leur contexte.</p>
-              <p><strong className="text-white">Statuts et contexte :</strong> TAXREF/ALI et UICN décrivent le taxon ; Natura 2000 et DAT-143 qualifient une compatibilité écologique exacte ; les zonages décrivent le territoire. Rien ne transforme une mention territoriale en observation.</p>
+               <p><strong className="text-white">Species data:</strong> GBIF coordinates are distance-filtered within active radii. iNaturalist is queried separately and returns aggregate taxon counts; individual coordinates are not retrieved or re-filtered.</p>
+               <p><strong className="text-white">Study areas:</strong> immediate, nearby and extended areas can be adjusted independently. Species across enabled areas are combined while retaining their context.</p>
+               <p><strong className="text-white">Status and context:</strong> TAXREF/ALI and IUCN describe taxa; Natura 2000 and DAT-143 describe exact ecological compatibility; designated areas describe regional context. Territorial records are not observations.</p>
             </div>
           </div>
           <div className="rounded-3xl border border-[#d9e4d5] bg-[#fbfcf8] p-7 sm:p-10">
             <CircleAlert className="h-7 w-7 text-amber-700" />
-            <h2 className="mt-5 font-serif text-3xl text-[#193c32]">La règle la plus importante</h2>
-            <p className="mt-4 text-lg leading-8 text-slate-600">Absence de données ne signifie pas absence d’espèce.</p>
-            <p className="mt-4 text-sm leading-6 text-slate-500">Une donnée peut manquer, être sensible, ancienne, non publiée ou simplement située hors du rayon. L’absence dans ce résultat appelle une vérification, jamais une conclusion.</p>
+             <h2 className="mt-5 font-serif text-3xl text-[#193c32]">The most important rule</h2>
+             <p className="mt-4 text-lg leading-8 text-slate-600">No data does not mean no species.</p>
+             <p className="mt-4 text-sm leading-6 text-slate-500">Data may be missing, sensitive, old, unpublished or outside the radius. Coverage varies worldwide. A missing result calls for verification, never a definitive conclusion.</p>
           </div>
         </div>
       </section>
@@ -246,18 +246,18 @@ export default function Methodologie() {
       <section className="mx-auto max-w-6xl px-5 py-16 sm:px-8 lg:py-20">
         <div className="grid gap-10 lg:grid-cols-[0.7fr_1.3fr]">
           <div>
-            <p className="font-mono text-xs font-semibold uppercase tracking-[0.18em] text-teal-700">03 · Du site au diagnostic</p>
-            <h2 className="mt-4 font-serif text-4xl leading-tight text-[#193c32]">Un parcours lisible, de la carte au terrain.</h2>
-            <p className="mt-5 leading-7 text-slate-600">Chaque étape conserve la trace de ce qu’elle apporte — et de ce qu’elle ne permet pas d’affirmer.</p>
+             <p className="font-mono text-xs font-semibold uppercase tracking-[0.18em] text-teal-700">03 · From site to assessment</p>
+             <h2 className="mt-4 font-serif text-4xl leading-tight text-[#193c32]">A clear path from map to field.</h2>
+             <p className="mt-5 leading-7 text-slate-600">Each step shows what it contributes and what it cannot establish.</p>
           </div>
           <ol className="grid gap-3 sm:grid-cols-2">
             {[
-              ["Définir l’emprise", "Placez un point, recherchez un lieu-dit ou chargez un shapefile. Le centroïde sert de repère et l’emprise reste visible sur la carte."],
-              ["Choisir les aires", "Activez et ajustez les rayons immédiat, rapproché et éloigné selon la question du projet."],
-              ["Interroger les données naturalistes", "Les points GBIF sont vérifiés par distance. iNaturalist renvoie séparément un comptage agrégé de taxons pour chaque cercle, sans coordonnées individuelles réutilisées."],
-              ["Qualifier sans surinterpréter", "Lisez séparément statuts TAXREF/ALI et UICN, compatibilités Natura/EEA exactes, puis preuves documentaires ZNIEFF et zonages."],
-              ["Préparer la visite", "Repérez les taxons et secteurs à vérifier, consultez les portails SINP et adaptez les protocoles aux habitats et aux saisons."],
-              ["Conclure sur le terrain", "Le pré-diagnostic oriente. Seules des prospections et une expertise écologique peuvent confirmer une présence, une absence ou un enjeu."],
+               ["Define the boundary", "Place a point, search for a location or upload a shapefile. Its centroid serves as a reference and the boundary remains visible on the map."],
+               ["Choose study areas", "Enable and adjust immediate, nearby and extended radii to suit the project."],
+               ["Query species data", "GBIF points are distance-checked. iNaturalist separately returns aggregate taxon counts for each circle, without reusing individual coordinates."],
+               ["Interpret carefully", "Read TAXREF/ALI and IUCN statuses separately from exact Natura/EEA compatibility and regional ZNIEFF or designated-area records."],
+               ["Prepare the visit", "Identify taxa and areas to verify, consult relevant local data portals and adapt survey methods to habitats and seasons."],
+               ["Confirm in the field", "This assessment helps direct fieldwork. Only surveys and ecological expertise can confirm presence, absence or conservation importance."],
             ].map(([title, body], index) => (
               <li key={title} className="flex gap-4 rounded-2xl border border-[#d9e4d5] bg-white p-5">
                 <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[#e8f0e5] font-mono text-xs font-bold text-teal-800">{String(index + 1).padStart(2, "0")}</span>
@@ -271,15 +271,15 @@ export default function Methodologie() {
       <section className="border-y border-[#dce6d7] bg-[#f9fbf7]">
         <div className="mx-auto max-w-6xl px-5 py-16 sm:px-8 lg:py-20">
           <div className="max-w-2xl">
-            <p className="font-mono text-xs font-semibold uppercase tracking-[0.18em] text-teal-700">04 · Cas à ne pas confondre</p>
-            <h2 className="mt-4 font-serif text-4xl text-[#193c32]">Présence, statut, habitat, zonage.</h2>
+             <p className="font-mono text-xs font-semibold uppercase tracking-[0.18em] text-teal-700">04 · Important distinctions</p>
+             <h2 className="mt-4 font-serif text-4xl text-[#193c32]">Presence, status, habitat and designated areas.</h2>
           </div>
           <div className="mt-10 grid gap-4 md:grid-cols-2">
             {[
-              ["Natura 2000 n’est pas une occurrence", "La liste d’espèces d’un site Natura 2000 décrit sa documentation. Elle ne prouve pas que l’espèce est observée dans votre aire."],
-              ["DAT-143 exige le même groupe écologique", "La compatibilité exige une égalité exacte du code de groupe EEA DAT-143. Le niveau du groupe pondère ensuite le score ; il ne sert pas à créer une correspondance. Aucun rapprochement n’est fait par nom approchant."],
-              ["ZNIEFF : D, E et A sont des mentions", "D désigne une espèce déterminante, E une autre espèce à enjeux et A une autre espèce documentée. Les données confidentielles C sont exclues. Dans tous les cas, la mention éclaire la zone mais ne devient jamais un point d’observation."],
-              ["Pré-diagnostic, pas inventaire terrain", "Le résultat aide à cadrer une visite, choisir les vigilances et préparer les demandes de données. Il ne remplace ni prospection, ni protocole, ni expertise."],
+               ["Natura 2000 is not an observation", "A site's species list documents that site. It does not prove the species was observed within your area."],
+               ["DAT-143 requires the same ecological group", "Compatibility requires an exact EEA DAT-143 group-code match. Group level weights the score; names are never approximately matched."],
+               ["ZNIEFF: D, E and A are records", "D marks a determining species, E another species of concern and A another documented species. Confidential C data are excluded. Records provide regional context, not observation points."],
+               ["Preliminary assessment, not a field inventory", "Use the results to plan a visit and request data. They do not replace surveys, protocols or expert assessment."],
             ].map(([title, body]) => (
               <article key={title} className="rounded-2xl border border-slate-200 bg-white p-6">
                 <h3 className="flex gap-3 font-semibold text-slate-900"><Check className="mt-0.5 h-5 w-5 shrink-0 text-teal-700" />{title}</h3>
@@ -292,32 +292,32 @@ export default function Methodologie() {
 
       <section id="sources" className="mx-auto max-w-6xl px-5 py-16 sm:px-8 lg:py-20">
         <div className="flex flex-col justify-between gap-5 sm:flex-row sm:items-end">
-          <div><p className="font-mono text-xs font-semibold uppercase tracking-[0.18em] text-teal-700">05 · Registre des sources</p><h2 className="mt-4 font-serif text-4xl text-[#193c32]">Qui fournit quoi ?</h2></div>
-          <p className="max-w-sm text-sm leading-6 text-slate-500">Les liens ci-dessous pointent vers les organismes ou catalogues officiels de référence.</p>
+           <div><p className="font-mono text-xs font-semibold uppercase tracking-[0.18em] text-teal-700">05 · Source register</p><h2 className="mt-4 font-serif text-4xl text-[#193c32]">What does each source provide?</h2></div>
+           <p className="max-w-sm text-sm leading-6 text-slate-500">These links lead to official organizations or source catalogs. Geographic coverage varies.</p>
         </div>
         <div className="mt-10 grid gap-4 md:grid-cols-2 lg:grid-cols-3">{sources.map((source) => <SourceCard key={source.name} source={source} />)}</div>
         <div className="mt-8 rounded-2xl border border-[#d9e4d5] bg-[#f7faf5] p-6 sm:p-7">
-          <p className="font-mono text-[11px] font-semibold uppercase tracking-[0.16em] text-teal-700">Accès agent IA</p>
+           <p className="font-mono text-[11px] font-semibold uppercase tracking-[0.16em] text-teal-700">AI agent access</p>
           <p className="mt-2 text-sm leading-6 text-slate-600">
-            L’ensemble de ces outils — géocodage, inventaires, fiches espèces, analyse des espèces à enjeux — est aussi exposé
-            via un serveur <strong className="text-slate-900">MCP</strong> (Model Context Protocol). Vous pouvez ainsi interroger
-            ALi Inventaire directement depuis Claude, ChatGPT ou tout client compatible. La configuration détaillée est
-            accessible depuis le bouton <strong className="text-slate-900">MCP</strong> sur la carte.
+             Geocoding, inventories, species profiles and priority-species analysis are also available through an
+             <strong className="text-slate-900"> MCP</strong> (Model Context Protocol) server. Use ALi Inventory from
+             Claude, ChatGPT or another compatible client. Setup instructions are available through the
+             <strong className="text-slate-900"> MCP</strong> button on the map.
           </p>
         </div>
       </section>
 
       <section className="bg-[#dcead8]">
         <div className="mx-auto flex max-w-6xl flex-col gap-8 px-5 py-14 sm:px-8 md:flex-row md:items-center md:justify-between">
-          <div><p className="font-mono text-xs font-semibold uppercase tracking-[0.18em] text-teal-800">06 · Prochaine étape</p><h2 className="mt-3 font-serif text-3xl text-[#193c32]">Prenez ces résultats comme un carnet de préparation.</h2><p className="mt-3 max-w-2xl leading-7 text-slate-600">Croisez-les avec le contexte local, les données régionales du SINP et une visite de terrain adaptée aux enjeux pressentis.</p></div>
-          <Link href="/" className="inline-flex shrink-0 items-center justify-center gap-2 rounded-full bg-teal-700 px-5 py-3 text-sm font-semibold text-white hover:bg-teal-800 focus-visible:ring-2 focus-visible:ring-teal-700"><Map className="h-4 w-4" /> Ouvrir la carte</Link>
+           <div><p className="font-mono text-xs font-semibold uppercase tracking-[0.18em] text-teal-800">06 · Next step</p><h2 className="mt-3 font-serif text-3xl text-[#193c32]">Use these results to plan further work.</h2><p className="mt-3 max-w-2xl leading-7 text-slate-600">Compare them with local context, relevant regional data and a field visit tailored to potential concerns.</p></div>
+           <Link href="/" className="inline-flex shrink-0 items-center justify-center gap-2 rounded-full bg-teal-700 px-5 py-3 text-sm font-semibold text-white hover:bg-teal-800 focus-visible:ring-2 focus-visible:ring-teal-700"><Map className="h-4 w-4" /> Open map</Link>
         </div>
       </section>
 
       <footer className="border-t border-[#dce6d7] bg-[#f3f6ef]">
         <div className="mx-auto flex max-w-6xl flex-col gap-3 px-5 py-7 text-xs text-slate-500 sm:flex-row sm:items-center sm:justify-between sm:px-8">
-          <span className="inline-flex items-center gap-2"><BookOpen className="h-4 w-4 text-teal-700" /> Méthode publique · ALi Inventaire</span>
-          <span>Une lecture rigoureuse commence par savoir ce que l’on ne sait pas.</span>
+           <span className="inline-flex items-center gap-2"><BookOpen className="h-4 w-4 text-teal-700" /> Public methodology · ALi Inventory</span>
+           <span>Sound interpretation begins with knowing what remains unknown.</span>
         </div>
       </footer>
     </main>

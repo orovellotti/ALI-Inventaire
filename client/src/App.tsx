@@ -88,7 +88,7 @@ function App() {
       appearance={clerkAppearance}
       signInUrl={`${basePath}/sign-in`}
       localization={{
-        signIn: { start: { title: "Administration d’ALi", subtitle: "Connectez-vous pour gérer le Harnais" } },
+        signIn: { start: { title: "ALi administration", subtitle: "Sign in to manage the Harness" } },
       }}
       routerPush={(to) => setLocation(stripBase(to))}
       routerReplace={(to) => setLocation(stripBase(to), { replace: true })}

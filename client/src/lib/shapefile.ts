@@ -78,7 +78,7 @@ export function computeCentroid(fc: FeatureCollection): [number, number] {
   }
 
   if (totalArea < 1e-12) {
-    throw new Error("Aucune surface valide trouvée dans le shapefile");
+    throw new Error("No valid area found in the shapefile");
   }
 
   return [weightedLat / totalArea, weightedLng / totalArea];
@@ -102,7 +102,7 @@ function computeBounds(fc: FeatureCollection): [[number, number], [number, numbe
       allCoords.push(...flattenCoords(feature.geometry));
     }
   }
-  if (allCoords.length === 0) throw new Error("Aucune coordonnée trouvée");
+  if (allCoords.length === 0) throw new Error("No coordinates found");
 
   let minLat = Infinity, maxLat = -Infinity;
   let minLng = Infinity, maxLng = -Infinity;
@@ -130,7 +130,7 @@ export async function parseShapefile(file: File): Promise<ProjectPolygon> {
   }
 
   if (!fc.features || fc.features.length === 0) {
-    throw new Error("Le shapefile ne contient aucune entité");
+    throw new Error("The shapefile contains no features");
   }
 
   const polyFeatures = fc.features.filter(
@@ -139,7 +139,7 @@ export async function parseShapefile(file: File): Promise<ProjectPolygon> {
 
   if (polyFeatures.length === 0) {
     throw new Error(
-      "Le shapefile ne contient aucun polygone. Seuls les fichiers contenant des polygones (emprise projet) sont acceptés."
+      "The shapefile contains no polygons. Only files containing polygons (project footprint) are accepted."
     );
   }
 
@@ -153,7 +153,7 @@ export async function parseShapefile(file: File): Promise<ProjectPolygon> {
   );
   if (coordinateCount > MAX_PROJECT_COORDINATES) {
     throw new Error(
-      `L'emprise est trop détaillée (${coordinateCount.toLocaleString("fr-FR")} sommets). Simplifiez-la à ${MAX_PROJECT_COORDINATES.toLocaleString("fr-FR")} sommets maximum.`,
+      `The footprint is too detailed (${coordinateCount.toLocaleString("en-GB")} vertices). Simplify it to at most ${MAX_PROJECT_COORDINATES.toLocaleString("en-GB")} vertices.`,
     );
   }
 

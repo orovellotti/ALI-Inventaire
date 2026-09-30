@@ -43,7 +43,7 @@ export function HarnessDialog({
     fetch("/api/harness/access")
       .then(async (response) => {
         const data = await response.json();
-        if (!response.ok) throw new Error(data.error || "Vérification des droits impossible");
+         if (!response.ok) throw new Error(data.error || "Could not verify permissions");
         setAccess(data);
         const promptResponse = await fetch("/api/runtime/final-study-prompt");
         if (promptResponse.ok) {
@@ -61,7 +61,7 @@ export function HarnessDialog({
           fetch("/api/harness/mcp-registry"),
         ]);
         if (!configResponse.ok || !registryResponse.ok) {
-          throw new Error("Chargement de la configuration d’administration impossible");
+           throw new Error("Could not load admin configuration");
         }
         const [adminConfig, registry] = await Promise.all([
           configResponse.json(),
@@ -73,7 +73,7 @@ export function HarnessDialog({
       })
       .catch((error) => {
         setAccess({ signedIn: false, canManage: false });
-        setMessage(error instanceof Error ? error.message : "Vérification des droits impossible");
+         setMessage(error instanceof Error ? error.message : "Could not verify permissions");
       });
   }, [open]);
 
@@ -83,7 +83,7 @@ export function HarnessDialog({
       fetch("/api/harness/mcp-registry")
         .then(async (response) => {
           const data = await response.json();
-          if (!response.ok) throw new Error(data.error || "Ping MCP impossible");
+           if (!response.ok) throw new Error(data.error || "MCP ping failed");
           setMcpRegistry(data);
           setLastPingAt(new Date());
         })
@@ -101,12 +101,12 @@ export function HarnessDialog({
     try {
       const response = await fetch("/api/harness/mcp-registry");
       const data = await response.json();
-      if (!response.ok) throw new Error(data.error || "Ping MCP impossible");
+       if (!response.ok) throw new Error(data.error || "MCP ping failed");
       setMcpRegistry(data);
       setLastPingAt(new Date());
-      setMessage("Ping MCP terminé.");
+       setMessage("MCP ping complete.");
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Ping MCP impossible");
+       setMessage(error instanceof Error ? error.message : "MCP ping failed");
     } finally {
       setPinging(false);
     }
@@ -128,7 +128,7 @@ export function HarnessDialog({
         body: JSON.stringify(draft),
       });
       const data = await response.json();
-      if (!response.ok) throw new Error(data.error || "Sauvegarde impossible");
+       if (!response.ok) throw new Error(data.error || "Could not save configuration");
       onConfigChange(data);
       const promptResponse = await fetch("/api/runtime/final-study-prompt");
       if (promptResponse.ok) {
@@ -139,9 +139,9 @@ export function HarnessDialog({
           fingerprint: promptData.fingerprint ?? "",
         });
       }
-      setMessage("Configuration partagée enregistrée.");
+       setMessage("Shared configuration saved.");
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Sauvegarde impossible");
+       setMessage(error instanceof Error ? error.message : "Could not save configuration");
     } finally {
       setSaving(false);
     }
@@ -153,12 +153,12 @@ export function HarnessDialog({
     try {
       const response = await fetch("/api/harness/reset", { method: "POST" });
       const data = await response.json();
-      if (!response.ok) throw new Error(data.error || "Réinitialisation impossible");
+       if (!response.ok) throw new Error(data.error || "Could not reset configuration");
       setDraft(data);
       onConfigChange(data);
-      setMessage("Configuration par défaut restaurée.");
+       setMessage("Default configuration restored.");
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Réinitialisation impossible");
+       setMessage(error instanceof Error ? error.message : "Could not reset configuration");
     } finally {
       setSaving(false);
     }
@@ -170,9 +170,9 @@ export function HarnessDialog({
       ...current,
       agents: [...current.agents, {
         id: `agent-${suffix}`,
-        name: "Nouvel agent",
+         name: "New agent",
         description: "",
-        prompt: "Analyse uniquement les données disponibles et signale clairement les incertitudes.",
+         prompt: "Analyze only available data and clearly disclose uncertainties.",
         enabled: false,
         native: false,
         mcpId: "none",
@@ -185,7 +185,7 @@ export function HarnessDialog({
     const id = `custom-${crypto.randomUUID()}`;
     setDraft((current) => ({
       ...current,
-      mcpServers: [...current.mcpServers, { id, label: "Nouveau serveur MCP", url: "https://" }],
+       mcpServers: [...current.mcpServers, { id, label: "New MCP server", url: "https://" }],
     }));
   };
 
@@ -220,10 +220,10 @@ export function HarnessDialog({
         body: JSON.stringify({ label: server.label, url: server.url }),
       });
       const data = await response.json();
-      if (!response.ok) throw new Error(data.error || "Connexion MCP impossible");
+       if (!response.ok) throw new Error(data.error || "MCP connection failed");
       const entry = { ...data, id };
       setMcpRegistry((current) => [...current.filter((item) => item.id !== id), entry]);
-      setMessage(`${server.label} connecté : ${entry.tools.length} outil${entry.tools.length > 1 ? "s" : ""} découvert${entry.tools.length > 1 ? "s" : ""}.`);
+       setMessage(`${server.label} connected: ${entry.tools.length} tool${entry.tools.length !== 1 ? "s" : ""} discovered.`);
     } catch (error) {
       setMcpRegistry((current) => [...current.filter((item) => item.id !== id), {
         id,
@@ -232,9 +232,9 @@ export function HarnessDialog({
         managed: true,
         connected: false,
         tools: [],
-        error: error instanceof Error ? error.message : "Connexion MCP impossible",
+         error: error instanceof Error ? error.message : "MCP connection failed",
       }]);
-      setMessage(error instanceof Error ? error.message : "Connexion MCP impossible");
+       setMessage(error instanceof Error ? error.message : "MCP connection failed");
     } finally {
       setTestingMcpId(null);
     }
@@ -245,20 +245,20 @@ export function HarnessDialog({
       <DialogContent className="z-[4000] max-h-[90vh] max-w-3xl overflow-y-auto border-[#d9ddd1] bg-[#fffef9] text-[#426158]">
         <DialogHeader>
           <div className="mb-2 flex h-11 w-11 items-center justify-center rounded-xl bg-[#1e594a] text-[#dcc05b]"><Bot className="h-5 w-5" /></div>
-          <DialogTitle className="font-serif text-2xl text-[#17483d]">Configurer le harnais d’ALi</DialogTitle>
-          <DialogDescription>Activez les agents, adaptez leurs consignes et associez un MCP autorisé.</DialogDescription>
+           <DialogTitle className="font-serif text-2xl text-[#17483d]">Configure the ALi Harness</DialogTitle>
+           <DialogDescription>Enable agents, adjust their instructions and connect an approved MCP.</DialogDescription>
         </DialogHeader>
         <div className="flex gap-2 rounded-xl border border-[#d9ddd1] bg-[#f3f6ef] p-3 text-xs leading-5 text-[#426158]">
           <LockKeyhole className="mt-0.5 h-4 w-4 shrink-0 text-[#1e594a]" />
           <div>
-            {access === null && "Vérification de vos droits d’administration…"}
-            {access?.canManage && "Vous êtes autorisé à modifier cette configuration partagée. Les URL MCP sont contrôlées et appelées uniquement côté serveur."}
-            {access && !access.signedIn && <>Configuration active en lecture seule. <a className="font-semibold underline" href={`${import.meta.env.BASE_URL}sign-in`}>Se connecter comme administrateur</a>.</>}
-            {access?.signedIn && !access.canManage && "Configuration active en lecture seule : votre compte n’est pas autorisé à administrer le Harnais."}
+             {access === null && "Checking your administrator permissions…"}
+             {access?.canManage && "You may edit this shared configuration. MCP URLs are validated and accessed only by the server."}
+             {access && !access.signedIn && <>Active configuration is read-only. <a className="font-semibold underline" href={`${import.meta.env.BASE_URL}sign-in`}>Sign in as an administrator</a>.</>}
+             {access?.signedIn && !access.canManage && "Active configuration is read-only: your account is not authorized to manage the Harness."}
           </div>
         </div>
         <p className="rounded-xl border border-[#dfe3da] bg-[#f3f6ef] p-3 text-xs leading-5 text-[#557067]">
-          Les agents pilotent les consultations autorisées. L’Agent Taxonomie et statuts utilise ALI Species pour documenter les statuts territoriaux sans confirmer la présence sur le terrain.
+           Agents control authorized data queries. The taxonomy and status agent uses ALI Species to document available regional statuses without confirming presence in the field.
         </p>
         <div className="grid grid-cols-2 gap-1 rounded-xl border border-[#d9ddd1] bg-[#f3f6ef] p-1">
           <button
@@ -266,24 +266,24 @@ export function HarnessDialog({
             onClick={() => setActiveTab("agents")}
             className={`flex items-center justify-center gap-2 rounded-lg px-3 py-2 text-sm font-semibold transition-colors ${activeTab === "agents" ? "bg-white text-[#17483d] shadow-sm" : "text-[#557067] hover:bg-white/60"}`}
           >
-            <Settings2 className="h-4 w-4" /> Agents et MCP
+             <Settings2 className="h-4 w-4" /> Agents and MCP
           </button>
           <button
             type="button"
             onClick={() => setActiveTab("final-prompt")}
             className={`flex items-center justify-center gap-2 rounded-lg px-3 py-2 text-sm font-semibold transition-colors ${activeTab === "final-prompt" ? "bg-white text-[#17483d] shadow-sm" : "text-[#557067] hover:bg-white/60"}`}
           >
-            <FileText className="h-4 w-4" /> Prompt final de l’étude
+             <FileText className="h-4 w-4" /> Final study prompt
           </button>
         </div>
         {activeTab === "agents" && <>
         {!readOnly && <section className="space-y-3 rounded-2xl border border-[#dfe3da] bg-[#f3f6ef] p-4">
           <div className="flex items-center justify-between gap-3">
             <div>
-              <h3 className="font-semibold text-[#17483d]">Serveurs MCP</h3>
+               <h3 className="font-semibold text-[#17483d]">MCP servers</h3>
               <p className="text-xs text-[#6b7d76]">
-                État actualisé toutes les 30 secondes
-                {lastPingAt ? ` · dernier ping à ${lastPingAt.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit", second: "2-digit" })}` : ""}.
+                 Status refreshes every 30 seconds
+                 {lastPingAt ? ` · last ping at ${lastPingAt.toLocaleTimeString("en", { hour: "2-digit", minute: "2-digit", second: "2-digit" })}` : ""}.
               </p>
             </div>
             <div className="flex gap-2">
@@ -291,7 +291,7 @@ export function HarnessDialog({
                 <RefreshCw className={`h-3.5 w-3.5 ${pinging ? "animate-spin" : ""}`} />
                 {pinging ? "Ping…" : "Ping"}
               </Button>
-              <Button variant="outline" size="sm" onClick={addMcpServer} disabled={draft.mcpServers.length >= 10} className="gap-1"><Plus className="h-3.5 w-3.5" />Ajouter</Button>
+               <Button variant="outline" size="sm" onClick={addMcpServer} disabled={draft.mcpServers.length >= 10} className="gap-1"><Plus className="h-3.5 w-3.5" />Add</Button>
             </div>
           </div>
           <div className="grid gap-2 sm:grid-cols-2">
@@ -320,7 +320,7 @@ export function HarnessDialog({
                       ? "bg-emerald-100 text-emerald-800"
                       : "bg-red-100 text-red-800"
                   }`}
-                  title={mcp.connected ? `${mcp.tools.length} outil(s) disponible(s)` : mcp.error}
+                   title={mcp.connected ? `${mcp.tools.length} available tool(s)` : mcp.error}
                 >
                   {mcp.connected ? "UP" : "DOWN"}
                 </span>
@@ -331,13 +331,13 @@ export function HarnessDialog({
             const status = mcpRegistry.find((entry) => entry.id === server.id);
             return (
               <div key={server.id} className="grid gap-2 rounded-xl border border-[#dfe3da] bg-white p-3 sm:grid-cols-[1fr_1.5fr_auto]">
-                <Input value={server.label} maxLength={80} onChange={(event) => updateMcpServer(server.id, { label: event.target.value })} aria-label="Nom du serveur MCP" />
-                <Input value={server.url} maxLength={500} onChange={(event) => updateMcpServer(server.id, { url: event.target.value })} aria-label="URL HTTPS du serveur MCP" />
+                 <Input value={server.label} maxLength={80} onChange={(event) => updateMcpServer(server.id, { label: event.target.value })} aria-label="MCP server name" />
+                 <Input value={server.url} maxLength={500} onChange={(event) => updateMcpServer(server.id, { url: event.target.value })} aria-label="MCP server HTTPS URL" />
                 <div className="flex gap-1">
-                  <Button variant="outline" size="sm" onClick={() => void testMcpServer(server.id)} disabled={testingMcpId === server.id} className="gap-1"><Link2 className="h-3.5 w-3.5" />{testingMcpId === server.id ? "Test…" : "Tester"}</Button>
-                  <Button variant="ghost" size="icon" onClick={() => removeMcpServer(server.id)} aria-label={`Supprimer ${server.label}`}><Trash2 className="h-4 w-4" /></Button>
+                   <Button variant="outline" size="sm" onClick={() => void testMcpServer(server.id)} disabled={testingMcpId === server.id} className="gap-1"><Link2 className="h-3.5 w-3.5" />{testingMcpId === server.id ? "Testing…" : "Test"}</Button>
+                   <Button variant="ghost" size="icon" onClick={() => removeMcpServer(server.id)} aria-label={`Remove ${server.label}`}><Trash2 className="h-4 w-4" /></Button>
                 </div>
-                {status && <p className={`text-xs sm:col-span-3 ${status.connected ? "text-emerald-700" : "text-red-700"}`}>{status.connected ? `${status.tools.length} outil${status.tools.length > 1 ? "s" : ""} disponible${status.tools.length > 1 ? "s" : ""}` : status.error}</p>}
+                 {status && <p className={`text-xs sm:col-span-3 ${status.connected ? "text-emerald-700" : "text-red-700"}`}>{status.connected ? `${status.tools.length} available tool${status.tools.length !== 1 ? "s" : ""}` : status.error}</p>}
               </div>
             );
           })}
@@ -346,15 +346,15 @@ export function HarnessDialog({
           {draft.agents.map((agent) => (
             <section key={agent.id} className="rounded-2xl border border-[#dfe3da] bg-[#faf9f3] p-4">
               <div className="flex items-center gap-3">
-                <Switch disabled={readOnly} checked={agent.enabled} onCheckedChange={(enabled) => updateAgent(agent.id, { enabled })} aria-label={`Activer ${agent.name}`} />
+                 <Switch disabled={readOnly} checked={agent.enabled} onCheckedChange={(enabled) => updateAgent(agent.id, { enabled })} aria-label={`Enable ${agent.name}`} />
                 <Input disabled={readOnly} value={agent.name} onChange={(event) => updateAgent(agent.id, { name: event.target.value })} className="font-semibold text-[#17483d]" />
-                {!agent.native && !readOnly && <Button variant="ghost" size="icon" onClick={() => setDraft((current) => ({ ...current, agents: current.agents.filter((item) => item.id !== agent.id) }))} aria-label={`Supprimer ${agent.name}`}><Trash2 className="h-4 w-4" /></Button>}
+                 {!agent.native && !readOnly && <Button variant="ghost" size="icon" onClick={() => setDraft((current) => ({ ...current, agents: current.agents.filter((item) => item.id !== agent.id) }))} aria-label={`Remove ${agent.name}`}><Trash2 className="h-4 w-4" /></Button>}
               </div>
               <div className="mt-3 grid gap-3">
                 <div><Label>Description</Label><Input disabled={readOnly} value={agent.description} maxLength={500} onChange={(event) => updateAgent(agent.id, { description: event.target.value })} /></div>
-                {!readOnly && <div><Label>Prompt de l’agent</Label><Textarea value={agent.prompt} maxLength={8000} rows={5} onChange={(event) => updateAgent(agent.id, { prompt: event.target.value })} /></div>}
+                 {!readOnly && <div><Label>Agent prompt</Label><Textarea value={agent.prompt} maxLength={8000} rows={5} onChange={(event) => updateAgent(agent.id, { prompt: event.target.value })} /></div>}
                 {!readOnly && <div>
-                  <Label>MCP approuvé</Label>
+                   <Label>Approved MCP</Label>
                    {agent.mcpId !== "none" && (() => {
                      const status = mcpRegistry.find((mcp) => mcp.id === agent.mcpId);
                      return status ? (
@@ -366,8 +366,8 @@ export function HarnessDialog({
                      ) : null;
                    })()}
                   <select value={agent.mcpId} onChange={(event) => updateAgent(agent.id, { mcpId: event.target.value as HarnessAgent["mcpId"], mcpToolIds: [] })} className="mt-1 h-10 w-full rounded-md border border-input bg-background px-3 text-sm">
-                    <option value="none">Aucun MCP</option>
-                    {mcpRegistry.filter((mcp) => mcp.connected).map((mcp) => <option key={mcp.id} value={mcp.id}>{mcp.label} — connecté</option>)}
+                     <option value="none">No MCP</option>
+                     {mcpRegistry.filter((mcp) => mcp.connected).map((mcp) => <option key={mcp.id} value={mcp.id}>{mcp.label} — connected</option>)}
                   </select>
                    {agent.mcpId !== "none" && (() => {
                      const selectedMcp = mcpRegistry.find((mcp) => mcp.id === agent.mcpId);
@@ -402,7 +402,7 @@ export function HarnessDialog({
                              <strong>{tool.title}</strong><br />{tool.description}
                              {tool.supported === false && (
                                <span className="mt-1 block text-amber-700">
-                                 {tool.unsupportedReason ?? "Schéma d’entrée non pris en charge par ALi."}
+                                  {tool.unsupportedReason ?? "Input schema not supported by ALi."}
                                </span>
                              )}
                            </span>
@@ -410,7 +410,7 @@ export function HarnessDialog({
                       ))}
                     </div>
                   )}
-                  <p className="mt-1 text-xs text-[#6b7d76]">Seuls les serveurs testés et les outils cochés peuvent être exécutés. Les nouveaux outils découverts ne sont jamais activés automatiquement.</p>
+                   <p className="mt-1 text-xs text-[#6b7d76]">Only tested servers and selected tools can run. Newly discovered tools are never enabled automatically.</p>
                 </div>}
               </div>
             </section>
@@ -420,14 +420,14 @@ export function HarnessDialog({
         {activeTab === "final-prompt" && (
           <section className="space-y-3 rounded-2xl border border-[#dfe3da] bg-[#faf9f3] p-4">
             <div>
-              <h3 className="font-semibold text-[#17483d]">Prompt système enregistré</h3>
+               <h3 className="font-semibold text-[#17483d]">Saved system prompt</h3>
               <p className="mt-1 text-xs leading-5 text-[#6b7d76]">
-                Cet aperçu en lecture seule combine les garde-fous et les prompts enregistrés de tous les agents activés. Lors de chaque génération, le rapport et le contexte scientifique sont ajoutés dans un second message.
+                 This read-only preview combines safeguards and saved prompts for all enabled agents. The report and scientific context are added in a second message during generation.
               </p>
               {finalStudyPromptInfo && (
                 <p className="mt-1 text-[11px] font-medium text-[#557067]">
-                  Version enregistrée : {finalStudyPromptInfo.characters.toLocaleString("fr-FR")} caractères
-                  {finalStudyPromptInfo.fingerprint ? ` · empreinte ${finalStudyPromptInfo.fingerprint}` : ""}
+                   Saved version: {finalStudyPromptInfo.characters.toLocaleString("en")} characters
+                   {finalStudyPromptInfo.fingerprint ? ` · fingerprint ${finalStudyPromptInfo.fingerprint}` : ""}
                 </p>
               )}
             </div>
@@ -436,17 +436,17 @@ export function HarnessDialog({
               value={finalStudyPrompt}
               rows={24}
               className="min-h-[420px] resize-y border-[#cfd5ce] bg-[#ecefea] font-mono text-xs leading-5 text-[#66746f] shadow-inner focus-visible:ring-[#9aa79f]"
-              aria-label="Prompt système enregistré pour la génération de la pré-étude"
+               aria-label="Saved system prompt for preliminary study generation"
               data-testid="textarea-final-study-prompt"
             />
           </section>
         )}
         {message && <p className="text-sm font-medium text-[#1e594a]" role="status">{message}</p>}
         {!readOnly && <div className="flex flex-wrap justify-between gap-2 border-t pt-4">
-          <Button variant="outline" onClick={reset} disabled={saving} className="gap-2"><RotateCcw className="h-4 w-4" />Réinitialiser</Button>
+           <Button variant="outline" onClick={reset} disabled={saving} className="gap-2"><RotateCcw className="h-4 w-4" />Reset</Button>
           <div className="flex gap-2">
-            <Button variant="outline" onClick={addAgent} disabled={draft.agents.length >= 20} className="gap-2"><Plus className="h-4 w-4" />Ajouter un agent</Button>
-            <Button onClick={save} disabled={saving} className="gap-2 bg-[#1e594a] text-white hover:bg-[#17483d]"><Save className="h-4 w-4" />{saving ? "Enregistrement…" : "Enregistrer"}</Button>
+             <Button variant="outline" onClick={addAgent} disabled={draft.agents.length >= 20} className="gap-2"><Plus className="h-4 w-4" />Add agent</Button>
+             <Button onClick={save} disabled={saving} className="gap-2 bg-[#1e594a] text-white hover:bg-[#17483d]"><Save className="h-4 w-4" />{saving ? "Saving…" : "Save"}</Button>
           </div>
         </div>}
       </DialogContent>

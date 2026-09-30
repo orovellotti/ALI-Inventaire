@@ -112,26 +112,26 @@ function buildMessage(
   const issues: string[] = [];
   if (scores.geo < 0.5) {
     issues.push(
-      `incertitude spatiale élevée (${Math.round((1 - ratios.p) * 100)}% > ${UNCERTAINTY_THRESHOLD_METERS}m)`,
+      `high spatial uncertainty (${Math.round((1 - ratios.p) * 100)}% > ${UNCERTAINTY_THRESHOLD_METERS}m)`,
     );
   }
-  if (scores.tax < 0.5) issues.push("qualité taxonomique faible");
+  if (scores.tax < 0.5) issues.push("low taxonomic quality");
   if (scores.time < 0.5) {
-    issues.push(`données anciennes (${Math.round((1 - ratios.rTime) * 100)}% > ${RECENT_YEARS_WINDOW} ans)`);
+    issues.push(`older records (${Math.round((1 - ratios.rTime) * 100)}% > ${RECENT_YEARS_WINDOW} years)`);
   }
-  if (scores.trace < 0.5) issues.push("traçabilité insuffisante");
-  if (scores.issues < 0.7) issues.push(`${Math.round((1 - scores.issues) * 100)}% avec alertes GBIF`);
+  if (scores.trace < 0.5) issues.push("insufficient traceability");
+  if (scores.issues < 0.7) issues.push(`${Math.round((1 - scores.issues) * 100)}% with GBIF flags`);
 
   return issues.length > 0
-    ? `Points d'attention : ${issues.join(", ")}`
-    : "Données de bonne qualité pour un pré-diagnostic";
+    ? `Points to review: ${issues.join(", ")}`
+    : "Good-quality data for a preliminary assessment";
 }
 
 export function emptyConfidence(): ConfidenceScore {
   return {
     total: 0, geo: 0, tax: 0, time: 0, trace: 0, issues: 0, dup: 0,
     interpretation: "low",
-    message: "Aucune donnée disponible",
+    message: "No data available",
     rawCount: 0, filteredCount: 0, dedupCount: 0,
   };
 }

@@ -3,7 +3,7 @@ import { drizzle } from "drizzle-orm/node-postgres";
 import * as schema from "@shared/schema";
 
 if (!process.env.DATABASE_URL) {
-  throw new Error("DATABASE_URL doit être défini (base non provisionnée ?)");
+  throw new Error("DATABASE_URL is required (database not provisioned?)");
 }
 
 export const pool = new pg.Pool({ connectionString: process.env.DATABASE_URL });

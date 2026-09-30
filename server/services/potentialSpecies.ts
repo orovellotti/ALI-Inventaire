@@ -1,5 +1,6 @@
 import type { PotentialSpeciesResult, ProjectAreaFeatureCollection } from "@shared/types";
 import { storage } from "../storage";
+import { requireFrenchCoverage } from "./coverage";
 import { getNaturaZones, getZnieffZones } from "./geoservices";
 import { computeProjectSiteMetrics, computeSiteMetrics } from "./habitatCompat";
 import { getSiteHabitatInfo } from "./natura2000Habitats";
@@ -102,6 +103,7 @@ export async function getPotentialSpecies(
   occurrences: PotentialOccurrence[],
   options: { includeHabitats?: boolean; projectArea?: ProjectAreaFeatureCollection } = {},
 ): Promise<PotentialSpeciesResult> {
+  await requireFrenchCoverage(lat, lng, "French Natura 2000, ZNIEFF and CARHAB potential species");
   const deadline = Date.now() + REQUEST_BUDGET_MS;
   let partial = false;
   let znieffPartial = false;
@@ -145,9 +147,9 @@ export async function getPotentialSpecies(
       deadline - Date.now(),
     ),
   ]);
-  const rowsResult = retainSourceResult(rowsSettled, errors, "Natura 2000 : espèces désignatrices indisponibles.");
-  const znieffRowsResult = retainSourceResult(znieffRowsSettled, errors, "ZNIEFF : espèces documentaires indisponibles.");
-  const znieffMetaResult = retainSourceResult(znieffMetaSettled, errors, "ZNIEFF : métadonnées de référence indisponibles.");
+  const rowsResult = retainSourceResult(rowsSettled, errors, "Natura 2000 designating species unavailable.");
+  const znieffRowsResult = retainSourceResult(znieffRowsSettled, errors, "ZNIEFF documentary species unavailable.");
+  const znieffMetaResult = retainSourceResult(znieffMetaSettled, errors, "ZNIEFF reference metadata unavailable.");
   const rows = rowsResult ?? [];
   if (!rowsResult) partial = true;
   const znieffRows = znieffRowsResult ?? [];

@@ -24,3 +24,4 @@
 - [CARHAB output semantics](carhab-output-semantics.md) — display the service-provided area summary by habitat, deduped and sorted; never recast it as ALi-computed field mapping.
 - [Nominatim place hierarchy](nominatim-place-hierarchy.md) — never show municipality/state_district as the study commune; concise labels use local place, county, and region.
 - [ALI Species enrichment order](ali-species-enrichment-order.md) — run ALI Species only after the inventory is merged and deduplicated; present it as the final taxonomic enrichment stage.
+- [International scope](international-scope.md) — English by default, worldwide locations with country-scoped evidence and explicit limits; final referral to Natural Solutions experts.

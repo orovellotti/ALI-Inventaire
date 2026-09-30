@@ -21,7 +21,7 @@ import { zonageKey } from "@/lib/zonageMap";
 import type { ZonagesData, ZonageItem } from "@/lib/zonages";
 import type { AnalysisConversation } from "@/lib/analysisHistory";
 import type { HarnessConfig } from "@shared/harness";
-import { formatCarhabSummary, parseCarhabOutput } from "@shared/carhab";
+import { parseCarhabOutput, type CarhabSummary } from "@shared/carhab";
 import { getPreferredTerritorialRedList, isPlantTaxon } from "@shared/iucn";
 import { occurrenceKey, uniqueOccurrences } from "@/lib/resultKeys";
 import { buildFinalStudyContext, serializeFinalStudyContext } from "@/lib/finalStudyContext";
@@ -45,6 +45,20 @@ type AggregatedIssue = {
   interpretation: string;
 };
 
+const ISSUE_LEVEL_LABEL: Record<AggregatedIssue["level"], string> = {
+  Critique: "Critical", Fort: "High", Modéré: "Moderate", "À qualifier": "To assess",
+};
+const ISSUE_CATEGORY_LABEL: Record<AggregatedIssue["category"], string> = {
+  Espèce: "Species", Zonage: "Designation", Habitat: "Habitat",
+};
+const POTENTIAL_STATUS_LABEL: Record<PotentialSpeciesStatus, string> = {
+  "Très probable localement": "Very likely locally",
+  Potentielle: "Potential",
+  "Peu compatible": "Poorly compatible",
+  "Non évaluée": "Not assessed",
+};
+const POTENTIAL_CONFIDENCE_LABEL = { "Élevé": "High", "Moyen": "Medium", "Faible": "Low" } as const;
+
 /**
  * Niveau d'enjeu global du site (Faible / Modéré / Fort), dérivé du score de
  * potentiel d'enjeux existant (riskScore). NOTE MÉTIER : les seuils et la
@@ -55,9 +69,9 @@ function computeGlobalIssueLevel(riskTone: "critical" | "high" | "moderate" | "l
   level: "fort" | "modere" | "faible";
   label: string;
 } {
-  if (riskTone === "critical" || riskTone === "high") return { level: "fort", label: "À approfondir" };
-  if (riskTone === "moderate") return { level: "modere", label: "À examiner" };
-  return { level: "faible", label: "Peu de signaux documentés" };
+  if (riskTone === "critical" || riskTone === "high") return { level: "fort", label: "Further investigation needed" };
+  if (riskTone === "moderate") return { level: "modere", label: "Worth investigating" };
+  return { level: "faible", label: "Few documented signals" };
 }
 
 /** Priorité d'affichage des catégories de zonages (plus petit = plus prioritaire). */
@@ -69,13 +83,26 @@ const ZONAGE_CATEGORY_PRIORITY: Record<string, number> = {
 };
 
 const ZONAGE_CATEGORY_BADGE: Record<string, { label: string; cls: string }> = {
-  reglementaire: { label: "Réglementaire", cls: "bg-red-50 text-red-700 border-red-200" },
+  reglementaire: { label: "Regulatory", cls: "bg-red-50 text-red-700 border-red-200" },
   natura2000: { label: "Natura 2000", cls: "bg-orange-50 text-orange-700 border-orange-200" },
   znieff: { label: "ZNIEFF", cls: "bg-amber-50 text-amber-700 border-amber-200" },
   autre: { label: "Info", cls: "bg-gray-50 text-gray-600 border-gray-200" },
 };
 
 const CURRENT_YEAR = new Date().getFullYear();
+
+function formatCarhabSummaryEnglish(summary: CarhabSummary): string {
+  const header = summary.totalAreaHa === null
+    ? "Area analysed not provided"
+    : `Area analysed by CARHAB: ${summary.totalAreaHa.toLocaleString("en-GB", { maximumFractionDigits: 2 })} ha`;
+  return [header, ...summary.habitats.map((habitat) => {
+    const metrics = [
+      habitat.areaHa === null ? null : `${habitat.areaHa.toLocaleString("en-GB", { maximumFractionDigits: 2 })} ha`,
+      habitat.percentage === null ? null : `${habitat.percentage.toLocaleString("en-GB", { maximumFractionDigits: 1 })} %`,
+    ].filter(Boolean).join(" · ");
+    return `• [${habitat.code}] ${habitat.label}${metrics ? ` — ${metrics}` : ""}`;
+  })].join("\n");
+}
 
 function studyMarkdownToWordHtml(markdown: string): string {
   const escapeHtml = (value: string) =>
@@ -170,31 +197,31 @@ function studyMarkdownToWordHtml(markdown: string): string {
 }
 
 const GROUP_SEASON: Record<string, string> = {
-  oiseaux: "avril à juillet",
-  mammiferes: "toute l'année",
-  reptiles: "avril à septembre",
-  amphibiens: "février à mai",
-  poissons: "mai à octobre",
-  insectes: "mai à août",
-  arachnides: "mai à septembre",
-  mollusques: "mai à octobre",
-  plantes: "mars à juin",
-  champignons: "septembre à novembre",
-  autres: "à préciser",
+  oiseaux: "April to July",
+  mammiferes: "year-round",
+  reptiles: "April to September",
+  amphibiens: "February to May",
+  poissons: "May to October",
+  insectes: "May to August",
+  arachnides: "May to September",
+  mollusques: "May to October",
+  plantes: "March to June",
+  champignons: "September to November",
+  autres: "to be determined",
 };
 
 const GROUP_ACTION: Record<string, string> = {
-  oiseaux: "Prévoir un inventaire avifaune en période de nidification (avril à juillet).",
-  mammiferes: "Rechercher les indices de présence et poser des pièges photographiques.",
-  reptiles: "Prospecter les reptiles au printemps et en été (avril à septembre).",
-  amphibiens: "Inventorier les amphibiens en période de reproduction (février à mai).",
-  poissons: "Prospecter les milieux aquatiques (mai à octobre).",
-  insectes: "Réaliser un inventaire entomologique en période d'activité (mai à août).",
-  arachnides: "Prospection ciblée en période d'activité (mai à septembre).",
-  mollusques: "Prospecter les milieux humides et aquatiques (mai à octobre).",
-  plantes: "Prévoir un inventaire botanique en période de floraison (mars à juin).",
-  champignons: "Prospection mycologique à l'automne (septembre à novembre).",
-  autres: "Vérifier la présence sur le terrain par un écologue.",
+  oiseaux: "Survey birds during the nesting season (April to July).",
+  mammiferes: "Look for signs of mammals and deploy camera traps.",
+  reptiles: "Survey reptiles in spring and summer (April to September).",
+  amphibiens: "Survey amphibians during breeding season (February to May).",
+  poissons: "Survey aquatic environments (May to October).",
+  insectes: "Survey insects during their active season (May to August).",
+  arachnides: "Conduct targeted surveys during the active season (May to September).",
+  mollusques: "Survey wetland and aquatic environments (May to October).",
+  plantes: "Plan a botanical survey during flowering season (March to June).",
+  champignons: "Survey fungi in autumn (September to November).",
+  autres: "Have an ecologist check for presence in the field.",
 };
 
 function recommendedAction(groupId: string): string {
@@ -252,6 +279,7 @@ interface ResultsPanelProps {
 }
 
 export function ResultsPanel({ isOpen, isAnalyzing = false, areaCount = 1, onClose, results, selectedSpecies, onSelectSpecies, activeTaxonFilters, onToggleTaxonFilter, onToggleAllTaxonFilters, excludeMarine, onToggleExcludeMarine, includeINaturalist, onToggleIncludeINaturalist, toponym, zonages, zonagesLoading, potentialSpecies, potentialSpeciesLoading, potentialSpeciesError, projectArea, selectedZonageId, onSelectZonage, composer, conversations = [], activeConversationId = null, historyError, requestSummary, onSelectConversation, onNewConversation, onRenameConversation, onDeleteConversation, harnessConfig }: ResultsPanelProps) {
+  const regionalSourcesUnavailable = results?.coverage?.frenchSources === false;
   const enabledAgentIds = useMemo(
     () => harnessConfig?.agents.filter((agent) => agent.enabled).map((agent) => agent.id) ?? [],
     [harnessConfig],
@@ -298,7 +326,7 @@ export function ResultsPanel({ isOpen, isAnalyzing = false, areaCount = 1, onClo
     );
     return trace?.output ? parseCarhabOutput(trace.output) : null;
   }, [aiAnalysis]);
-  const [habitatConsultationState, setHabitatConsultationState] = useState<"idle" | "loading" | "complete" | "error">("idle");
+  const [habitatConsultationState, setHabitatConsultationState] = useState<"idle" | "loading" | "complete" | "error" | "out-of-coverage">("idle");
   const shouldRunHabitatAnalysisRef = useRef(false);
   useEffect(() => {
     if (!historyOpen) return;
@@ -329,9 +357,9 @@ export function ResultsPanel({ isOpen, isAnalyzing = false, areaCount = 1, onClo
   useEffect(() => {
     if (isAnalyzing) {
       shouldRunHabitatAnalysisRef.current = true;
-      setHabitatConsultationState("loading");
+      setHabitatConsultationState(results?.coverage?.frenchSources === false ? "out-of-coverage" : "loading");
     }
-  }, [isAnalyzing]);
+  }, [isAnalyzing, results?.coverage?.frenchSources]);
 
   // Fermeture de l'assistant au clavier (Échap), focus à l'ouverture,
   // piégeage du focus dans le tiroir et restitution au déclencheur à la fermeture.
@@ -504,6 +532,12 @@ export function ResultsPanel({ isOpen, isAnalyzing = false, areaCount = 1, onClo
   useEffect(() => {
     if (isAnalyzing || !results || !shouldRunHabitatAnalysisRef.current) return;
     shouldRunHabitatAnalysisRef.current = false;
+    // This automated request can invoke CARHAB, TAXREF and French zoning. Never
+    // issue it where the resolved study country falls outside their coverage.
+    if (results.coverage?.frenchSources !== true) {
+      setHabitatConsultationState(results.coverage?.frenchSources === false ? "out-of-coverage" : "idle");
+      return;
+    }
 
     const distanceToCenter = (occurrence: Occurrence) =>
       typeof occurrence.decimalLatitude === "number" && typeof occurrence.decimalLongitude === "number"
@@ -554,7 +588,7 @@ export function ResultsPanel({ isOpen, isAnalyzing = false, areaCount = 1, onClo
       .then(async (response) => {
         if (!response.ok) {
           const payload = await response.json().catch(() => ({}));
-          throw new Error(payload.error || "Analyse spécialisée indisponible");
+          throw new Error(payload.error || "Specialist analysis unavailable");
         }
         return response.json() as Promise<PrioritySpeciesAnalysis>;
       })
@@ -648,6 +682,7 @@ export function ResultsPanel({ isOpen, isAnalyzing = false, areaCount = 1, onClo
 
   const potentialIssueSignals = useMemo(() => {
     if (
+      regionalSourcesUnavailable ||
       potentialSpeciesLoading ||
       potentialSpeciesError ||
       !reconciledPotentialSpecies
@@ -700,12 +735,13 @@ export function ResultsPanel({ isOpen, isAnalyzing = false, areaCount = 1, onClo
     potentialSpeciesError,
     reconciledPotentialSpecies,
     regionalRedListByPotentialName,
+    regionalSourcesUnavailable,
   ]);
 
   const riskScore = useMemo(() => {
     const hi = sortedSpecies.high.length;
     const med = sortedSpecies.medium.length;
-    const zc = zonages?.count || 0;
+    const zc = regionalSourcesUnavailable ? 0 : zonages?.count || 0;
     const hasMarine = marineCount > 0;
     const hasTerrestrial = (results?.stats.speciesCount || 0) - marineCount > 0;
 
@@ -736,56 +772,63 @@ export function ResultsPanel({ isOpen, isAnalyzing = false, areaCount = 1, onClo
 
     let label: string;
     let tone: "critical" | "high" | "moderate" | "low";
-    if (score >= 75) { label = "Nombreux signaux documentaires"; tone = "critical"; }
-    else if (score >= 55) { label = "Signaux significatifs"; tone = "high"; }
-    else if (score >= 35) { label = "Signaux à examiner"; tone = "moderate"; }
-    else { label = "Peu de signaux documentés"; tone = "low"; }
+    if (score >= 75) { label = "Many documented signals"; tone = "critical"; }
+    else if (score >= 55) { label = "Significant signals"; tone = "high"; }
+    else if (score >= 35) { label = "Signals to investigate"; tone = "moderate"; }
+    else { label = regionalSourcesUnavailable ? "Local sources unavailable; evidence incomplete" : "Few documented signals"; tone = "low"; }
 
     const factors: string[] = [];
-    if (hi > 0) factors.push(`${hi} espèce${hi > 1 ? "s" : ""} à enjeu fort`);
-    if (aiForts > 0) factors.push(`${aiForts} espèce${aiForts > 1 ? "s" : ""} à patrimonialité forte ou majeure (IA)`);
+    if (hi > 0) factors.push(`${hi} species with high concern`);
+    if (aiForts > 0) factors.push(`${aiForts} species with high or major conservation value (AI)`);
     if (potentialIssueSignals.count > 0) {
       factors.push(
-        `${potentialIssueSignals.count} espèce${potentialIssueSignals.count > 1 ? "s" : ""} potentielle${potentialIssueSignals.count > 1 ? "s" : ""} retenue${potentialIssueSignals.count > 1 ? "s" : ""} comme signal d’enjeu à confirmer`,
+        `${potentialIssueSignals.count} potential species considered a concern signal requiring confirmation`,
       );
     }
     if (potentialIssueSignals.regionalThreatened > 0) {
       factors.push(
-        `${potentialIssueSignals.regionalThreatened} espèce${potentialIssueSignals.regionalThreatened > 1 ? "s" : ""} potentielle${potentialIssueSignals.regionalThreatened > 1 ? "s" : ""} avec statut UICN régional CR, EN ou VU`,
+        `${potentialIssueSignals.regionalThreatened} potential species with regional IUCN status CR, EN or VU`,
       );
     }
-    if (zc > 0) factors.push(`${zc} zonage${zc > 1 ? "s" : ""} environnemental${zc > 1 ? "aux" : ""}`);
-    if (hasMarine && hasTerrestrial) factors.push("Sensibilité marine et terrestre");
-    if (recentRatio >= 0.4) factors.push("Occurrences publiques récentes à proximité");
-    if (factors.length === 0) factors.push("Peu de signaux d'enjeu détectés localement");
+    if (zc > 0) factors.push(`${zc} environmental designation${zc > 1 ? "s" : ""}`);
+    if (hasMarine && hasTerrestrial) factors.push("Marine and terrestrial sensitivity");
+    if (recentRatio >= 0.4) factors.push("Recent public occurrences nearby");
+    if (regionalSourcesUnavailable) factors.push("France-only sources were not queried here; local status and designations remain unknown");
+    else if (factors.length === 0) factors.push("Few local concern signals detected");
 
     return { score, label, tone, factors };
-  }, [sortedSpecies, zonages, marineCount, results, aiAnalysis, potentialIssueSignals]);
+  }, [sortedSpecies, zonages, marineCount, results, aiAnalysis, potentialIssueSignals, regionalSourcesUnavailable]);
 
   const autoSummary = useMemo(() => {
     if (!results) return "";
     const sp = results.stats.speciesCount;
     const sens = results.stats.sensitiveCount;
-    const zc = zonages?.count || 0;
-    const parts = [`Les sources consultées documentent ${sp} taxon${sp > 1 ? "s" : ""} dans l’aire étudiée, dont ${sens} présentant un signal de sensibilité${sens > 1 ? "s" : ""}`];
+    const zc = regionalSourcesUnavailable ? 0 : zonages?.count || 0;
+    const parts = [`The consulted sources document ${sp} taxa in the study area, including ${sens} with sensitivity signals`];
     if (potentialIssueSignals.count > 0) {
       parts.push(
-        `et retient ${potentialIssueSignals.count} espèce${potentialIssueSignals.count > 1 ? "s" : ""} potentielle${potentialIssueSignals.count > 1 ? "s" : ""} comme signal d’enjeu à confirmer`,
+        `and identify ${potentialIssueSignals.count} potential species as concern signals requiring confirmation`,
       );
     }
-    if (zc > 0) parts.push(`et retournent ${zc} zonage${zc > 1 ? "s" : ""} environnemental${zc > 1 ? "aux" : ""} à qualifier selon leur portée`);
+    if (zc > 0) parts.push(`and return ${zc} environmental designation${zc > 1 ? "s" : ""} whose implications need checking`);
     let text = parts.join(" ") + ".";
-    text += ` L’indice documentaire fait ressortir : « ${riskScore.label} ».`;
-    text += " Il ne constitue ni un niveau d’enjeu réglementaire ni une conclusion d’impact ; ces éléments dépendent du projet, de ses pressions et des vérifications de terrain.";
+    text += ` The desk-based index indicates: “${riskScore.label}”.`;
+    text += " This is neither a regulatory concern rating nor an impact conclusion; those depend on the project, its pressures and field verification.";
+    if (regionalSourcesUnavailable) text += " France-only sources were not consulted here; their unavailability does not show absence of species, habitats or protected areas. Consult locally applicable references.";
     if (riskScore.tone === "critical" || riskScore.tone === "high") {
-      text += " Selon la nature du projet, des investigations ciblées sont à examiner avec un écologue avant de décider des suites.";
+      text += " Depending on the project, discuss targeted surveys with an ecologist before determining next steps.";
     } else {
-      text += " Une vérification de terrain reste utile pour confirmer ou nuancer cette lecture documentaire.";
+      text += " Field verification remains useful to confirm or qualify this desk-based assessment.";
     }
     return text;
-  }, [results, zonages, riskScore, potentialIssueSignals]);
+  }, [results, zonages, riskScore, potentialIssueSignals, regionalSourcesUnavailable]);
 
-  const globalLevel = useMemo(() => computeGlobalIssueLevel(riskScore.tone), [riskScore.tone]);
+  const globalLevel = useMemo(
+    () => regionalSourcesUnavailable
+      ? { level: "unknown" as const, label: "Local concern level undetermined" }
+      : computeGlobalIssueLevel(riskScore.tone),
+    [riskScore.tone, regionalSourcesUnavailable],
+  );
 
   const prefersReducedMotionRef = useRef(
     typeof window !== "undefined" && window.matchMedia?.("(prefers-reduced-motion: reduce)").matches
@@ -871,7 +914,7 @@ export function ResultsPanel({ isOpen, isAnalyzing = false, areaCount = 1, onClo
 
   // Liste plate des zonages, triée par priorité de vigilance (réglementaire → Natura 2000 → ZNIEFF → info)
   const flatZonages = useMemo(() => {
-    if (!zonages) return [] as (ZonageItem & { groupCategory: string; categoryLabel: string; priority: number })[];
+    if (!zonages || regionalSourcesUnavailable) return [] as (ZonageItem & { groupCategory: string; categoryLabel: string; priority: number })[];
     const list: (ZonageItem & { groupCategory: string; categoryLabel: string; priority: number })[] = [];
     const seen = new Set<string>();
     for (const g of zonages.groups) {
@@ -884,7 +927,7 @@ export function ResultsPanel({ isOpen, isAnalyzing = false, areaCount = 1, onClo
     }
     list.sort((a, b) => a.priority - b.priority || a.name.localeCompare(b.name));
     return list;
-  }, [zonages]);
+  }, [zonages, regionalSourcesUnavailable]);
 
   const aggregatedIssues = useMemo(() => {
     const rows = new Map<string, AggregatedIssue>();
@@ -911,9 +954,9 @@ export function ResultsPanel({ isOpen, isAnalyzing = false, areaCount = 1, onClo
         subject: occurrence.scientificName,
         category: "Espèce",
         level,
-        agents: ["Occurrences", ...(occurrence.aliStatuses?.length ? ["Taxonomie et statuts"] : [])],
-        evidence: "Occurrence publique documentée dans l’aire d’étude",
-        interpretation: occurrence.enjeuWarnings?.join(" ") || "Signal territorial à examiner et à confirmer dans l’emprise par des investigations de terrain.",
+        agents: ["Occurrences", ...(occurrence.aliStatuses?.length ? ["Taxonomy and statuses"] : [])],
+        evidence: "Public occurrence documented in the study area",
+        interpretation: occurrence.enjeuWarnings?.join(" ") || "Territorial signal requiring investigation and field confirmation within the footprint.",
       });
     }
 
@@ -924,9 +967,9 @@ export function ResultsPanel({ isOpen, isAnalyzing = false, areaCount = 1, onClo
         subject: species.scientificName,
         category: "Espèce",
         level,
-        agents: ["Taxonomie et statuts"],
-        evidence: species.inInventory ? "Taxon rapproché d’une occurrence documentaire" : "Signal documentaire sans occurrence dans l’inventaire",
-        interpretation: species.reason || "Statut territorial ou patrimonial à prendre en compte.",
+        agents: ["Taxonomy and statuses"],
+        evidence: species.inInventory ? "Taxon matched to a documented occurrence" : "Desk-based signal without an inventory occurrence",
+        interpretation: species.reason || "Territorial or conservation status to consider.",
       });
     }
 
@@ -939,11 +982,11 @@ export function ResultsPanel({ isOpen, isAnalyzing = false, areaCount = 1, onClo
         subject: species.scientificName,
         category: "Espèce",
         level: elevated ? "Fort" : "Modéré",
-        agents: ["Habitats", ...(regional ? ["Taxonomie et statuts"] : [])],
-        evidence: `${species.status} · compatibilité ${species.score}/100${regional ? ` · liste rouge régionale ${regional.value}` : ""}`,
+        agents: ["Habitats", ...(regional ? ["Taxonomy and statuses"] : [])],
+        evidence: `${POTENTIAL_STATUS_LABEL[species.status]} · suitability ${species.score}/100${regional ? ` · regional Red List ${regional.value}` : ""}`,
         interpretation: elevated
-          ? "Enjeu documentaire potentiel élevé à confirmer sur le terrain ; aucune présence dans l’emprise n’est affirmée."
-          : "Présence potentielle fondée sur la compatibilité écologique, à vérifier sur le terrain.",
+          ? "Potentially high desk-based concern requiring field confirmation; presence within the footprint is not asserted."
+          : "Potential presence based on ecological suitability, requiring field verification.",
       });
     }
 
@@ -955,9 +998,9 @@ export function ResultsPanel({ isOpen, isAnalyzing = false, areaCount = 1, onClo
         subject: zonage.name,
         category: "Zonage",
         level,
-        agents: ["Zonages"],
-        evidence: `${zonage.type} · ${zonage.categoryLabel}`,
-        interpretation: "Contexte réglementaire ou d’inventaire à intégrer à la conception du projet ; la portée exacte dépend du zonage.",
+        agents: ["Designations"],
+        evidence: `${zonage.type} · ${ZONAGE_CATEGORY_BADGE[zonage.groupCategory]?.label || zonage.categoryLabel}`,
+        interpretation: "Regulatory or inventory context to consider in project design; the precise implications depend on the designation.",
       });
     }
 
@@ -969,13 +1012,13 @@ export function ResultsPanel({ isOpen, isAnalyzing = false, areaCount = 1, onClo
         category: "Habitat",
         level: "À qualifier",
         agents: ["Habitats"],
-        evidence: `CARHAB${habitat.percentage !== null ? ` · ${habitat.percentage.toLocaleString("fr-FR")} % de la surface documentée` : ""}`,
-        interpretation: "Habitat cartographié à caractériser sur le terrain avant de conclure sur son enjeu écologique.",
+        evidence: `CARHAB${habitat.percentage !== null ? ` · ${habitat.percentage.toLocaleString("en-GB")} % of documented area` : ""}`,
+        interpretation: "Mapped habitat requiring field characterisation before concluding on ecological concern.",
       });
     }
 
     return Array.from(rows.values()).sort((a, b) =>
-      rank[b.level] - rank[a.level] || a.category.localeCompare(b.category, "fr") || a.subject.localeCompare(b.subject, "fr"),
+      rank[b.level] - rank[a.level] || a.category.localeCompare(b.category, "en") || a.subject.localeCompare(b.subject, "en"),
     );
   }, [aiAnalysis, carhabSummary, flatZonages, reconciledPotentialSpecies, regionalRedListByPotentialName, sortedSpecies]);
 
@@ -1002,8 +1045,8 @@ export function ResultsPanel({ isOpen, isAnalyzing = false, areaCount = 1, onClo
   }, [selectedZonageId, flatZonages]);
 
   const reglementaireCount = useMemo(
-    () => zonages?.groups.find((g) => g.category === "reglementaire")?.count || 0,
-    [zonages]
+    () => regionalSourcesUnavailable ? 0 : zonages?.groups.find((g) => g.category === "reglementaire")?.count || 0,
+    [zonages, regionalSourcesUnavailable]
   );
 
   const aVerifierCount = useMemo(
@@ -1014,44 +1057,51 @@ export function ResultsPanel({ isOpen, isAnalyzing = false, areaCount = 1, onClo
   // « À retenir » : au maximum 3 informations prioritaires dérivées des données réelles
   const keyFindings = useMemo(() => {
     const items: { icon: "shield" | "alert" | "check" | "info"; text: string }[] = [];
+    if (regionalSourcesUnavailable) {
+      items.push({ icon: "info", text: "France-only designation and territorial-status sources were not consulted here; local conditions remain unknown." });
+    }
     if (reglementaireCount > 0) {
-      items.push({ icon: "shield", text: `Site concerné par ${reglementaireCount} protection${reglementaireCount > 1 ? "s" : ""} réglementaire${reglementaireCount > 1 ? "s" : ""}.` });
-    } else if ((zonages?.groups.find((g) => g.category === "natura2000")?.count || 0) > 0) {
+      items.push({ icon: "shield", text: `Site affected by ${reglementaireCount} regulatory protection${reglementaireCount > 1 ? "s" : ""}.` });
+    } else if (!regionalSourcesUnavailable && (zonages?.groups.find((g) => g.category === "natura2000")?.count || 0) > 0) {
       const n = zonages!.groups.find((g) => g.category === "natura2000")!.count;
-      items.push({ icon: "shield", text: `Site concerné par ${n} zonage${n > 1 ? "s" : ""} Natura 2000.` });
+      items.push({ icon: "shield", text: `Site affected by ${n} Natura 2000 designation${n > 1 ? "s" : ""}.` });
     }
     const sens = sortedSpecies.high.length + sortedSpecies.medium.length;
     if (sens > 0) {
-      items.push({ icon: "alert", text: `Présence potentielle de ${sens} espèce${sens > 1 ? "s" : ""} sensible${sens > 1 ? "s" : ""} d'après les données publiques.` });
+      items.push({ icon: "alert", text: `Public data indicate potential presence of ${sens} sensitive species.` });
     }
     if (items.length < 3 && aVerifierCount > 0) {
-      items.push({ icon: "info", text: `${aVerifierCount} espèce${aVerifierCount > 1 ? "s" : ""} au statut à vérifier.` });
+      items.push({ icon: "info", text: `${aVerifierCount} species with status requiring verification.` });
     }
     if (items.length < 3 && potentialIssueSignals.count > 0) {
       items.push({
         icon: "info",
         text: potentialIssueSignals.regionalThreatened > 0
-          ? `${potentialIssueSignals.regionalThreatened} espèce${potentialIssueSignals.regionalThreatened > 1 ? "s" : ""} potentielle${potentialIssueSignals.regionalThreatened > 1 ? "s" : ""}, écologiquement compatible${potentialIssueSignals.regionalThreatened > 1 ? "s" : ""}, présente${potentialIssueSignals.regionalThreatened > 1 ? "nt" : ""} un statut UICN régional élevé à vérifier sur le terrain.`
-          : `${potentialIssueSignals.count} espèce${potentialIssueSignals.count > 1 ? "s" : ""} potentielle${potentialIssueSignals.count > 1 ? "s" : ""} contribue${potentialIssueSignals.count > 1 ? "nt" : ""} prudemment au niveau d’enjeu.`,
+          ? `${potentialIssueSignals.regionalThreatened} ecologically suitable potential species with a high regional IUCN status requiring field verification.`
+          : `${potentialIssueSignals.count} potential species contribute cautiously to the concern level.`,
       });
     }
     if (items.length < 3) {
-      items.push({ icon: "check", text: "Vérification terrain recommandée pour confirmer ce pré-diagnostic." });
+      items.push({ icon: "check", text: "Field verification recommended to confirm this preliminary assessment." });
     }
     return items.slice(0, 3);
-  }, [reglementaireCount, zonages, sortedSpecies, aVerifierCount, potentialIssueSignals]);
+  }, [reglementaireCount, zonages, sortedSpecies, aVerifierCount, potentialIssueSignals, regionalSourcesUnavailable]);
 
   const recommendations = useMemo(() => {
-    const items = ["Réaliser un prédiagnostic écologique de terrain pour confirmer les sensibilités du site."];
+    const items = ["Carry out a preliminary ecological field survey to confirm site sensitivities."];
     items.push(
-      reglementaireCount > 0
-        ? "Vérifier les obligations réglementaires associées aux protections et zonages identifiés."
-        : "Vérifier la portée des zonages environnementaux recensés avant de définir le projet.",
+      regionalSourcesUnavailable
+        ? "Consult locally applicable habitat, species and protected-area references; French sources are outside their coverage here."
+        : reglementaireCount > 0
+        ? "Check regulatory obligations associated with identified protections and designations."
+        : zonages?.count
+          ? "Check the implications of identified environmental designations before defining the project."
+          : "Check locally applicable protected-area requirements before defining the project; unavailable or empty source results do not establish absence.",
     );
-    items.push("Adapter le calendrier du projet aux périodes sensibles des groupes d’espèces concernés.");
-    items.push("Faire valider les conclusions et les mesures d’évitement par un écologue.");
+    items.push("Schedule the project around sensitive periods for relevant species groups.");
+    items.push("Have an ecologist validate conclusions and avoidance measures.");
     return items;
-  }, [reglementaireCount]);
+  }, [reglementaireCount, regionalSourcesUnavailable, zonages]);
 
   const toggleZonageDetails = (key: string) => {
     setExpandedZonages((prev) => {
@@ -1086,7 +1136,7 @@ export function ResultsPanel({ isOpen, isAnalyzing = false, areaCount = 1, onClo
         ignoreElements: (element) => element.classList.contains("no-export")
       });
       const link = document.createElement("a");
-      link.download = `pre-etude-documentaire-biodiversite-${Date.now()}.jpg`;
+      link.download = `biodiversity-desk-study-${Date.now()}.jpg`;
       link.href = canvas.toDataURL("image/jpeg", 0.9);
       link.click();
     }
@@ -1102,9 +1152,9 @@ export function ResultsPanel({ isOpen, isAnalyzing = false, areaCount = 1, onClo
 
     const conf = results.confidence;
     const confLabel = conf.interpretation === "excellent" ? "Excellent"
-      : conf.interpretation === "good" ? "Bon"
-      : conf.interpretation === "moderate" ? "Modéré"
-      : "Faible";
+      : conf.interpretation === "good" ? "Good"
+      : conf.interpretation === "moderate" ? "Moderate"
+      : "Low";
 
     const activeGroupLabels = presentGroups
       .filter(g => activeTaxonFilters.has(g.id))
@@ -1123,7 +1173,7 @@ export function ResultsPanel({ isOpen, isAnalyzing = false, areaCount = 1, onClo
       const status = territorial
         ? `${territorial.category}${territorial.scope ? ` — ${territorial.scope}` : ""} : ${territorial.value}`
         : isPlantTaxon(o)
-          ? "statut régional/national/européen non renseigné"
+          ? "regional/national/European status not provided"
           : getIucnFullLabel(o.iucnStatus);
       return `• ${o.scientificName}${o.vernacularName ? ` — ${o.vernacularName}` : ""} (${status})`;
     };
@@ -1131,127 +1181,138 @@ export function ResultsPanel({ isOpen, isAnalyzing = false, areaCount = 1, onClo
     const sectionList = (label: string, list: Occurrence[]) =>
       list.length > 0 ? `${label} (${list.length})\n${list.map(fmtSpecies).join("\n")}\n` : "";
 
-    const zonagesSection = zonages && zonages.count > 0 ? `
+    const zonagesSection = regionalSourcesUnavailable
+      ? "\nENVIRONMENTAL DESIGNATIONS\nFrench designation sources were outside geographic coverage and were not queried. This is not a finding of zero protected areas; consult applicable local sources.\n"
+      : zonages && zonages.count > 0 ? `
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-🗺 ZONAGES ENVIRONNEMENTAUX (${zonages.count})
+🗺 ENVIRONMENTAL DESIGNATIONS (${zonages.count})
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-${zonages.groups.map(g => `${g.label} (${g.count})\n${g.zonages.map(z => `• ${z.type} — ${z.name}${z.url ? `\n  ${z.url}` : ""}`).join("\n")}`).join("\n\n")}
+${zonages.groups.map(g => `${ZONAGE_CATEGORY_BADGE[g.category]?.label || g.label} (${g.count})\n${g.zonages.map(z => `• ${z.type} — ${z.name}${z.url ? `\n  ${z.url}` : ""}`).join("\n")}`).join("\n\n")}
 
-↳ Zonages intersectant l'aire d'étude — source IGN Géoplateforme / INPN (PatriNat).
-` : "";
-    const enabledAgents = harnessConfig?.agents.filter((agent) => agent.enabled) ?? [];
+↳ Designations intersecting the study area — source: IGN Géoplateforme / INPN (PatriNat).
+` : zonages?.count === 0
+        ? "\nENVIRONMENTAL DESIGNATIONS\nConsultation complete: no designations returned by the queried source. Absence is not established.\n"
+        : "\nENVIRONMENTAL DESIGNATIONS\nSource unavailable or not consulted; no finding about local designations can be made.\n";
+    const enabledAgents = regionalSourcesUnavailable ? [] : harnessConfig?.agents.filter((agent) => agent.enabled) ?? [];
     const configuredAgents = enabledAgents.length
       ? enabledAgents.map((agent) => {
           const mcpLabel = agent.mcpId === "ali-internal"
-            ? "interne ALi"
+            ? "ALi internal"
             : agent.mcpId === "ali-species"
               ? "ALI Species / TAXREF Explorer"
               : "CARHAB";
-          return `- ${agent.name} : ${agent.description || "consigne spécialisée configurée"}${agent.mcpId === "none" ? "" : ` — MCP ${mcpLabel} (${agent.mcpToolIds.length} outil${agent.mcpToolIds.length > 1 ? "s" : ""} approuvé${agent.mcpToolIds.length > 1 ? "s" : ""})`}`;
+          return `- ${agent.name}: ${agent.description || "configured specialist instructions"}${agent.mcpId === "none" ? "" : ` — MCP ${mcpLabel} (${agent.mcpToolIds.length} approved tool${agent.mcpToolIds.length > 1 ? "s" : ""})`}`;
         }).join("\n")
-      : "- Aucun agent configuré n’a été mobilisé.";
+      : regionalSourcesUnavailable ? "- France-only specialist agents were not run outside their source coverage." : "- No configured agents were used.";
     const mcpTrace = aiAnalysis?.mcpTrace ?? [];
     const mcpTraceSection = mcpTrace.length
-      ? `\n- Journal d’exécution MCP :\n${mcpTrace.map((trace) => `  - ${trace.agentId}/${trace.toolId} — ${trace.status === "success" ? "succès" : trace.status === "denied" ? "refusé" : "échec"} (${trace.durationMs} ms) : ${trace.summary}`).join("\n")}`
-      : "\n- Journal d’exécution MCP : aucun outil MCP exécuté.";
+      ? `\n- MCP execution log:\n${mcpTrace.map((trace) => `  - ${trace.agentId}/${trace.toolId} — ${trace.status === "success" ? "success" : trace.status === "denied" ? "denied" : "failed"} (${trace.durationMs} ms): ${trace.summary}`).join("\n")}`
+      : "\n- MCP execution log: no MCP tools were run.";
     const aliHabitatReportSection = carhabSummary
       ? `
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-🌿 HABITATS DOCUMENTÉS PAR ALI HABITAT / CARHAB
+🌿 HABITATS DOCUMENTED BY ALI HABITAT / CARHAB
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-${formatCarhabSummary(carhabSummary)}
+${formatCarhabSummaryEnglish(carhabSummary)}
 
-↳ Surfaces et proportions fournies par CARHAB pour l’aire demandée, classées par surface décroissante. Elles ne constituent ni une cartographie de terrain, ni une confirmation de présence dans l’emprise des travaux.
+↳ Areas and proportions supplied by CARHAB for the requested study area, ordered by decreasing area. These are neither a field habitat map nor confirmation of presence within the works footprint.
 `
       : "";
     const mobilizedSources = [
       "GBIF",
       includeINaturalist && "iNaturalist",
-      "UICN",
-      results.aliSpeciesEnrichment ? "ALI Species / TAXREF" : "TAXREF",
-      zonagesAgentActive && zonages ? "IGN Géoplateforme" : false,
-      zonagesAgentActive && zonages ? "PatriNat / INPN" : false,
-      carhabSummary ? "CARHAB" : false,
-      aiAnalysis?.natura2000?.length ? "données Natura 2000" : false,
+      results.occurrences.some((occ) => occ.iucnStatus) && "IUCN global statuses",
+      !regionalSourcesUnavailable && results.aliSpeciesEnrichment ? "ALI Species / TAXREF" : false,
+      !regionalSourcesUnavailable && zonagesAgentActive && zonages ? "IGN Géoplateforme" : false,
+      !regionalSourcesUnavailable && zonagesAgentActive && zonages ? "PatriNat / INPN" : false,
+      !regionalSourcesUnavailable && carhabSummary ? "CARHAB" : false,
+      !regionalSourcesUnavailable && aiAnalysis?.natura2000?.length ? "Natura 2000 data" : false,
     ].filter(Boolean).join(", ");
 
     return `ALi INVENTAIRE
-PRÉ-ÉTUDE DOCUMENTAIRE BIODIVERSITÉ À COMPLÉTER PAR DES INVESTIGATIONS DE TERRAIN
-Version 1 — ${new Date().toLocaleDateString("fr-FR")}
+BIODIVERSITY DESK STUDY — FIELD INVESTIGATION REQUIRED
+Version 1 — ${new Date().toLocaleDateString("en-GB")}
 
-LOCALISATION ET PÉRIMÈTRE
-${toponym ? `Site : ${toponym}\n` : ""}Coordonnées : ${lat}, ${lng}
-Aire bibliographique interrogée : rayon de ${results.radius} m autour du point
-Carte : ${mapsLink}
-${!isAllActive ? `Filtres taxonomiques actifs : ${activeGroupLabels}\n` : ""}
+LOCATION AND SCOPE
+${toponym ? `Site: ${toponym}\n` : ""}Coordinates: ${lat}, ${lng}
+Desk-study search area: ${results.radius} m radius around the point
+Map: ${mapsLink}
+${!isAllActive ? `Active taxonomic filters: ${activeGroupLabels}\n` : ""}
+${results.coverage ? `Geographic coverage: ${results.coverage.country || results.coverage.countryCode || "Country not resolved"}. Global occurrence sources: ${results.coverage.globalOccurrences ? "available" : "unavailable"}. France-specific sources: ${results.coverage.frenchSources ? "available" : "unavailable for this location"}.${results.coverage.unavailableSources.length ? ` Unavailable sources: ${results.coverage.unavailableSources.join(", ")}.` : ""}${regionalSourcesUnavailable ? " These unqueried sources cannot establish absence of species, habitats, protected areas or local legal statuses; consult locally applicable sources." : ""}\n` : ""}
 
-HARNAIS D'ALi — ORCHESTRATION RÉELLEMENT MOBILISÉE
-- Coordination : ALi comprend la demande, vérifie le périmètre, répartit l'analyse et consolide les réponses.
+ALi HARNESS — ACTUAL ORCHESTRATION USED
+- Coordination: ALi interprets the request, checks the scope, delegates analysis and consolidates responses.
 ${configuredAgents}
 ${mcpTraceSection}
-- Sources effectivement mobilisées par cette analyse : ${mobilizedSources}.
-${results.aliSpeciesEnrichment ? `- Enrichissement territorial ALI Species MCP : ${results.aliSpeciesEnrichment.enriched}/${results.aliSpeciesEnrichment.attempted} taxons enrichis${results.aliSpeciesEnrichment.region ? ` pour ${results.aliSpeciesEnrichment.region}` : results.aliSpeciesEnrichment.territorialScope === "multiple" ? " — plusieurs régions concernées, aucune liste rouge régionale unique attribuée" : " — territoire régional non résolu"}${results.aliSpeciesEnrichment.partial ? " — résultat partiel, les taxons non enrichis restent signalés sans extrapolation." : "."}` : ""}
-- Garde-fou 1 : une donnée connue dans l'aire bibliographique n'est pas une présence confirmée dans l'emprise.
-- Garde-fou 2 : une présence potentielle issue d'une compatibilité écologique doit être vérifiée sur le terrain.
-- Garde-fou 3 : seule une prospection adaptée peut confirmer une présence sur le terrain.
-- Garde-fou 4 : l'absence de donnée publique ne permet pas de conclure à l'absence d'une espèce.
-- Garde-fou 5 : les espèces exotiques envahissantes relèvent d'un enjeu de gestion et non automatiquement d'un enjeu patrimonial.
-- Limite d'orchestration : aucun MCP, document utilisateur ou référentiel non cité ci-dessus ne doit être présenté comme mobilisé.
+- Sources actually used in this analysis: ${mobilizedSources}.
+${!regionalSourcesUnavailable && results.aliSpeciesEnrichment ? `- ALI Species MCP territorial enrichment: ${results.aliSpeciesEnrichment.enriched}/${results.aliSpeciesEnrichment.attempted} taxa enriched${results.aliSpeciesEnrichment.region ? ` for ${results.aliSpeciesEnrichment.region}` : results.aliSpeciesEnrichment.territorialScope === "multiple" ? " — multiple regions involved; no single regional Red List assigned" : " — regional territory unresolved"}${results.aliSpeciesEnrichment.partial ? " — partial result; unenriched taxa remain flagged without extrapolation." : "."}` : ""}
+- Safeguard 1: a record in the desk-study area does not confirm presence within the project footprint.
+- Safeguard 2: ecological suitability suggesting possible presence requires field verification.
+- Safeguard 3: only an appropriate field survey can confirm presence on site.
+- Safeguard 4: lack of public records does not establish absence of a species.
+- Safeguard 5: invasive alien species present a management concern, not automatically a conservation concern.
+- Orchestration limit: no MCP, user document or reference not listed above is claimed as used.
 
-DONNÉES MANQUANTES À SIGNALER DANS LA PRÉ-ÉTUDE DOCUMENTAIRE BIODIVERSITÉ
-- Emprise parcellaire et emprise exacte des travaux : non documentées si seule l'aire circulaire est fournie.
-- Description détaillée, dimensions et méthodes des travaux : non documentées.
-- Calendrier de chantier et phase d'exploitation : non documentés.
-- Pressions du projet et variantes d'implantation : non documentées.
-- Inventaires naturalistes saisonniers et cartographie de terrain des habitats : non disponibles.
+MISSING INFORMATION TO FLAG IN THIS BIODIVERSITY DESK STUDY
+- Parcel boundaries and exact works footprint: undocumented if only a circular study area is supplied.
+- Detailed description, dimensions and methods of works: undocumented.
+- Construction schedule and operational phase: undocumented.
+- Project pressures and alternative layouts: undocumented.
+- Seasonal field surveys and field habitat mapping: unavailable.
+${regionalSourcesUnavailable ? "- France-only SINP, zoning, Natura 2000 / ZNIEFF, CARHAB and ALI/TAXREF sources: outside geographic coverage, not findings of zero or absence. Use locally applicable references." : ""}
 
-SYNTHÈSE DES DONNÉES DISPONIBLES
-${results.stats.rawNameCount != null ? `${results.stats.rawNameCount} noms taxonomiques collectés — ${results.stats.speciesCount} taxons valides après consolidation${results.stats.duplicatesRemoved ? ` (${results.stats.duplicatesRemoved} doublon${results.stats.duplicatesRemoved > 1 ? "s" : ""} fusionné${results.stats.duplicatesRemoved > 1 ? "s" : ""})` : ""}` : `${totalInReport} taxons recensés (GBIF + iNaturalist)`}
-${highCount + mediumCount} espèces sensibles (enjeux forts ou moyens)
-Indice de confiance des données : ${conf.total}/100 — ${confLabel}
-Potentiel d'enjeux écologiques : ${riskScore.label}
-↳ Le risque biodiversité ne peut être calculé qu'en croisant ces enjeux avec les caractéristiques et les pressions d'un projet.
+SUMMARY OF AVAILABLE DATA
+${results.stats.rawNameCount != null ? `${results.stats.rawNameCount} taxonomic names collected — ${results.stats.speciesCount} valid taxa after consolidation${results.stats.duplicatesRemoved ? ` (${results.stats.duplicatesRemoved} duplicate${results.stats.duplicatesRemoved > 1 ? "s" : ""} merged)` : ""}` : `${totalInReport} taxa recorded (GBIF + iNaturalist)`}
+${highCount + mediumCount} sensitive species (high or moderate concerns)
+Data confidence index: ${conf.total}/100 — ${confLabel}
+Potential ecological concerns: ${riskScore.label}
+↳ Biodiversity risk can only be assessed by considering these concerns together with a project's characteristics and pressures.
 ${conf.message ? `↳ ${conf.message}\n` : ""}
-${aliHabitatReportSection}
-${sectionList("🔴 ENJEUX FORTS", sortedSpecies.high)}
-${sectionList("🟠 ENJEUX MOYENS", sortedSpecies.medium)}
-${sectionList("🟢 ENJEUX FAIBLES", sortedSpecies.low)}${aiAnalysis && aiAnalysis.species.length > 0 ? `
+${regionalSourcesUnavailable ? "HABITATS\nCARHAB was not consulted outside its geographic coverage; habitat presence and extent remain unknown.\n" : aliHabitatReportSection || "HABITATS\nNo CARHAB habitat summary is available; this is not evidence that habitats are absent.\n"}
+${sectionList("🔴 HIGH CONCERNS", sortedSpecies.high)}
+${sectionList("🟠 MODERATE CONCERNS", sortedSpecies.medium)}
+${sectionList("🟢 LOW CONCERNS", sortedSpecies.low)}${aiAnalysis && aiAnalysis.species.length > 0 ? `
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-✨ ANALYSE IA — ESPÈCES À ENJEUX
+✨ AI ANALYSIS — SPECIES OF CONCERN
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 ${(["A", "C", "B", "D", "E"] as const)
   .map((cls) => {
-    const label: Record<string, string> = { A: "Occurrence publique documentée dans l’aire", B: "Espèce documentée à l’échelle d’un site de référence", C: "Très probable localement", D: "Potentielle", E: "Peu pertinente localement" };
+    const label: Record<string, string> = { A: "Public occurrence documented in the area", B: "Species documented at a reference site", C: "Very likely locally", D: "Potential", E: "Unlikely locally" };
     const group = aiAnalysis.species.filter((sp) => (sp.evidenceClass ?? "D") === cls);
     if (group.length === 0) return "";
     return `\n[${cls}] ${label[cls]}\n${group
       .map((sp) => `• ${sp.scientificName}${sp.vernacularName ? ` (${sp.vernacularName})` : ""}
-   ${sp.group}${sp.isInvasive ? " • EXOTIQUE ENVAHISSANTE (EEE) — sans valeur patrimoniale" : typeof sp.score === "number" ? ` • Enjeu ${sp.score}/100${sp.scoreLabel ? ` (${sp.scoreLabel})` : ""}` : ` • Niveau : ${sp.level}`}${sp.inInventory === false ? " • hors inventaire (suggestion IA)" : ""}
+   ${sp.group}${sp.isInvasive ? " • INVASIVE ALIEN SPECIES — not a conservation status" : typeof sp.score === "number" ? ` • Concern ${sp.score}/100${sp.scoreLabel ? ` (${sp.scoreLabel})` : ""}` : ` • Level: ${sp.level}`}${sp.inInventory === false ? " • outside inventory (AI suggestion)" : ""}
    ${sp.reason}${sp.sources && sp.sources.length > 0 ? `
-   Sources : ${sp.sources.join(" • ")}` : ""}`)
+   Sources: ${sp.sources.join(" • ")}` : ""}`)
       .join("\n")}`;
   })
   .filter(Boolean)
   .join("\n")}
 ${aiAnalysis.natura2000 && aiAnalysis.natura2000.length > 0 ? `
-🇪🇺 Zones Natura 2000 à proximité (${aiAnalysis.natura2000.length})
-${aiAnalysis.natura2000.map(z => { const desig = (z.species ?? []).filter(s => s.designating).map(s => s.name); const hab = (z.habitats ?? []).slice(0, 5).map(h => `    - ${h.code}${h.description ? ` — ${h.description}` : ""}${h.cover != null ? ` (${h.cover.toFixed(h.cover < 10 ? 1 : 0)} %)` : ""}`); return `• ${z.type} — ${z.name}${z.url ? `\n  ${z.url}` : ""}${desig.length > 0 ? `\n  Espèces désignatrices : ${desig.join(", ")}` : ""}${hab.length > 0 ? `\n  Habitats d'intérêt communautaire :\n${hab.join("\n")}` : ""}`; }).join("\n")}
+🇪🇺 Nearby Natura 2000 sites (${aiAnalysis.natura2000.length})
+${aiAnalysis.natura2000.map(z => { const desig = (z.species ?? []).filter(s => s.designating).map(s => s.name); const hab = (z.habitats ?? []).slice(0, 5).map(h => `    - ${h.code}${h.description ? ` — ${h.description}` : ""}${h.cover != null ? ` (${h.cover.toFixed(h.cover < 10 ? 1 : 0)} %)` : ""}`); return `• ${z.type} — ${z.name}${z.url ? `\n  ${z.url}` : ""}${desig.length > 0 ? `\n  Designating species: ${desig.join(", ")}` : ""}${hab.length > 0 ? `\n  Habitats of Community interest:\n${hab.join("\n")}` : ""}`; }).join("\n")}
 ` : ""}
-⚠ Synthèse IA — à valider par un écologue.
+⚠ AI summary — requires ecologist validation.
 ` : ""}${zonagesSection}
-SOURCES SYNTHÉTIQUES
+POTENTIAL SPECIES
+${regionalSourcesUnavailable ? "French Natura 2000 and ZNIEFF sources were not queried outside their coverage. The number and status of potential species from these sources are unknown; no absence is inferred." : potentialSpeciesLoading ? "Consultation in progress; no conclusions yet." : potentialSpeciesError || !potentialSpecies ? "Source unavailable or not consulted; no absence can be inferred." : `${potentialSpecies.potentialCount} potential species returned by the consulted source. This is not a field-confirmed count; ${potentialSpecies.partial ? "the result is partial." : "a zero result does not establish absence."}`}
+SOURCES USED
 ${mobilizedSources.split(", ").join(" • ")}
 
-STATUT ET LIMITES
-Pré-étude documentaire biodiversité produite par le harnais d'ALi à partir des seules sources indiquées.
-Ce document constitue un état initial bibliographique et une analyse de sensibilités. Il ne remplace ni des inventaires de terrain, ni un volet naturel d'étude d'impact réglementaire, ni la validation d'un écologue.
-${shareUrl ? `\nReproduire cette analyse : ${shareUrl}` : ""}`;
-  }, [results, sortedSpecies, activeTaxonFilters, presentGroups, isAllActive, aiAnalysis, carhabSummary, toponym, zonages, riskScore, includeINaturalist, harnessConfig, zonagesAgentActive]);
+STATUS AND LIMITATIONS
+This biodiversity desk study was produced by the ALi harness using only the sources listed above.
+It provides a desk-based baseline and sensitivity assessment. It does not replace field surveys, a statutory ecological impact assessment or an ecologist's validation. Regulatory completeness is not guaranteed.
+${shareUrl ? `Repeat this analysis: ${shareUrl}` : ""}
+
+NEXT STEPS
+Discuss field surveys and validation with Natural Solutions experts: https://natural-solutions.eu`;
+  }, [results, sortedSpecies, activeTaxonFilters, presentGroups, isAllActive, aiAnalysis, carhabSummary, toponym, zonages, riskScore, includeINaturalist, harnessConfig, zonagesAgentActive, regionalSourcesUnavailable, potentialSpecies, potentialSpeciesLoading, potentialSpeciesError]);
 
   const reportSubject = useMemo(() => {
     if (!results) return "ALi Inventaire";
     const place = toponym || `${results.center[0].toFixed(3)}, ${results.center[1].toFixed(3)}`;
-    return `Pré-étude documentaire biodiversité — ${place} (${sortedSpecies.high.length + sortedSpecies.medium.length} espèces sensibles)`;
+    return `Biodiversity desk study — ${place} (${sortedSpecies.high.length + sortedSpecies.medium.length} sensitive species)`;
   }, [results, toponym, sortedSpecies]);
 
   const activeReportText = reformattedReport || reportText;
@@ -1264,18 +1325,22 @@ ${shareUrl ? `\nReproduire cette analyse : ${shareUrl}` : ""}`;
     if (openingSections.length <= maxPreviewCharacters) return openingSections;
     const lastLineBreak = openingSections.lastIndexOf("\n", maxPreviewCharacters);
     const cutAt = lastLineBreak > 2_500 ? lastLineBreak : maxPreviewCharacters;
-    return `${openingSections.slice(0, cutAt).trimEnd()}\n\n[… Aperçu abrégé — téléchargez l’étude complète pour consulter tous les résultats.]`;
+    return `${openingSections.slice(0, cutAt).trimEnd()}\n\n[… Shortened preview — download the full study to see all results.]`;
   }, [activeReportText]);
   const aliHabitatTraces = aiAnalysis?.mcpTrace?.filter((trace) => trace.mcpId === "ali-habitat") ?? [];
   const aliHabitatSucceeded = aliHabitatTraces.some((trace) => trace.status === "success");
-  const aliHabitatStatus = aliHabitatSucceeded
-    ? `CARHAB consulté avec succès (${aliHabitatTraces.filter((trace) => trace.status === "success").length} outil${aliHabitatTraces.filter((trace) => trace.status === "success").length > 1 ? "s" : ""} mobilisé${aliHabitatTraces.filter((trace) => trace.status === "success").length > 1 ? "s" : ""}).`
+  const aliHabitatStatus = results?.coverage?.frenchSources !== true
+    ? "CARHAB was not consulted: French country coverage was not confirmed. No absence of habitats is inferred."
+    : aliHabitatSucceeded
+    ? `CARHAB consulted successfully (${aliHabitatTraces.filter((trace) => trace.status === "success").length} tool${aliHabitatTraces.filter((trace) => trace.status === "success").length > 1 ? "s" : ""} used).`
     : aliHabitatTraces.length > 0
-      ? "CARHAB a été sollicité, mais n’a pas pu fournir de résultat exploitable."
+      ? "CARHAB was consulted but did not return usable results."
       : habitatConsultationState === "loading"
-        ? "Consultation de CARHAB en cours."
+        ? "Consulting CARHAB."
+        : habitatConsultationState === "out-of-coverage"
+          ? "CARHAB was not consulted: this source covers France only. No absence of habitats is inferred."
         : habitatConsultationState === "error"
-          ? "La consultation de CARHAB n’a pas pu être finalisée."
+          ? "The CARHAB consultation could not be completed."
           : null;
 
   useEffect(() => {
@@ -1315,7 +1380,7 @@ ${shareUrl ? `\nReproduire cette analyse : ${shareUrl}` : ""}`;
         .replaceAll("<", "&lt;")
         .replaceAll(">", "&gt;");
     const documentHtml = `<!doctype html>
-<html lang="fr">
+<html lang="en">
 <head>
   <meta charset="utf-8">
   <title>${escapeHtml(reportSubject)}</title>
@@ -1336,8 +1401,10 @@ ${shareUrl ? `\nReproduire cette analyse : ${shareUrl}` : ""}`;
   </style>
 </head>
 <body>
-  <div class="status"><strong>Statut du document.</strong> Pré-étude biodiversité fondée sur les informations documentaires disponibles. Elle doit être complétée par des investigations de terrain et validée par un écologue avant tout usage réglementaire.</div>
+  <div class="status"><strong>Document status.</strong> Biodiversity desk study based on available documented information. Field investigations and an ecologist's validation are needed before regulatory use; regulatory completeness is not guaranteed.</div>
   ${studyMarkdownToWordHtml(reformattedReport)}
+  <h2>Next steps</h2>
+  <p>Discuss field surveys and validation with Natural Solutions experts: <a href="https://natural-solutions.eu">https://natural-solutions.eu</a>. This does not guarantee regulatory completeness.</p>
 </body>
 </html>`;
     const blob = new Blob(["\ufeff", documentHtml], {
@@ -1352,7 +1419,7 @@ ${shareUrl ? `\nReproduire cette analyse : ${shareUrl}` : ""}`;
       .replace(/^-+|-+$/g, "")
       .toLowerCase();
     link.href = url;
-    link.download = `pre-etude-biodiversite-ali-${safePlace || "site"}.doc`;
+    link.download = `biodiversity-desk-study-ali-${safePlace || "site"}.doc`;
     document.body.appendChild(link);
     link.click();
     link.remove();
@@ -1394,13 +1461,13 @@ ${shareUrl ? `\nReproduire cette analyse : ${shareUrl}` : ""}`;
       });
       if (!r.ok) {
         const err = await r.json().catch(() => ({}));
-        throw new Error(err.error || `Erreur ${r.status}`);
+        throw new Error(err.error || `Error ${r.status}`);
       }
       const data = await r.json();
       setReformattedReport(data.reformatted);
       setReportPromptTrace(data.promptTrace ?? null);
     } catch (e: any) {
-      setReformatError(e.message || "Erreur reformulation IA");
+      setReformatError(e.message || "AI document generation failed");
     } finally {
       setReformatting(false);
     }
@@ -1408,20 +1475,20 @@ ${shareUrl ? `\nReproduire cette analyse : ${shareUrl}` : ""}`;
 
   if (!isOpen) return null;
 
-  const sourcesLabel = `GBIF${includeINaturalist ? " · iNaturalist" : ""} · UICN · ALI/TAXREF · IGN/INPN`;
+  const sourcesLabel = `GBIF${includeINaturalist ? " · iNaturalist" : ""}${results?.occurrences.some((occ) => occ.iucnStatus) ? " · IUCN" : ""}${!regionalSourcesUnavailable && results?.aliSpeciesEnrichment ? " · ALI/TAXREF" : ""}${!regionalSourcesUnavailable && zonages ? " · IGN/INPN" : ""}`;
 
   const assistantSuggestions: string[] = [
-    "Résume ce diagnostic pour un non-spécialiste.",
-    "Quels sont les trois principaux risques ?",
-    "Quelles espèces nécessitent une vérification terrain ?",
-    "Quelles conséquences des zonages pour mon projet ?",
+    "Summarise this assessment for a non-specialist.",
+    "What are the three main concerns?",
+    "Which species need field verification?",
+    "How could the designations affect my project?",
   ];
 
   const fortSpeciesCount = enjeuxBuckets.critique.length + enjeuxBuckets.fort.length;
   const prefersReducedMotion =
     typeof window !== "undefined" && window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
   const statusLabels: Record<AnalysisConversation["status"], string> = {
-    draft: "Brouillon", running: "En cours", partial: "Partiel", complete: "Terminé", failed: "Échec",
+    draft: "Draft", running: "In progress", partial: "Partial", complete: "Complete", failed: "Failed",
   };
   const activeConversation = conversations.find((conversation) => conversation.id === activeConversationId);
   const activeConversationFailed = activeConversation?.status === "failed";
@@ -1430,43 +1497,43 @@ ${shareUrl ? `\nReproduire cette analyse : ${shareUrl}` : ""}`;
       id="analysis-history-drawer"
       initial={{ opacity: 0, x: 18 }} animate={{ opacity: 1, x: 0 }}
       className="absolute inset-y-0 right-0 z-30 flex h-full max-h-full w-full max-w-[360px] flex-col overflow-hidden border-l border-slate-200 bg-[#fbfcfa] shadow-2xl"
-      role="dialog" aria-modal="true" aria-label="Historique des analyses" data-testid="history-drawer"
+      role="dialog" aria-modal="true" aria-label="Analysis history" data-testid="history-drawer"
       onWheel={(event) => event.stopPropagation()}
     >
       <div className="flex shrink-0 items-center justify-between border-b border-slate-200 px-4 py-3">
-        <div><h3 className="text-sm font-bold text-slate-800">Historique</h3><p className="text-[10px] text-slate-500">20 dernières analyses, enregistrées uniquement sur cet appareil</p></div>
-        <Button variant="ghost" size="icon" onClick={() => setHistoryOpen(false)} aria-label="Fermer l'historique" className="h-8 w-8 rounded-full"><X className="h-4 w-4" /></Button>
+        <div><h3 className="text-sm font-bold text-slate-800">History</h3><p className="text-[10px] text-slate-500">Last 20 analyses, stored only on this device</p></div>
+        <Button variant="ghost" size="icon" onClick={() => setHistoryOpen(false)} aria-label="Close history" className="h-8 w-8 rounded-full"><X className="h-4 w-4" /></Button>
       </div>
       <div className="h-0 min-h-0 flex-1 touch-pan-y overflow-y-auto overscroll-contain p-3" data-testid="history-scroll-area">
-        <Button onClick={() => { onNewConversation?.(); setHistoryOpen(false); }} className="mb-3 h-9 w-full justify-center gap-2 bg-teal-700 text-xs text-white hover:bg-teal-800" data-testid="button-new-conversation"><Plus className="h-3.5 w-3.5" />Nouvelle conversation</Button>
+        <Button onClick={() => { onNewConversation?.(); setHistoryOpen(false); }} className="mb-3 h-9 w-full justify-center gap-2 bg-teal-700 text-xs text-white hover:bg-teal-800" data-testid="button-new-conversation"><Plus className="h-3.5 w-3.5" />New conversation</Button>
         {historyError && <p className="mb-2 rounded-lg bg-amber-50 px-2.5 py-2 text-[10px] text-amber-700" role="alert">{historyError}</p>}
         {[...conversations].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)).slice(0, 20).map((conversation) => {
           const active = conversation.id === activeConversationId;
-          const date = new Date(conversation.updatedAt).toLocaleString("fr-FR", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" });
+          const date = new Date(conversation.updatedAt).toLocaleString("en-GB", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" });
           return (
             <div key={conversation.id} className={`mb-2 rounded-xl border p-2.5 ${active ? "border-teal-400 bg-teal-50/70" : "border-slate-200 bg-white"}`} aria-current={active ? "page" : undefined}>
               {editingConversationId === conversation.id ? (
                 <input autoFocus value={editingTitle} onChange={(e) => setEditingTitle(e.target.value)}
                   onBlur={() => { const title = editingTitle.trim(); if (title) onRenameConversation?.(conversation.id, title); setEditingConversationId(null); }}
                   onKeyDown={(e) => { if (e.key === "Enter") e.currentTarget.blur(); if (e.key === "Escape") setEditingConversationId(null); }}
-                  className="mb-1 h-7 w-full rounded-md border border-teal-300 px-2 text-xs outline-none" aria-label="Renommer la conversation" />
+                  className="mb-1 h-7 w-full rounded-md border border-teal-300 px-2 text-xs outline-none" aria-label="Rename conversation" />
               ) : (
-                <button type="button" onClick={() => { onSelectConversation?.(conversation.id); setHistoryOpen(false); }} className="w-full text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-400" aria-label={`Sélectionner ${conversation.title}`}>
-                  <p className="truncate text-xs font-bold text-slate-800">{conversation.title || "Analyse sans titre"}</p>
-                  <p className="mt-1 flex items-center gap-1 truncate text-[10px] text-slate-500"><MapPin className="h-3 w-3" />{conversation.parameters.toponym || "Lieu non renseigné"} <span>·</span> {date}</p>
+                <button type="button" onClick={() => { onSelectConversation?.(conversation.id); setHistoryOpen(false); }} className="w-full text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-400" aria-label={`Select ${conversation.title}`}>
+                  <p className="truncate text-xs font-bold text-slate-800">{conversation.title || "Untitled analysis"}</p>
+                  <p className="mt-1 flex items-center gap-1 truncate text-[10px] text-slate-500"><MapPin className="h-3 w-3" />{conversation.parameters.toponym || "Location not provided"} <span>·</span> {date}</p>
                   <span className={`mt-1 inline-flex rounded-full px-1.5 py-0.5 text-[9px] font-semibold ${conversation.status === "complete" ? "bg-emerald-100 text-emerald-700" : conversation.status === "failed" ? "bg-red-100 text-red-700" : "bg-slate-100 text-slate-600"}`}>{statusLabels[conversation.status]}</span>
                 </button>
               )}
               <div className="mt-1 flex justify-end gap-1">
-                <button type="button" onClick={() => { setEditingConversationId(conversation.id); setEditingTitle(conversation.title); }} className="rounded p-1 text-slate-400 hover:bg-slate-100 hover:text-teal-700" aria-label={`Renommer ${conversation.title}`}><Pencil className="h-3 w-3" /></button>
+                <button type="button" onClick={() => { setEditingConversationId(conversation.id); setEditingTitle(conversation.title); }} className="rounded p-1 text-slate-400 hover:bg-slate-100 hover:text-teal-700" aria-label={`Rename ${conversation.title}`}><Pencil className="h-3 w-3" /></button>
                 {deleteConversationId === conversation.id ? (
-                  <button type="button" onClick={() => { onDeleteConversation?.(conversation.id); setDeleteConversationId(null); }} className="rounded px-1.5 text-[10px] font-bold text-red-700 hover:bg-red-50" aria-label="Confirmer la suppression">Confirmer</button>
-                ) : <button type="button" onClick={() => setDeleteConversationId(conversation.id)} className="rounded p-1 text-slate-400 hover:bg-red-50 hover:text-red-700" aria-label={`Supprimer ${conversation.title}`}><Trash2 className="h-3 w-3" /></button>}
+                  <button type="button" onClick={() => { onDeleteConversation?.(conversation.id); setDeleteConversationId(null); }} className="rounded px-1.5 text-[10px] font-bold text-red-700 hover:bg-red-50" aria-label="Confirm deletion">Confirm</button>
+                ) : <button type="button" onClick={() => setDeleteConversationId(conversation.id)} className="rounded p-1 text-slate-400 hover:bg-red-50 hover:text-red-700" aria-label={`Delete ${conversation.title}`}><Trash2 className="h-3 w-3" /></button>}
               </div>
             </div>
           );
         })}
-        {!conversations.length && <p className="py-8 text-center text-xs text-slate-400">Aucune analyse enregistrée.</p>}
+        {!conversations.length && <p className="py-8 text-center text-xs text-slate-400">No saved analyses.</p>}
       </div>
     </motion.div>
   );
@@ -1489,20 +1556,20 @@ ${shareUrl ? `\nReproduire cette analyse : ${shareUrl}` : ""}`;
               {historyError && <p className="mt-1 text-[10px] text-amber-700" role="alert">{historyError}</p>}
             </div>
              <div className="flex items-center gap-1">
-             <Button variant="outline" size="sm" onClick={() => onNewConversation?.()} className="h-8 gap-1 px-2 text-xs" aria-label="Nouvelle conversation" data-testid="button-new-conversation"><Plus className="h-3.5 w-3.5" /> Nouvelle</Button>
-             <Button variant="outline" size="sm" onClick={() => setHistoryOpen(true)} className="h-8 gap-1 px-2 text-xs" aria-label="Ouvrir l'historique local des 20 dernières analyses" aria-expanded={historyOpen} aria-controls="analysis-history-drawer" data-testid="button-history"><History className="h-3.5 w-3.5" /> Historique</Button>
-             <Button variant="ghost" size="icon" onClick={onClose} className="h-8 w-8 rounded-full" aria-label="Réduire le panneau">
+             <Button variant="outline" size="sm" onClick={() => onNewConversation?.()} className="h-8 gap-1 px-2 text-xs" aria-label="New conversation" data-testid="button-new-conversation"><Plus className="h-3.5 w-3.5" /> New</Button>
+             <Button variant="outline" size="sm" onClick={() => setHistoryOpen(true)} className="h-8 gap-1 px-2 text-xs" aria-label="Open local history of the last 20 analyses" aria-expanded={historyOpen} aria-controls="analysis-history-drawer" data-testid="button-history"><History className="h-3.5 w-3.5" /> History</Button>
+             <Button variant="ghost" size="icon" onClick={onClose} className="h-8 w-8 rounded-full" aria-label="Minimise panel">
               <X className="h-4 w-4" />
             </Button>
              </div>
           </header>
           <div ref={conversationFeedRef} className="min-h-0 flex-1 overflow-y-auto px-5 py-4" data-testid="conversation-feed">
-             {requestSummary && (isAnalyzing || activeConversationFailed) && <div className="conversation-message mb-5" data-testid="message-user-request"><Search className="mt-1 h-5 w-5" aria-hidden="true" /><div><p><strong>Votre demande</strong></p><p>{requestSummary}</p></div></div>}
+             {requestSummary && (isAnalyzing || activeConversationFailed) && <div className="conversation-message mb-5" data-testid="message-user-request"><Search className="mt-1 h-5 w-5" aria-hidden="true" /><div><p><strong>Your request</strong></p><p>{requestSummary}</p></div></div>}
              {activeConversationFailed && !isAnalyzing && (
                <div className="conversation-message mb-5" role="alert">
                  <Bot className="mt-1 h-5 w-5" aria-hidden="true" />
-                 <div><p><strong>ALi</strong> <span>coordinateur</span></p>
-                 <p>Cette analyse n’a pas pu être finalisée. Vous pouvez la relancer avec les mêmes paramètres ci-dessous.</p></div>
+                 <div><p><strong>ALi</strong> <span>coordinator</span></p>
+                 <p>This analysis could not be completed. You can rerun it with the same settings below.</p></div>
                </div>
              )}
              {isAnalyzing && <AnalysisProgress
@@ -1548,37 +1615,37 @@ ${shareUrl ? `\nReproduire cette analyse : ${shareUrl}` : ""}`;
                 className="h-8 px-2.5 text-xs border-gray-200 text-gray-600 gap-1"
                  data-testid="button-new-conversation"
               >
-                  <Plus className="h-3 w-3" /> Nouvelle
+                  <Plus className="h-3 w-3" /> New
               </Button>
-               <Button variant="outline" size="sm" onClick={() => setHistoryOpen(true)} className="h-8 gap-1 px-2 text-xs border-gray-200" aria-label="Ouvrir l'historique local des 20 dernières analyses" aria-expanded={historyOpen} aria-controls="analysis-history-drawer" data-testid="button-history"><History className="h-3 w-3" /> Historique</Button>
+               <Button variant="outline" size="sm" onClick={() => setHistoryOpen(true)} className="h-8 gap-1 px-2 text-xs border-gray-200" aria-label="Open local history of the last 20 analyses" aria-expanded={historyOpen} aria-controls="analysis-history-drawer" data-testid="button-history"><History className="h-3.5 w-3.5" /> History</Button>
                <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <Button variant="ghost" size="icon" className="hover:bg-gray-100 rounded-full h-8 w-8" data-testid="button-panel-settings" title="Sources & options" aria-label="Sources et options">
+                  <Button variant="ghost" size="icon" className="hover:bg-gray-100 rounded-full h-8 w-8" data-testid="button-panel-settings" title="Sources & options" aria-label="Sources and options">
                     <Settings2 className="h-4 w-4 text-gray-500" />
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" className="w-56">
-                  <DropdownMenuLabel className="text-xs">Sources de données</DropdownMenuLabel>
-                   <div className="px-2 pb-1 text-[11px] leading-snug text-muted-foreground">Paramètres utilisés pour ce résultat. Relancez l’analyse pour modifier une source.</div>
+                  <DropdownMenuLabel className="text-xs">Data sources</DropdownMenuLabel>
+                   <div className="px-2 pb-1 text-[11px] leading-snug text-muted-foreground">Settings used for this result. Rerun the analysis to change a source.</div>
                    {onToggleIncludeINaturalist && (
                     <DropdownMenuCheckboxItem
                       checked={!!includeINaturalist}
                        disabled
                       data-testid="checkbox-include-inaturalist"
                     >
-                       iNaturalist {includeINaturalist ? "inclus" : "non inclus"} — relancer pour modifier
+                       iNaturalist {includeINaturalist ? "included" : "not included"} — rerun to change
                     </DropdownMenuCheckboxItem>
                   )}
                   {onToggleExcludeMarine && marineCount > 0 && (
                     <>
                       <DropdownMenuSeparator />
-                      <DropdownMenuLabel className="text-xs">Filtres avancés</DropdownMenuLabel>
+                      <DropdownMenuLabel className="text-xs">Advanced filters</DropdownMenuLabel>
                       <DropdownMenuCheckboxItem
                         checked={!!excludeMarine}
                         onCheckedChange={() => onToggleExcludeMarine()}
                         data-testid="checkbox-exclude-marine"
                       >
-                        Exclure marines ({marineCount})
+                        Exclude marine species ({marineCount})
                       </DropdownMenuCheckboxItem>
                     </>
                   )}
@@ -1586,12 +1653,12 @@ ${shareUrl ? `\nReproduire cette analyse : ${shareUrl}` : ""}`;
               </DropdownMenu>
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <Button variant="ghost" size="icon" className="hover:bg-gray-100 rounded-full h-8 w-8" data-testid="button-more-exports" title="Exports et partage" aria-label="Exports et partage">
+                  <Button variant="ghost" size="icon" className="hover:bg-gray-100 rounded-full h-8 w-8" data-testid="button-more-exports" title="Exports and sharing" aria-label="Exports and sharing">
                     <MoreHorizontal className="h-4 w-4 text-gray-500" />
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" className="w-52">
-                  <DropdownMenuLabel className="text-xs">Exporter les données</DropdownMenuLabel>
+                  <DropdownMenuLabel className="text-xs">Export data</DropdownMenuLabel>
                   <DropdownMenuItem onClick={handleExportExcel} data-testid="button-export-excel" className="gap-2 text-xs">
                     <Table className="h-3.5 w-3.5" /> Excel (.xlsx)
                   </DropdownMenuItem>
@@ -1599,19 +1666,19 @@ ${shareUrl ? `\nReproduire cette analyse : ${shareUrl}` : ""}`;
                     <FileText className="h-3.5 w-3.5" /> CSV
                   </DropdownMenuItem>
                   <DropdownMenuItem onClick={handleExportImage} data-testid="button-export-image" className="gap-2 text-xs">
-                    <Download className="h-3.5 w-3.5" /> Image de la carte
+                    <Download className="h-3.5 w-3.5" /> Map image
                   </DropdownMenuItem>
                   <DropdownMenuSeparator />
-                  <DropdownMenuLabel className="text-xs">Partager</DropdownMenuLabel>
+                  <DropdownMenuLabel className="text-xs">Share</DropdownMenuLabel>
                   <DropdownMenuItem onClick={handleShareReport} data-testid="button-share-report-menu" className="gap-2 text-xs">
-                    <Share2 className="h-3.5 w-3.5" /> Partager la note
+                    <Share2 className="h-3.5 w-3.5" /> Share report
                   </DropdownMenuItem>
                   <DropdownMenuItem onClick={handleEmailReport} data-testid="button-email-report-menu" className="gap-2 text-xs">
-                    <Mail className="h-3.5 w-3.5" /> Envoyer par e-mail
+                    <Mail className="h-3.5 w-3.5" /> Send by email
                   </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
-               <Button variant="ghost" size="icon" onClick={onClose} className="hover:bg-gray-100 rounded-full h-8 w-8" data-testid="button-close-panel" aria-label="Fermer le panneau de résultats">
+               <Button variant="ghost" size="icon" onClick={onClose} className="hover:bg-gray-100 rounded-full h-8 w-8" data-testid="button-close-panel" aria-label="Close results panel">
                 <X className="h-4 w-4" />
               </Button>
             </div>
@@ -1624,18 +1691,18 @@ ${shareUrl ? `\nReproduire cette analyse : ${shareUrl}` : ""}`;
            data-testid="results-scroll-area"
            onWheel={(event) => event.stopPropagation()}
          >
-           <div className="mb-4 grid grid-cols-2 rounded-xl border border-[#d9e1d6] bg-[#edf2e9] p-1" role="tablist" aria-label="Vues des résultats">
+           <div className="mb-4 grid grid-cols-2 rounded-xl border border-[#d9e1d6] bg-[#edf2e9] p-1" role="tablist" aria-label="Results views">
              <button type="button" role="tab" aria-selected={resultView === "detail"} onClick={() => setResultView("detail")} className={`rounded-lg px-3 py-2 text-xs font-bold transition-colors ${resultView === "detail" ? "bg-white text-[#1e594a] shadow-sm" : "text-[#60756d] hover:text-[#1e594a]"}`} data-testid="tab-detailed-results">
-               Résultats détaillés
+               Detailed results
              </button>
              <button type="button" role="tab" aria-selected={resultView === "issues"} onClick={() => setResultView("issues")} className={`rounded-lg px-3 py-2 text-xs font-bold transition-colors ${resultView === "issues" ? "bg-white text-[#1e594a] shadow-sm" : "text-[#60756d] hover:text-[#1e594a]"}`} data-testid="tab-aggregated-issues">
-               Tableau des enjeux ({aggregatedIssues.length})
+               Concerns table ({aggregatedIssues.length})
              </button>
            </div>
           {/* ══════════ VUE DIAGNOSTIC (page unique à divulgation progressive) ══════════ */}
            {resultView === "detail" ? (<>
            <div className="space-y-4" role="tabpanel" data-testid="panel-overview">
-             {requestSummary && <div className="conversation-message" data-testid="message-user-request"><Search className="mt-1 h-5 w-5" aria-hidden="true" /><div><p><strong>Votre demande</strong></p><p>{requestSummary}</p></div></div>}
+             {requestSummary && <div className="conversation-message" data-testid="message-user-request"><Search className="mt-1 h-5 w-5" aria-hidden="true" /><div><p><strong>Your request</strong></p><p>{requestSummary}</p></div></div>}
              {historyError && <p className="text-[10px] text-amber-700" role="alert">{historyError}</p>}
               {isAnalyzing && (
                 <AnalysisProgress
@@ -1657,21 +1724,21 @@ ${shareUrl ? `\nReproduire cette analyse : ${shareUrl}` : ""}`;
                  <div className="flex items-center gap-3">
                    <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-[#1e594a] text-[#dcc05b]"><Check className="h-5 w-5" /></span>
                    <div className="min-w-0 flex-1">
-                     <p className="font-semibold text-[#234f43]">Analyse terminée</p>
-                       <p className="text-[#60756d]">{harnessConfig?.agents.filter((agent) => agent.enabled).length ?? 0} agents mobilisés · occurrences terminées · {zonagesLoading ? "zonages en cours" : zonages ? `zonages terminés (${zonages.count} retourné${zonages.count > 1 ? "s" : ""})` : "zonages indisponibles"}</p>
+                     <p className="font-semibold text-[#234f43]">Analysis complete</p>
+                       <p className="text-[#60756d]">Occurrences complete · {regionalSourcesUnavailable ? "France-only specialists not consulted (out of coverage)" : zonagesLoading ? "designations loading" : zonages ? `designations complete (${zonages.count} returned)` : "designations unavailable"}</p>
                    </div>
                  </div>
                  <button type="button" className="mt-2 flex min-h-11 items-center gap-1.5 text-sm font-semibold" onClick={() => setShowAnalysisDetails((value) => !value)} aria-expanded={showAnalysisDetails} aria-controls="analysis-transcript">
-                   Voir les détails {showAnalysisDetails ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                   View details {showAnalysisDetails ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
                  </button>
                  {showAnalysisDetails && (
                    <div className="pt-2" id="analysis-transcript" data-testid="analysis-transcript">
                      <ol className="space-y-3">
-                        <li><strong>ALi — coordination</strong><p>Demande comprise, périmètre vérifié et analyse répartie entre les agents spécialisés.</p></li>
-                        {occurrencesAgentActive && <li><strong>Agent Occurrences</strong><p>{results.stats.speciesCount} espèces consolidées à partir de {results.stats.total} données retenues.</p></li>}
-                         {zonagesAgentActive && <li><strong>Agent Zonages</strong><p>{zonagesLoading ? "Consultation des référentiels en cours." : zonages ? `Consultation terminée : ${zonages.count} zonage${zonages.count > 1 ? "s" : ""} retourné${zonages.count > 1 ? "s" : ""}.` : "Consultation indisponible : aucun résultat de zonage n’est présenté."}</p></li>}
-                         {habitatAgentActive && <li data-testid="analysis-transcript-ali-habitat"><strong>Agent Habitat — CARHAB</strong><p>{aliHabitatStatus ?? "Aucun bilan CARHAB enregistré pour cette analyse."}</p></li>}
-                         {taxonomyAgentActive && <li><strong>Agent Taxonomie et statuts — ALI Species</strong><p>{results.aliSpeciesEnrichment ? results.aliSpeciesEnrichment.attempted > 0 ? `${results.aliSpeciesEnrichment.enriched}/${results.aliSpeciesEnrichment.attempted} taxons enrichis via ALI Species${results.aliSpeciesEnrichment.nameResolutionAttempted ? `, après résolution de ${results.aliSpeciesEnrichment.nameResolved ?? 0}/${results.aliSpeciesEnrichment.nameResolutionAttempted} noms dans TAXREF` : ""}.` : "Aucun taxon n’a pu être relié à TAXREF pour lancer l’enrichissement ALI Species." : "Aucun bilan ALI Species enregistré pour cette analyse."}</p></li>}
+                        <li><strong>ALi — coordination</strong><p>Request interpreted, scope checked and analysis delegated to specialist agents.</p></li>
+                        {occurrencesAgentActive && <li><strong>Occurrences agent</strong><p>{results.stats.speciesCount} species consolidated from {results.stats.total} retained records.</p></li>}
+                         {zonagesAgentActive && <li><strong>Designations agent</strong><p>{regionalSourcesUnavailable ? "Not consulted: French source outside geographic coverage, not a zero-designation finding." : zonagesLoading ? "Consulting reference sources." : zonages ? `Consultation complete: ${zonages.count} designations returned.` : "Consultation unavailable: no designation results are shown."}</p></li>}
+                         {habitatAgentActive && <li data-testid="analysis-transcript-ali-habitat"><strong>Habitat agent — CARHAB</strong><p>{regionalSourcesUnavailable ? "Not consulted: French source outside geographic coverage; habitat presence is unknown." : aliHabitatStatus ?? "No CARHAB summary recorded for this analysis."}</p></li>}
+                         {taxonomyAgentActive && <li><strong>Taxonomy and status agent — ALI Species</strong><p>{regionalSourcesUnavailable ? "Not consulted: French source outside geographic coverage; local status is unknown." : results.aliSpeciesEnrichment ? results.aliSpeciesEnrichment.attempted > 0 ? `${results.aliSpeciesEnrichment.enriched}/${results.aliSpeciesEnrichment.attempted} taxa enriched via ALI Species${results.aliSpeciesEnrichment.nameResolutionAttempted ? `, after resolving ${results.aliSpeciesEnrichment.nameResolved ?? 0}/${results.aliSpeciesEnrichment.nameResolutionAttempted} names in TAXREF` : ""}.` : "No taxa could be matched to TAXREF for ALI Species enrichment." : "No ALI Species summary recorded for this analysis."}</p></li>}
                      </ol>
                    </div>
                  )}
@@ -1680,24 +1747,33 @@ ${shareUrl ? `\nReproduire cette analyse : ${shareUrl}` : ""}`;
              <section ref={resultsSummaryRef} className="conversation-message" data-testid="message-ally-summary" aria-live="polite">
                <Bot className="mt-1 h-5 w-5" aria-hidden="true" />
                <div>
-                  <p><strong>Synthèse de la Pré-étude documentaire biodiversité</strong></p>
-                  <p><strong>Éléments documentés :</strong> {results.stats.speciesCount} taxon{results.stats.speciesCount > 1 ? "s" : ""} avec occurrence publique dans l’aire documentaire. <strong>Éléments potentiels :</strong> {potentialSpeciesLoading ? "évaluation en cours" : potentialSpeciesError || !reconciledPotentialSpecies ? "évaluation indisponible" : `${reconciledPotentialSpecies.potentialCount} espèce${reconciledPotentialSpecies.potentialCount > 1 ? "s" : ""} retournée${reconciledPotentialSpecies.potentialCount > 1 ? "s" : ""}`}. Une occurrence publique n’est pas une confirmation dans l’emprise : celle-ci exige des relevés de terrain.</p>
-                 <div className="mt-3 flex flex-wrap gap-2" aria-label="Chiffres clés de la Pré-étude documentaire biodiversité">
+                  <p><strong>Biodiversity desk study summary</strong></p>
+                  <p><strong>Documented evidence:</strong> {results.stats.speciesCount} taxa with public occurrences in the desk-study area. <strong>Potential evidence:</strong> {regionalSourcesUnavailable ? "French-only sources not consulted outside coverage (not a zero result)" : potentialSpeciesLoading ? "assessment in progress" : potentialSpeciesError || !reconciledPotentialSpecies ? "assessment unavailable (not a zero result)" : `${reconciledPotentialSpecies.potentialCount} potential species returned`}. A public occurrence does not confirm presence within the footprint; field surveys are required.</p>
+                 <div className="mt-3 flex flex-wrap gap-2" aria-label="Biodiversity desk study key figures">
                    <span className="rounded-full border border-[#d9e1d6] bg-[#edf2e9] px-2.5 py-1 text-[11px] font-semibold text-[#315b4e]">
-                      {results.stats.speciesCount} taxon{results.stats.speciesCount > 1 ? "s" : ""} documenté{results.stats.speciesCount > 1 ? "s" : ""}
+                      {results.stats.speciesCount} documented taxa
                    </span>
                    <span className="rounded-full border border-[#d9e1d6] bg-[#edf2e9] px-2.5 py-1 text-[11px] font-semibold text-[#315b4e]">
-                     {results.stats.sensitiveCount} sensibilité{results.stats.sensitiveCount > 1 ? "s" : ""}
+                     {results.stats.sensitiveCount} sensitivity signals
                    </span>
                    <span className="rounded-full border border-[#d9e1d6] bg-[#edf2e9] px-2.5 py-1 text-[11px] font-semibold text-[#315b4e]">
-                      {zonagesLoading ? "Zonages en cours" : zonages ? `${zonages.count} zonage${zonages.count > 1 ? "s" : ""} retourné${zonages.count > 1 ? "s" : ""}` : "Zonages indisponibles"}
+                      {regionalSourcesUnavailable ? "French designations out of coverage" : zonagesLoading ? "Designations loading" : zonages ? `${zonages.count} designations returned` : "Designations unavailable"}
                    </span>
                    <span className="rounded-full border border-[#d9e1d6] bg-[#edf2e9] px-2.5 py-1 text-[11px] font-semibold text-[#315b4e]">
-                     {recommendations.length} recommandations
+                     {recommendations.length} recommendations
                    </span>
                  </div>
                </div>
              </section>
+             {results.coverage && (
+               <div className="rounded-xl border border-sky-200 bg-sky-50 p-3 text-xs text-sky-900" data-testid="study-country-coverage">
+                 <strong>Geographic coverage: {results.coverage.country || results.coverage.countryCode || "country unresolved"}.</strong>{" "}
+                 Global occurrence sources: {results.coverage.globalOccurrences ? "available" : "unavailable"}.
+                 France-specific sources: {results.coverage.frenchSources ? "available" : "unavailable at this location"}.
+                 {results.coverage.unavailableSources.length > 0 && <> Unavailable sources: {results.coverage.unavailableSources.join(", ")}.</>}
+                 {" "}Unavailable sources are not evidence of absence.
+               </div>
+             )}
             {/* Niveau d'enjeu global */}
             <div
               className={`rounded-xl border p-4 ${
@@ -1705,45 +1781,45 @@ ${shareUrl ? `\nReproduire cette analyse : ${shareUrl}` : ""}`;
                   ? "border-red-200 bg-red-50/70"
                   : globalLevel.level === "modere"
                   ? "border-orange-200 bg-orange-50/70"
-                  : "border-green-200 bg-green-50/70"
+                  : globalLevel.level === "unknown" ? "border-slate-200 bg-slate-50/70" : "border-green-200 bg-green-50/70"
               }`}
               data-testid="card-issue-level"
                data-level={globalLevel.level}
             >
               <div className="flex items-center justify-between gap-2">
-                   <div className="font-bold text-gray-700">Indice synthétique secondaire</div>
-                {zonagesLoading && <Loader2 className="h-3.5 w-3.5 animate-spin text-gray-400" aria-label="Chargement des zonages" />}
+                   <div className="font-bold text-gray-700">Secondary summary index</div>
+                {zonagesLoading && <Loader2 className="h-3.5 w-3.5 animate-spin text-gray-400" aria-label="Loading designations" />}
               </div>
               <div
                 className={`mt-1 text-2xl font-extrabold tracking-tight ${
-                  globalLevel.level === "fort" ? "text-red-700" : globalLevel.level === "modere" ? "text-orange-700" : "text-green-700"
+                  globalLevel.level === "fort" ? "text-red-700" : globalLevel.level === "modere" ? "text-orange-700" : globalLevel.level === "unknown" ? "text-slate-700" : "text-green-700"
                 }`}
                 data-testid="text-issue-level"
               >
-                 {globalLevel.label} <span className="text-sm font-semibold">(score automatisé)</span>
+                 {globalLevel.label} <span className="text-sm font-semibold">(automated score)</span>
               </div>
               <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-gray-700">
                 <span className="flex items-center gap-1">
                   <Shield className="h-3.5 w-3.5 text-red-600" />
-                  {reglementaireCount} protection{reglementaireCount > 1 ? "s" : ""} réglementaire{reglementaireCount > 1 ? "s" : ""}
+                  {regionalSourcesUnavailable ? "French protections: source unavailable" : `${reglementaireCount} regulatory protection${reglementaireCount > 1 ? "s" : ""}`}
                 </span>
                 <span className="flex items-center gap-1">
                   <AlertTriangle className="h-3.5 w-3.5 text-orange-600" />
-                  {sortedSpecies.high.length + sortedSpecies.medium.length} taxon{sortedSpecies.high.length + sortedSpecies.medium.length > 1 ? "s" : ""} à examiner
+                  {sortedSpecies.high.length + sortedSpecies.medium.length} taxa to investigate
                 </span>
                 <span className="flex items-center gap-1">
                   <Layers className="h-3.5 w-3.5 text-teal-600" />
-                   {zonagesLoading ? "consultation en cours" : zonages ? `${zonages.count} zonage${zonages.count > 1 ? "s" : ""} retourné${zonages.count > 1 ? "s" : ""}` : "zonages indisponibles"}
+                   {regionalSourcesUnavailable ? "French designations: outside source coverage" : zonagesLoading ? "consultation in progress" : zonages ? `${zonages.count} designations returned` : "designations unavailable"}
                 </span>
               </div>
               <p className="mt-2 text-[10px] text-gray-400 leading-snug">
-                 Indice automatisé fondé sur les données publiques consultées. Il guide les vérifications, sans conclure à un impact ni remplacer l’expertise de terrain.
+                 Automated index based on consulted public data. It guides verification but does not establish impacts or replace field expertise.
               </p>
             </div>
 
             {/* Recommandations prioritaires */}
             <div className="rounded-xl border border-gray-200 bg-white p-4" data-testid="card-key-findings">
-              <div className="mb-3 font-bold text-[#234f43]">Recommandations prioritaires</div>
+              <div className="mb-3 font-bold text-[#234f43]">Priority recommendations</div>
               <ol className="space-y-2">
                 {recommendations.slice(0, 3).map((recommendation, index) => (
                   <li key={`${recommendation}::${index}`} className="flex items-start gap-3 text-gray-700">
@@ -1753,7 +1829,7 @@ ${shareUrl ? `\nReproduire cette analyse : ${shareUrl}` : ""}`;
                 ))}
               </ol>
                <button type="button" className="mt-3 flex min-h-11 items-center gap-1.5 text-sm font-semibold" onClick={() => setShowAllRecommendations((value) => !value)} aria-expanded={showAllRecommendations} aria-controls="recommendations-complementaires">
-                {showAllRecommendations ? "Masquer les recommandations complémentaires" : "Voir toutes les recommandations"}
+                {showAllRecommendations ? "Hide additional recommendations" : "View all recommendations"}
                 {showAllRecommendations ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
               </button>
                {showAllRecommendations && <p id="recommendations-complementaires" className="border-t border-[#d9e1d6] pt-3">{recommendations[3]}</p>}
@@ -1770,10 +1846,10 @@ ${shareUrl ? `\nReproduire cette analyse : ${shareUrl}` : ""}`;
                 data-testid="button-section-pourquoi"
               >
                 <span className="flex items-center gap-2 text-sm font-bold text-gray-800">
-                   <Gauge className="h-4 w-4 text-indigo-600" /> Méthode, qualité et sources
+                   <Gauge className="h-4 w-4 text-indigo-600" /> Method, quality and sources
                 </span>
                 <span className="flex items-center gap-2 text-[11px] text-gray-500 min-w-0">
-                  <span className="truncate">{riskScore.factors.length} facteur{riskScore.factors.length > 1 ? "s" : ""} · sources publiques</span>
+                  <span className="truncate">{riskScore.factors.length} factor{riskScore.factors.length > 1 ? "s" : ""} · public sources</span>
                   {openSections.has("pourquoi") ? <ChevronUp className="h-4 w-4 shrink-0" /> : <ChevronDown className="h-4 w-4 shrink-0" />}
                 </span>
               </button>
@@ -1787,23 +1863,23 @@ ${shareUrl ? `\nReproduire cette analyse : ${shareUrl}` : ""}`;
                       </li>
                     ))}
                   </ul>
-                   {results.aliSpeciesEnrichment && (
+                   {!regionalSourcesUnavailable && results.aliSpeciesEnrichment && (
                      <div className="rounded-xl border border-teal-200 bg-teal-50/60 p-3" data-testid="method-source-ali-species">
                        <div className="flex items-start gap-2">
                          <Database className="mt-0.5 h-4 w-4 shrink-0 text-teal-700" aria-hidden="true" />
                          <div>
-                           <p className="text-xs font-bold text-teal-900">Enrichissement taxonomique — ALI Species MCP</p>
+                           <p className="text-xs font-bold text-teal-900">Taxonomic enrichment — ALI Species MCP</p>
                            <p className="mt-1 text-xs leading-relaxed text-teal-900/80">
-                             {results.aliSpeciesEnrichment.enriched} taxon{results.aliSpeciesEnrichment.enriched > 1 ? "s" : ""} enrichi{results.aliSpeciesEnrichment.enriched > 1 ? "s" : ""} sur {results.aliSpeciesEnrichment.attempted}
-                             {results.aliSpeciesEnrichment.region ? ` pour ${results.aliSpeciesEnrichment.region}` : ""}.
+                             {results.aliSpeciesEnrichment.enriched}/{results.aliSpeciesEnrichment.attempted} taxa enriched
+                             {results.aliSpeciesEnrichment.region ? ` for ${results.aliSpeciesEnrichment.region}` : ""}.
                            </p>
                            <p className="mt-1 text-[11px] leading-relaxed text-teal-800/75">
                              {results.aliSpeciesEnrichment.territorialScope === "single"
-                               ? "Les listes rouges UICN régionales du territoire étudié priment sur les statuts nationaux. "
+                               ? "Regional IUCN Red Lists for the study territory take precedence over national statuses. "
                                : results.aliSpeciesEnrichment.territorialScope === "multiple"
-                                 ? "Plusieurs régions sont concernées : aucune liste rouge régionale unique n’est attribuée aux taxons. "
-                                 : "Le territoire régional n’a pas pu être résolu : seuls les statuts non régionaux sont retenus. "}
-                             {results.aliSpeciesEnrichment.partial ? "La consultation est partielle : aucun statut absent n’est extrapolé." : "La consultation MCP est complète pour les taxons éligibles."}
+                                 ? "Multiple regions are involved: no single regional Red List is assigned to taxa. "
+                                 : "The regional territory could not be resolved: only non-regional statuses are retained. "}
+                             {results.aliSpeciesEnrichment.partial ? "The consultation is partial: missing statuses are not extrapolated." : "The MCP consultation is complete for eligible taxa."}
                            </p>
                          </div>
                        </div>
@@ -1813,12 +1889,12 @@ ${shareUrl ? `\nReproduire cette analyse : ${shareUrl}` : ""}`;
                     <div className="flex items-start gap-2">
                       <Leaf className="mt-0.5 h-4 w-4 shrink-0 text-emerald-700" aria-hidden="true" />
                       <div>
-                        <p className="text-xs font-bold text-emerald-900">Agent Habitat — CARHAB</p>
+                        <p className="text-xs font-bold text-emerald-900">Habitat agent — CARHAB</p>
                         <p className="mt-1 text-xs leading-relaxed text-emerald-900/80">
-                          {aliHabitatStatus ?? "CARHAB est consulté automatiquement lors des nouvelles analyses."}
+                          {regionalSourcesUnavailable ? "Not consulted: CARHAB covers France only; habitat presence remains unknown." : aliHabitatStatus ?? "CARHAB is consulted automatically for new analyses."}
                         </p>
                         <p className="mt-1 text-[11px] leading-relaxed text-emerald-800/75">
-                          Source documentaire sur les habitats autour de l’aire d’étude ; elle ne remplace ni une cartographie d’habitats ni une confirmation sur le terrain.
+                          Desk-based habitat information around the study area; it does not replace field habitat mapping or field confirmation.
                         </p>
                        </div>
                      </div>
@@ -1832,7 +1908,7 @@ ${shareUrl ? `\nReproduire cette analyse : ${shareUrl}` : ""}`;
                     data-testid="button-open-assistant"
                     aria-haspopup="dialog"
                   >
-                    <Sparkles className="h-3.5 w-3.5" /> Expliquer ce diagnostic
+                    <Sparkles className="h-3.5 w-3.5" /> Explain this assessment
                   </Button>
                   <button
                     type="button"
@@ -1842,7 +1918,7 @@ ${shareUrl ? `\nReproduire cette analyse : ${shareUrl}` : ""}`;
                     className="text-[11px] text-teal-700 font-semibold hover:underline px-1"
                     data-testid="button-toggle-calc-detail"
                   >
-                    {showCalcDetail ? "Masquer le calcul détaillé" : "Afficher le calcul détaillé"}
+                    {showCalcDetail ? "Hide detailed calculation" : "Show detailed calculation"}
                   </button>
                   {showCalcDetail && (
                     <div id="calculation-detail" className="space-y-3">
@@ -1857,20 +1933,20 @@ ${shareUrl ? `\nReproduire cette analyse : ${shareUrl}` : ""}`;
                           </div>
                           <div>
                             <div className="text-xl font-bold text-orange-600" data-testid="text-species-sensitive">{results.stats.sensitiveCount}</div>
-                            <div className="text-[10px] text-gray-500 leading-tight">sensibles</div>
+                            <div className="text-[10px] text-gray-500 leading-tight">sensitive</div>
                           </div>
                           <div>
                             <div className="text-xl font-bold text-teal-600" data-testid="text-zonages-total">{zonages?.count ?? "—"}</div>
-                            <div className="text-[10px] text-gray-500 leading-tight">zonages</div>
+                            <div className="text-[10px] text-gray-500 leading-tight">designations</div>
                           </div>
                           <div>
                             <div className="text-xl font-bold text-indigo-600">{includeINaturalist ? 2 : 1}</div>
-                            <div className="text-[10px] text-gray-500 leading-tight">source{(includeINaturalist ? 2 : 1) > 1 ? "s" : ""} d’observations</div>
-                            <div className="text-[9px] text-gray-400 mt-0.5" title="Sources des observations">{includeINaturalist ? "GBIF+iNat" : "GBIF"}</div>
+                            <div className="text-[10px] text-gray-500 leading-tight">occurrence source{includeINaturalist ? "s" : ""}</div>
+                            <div className="text-[9px] text-gray-400 mt-0.5" title="Occurrence sources">{includeINaturalist ? "GBIF+iNat" : "GBIF"}</div>
                           </div>
                           <div>
                             <Leaf className="mx-auto h-5 w-5 text-emerald-700" aria-hidden="true" />
-                            <div className="text-[10px] text-gray-500 leading-tight">source habitats</div>
+                            <div className="text-[10px] text-gray-500 leading-tight">habitat source</div>
                             <div className="mt-0.5 text-[9px] text-gray-400">CARHAB</div>
                           </div>
                         </div>
@@ -1879,7 +1955,7 @@ ${shareUrl ? `\nReproduire cette analyse : ${shareUrl}` : ""}`;
                       <div className="rounded-xl border border-blue-200 bg-blue-50/50 p-4">
                         <div className="flex items-center gap-2 mb-2">
                           <Sparkles className="h-4 w-4 text-blue-600" />
-                          <span className="font-bold text-sm text-blue-700">Synthèse automatique</span>
+                          <span className="font-bold text-sm text-blue-700">Automated summary</span>
                         </div>
                         <p className="text-xs text-gray-700 leading-relaxed" data-testid="text-auto-summary">{autoSummary}</p>
                       </div>
@@ -1888,18 +1964,18 @@ ${shareUrl ? `\nReproduire cette analyse : ${shareUrl}` : ""}`;
                   <div className="border-t border-gray-100 pt-3 space-y-3">
                     <div className="flex items-center gap-2">
                       <Info className="h-4 w-4 text-sky-600" />
-                      <span className="text-xs font-bold text-gray-700">Qualité et limites des données</span>
+                      <span className="text-xs font-bold text-gray-700">Data quality and limitations</span>
                     </div>
                     <ConfidencePanel confidence={results.confidence} />
                     <div className="text-[11px] text-gray-600 space-y-1.5">
-                      <p><span className="font-semibold">Sources :</span> {sourcesLabel}</p>
+                      <p><span className="font-semibold">Sources:</span> {sourcesLabel}</p>
                       <p className="flex items-start gap-1.5">
                         <AlertTriangle className="h-3.5 w-3.5 shrink-0 mt-0.5 text-amber-600" />
-                        Absence de donnée ≠ absence d'espèce : les données publiques ne couvrent pas tout le territoire.
+                        No record ≠ no species: public data do not cover every location.
                       </p>
                       <p className="flex items-start gap-1.5">
                         <ClipboardList className="h-3.5 w-3.5 shrink-0 mt-0.5 text-teal-600" />
-                        Pré-diagnostic indicatif — à valider par un écologue lors d'un inventaire terrain.
+                        Indicative preliminary assessment — to be validated by an ecologist through field surveys.
                       </p>
                     </div>
                   </div>
@@ -1911,22 +1987,22 @@ ${shareUrl ? `\nReproduire cette analyse : ${shareUrl}` : ""}`;
           {/* Message Agent Occurrences — pièce jointe dépliable */}
           <section className="w-full self-stretch overflow-hidden rounded-xl border border-teal-200 bg-teal-50/30" data-testid="message-agent-occurrences">
             <button type="button" onClick={() => toggleSection("especes")} aria-expanded={openSections.has("especes")} aria-controls="attachment-especes" className="w-full flex items-center justify-between gap-3 px-4 py-3 text-left hover:bg-teal-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-400">
-              <span className="flex items-center gap-2"><Database className="h-5 w-5 shrink-0" aria-hidden="true" /><span><span className="block text-xs font-bold text-teal-900">Agent Occurrences</span><span className="block text-[11px] text-teal-700">{filteredTotal} espèces consolidées · données géolocalisées</span></span></span>
+              <span className="flex items-center gap-2"><Database className="h-5 w-5 shrink-0" aria-hidden="true" /><span><span className="block text-xs font-bold text-teal-900">Occurrences agent</span><span className="block text-[11px] text-teal-700">{filteredTotal} consolidated species · georeferenced data</span></span></span>
               {openSections.has("especes") ? <ChevronUp className="h-4 w-4 text-teal-700" /> : <ChevronDown className="h-4 w-4 text-teal-700" />}
             </button>
             {openSections.has("especes") && <div id="attachment-especes" className="space-y-4 border-t border-teal-200 bg-white p-4 sm:p-5" data-testid="panel-especes">
             <p className="rounded-lg border border-teal-100 bg-teal-50/60 px-3 py-2 text-[11px] leading-relaxed text-teal-900">
-              <strong>Sources :</strong> {includeINaturalist ? "GBIF et iNaturalist" : "GBIF"}. Une occurrence publique confirme un signal dans l’aire étudiée, mais ne remplace ni une prospection exhaustive ni une validation terrain.
+              <strong>Sources:</strong> {includeINaturalist ? "GBIF and iNaturalist" : "GBIF"}. A public occurrence documents a signal in the study area but does not replace comprehensive field surveys or validation.
             </p>
             <div className="rounded-lg border border-gray-200 bg-gray-50/60 px-3 py-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-gray-600" data-testid="species-summary">
-              <span><strong className="text-gray-900">{filteredTotal}</strong> espèce{filteredTotal > 1 ? "s" : ""} documentée{filteredTotal > 1 ? "s" : ""} dans les sources</span>
-              <span><strong className="text-orange-700">{prioritySpeciesList.length}</strong> avec signal d’enjeu</span>
-              <span><strong className="text-sky-700">{aVerifierCount}</strong> à vérifier</span>
+              <span><strong className="text-gray-900">{filteredTotal}</strong> species documented in sources</span>
+              <span><strong className="text-orange-700">{prioritySpeciesList.length}</strong> with concern signals</span>
+              <span><strong className="text-sky-700">{aVerifierCount}</strong> requiring verification</span>
             </div>
             <div className="flex flex-wrap gap-1.5" data-testid="species-attr-filters">
               {([
-                { key: "prioritaires", label: `Avec signal d’enjeu (${prioritySpeciesList.length})` },
-                { key: "toutes", label: `Toutes documentées (${filteredTotal})` },
+                { key: "prioritaires", label: `With concern signals (${prioritySpeciesList.length})` },
+                { key: "toutes", label: `All documented (${filteredTotal})` },
               ] as { key: "prioritaires" | "toutes"; label: string }[]).map((chip) => {
                 const active = speciesScope === chip.key;
                 return (
@@ -1946,18 +2022,18 @@ ${shareUrl ? `\nReproduire cette analyse : ${shareUrl}` : ""}`;
               })}
             </div>
             <p className="text-xs leading-relaxed text-gray-600">
-              Les espèces potentielles sont présentées séparément : elles reposent sur une compatibilité écologique documentaire et ne sont jamais comptées comme occurrences publiques documentées. Une confirmation de présence exige des relevés de terrain.
+              Potential species are shown separately: they are based on desk-based ecological suitability and are never counted as documented public occurrences. Confirming presence requires field surveys.
             </p>
 
             <div className="relative">
-              <label htmlFor="species-search" className="sr-only">Rechercher une espèce dans les résultats</label>
+              <label htmlFor="species-search" className="sr-only">Search species in results</label>
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
               <input
                 id="species-search"
                 type="text"
                 value={speciesQuery}
                 onChange={(e) => setSpeciesQuery(e.target.value)}
-                placeholder="Rechercher une espèce"
+                placeholder="Search species"
                 className="w-full pl-9 pr-3 py-2 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-teal-300"
                 data-testid="input-species-search"
               />
@@ -1974,7 +2050,7 @@ ${shareUrl ? `\nReproduire cette analyse : ${shareUrl}` : ""}`;
               >
                 <div className="flex items-center gap-2">
                   <Filter className="h-4 w-4 text-gray-600" />
-                  <span className="font-bold text-sm text-gray-700">Groupes taxonomiques</span>
+                  <span className="font-bold text-sm text-gray-700">Taxonomic groups</span>
                 </div>
                 <div className="flex items-center gap-2">
                   {!isAllActive && (
@@ -1988,14 +2064,14 @@ ${shareUrl ? `\nReproduire cette analyse : ${shareUrl}` : ""}`;
 
               {showFilters && (
                 <div id="taxon-filter-options" className="px-4 pb-3 space-y-2">
-                  <p className="text-[10px] text-gray-500">Ces filtres s’appliquent au tableau, à la carte et aux exports.</p>
+                  <p className="text-[10px] text-gray-500">These filters apply to the table, map and exports.</p>
                   <button
                     type="button"
                     onClick={() => onToggleAllTaxonFilters(presentGroups.map(g => g.id))}
                     className="text-[10px] font-semibold text-teal-600 hover:text-teal-800 transition-colors uppercase tracking-wider"
                     data-testid="button-toggle-all-taxons"
                   >
-                    {isAllActive ? "Tout désélectionner" : "Tout sélectionner"}
+                    {isAllActive ? "Deselect all" : "Select all"}
                   </button>
                   <div className="grid grid-cols-2 gap-2" data-testid="group-cards">
                     {TAXON_GROUPS.map(group => {
@@ -2024,11 +2100,11 @@ ${shareUrl ? `\nReproduire cette analyse : ${shareUrl}` : ""}`;
                           </div>
                           {stats && (
                             <div className="mt-1 text-[10px] text-gray-500 leading-tight">
-                              {stats.sensitive} sensible{stats.sensitive > 1 ? "s" : ""} · {stats.protected} protégée{stats.protected > 1 ? "s" : ""}
+                              {stats.sensitive} sensitive · {stats.protected} protected
                             </div>
                           )}
-                          {!stats && <div className="mt-1 text-[10px] text-gray-500">Aucune donnée publique retenue</div>}
-                          <div className="mt-0.5 text-[10px] text-gray-400 leading-tight">Période : {GROUP_SEASON[group.id] || "à préciser"}</div>
+                          {!stats && <div className="mt-1 text-[10px] text-gray-500">No public records retained</div>}
+                          <div className="mt-0.5 text-[10px] text-gray-400 leading-tight">Season: {GROUP_SEASON[group.id] || "to be determined"}</div>
                         </button>
                       );
                     })}
@@ -2039,24 +2115,24 @@ ${shareUrl ? `\nReproduire cette analyse : ${shareUrl}` : ""}`;
 
             <div className="space-y-1.5" data-testid="species-list-compact">
               <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-gray-600 px-1">
-                <span>{especesList.length} espèce{especesList.length > 1 ? "s" : ""}</span>
+                <span>{especesList.length} species</span>
                 <label className="flex items-center gap-2">
-                  <span>Trier par</span>
+                  <span>Sort by</span>
                   <select
                     value={speciesSortMode}
                     onChange={(event) => setSpeciesSortMode(event.target.value as typeof speciesSortMode)}
                     className="h-9 rounded-md border border-gray-300 bg-white px-2 text-xs text-gray-800"
                     data-testid="select-species-sort"
                   >
-                    <option value="recommended">Usage métier</option>
-                    <option value="french">Nom français</option>
-                    <option value="latin">Nom scientifique</option>
+                    <option value="recommended">Recommended</option>
+                    <option value="french">Common name</option>
+                    <option value="latin">Scientific name</option>
                   </select>
                 </label>
               </div>
               {especesList.length === 0 ? (
                 <div className="flex flex-col items-center gap-2 px-1 py-5 text-center">
-                  <p className="text-sm text-gray-500">Aucune espèce ne correspond à la recherche et aux filtres actifs.</p>
+                  <p className="text-sm text-gray-500">No species match your search and active filters.</p>
                   <Button
                     type="button"
                     variant="outline"
@@ -2067,7 +2143,7 @@ ${shareUrl ? `\nReproduire cette analyse : ${shareUrl}` : ""}`;
                     }}
                     className="h-8 text-xs"
                   >
-                    Réinitialiser les filtres
+                    Reset filters
                   </Button>
                 </div>
               ) : (
@@ -2095,9 +2171,9 @@ ${shareUrl ? `\nReproduire cette analyse : ${shareUrl}` : ""}`;
               <span className="flex items-center gap-2">
                 <Leaf className="h-5 w-5 shrink-0 text-emerald-800" aria-hidden="true" />
                 <span>
-                  <span className="block text-xs font-bold text-emerald-900">Agent Habitat</span>
+                  <span className="block text-xs font-bold text-emerald-900">Habitat agent</span>
                   <span className="block text-[11px] text-emerald-700">
-                    {aliHabitatStatus ?? "Habitats documentaires · CARHAB"}
+                    {aliHabitatStatus ?? "Desk-based habitats · CARHAB"}
                   </span>
                 </span>
               </span>
@@ -2106,13 +2182,15 @@ ${shareUrl ? `\nReproduire cette analyse : ${shareUrl}` : ""}`;
             {openSections.has("habitats") && (
               <div id="attachment-habitats" className="space-y-3 border-t border-emerald-200 bg-white p-4 sm:p-5" data-testid="panel-habitats">
                 <p className="rounded-lg border border-emerald-100 bg-emerald-50/60 px-3 py-2 text-xs leading-relaxed text-emerald-950">
-                  <strong>Source : CARHAB.</strong> L’Agent Habitat documente les habitats disponibles autour de l’aire d’étude et les transmet à la synthèse.
+                  {regionalSourcesUnavailable ? "CARHAB is a France-only source and was not consulted at this location." : <><strong>Source: CARHAB.</strong> The habitat agent documents available habitat information around the study area and passes it to the summary.</>}
                 </p>
-                {carhabSummary ? (
+                {regionalSourcesUnavailable ? (
+                  <p className="text-xs text-amber-800">CARHAB was not consulted outside its coverage; no habitat absence can be inferred.</p>
+                ) : carhabSummary ? (
                   <div className="space-y-2" data-testid="carhab-habitat-list">
                     <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-emerald-950">
-                      <strong>{carhabSummary.habitats.length} habitat{carhabSummary.habitats.length > 1 ? "s" : ""} documenté{carhabSummary.habitats.length > 1 ? "s" : ""}</strong>
-                      {carhabSummary.totalAreaHa !== null && <span>Surface analysée : {carhabSummary.totalAreaHa.toLocaleString("fr-FR", { maximumFractionDigits: 2 })} ha</span>}
+                      <strong>{carhabSummary.habitats.length} documented habitats</strong>
+                      {carhabSummary.totalAreaHa !== null && <span>Area analysed: {carhabSummary.totalAreaHa.toLocaleString("en-GB", { maximumFractionDigits: 2 })} ha</span>}
                     </div>
                     <ol className="space-y-2">
                       {carhabSummary.habitats.map((habitat, index) => (
@@ -2123,44 +2201,44 @@ ${shareUrl ? `\nReproduire cette analyse : ${shareUrl}` : ""}`;
                               <p className="mt-0.5 text-sm font-semibold leading-snug text-[#24483e]">{habitat.label}</p>
                             </div>
                             <div className="shrink-0 text-right">
-                              {habitat.areaHa !== null && <strong className="block text-sm text-emerald-900">{habitat.areaHa.toLocaleString("fr-FR", { maximumFractionDigits: 2 })} ha</strong>}
-                              {habitat.percentage !== null && <span className="text-xs text-emerald-700">{habitat.percentage.toLocaleString("fr-FR", { maximumFractionDigits: 1 })} %</span>}
+                              {habitat.areaHa !== null && <strong className="block text-sm text-emerald-900">{habitat.areaHa.toLocaleString("en-GB", { maximumFractionDigits: 2 })} ha</strong>}
+                              {habitat.percentage !== null && <span className="text-xs text-emerald-700">{habitat.percentage.toLocaleString("en-GB", { maximumFractionDigits: 1 })} %</span>}
                             </div>
                           </div>
                         </li>
                       ))}
                     </ol>
                     <p className="text-[11px] leading-relaxed text-gray-600">
-                      Surfaces et proportions fournies par CARHAB pour l’aire demandée ; ALi ne les présente pas comme une cartographie de terrain.
+                      Areas and proportions provided by CARHAB for the requested area; ALi does not present these as a field habitat map.
                     </p>
                   </div>
                 ) : aliHabitatSucceeded ? (
-                  <p className="text-xs text-amber-800">CARHAB a répondu, mais aucun habitat structuré n’a pu être extrait de cette réponse.</p>
+                  <p className="text-xs text-amber-800">CARHAB responded, but no structured habitats could be extracted.</p>
                 ) : null}
                 <p className="flex items-start gap-2 text-[11px] leading-relaxed text-gray-600">
                   <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber-600" aria-hidden="true" />
-                  Ces informations sont documentaires : elles ne constituent ni une cartographie des habitats dans l’emprise des travaux, ni une confirmation de terrain.
+                  This information is desk-based: it is neither habitat mapping within the works footprint nor field confirmation.
                 </p>
               </div>
             )}
           </section>}
 
           {/* Message Agent Zonages — pièce jointe dépliable */}
-          {zonagesAgentActive && <section className="w-full self-stretch overflow-hidden rounded-xl border border-sky-200 bg-sky-50/30" data-testid="message-agent-zonages">
+          {zonagesAgentActive && results.coverage?.frenchSources === true && <section className="w-full self-stretch overflow-hidden rounded-xl border border-sky-200 bg-sky-50/30" data-testid="message-agent-zonages">
             <button type="button" onClick={() => toggleSection("zonages")} aria-expanded={openSections.has("zonages")} aria-controls="attachment-zonages" className="w-full flex items-center justify-between gap-3 px-4 py-3 text-left hover:bg-sky-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400">
-              <span className="flex items-center gap-2"><Layers className="h-5 w-5 shrink-0" aria-hidden="true" /><span><span className="block text-xs font-bold text-sky-900">Agent Zonages</span><span className="block text-[11px] text-sky-700">{zonagesLoading ? "Recherche en cours…" : zonages ? `Consultation terminée · ${flatZonages.length} retourné${flatZonages.length > 1 ? "s" : ""} · IGN / PatriNat` : "Consultation indisponible · IGN / PatriNat"}</span></span></span>
+              <span className="flex items-center gap-2"><Layers className="h-5 w-5 shrink-0" aria-hidden="true" /><span><span className="block text-xs font-bold text-sky-900">Designations agent</span><span className="block text-[11px] text-sky-700">{zonagesLoading ? "Searching…" : zonages ? `Consultation complete · ${flatZonages.length} returned · IGN / PatriNat` : "Consultation unavailable · IGN / PatriNat"}</span></span></span>
               {openSections.has("zonages") ? <ChevronUp className="h-4 w-4 text-sky-700" /> : <ChevronDown className="h-4 w-4 text-sky-700" />}
             </button>
             {openSections.has("zonages") && <div id="attachment-zonages" className="space-y-4 border-t border-sky-200 bg-white p-4 sm:p-5" data-testid="panel-zonages-tab">
             {zonages && zonages.count > 0 && (
               <div className="rounded-lg border border-gray-200 bg-gray-50/60 px-3 py-2 text-xs text-gray-600 leading-relaxed" data-testid="text-zonages-summary">
-                {zonages.count} zonage{zonages.count > 1 ? "s" : ""} dans l'aire d'étude (rayon {zonages.radius} m) — les plus importants d'abord.
+                {zonages.count} designations in the study area ({zonages.radius} m radius) — most important first.
               </div>
             )}
 
             {zonagesLoading && (
                <div className="flex items-center gap-2 text-xs text-gray-600 py-4 justify-center" role="status" aria-live="polite">
-                <Loader2 className="h-4 w-4 animate-spin" /> Chargement des zonages…
+                <Loader2 className="h-4 w-4 animate-spin" /> Loading designations…
               </div>
             )}
 
@@ -2198,7 +2276,7 @@ ${shareUrl ? `\nReproduire cette analyse : ${shareUrl}` : ""}`;
                       </span>
                       <span className="min-w-0 flex-1">
                         <span className="block text-xs font-semibold text-gray-800 truncate">{z.name}</span>
-                        <span className="block text-[10px] text-gray-500 truncate">{z.type} · ouvrir pour consulter les détails</span>
+                        <span className="block text-[10px] text-gray-500 truncate">{z.type} · open for details</span>
                       </span>
                       {expanded ? <ChevronUp className="h-3.5 w-3.5 text-gray-400 shrink-0" /> : <ChevronDown className="h-3.5 w-3.5 text-gray-400 shrink-0" />}
                       </button>
@@ -2210,30 +2288,30 @@ ${shareUrl ? `\nReproduire cette analyse : ${shareUrl}` : ""}`;
                           className={`flex shrink-0 items-center gap-1 border-l px-3 text-[11px] font-semibold transition-colors focus-visible:ring-2 focus-visible:ring-teal-400 focus-visible:outline-none ${
                             isSelectedOnMap ? "bg-teal-50 text-teal-700" : "text-gray-600 hover:bg-gray-50"
                           }`}
-                          aria-label={`${isSelectedOnMap ? "Masquer" : "Afficher"} ${z.name} sur la carte`}
+                          aria-label={`${isSelectedOnMap ? "Hide" : "Show"} ${z.name} on the map`}
                         >
                           <MapPin className="h-3.5 w-3.5" />
-                          <span className="hidden sm:inline">{isSelectedOnMap ? "Affiché" : "Voir sur la carte"}</span>
+                          <span className="hidden sm:inline">{isSelectedOnMap ? "Shown" : "View on map"}</span>
                         </button>
                       )}
                     </div>
                     {expanded && (
                       <div id={`zonage-details-${idx}`} className="px-3 pb-3 pt-1 border-t border-gray-100 space-y-1.5 text-[11px] text-gray-600">
-                        <div><span className="font-semibold">Type :</span> {z.type}</div>
-                        <div><span className="font-semibold">Catégorie :</span> {z.categoryLabel}</div>
+                        <div><span className="font-semibold">Type:</span> {z.type}</div>
+                        <div><span className="font-semibold">Category:</span> {badge.label}</div>
                         {!hasGeometry && (
                           <div className="text-[10px] text-gray-400 italic">
-                            Emprise non disponible sur la carte (géométrie non fournie par le service).
+                            Extent unavailable on map (the service did not provide geometry).
                           </div>
                         )}
-                        {z.id && <div><span className="font-semibold">Identifiant :</span> <span className="font-mono">{z.id}</span></div>}
-                        {z.code && <div><span className="font-semibold">Code :</span> <span className="font-mono">{z.code}</span></div>}
+                        {z.id && <div><span className="font-semibold">Identifier:</span> <span className="font-mono">{z.id}</span></div>}
+                        {z.code && <div><span className="font-semibold">Code:</span> <span className="font-mono">{z.code}</span></div>}
                         {isNatura && z.code && (
                           <NaturaSpeciesList code={z.code} index={idx} />
                         )}
                         {z.url && (
                           <a href={z.url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-teal-700 font-semibold hover:underline">
-                            <ExternalLink className="h-3 w-3" /> Fiche officielle (INPN)
+                            <ExternalLink className="h-3 w-3" /> Official listing (INPN)
                           </a>
                         )}
                       </div>
@@ -2250,17 +2328,17 @@ ${shareUrl ? `\nReproduire cette analyse : ${shareUrl}` : ""}`;
             />
             <SINPPanel center={results.center} />
             {!zonagesLoading && zonages?.count === 0 && (
-              <p className="text-sm text-gray-600 italic">Consultation terminée : aucun zonage environnemental retourné dans l'aire d'étude. Vous pouvez élargir le rayon d'analyse.</p>
+              <p className="text-sm text-gray-600 italic">Consultation complete: no environmental designations returned in the study area. You can widen the search radius.</p>
             )}
-            {!zonagesLoading && !zonages && <p className="text-sm text-red-700" role="alert">La source de zonages est indisponible ; aucun résultat n’est présenté.</p>}
+            {!zonagesLoading && !zonages && <p className="text-sm text-red-700" role="alert">The designations source is unavailable; no results are shown.</p>}
                 </div>}
           </section>}
 
           <section className="conversation-message" data-testid="message-ally-report-action">
             <Bot className="mt-1 h-5 w-5" aria-hidden="true" />
             <div>
-              <p><strong>ALi — suite de la Pré-étude documentaire biodiversité</strong></p>
-               <p>Les résultats sont prêts. Je peux maintenant les organiser dans une Pré-étude documentaire biodiversité structurée et copiable.</p>
+              <p><strong>ALi — next steps for the biodiversity desk study</strong></p>
+               <p>The results are ready. I can now organise them into a structured, copyable biodiversity desk study.</p>
               <Button
                 onClick={() => {
                   setShowReportPreview(true);
@@ -2269,10 +2347,10 @@ ${shareUrl ? `\nReproduire cette analyse : ${shareUrl}` : ""}`;
                 data-testid="button-report-text"
               >
                 <FileText className="h-4 w-4 text-[#dcc05b]" />
-                 Préparer la Pré-étude documentaire biodiversité
+                 Prepare biodiversity desk study
                 {aiAnalysis && (
                   <span className="ml-0.5 inline-flex items-center gap-0.5 rounded border border-[#dcc05b]/50 bg-[#dcc05b]/15 px-1 py-0.5 text-[9px] font-bold uppercase tracking-wider text-[#f2dc84]">
-                    <Sparkles className="h-2.5 w-2.5" /> IA
+                    <Sparkles className="h-2.5 w-2.5" /> AI
                   </span>
                 )}
               </Button>
@@ -2281,7 +2359,7 @@ ${shareUrl ? `\nReproduire cette analyse : ${shareUrl}` : ""}`;
 
           <p className="mt-4 px-1 text-[11px] text-gray-400 leading-snug flex gap-1.5 items-start">
             <Info className="h-3 w-3 shrink-0 mt-0.5" />
-            Lecture documentaire basée sur les seules sources indiquées — la confirmation d’une présence exige des relevés de terrain.
+            Desk-based assessment using only the stated sources — field surveys are needed to confirm presence.
           </p>
         </> ) : (
           <section role="tabpanel" className="space-y-4" data-testid="panel-aggregated-issues">
@@ -2289,27 +2367,27 @@ ${shareUrl ? `\nReproduire cette analyse : ${shareUrl}` : ""}`;
               <div className="flex items-start gap-3">
                 <ListChecks className="mt-0.5 h-5 w-5 shrink-0 text-[#1e594a]" />
                 <div>
-                  <h2 className="font-bold text-[#234f43]">Tableau transversal des enjeux</h2>
+                  <h2 className="font-bold text-[#234f43]">Consolidated concerns table</h2>
                   <p className="mt-1 text-xs leading-relaxed text-[#60756d]">
-                    Les signaux produits par les agents sont regroupés par objet. Une même espèce n’apparaît qu’une fois, avec tous les agents contributeurs et la nature de chaque preuve.
+                    Agent signals are grouped by subject. Each species appears once, with all contributing agents and the type of evidence.
                   </p>
                 </div>
               </div>
             </div>
             {aggregatedIssues.length === 0 ? (
-              <p className="rounded-xl border border-slate-200 bg-white p-5 text-sm text-slate-600">Aucun enjeu consolidé n’est encore disponible.</p>
+              <p className="rounded-xl border border-slate-200 bg-white p-5 text-sm text-slate-600">No consolidated concerns are available yet.</p>
             ) : (
               <div className="overflow-hidden rounded-xl border border-slate-200 bg-white">
                 <div className="overflow-x-auto">
                   <table className="w-full min-w-[760px] border-collapse text-left text-xs">
-                    <caption className="sr-only">Enjeux agrégés issus des différents agents d’ALi</caption>
+                    <caption className="sr-only">Concerns consolidated from ALi agents</caption>
                     <thead className="bg-[#eef3eb] text-[#315b4e]">
                       <tr>
-                        <th className="px-3 py-3 font-bold">Niveau</th>
-                        <th className="px-3 py-3 font-bold">Objet</th>
+                        <th className="px-3 py-3 font-bold">Level</th>
+                        <th className="px-3 py-3 font-bold">Subject</th>
                         <th className="px-3 py-3 font-bold">Agents</th>
-                        <th className="px-3 py-3 font-bold">Preuve documentaire</th>
-                        <th className="px-3 py-3 font-bold">Interprétation</th>
+                        <th className="px-3 py-3 font-bold">Documentary evidence</th>
+                        <th className="px-3 py-3 font-bold">Interpretation</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100">
@@ -2321,11 +2399,11 @@ ${shareUrl ? `\nReproduire cette analyse : ${shareUrl}` : ""}`;
                                 : issue.level === "Fort" ? "border-orange-300 bg-orange-50 text-orange-800"
                                   : issue.level === "Modéré" ? "border-amber-200 bg-amber-50 text-amber-800"
                                     : "border-slate-200 bg-slate-50 text-slate-600"
-                            }`}>{issue.level}</span>
+                            }`}>{ISSUE_LEVEL_LABEL[issue.level]}</span>
                           </td>
                           <td className="px-3 py-3">
                             <div className="font-semibold text-slate-800">{issue.subject}</div>
-                            <div className="mt-0.5 text-[10px] uppercase tracking-wide text-slate-400">{issue.category}</div>
+                            <div className="mt-0.5 text-[10px] uppercase tracking-wide text-slate-400">{ISSUE_CATEGORY_LABEL[issue.category]}</div>
                           </td>
                           <td className="px-3 py-3">
                             <div className="flex max-w-[190px] flex-wrap gap-1">
@@ -2340,12 +2418,17 @@ ${shareUrl ? `\nReproduire cette analyse : ${shareUrl}` : ""}`;
                   </table>
                 </div>
                 <p className="border-t border-slate-100 bg-slate-50 px-3 py-2 text-[10px] leading-relaxed text-slate-500">
-                  Ce tableau consolide des informations documentaires. Les présences potentielles et habitats cartographiés ne constituent pas des confirmations de terrain.
+                  This table consolidates desk-based information. Potential presence and mapped habitats are not field confirmations.
                 </p>
               </div>
             )}
           </section>
         )}
+        <div className="mt-5 rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-950" data-testid="results-expert-next-step">
+          <strong>Next step: discuss field surveys and validation.</strong>{" "}
+          <a href="https://natural-solutions.eu" target="_blank" rel="noopener noreferrer" className="font-semibold underline">Contact Natural Solutions experts</a>
+          {" "}to plan appropriate field surveys and review these desk-based findings. This does not guarantee regulatory completeness.
+        </div>
         </div>
          {historyDrawer}
 
@@ -2367,10 +2450,10 @@ ${shareUrl ? `\nReproduire cette analyse : ${shareUrl}` : ""}`;
               <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
                 <div className="flex items-center gap-2">
                   <Sparkles className="h-4 w-4 text-indigo-600" />
-                  <span className="text-sm font-bold text-gray-800">Assistant IA</span>
-                  <span className="text-[10px] text-gray-400">— analyse indicative à valider par un écologue</span>
+                  <span className="text-sm font-bold text-gray-800">AI assistant</span>
+                  <span className="text-[10px] text-gray-400">— indicative analysis requiring ecologist validation</span>
                 </div>
-                <Button ref={assistantCloseRef} variant="ghost" size="icon" onClick={() => setAssistantOpen(false)} className="h-8 w-8 rounded-full" data-testid="button-close-assistant" aria-label="Fermer l'assistant">
+                <Button ref={assistantCloseRef} variant="ghost" size="icon" onClick={() => setAssistantOpen(false)} className="h-8 w-8 rounded-full" data-testid="button-close-assistant" aria-label="Close assistant">
                   <X className="h-4 w-4" />
                 </Button>
               </div>
@@ -2378,7 +2461,7 @@ ${shareUrl ? `\nReproduire cette analyse : ${shareUrl}` : ""}`;
                 <div className="space-y-3">
                   <div>
                     <div className="text-[10px] font-bold uppercase tracking-wide text-gray-500 mb-1.5">
-                      Questions utiles pour cette vue
+                      Useful questions for this view
                     </div>
                     <ul className="space-y-1">
                       {assistantSuggestions.map((q, index) => (
@@ -2388,10 +2471,14 @@ ${shareUrl ? `\nReproduire cette analyse : ${shareUrl}` : ""}`;
                       ))}
                     </ul>
                     <p className="mt-1.5 text-[10px] text-gray-400 leading-snug">
-                       L'analyse ci-dessous répond à ces questions à partir des données documentaires disponibles. Pour une note rédigée, utilisez « Générer la Pré-étude documentaire biodiversité » puis « Reformuler ».
+                       The analysis below addresses these questions using available desk-based data. To obtain a written study, confirm AI generation in the biodiversity desk study dialog.
                     </p>
                   </div>
-                  <PrioritySpeciesInline
+                  {results.coverage?.frenchSources !== true ? (
+                    <p className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900" role="status">
+                      {regionalSourcesUnavailable ? "France-only specialist analysis is outside source coverage here." : "French country coverage has not been verified; specialist sources have not been consulted."} No regional species or habitat conclusion can be drawn; consult locally applicable sources and an ecologist.
+                    </p>
+                  ) : <PrioritySpeciesInline
                     toponym={toponym || `Point ${results.center[0].toFixed(4)}, ${results.center[1].toFixed(4)}`}
                     coords={results.center}
                     occurrences={allFilteredSpecies}
@@ -2399,7 +2486,7 @@ ${shareUrl ? `\nReproduire cette analyse : ${shareUrl}` : ""}`;
                     onAnalysisChange={setAiAnalysis}
                     initialAnalysis={aiAnalysis}
                     autoStart={assistantOpen && habitatConsultationState !== "loading"}
-                  />
+                  />}
                 </div>
               </ScrollArea>
             </motion.div>
@@ -2413,18 +2500,18 @@ ${shareUrl ? `\nReproduire cette analyse : ${shareUrl}` : ""}`;
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <FileText className="h-5 w-5" />
-              {reformattedReport ? "Pré-étude biodiversité rédigée" : "Préparer la pré-étude biodiversité"}
+              {reformattedReport ? "Written biodiversity desk study" : "Prepare biodiversity desk study"}
             </DialogTitle>
             <DialogDescription>
               {reformattedReport
-                ? "Document complet rédigé par l’IA à partir des résultats et des consignes enregistrées dans le Harnais."
-                : "Les résultats sources sont prêts. Confirmez la génération IA pour obtenir une étude structurée et rédigée."}
+                ? "Complete document written by AI from the results and instructions saved in the Harness."
+                : "Source results are ready. Explicitly confirm AI generation to create a structured written study."}
             </DialogDescription>
           </DialogHeader>
           {reformattedReport && (
             <div className="mt-3 flex items-center gap-2 text-xs text-teal-700 bg-teal-50 border border-teal-200 px-3 py-1.5 rounded-md">
               <Sparkles className="h-3.5 w-3.5" />
-              <span className="font-medium">Pré-étude documentaire biodiversité structurée par le harnais d’ALi</span>
+              <span className="font-medium">Biodiversity desk study structured by the ALi harness</span>
               <button
                 type="button"
                 onClick={() => {
@@ -2434,28 +2521,28 @@ ${shareUrl ? `\nReproduire cette analyse : ${shareUrl}` : ""}`;
                 className="ml-auto text-[11px] text-teal-700 hover:underline"
                 data-testid="button-revert-report"
               >
-                Revenir au brut
+                Return to source results
               </button>
             </div>
           )}
           {reformattedReport && reportPromptTrace && (
             <p className="mt-1 text-[11px] text-[#557067]" data-testid="report-prompt-trace">
-              Généré avec le prompt système enregistré ({reportPromptTrace.systemCharacters.toLocaleString("fr-FR")} caractères,
-              empreinte {reportPromptTrace.systemFingerprint}) et le contexte de cette étude
-              ({reportPromptTrace.userCharacters.toLocaleString("fr-FR")} caractères).
+              Generated with the saved system prompt ({reportPromptTrace.systemCharacters.toLocaleString("en-GB")} characters,
+              fingerprint {reportPromptTrace.systemFingerprint}) and this study's context
+              ({reportPromptTrace.userCharacters.toLocaleString("en-GB")} characters).
             </p>
           )}
           {reformatError && (
             <div className="mt-3 flex items-center gap-2 text-xs text-red-700 bg-red-50 border border-red-200 px-3 py-2 rounded-md" role="alert">
               <span className="flex-1">{reformatError}</span>
-              <button type="button" onClick={() => void handleReformatReport()} className="rounded border border-red-300 px-2 py-1 font-semibold">Réessayer</button>
+              <button type="button" onClick={() => void handleReformatReport()} className="rounded border border-red-300 px-2 py-1 font-semibold">Retry</button>
             </div>
           )}
-          {reformatting && <p className="mt-3 text-xs text-teal-700" role="status" aria-live="polite">Génération de la Pré-étude documentaire biodiversité en cours…</p>}
+          {reformatting && <p className="mt-3 text-xs text-teal-700" role="status" aria-live="polite">Generating biodiversity desk study…</p>}
           <div className="mt-3 rounded-lg border border-[#d9e1d6] bg-[#f4f6f1] px-4 py-3 text-xs text-[#52675f]">
             {reformattedReport
-              ? "L’aperçu est abrégé pour faciliter la lecture. Le téléchargement contient l’intégralité de la pré-étude rédigée, ses résultats détaillés, ses sources et ses limites."
-              : "Aperçu des résultats sources : ce contenu n’est pas encore la pré-étude rédigée. Aucun document présenté comme étude complète ne peut être téléchargé avant la génération IA."}
+              ? "The preview is shortened for readability. The download contains the complete written study, detailed results, sources and limitations."
+              : "Preview of source results: this is not yet the written study. No document presented as a complete study can be downloaded before AI generation."}
           </div>
           <ScrollArea className="flex-1 mt-3 h-[42vh] overflow-auto">
             {reformattedReport ? (
@@ -2465,13 +2552,13 @@ ${shareUrl ? `\nReproduire cette analyse : ${shareUrl}` : ""}`;
             ) : aggregatedIssues.length > 0 ? (
               <div className="overflow-x-auto rounded-lg border border-slate-200 bg-white" data-testid="study-source-issues-table">
                 <table className="w-full min-w-[700px] border-collapse text-left text-xs">
-                  <caption className="sr-only">Tableau des enjeux utilisé comme base de la pré-étude</caption>
+                  <caption className="sr-only">Concerns table used as a basis for the desk study</caption>
                   <thead className="bg-[#eef3eb] text-[#315b4e]">
                     <tr>
-                      <th className="px-3 py-2.5 font-bold">Niveau</th>
-                      <th className="px-3 py-2.5 font-bold">Objet</th>
+                      <th className="px-3 py-2.5 font-bold">Level</th>
+                      <th className="px-3 py-2.5 font-bold">Subject</th>
                       <th className="px-3 py-2.5 font-bold">Agents</th>
-                      <th className="px-3 py-2.5 font-bold">Preuve et interprétation</th>
+                      <th className="px-3 py-2.5 font-bold">Evidence and interpretation</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
@@ -2483,11 +2570,11 @@ ${shareUrl ? `\nReproduire cette analyse : ${shareUrl}` : ""}`;
                               : issue.level === "Fort" ? "border-orange-300 bg-orange-50 text-orange-800"
                                 : issue.level === "Modéré" ? "border-amber-200 bg-amber-50 text-amber-800"
                                   : "border-slate-200 bg-slate-50 text-slate-600"
-                          }`}>{issue.level}</span>
+                          }`}>{ISSUE_LEVEL_LABEL[issue.level]}</span>
                         </td>
                         <td className="px-3 py-3">
                           <div className="font-semibold text-slate-800">{issue.subject}</div>
-                          <div className="mt-0.5 text-[10px] uppercase tracking-wide text-slate-400">{issue.category}</div>
+                          <div className="mt-0.5 text-[10px] uppercase tracking-wide text-slate-400">{ISSUE_CATEGORY_LABEL[issue.category]}</div>
                         </td>
                         <td className="px-3 py-3 text-slate-600">{issue.agents.join(" · ")}</td>
                         <td className="max-w-[360px] px-3 py-3 leading-relaxed text-slate-600">
@@ -2501,19 +2588,19 @@ ${shareUrl ? `\nReproduire cette analyse : ${shareUrl}` : ""}`;
               </div>
             ) : (
               <p className="rounded-lg border border-slate-200 bg-slate-50 p-4 text-sm text-slate-600">
-                Aucun enjeu consolidé n’est disponible pour préparer la pré-étude.
+                No consolidated concerns are available to prepare the desk study.
               </p>
             )}
           </ScrollArea>
           <div className="flex flex-wrap justify-between items-center gap-2 mt-4 pt-4 border-t">
             <Button variant="ghost" onClick={() => setShowReportPreview(false)} className="text-gray-500">
-              Fermer
+              Close
             </Button>
             <div className="flex flex-wrap gap-2">
               {!reformattedReport && (
                 <div className="flex flex-col items-end gap-1">
                   <p className="max-w-md text-right text-[11px] leading-relaxed text-amber-700">
-                    Cette génération appelle le modèle d’IA et consomme des jetons. Elle ne démarre qu’après votre confirmation.
+                    Generation calls an AI model and consumes tokens. It starts only after your confirmation.
                   </p>
                   <Button
                     variant="outline"
@@ -2523,7 +2610,7 @@ ${shareUrl ? `\nReproduire cette analyse : ${shareUrl}` : ""}`;
                     data-testid="button-reformat-report"
                   >
                     {reformatting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
-                    {reformatting ? "Génération de la Pré-étude documentaire biodiversité…" : "Confirmer et générer avec l’IA"}
+                    {reformatting ? "Generating biodiversity desk study…" : "Confirm and generate with AI"}
                   </Button>
                 </div>
               )}
@@ -2535,7 +2622,7 @@ ${shareUrl ? `\nReproduire cette analyse : ${shareUrl}` : ""}`;
                     data-testid="button-download-word-report"
                   >
                     <Download className="h-4 w-4" />
-                    Télécharger la pré-étude rédigée (.doc)
+                    Download written study (.doc)
                   </Button>
                   <Button variant="outline" onClick={handleEmailReport} className="gap-2" data-testid="button-email-report">
                     <Mail className="h-4 w-4" />
@@ -2543,7 +2630,7 @@ ${shareUrl ? `\nReproduire cette analyse : ${shareUrl}` : ""}`;
                   </Button>
                   <Button variant="outline" onClick={handleCopyReport} className="gap-2" data-testid="button-copy-report">
                     {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
-                    {copied ? "Copié !" : "Copier"}
+                    {copied ? "Copied!" : "Copy"}
                   </Button>
                   <Button
                     onClick={handleShareReport}
@@ -2552,7 +2639,7 @@ ${shareUrl ? `\nReproduire cette analyse : ${shareUrl}` : ""}`;
                     data-testid="button-share-report"
                   >
                     <Share2 className="h-4 w-4" />
-                    Partager
+                    Share
                   </Button>
                 </>
               )}
@@ -2581,7 +2668,7 @@ function RiskScoreCard({ score, label, tone, factors }: { score: number; label: 
     <div className={`rounded-xl border p-4 ${s.bg} ${s.border}`} data-testid="panel-risk-score">
       <div className="flex items-center gap-2 mb-3">
         <Gauge className={`h-5 w-5 ${s.text}`} />
-        <span className={`font-bold text-sm ${s.text}`}>Potentiel d'enjeux écologiques</span>
+        <span className={`font-bold text-sm ${s.text}`}>Potential ecological concerns</span>
       </div>
       <div className="flex items-center gap-4">
         <div className="relative shrink-0" style={{ width: 76, height: 76 }}>
@@ -2598,12 +2685,12 @@ function RiskScoreCard({ score, label, tone, factors }: { score: number; label: 
             <Icon className="h-3.5 w-3.5" /> {label}
           </span>
           <p className="text-[10px] text-gray-500 mt-1.5 leading-snug">
-             Indice synthétique automatisé, présenté en complément des preuves documentées et des indisponibilités.
+             Automated summary index shown alongside documented evidence and unavailable data.
           </p>
         </div>
       </div>
       <p className="mt-3 text-[10px] text-gray-500 leading-snug border-t border-gray-200/60 pt-2" data-testid="text-risk-disclaimer">
-        Le risque biodiversité ne peut être calculé qu'en croisant les enjeux écologiques avec les caractéristiques et les pressions du projet.
+        Biodiversity risk can only be assessed by considering ecological concerns together with the project's characteristics and pressures.
       </p>
       {factors.length > 0 && (
         <ul className="mt-3 space-y-1" data-testid="list-risk-factors">
@@ -2620,11 +2707,11 @@ function RiskScoreCard({ score, label, tone, factors }: { score: number; label: 
 }
 
 const ENJEU_LEVEL_BADGE: Record<string, { label: string; color: string }> = {
-  critique:    { label: "Critique",    color: "bg-red-100 text-red-700 border-red-200" },
-  fort:        { label: "Fort",        color: "bg-orange-100 text-orange-700 border-orange-200" },
-  modere:      { label: "Modéré",      color: "bg-amber-100 text-amber-700 border-amber-200" },
-  a_confirmer: { label: "À confirmer", color: "bg-sky-100 text-sky-700 border-sky-200" },
-  faible:      { label: "Faible",      color: "bg-green-100 text-green-700 border-green-200" },
+  critique:    { label: "Critical",    color: "bg-red-100 text-red-700 border-red-200" },
+  fort:        { label: "High",        color: "bg-orange-100 text-orange-700 border-orange-200" },
+  modere:      { label: "Moderate",      color: "bg-amber-100 text-amber-700 border-amber-200" },
+  a_confirmer: { label: "To confirm", color: "bg-sky-100 text-sky-700 border-sky-200" },
+  faible:      { label: "Low",      color: "bg-green-100 text-green-700 border-green-200" },
 };
 
 const SPECIES_TABLE_FRAME =
@@ -2651,7 +2738,7 @@ export function SpeciesInventoryTable({ species, selectedSpecies, onSelectSpecie
           const useFrench = sortMode === "french" || (sortMode === "recommended" && vertebrates.has(group.id));
           const aName = useFrench ? (a.vernacularName || a.scientificName) : a.scientificName;
           const bName = useFrench ? (b.vernacularName || b.scientificName) : b.scientificName;
-          return aName.localeCompare(bName, "fr", { sensitivity: "base" });
+          return aName.localeCompare(bName, "en", { sensitivity: "base" });
         });
       return { group, rows };
     }).filter(({ rows }) => rows.length > 0);
@@ -2675,15 +2762,15 @@ export function SpeciesInventoryTable({ species, selectedSpecies, onSelectSpecie
       </div>
       <div className="hidden overflow-x-auto md:block">
         <table className={SPECIES_TABLE} data-testid="species-inventory-table">
-          <caption className="sr-only">Inventaire des espèces : taxon, groupe, enjeu, statuts et dernière observation</caption>
+          <caption className="sr-only">Species inventory: taxon, group, concern, status and last observation</caption>
           <thead className={SPECIES_TABLE_HEAD}>
             <tr>
               <th scope="col" className="w-[36%] px-3 py-2.5">Taxon</th>
-              <th scope="col" className="px-2 py-2.5">Groupe</th>
-              <th scope="col" className="px-2 py-2.5">Enjeu</th>
-              <th scope="col" className="px-2 py-2.5">Statut</th>
-              <th scope="col" className="px-2 py-2.5 text-right">Données</th>
-              <th scope="col" className="w-8 px-2 py-2.5"><span className="sr-only">Détails</span></th>
+              <th scope="col" className="px-2 py-2.5">Group</th>
+              <th scope="col" className="px-2 py-2.5">Concern</th>
+              <th scope="col" className="px-2 py-2.5">Status</th>
+              <th scope="col" className="px-2 py-2.5 text-right">Records</th>
+              <th scope="col" className="w-8 px-2 py-2.5"><span className="sr-only">Details</span></th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
@@ -2735,13 +2822,13 @@ function SpeciesInventoryCard({ occ, selected, onSelect, centerCoords }: { occ: 
           {selected ? <ChevronUp className="h-4 w-4 shrink-0 text-teal-700" /> : <ChevronDown className="h-4 w-4 shrink-0 text-slate-400" />}
         </span>
         <span className="mt-2 grid grid-cols-2 gap-x-3 gap-y-2">
-          <span><span className="block text-[9px] font-bold uppercase tracking-wide text-slate-400">Groupe</span><span className="text-[10px] font-medium text-slate-600">{group?.label || "Autres"}</span></span>
-          <span><span className="block text-[9px] font-bold uppercase tracking-wide text-slate-400">Enjeu</span><span className={`inline-flex rounded border px-1.5 py-0.5 text-[9px] font-bold ${enjeuBadge?.color || patri.color}`}>{enjeuBadge?.label || `~${patri.label}`}</span></span>
-          <span><span className="block text-[9px] font-bold uppercase tracking-wide text-slate-400">Statut</span><span className="text-[10px] font-semibold text-slate-600">{getPreferredTerritorialRedList(occ.aliStatuses)?.value || (isPlantTaxon(occ) ? "À confirmer" : getIucnLabel(occ.iucnStatus))}{occ.frenchProtected && <Shield className="ml-1 inline h-3 w-3 text-amber-600" aria-label="Groupe protégé en France" />}</span></span>
-          <span><span className="block text-[9px] font-bold uppercase tracking-wide text-slate-400">Données</span><span className="text-[10px] tabular-nums text-slate-500">{occ.lastObservationYear || "—"}<span className="ml-1 text-slate-300">{occ.observationCount ? `×${occ.observationCount}` : ""}</span></span></span>
+          <span><span className="block text-[9px] font-bold uppercase tracking-wide text-slate-400">Group</span><span className="text-[10px] font-medium text-slate-600">{group?.label || "Other"}</span></span>
+          <span><span className="block text-[9px] font-bold uppercase tracking-wide text-slate-400">Concern</span><span className={`inline-flex rounded border px-1.5 py-0.5 text-[9px] font-bold ${enjeuBadge?.color || patri.color}`}>{enjeuBadge?.label || `~${patri.label}`}</span></span>
+          <span><span className="block text-[9px] font-bold uppercase tracking-wide text-slate-400">Status</span><span className="text-[10px] font-semibold text-slate-600">{getPreferredTerritorialRedList(occ.aliStatuses)?.value || (isPlantTaxon(occ) ? "To confirm" : getIucnLabel(occ.iucnStatus))}{occ.frenchProtected && <Shield className="ml-1 inline h-3 w-3 text-amber-600" aria-label="Protected group in France" />}</span></span>
+          <span><span className="block text-[9px] font-bold uppercase tracking-wide text-slate-400">Records</span><span className="text-[10px] tabular-nums text-slate-500">{occ.lastObservationYear || "—"}<span className="ml-1 text-slate-300">{occ.observationCount ? `×${occ.observationCount}` : ""}</span></span></span>
         </span>
       </button>
-      {selected && <div className="px-3 pb-3"><div className="border-l-2 border-teal-500 pl-2"><SpeciesCard occ={occ} isSelected onSelect={onSelect} centerCoords={centerCoords} /><div className="mt-2 flex gap-1.5 text-[11px] text-slate-600" data-testid={`action-${occ.scientificName}`}><ClipboardList className="mt-0.5 h-3 w-3 shrink-0 text-teal-700" /><span><strong>Action recommandée :</strong> {occ.isInvasive ? "Espèce exotique envahissante : prévoir une gestion/limitation, sans valeur patrimoniale de conservation." : occ.enjeuLevel === "a_confirmer" ? `Groupe protégé — statut national non vérifié : ${recommendedAction(getTaxonGroupId(occ))} Comparer avec les listes TAXREF régionales.` : recommendedAction(getTaxonGroupId(occ))}</span></div></div></div>}
+      {selected && <div className="px-3 pb-3"><div className="border-l-2 border-teal-500 pl-2"><SpeciesCard occ={occ} isSelected onSelect={onSelect} centerCoords={centerCoords} /><div className="mt-2 flex gap-1.5 text-[11px] text-slate-600" data-testid={`action-${occ.scientificName}`}><ClipboardList className="mt-0.5 h-3 w-3 shrink-0 text-teal-700" /><span><strong>Recommended action:</strong> {occ.isInvasive ? "Invasive alien species: plan management or containment; not a conservation designation." : occ.enjeuLevel === "a_confirmer" ? `Protected group — national status unverified: ${recommendedAction(getTaxonGroupId(occ))} Compare against regional TAXREF lists.` : recommendedAction(getTaxonGroupId(occ))}</span></div></div></div>}
     </article>
   );
 }
@@ -2764,13 +2851,13 @@ function SpeciesTableRow({ occ, selected, onSelect, centerCoords }: { occ: Occur
             {occ.englishName && <span className="block truncate text-[10px] text-slate-500">EN · {occ.englishName}</span>}
           </button>
         </td>
-        <td className="px-2 py-2.5 text-[10px] font-medium text-slate-600">{group?.label || "Autres"}</td>
-        <td className="px-2 py-2.5"><span className={`inline-flex rounded border px-1.5 py-0.5 text-[9px] font-bold ${enjeuBadge?.color || patri.color}`} title={enjeuBadge ? "Enjeu fondé sur les statuts territoriaux (ALI/TAXREF)" : "Patrimonialité estimée (heuristique)"}>{enjeuBadge?.label || `~${patri.label}`}</span></td>
-        <td className="px-2 py-2.5"><span className="text-[10px] font-semibold text-slate-600" title={getPreferredTerritorialRedList(occ.aliStatuses)?.label || (isPlantTaxon(occ) ? "Statut régional, national ou européen à confirmer" : getIucnFullLabel(occ.iucnStatus))}>{getPreferredTerritorialRedList(occ.aliStatuses)?.value || (isPlantTaxon(occ) ? "À confirmer" : getIucnLabel(occ.iucnStatus))}</span>{occ.frenchProtected && <Shield className="ml-1 inline h-3 w-3 text-amber-600" aria-label="Groupe protégé en France" />}</td>
+        <td className="px-2 py-2.5 text-[10px] font-medium text-slate-600">{group?.label || "Other"}</td>
+        <td className="px-2 py-2.5"><span className={`inline-flex rounded border px-1.5 py-0.5 text-[9px] font-bold ${enjeuBadge?.color || patri.color}`} title={enjeuBadge ? "Concern based on territorial statuses (ALI/TAXREF)" : "Estimated conservation value (heuristic)"}>{enjeuBadge?.label || `~${patri.label}`}</span></td>
+        <td className="px-2 py-2.5"><span className="text-[10px] font-semibold text-slate-600" title={getPreferredTerritorialRedList(occ.aliStatuses)?.label || (isPlantTaxon(occ) ? "Regional, national or European status to confirm" : getIucnFullLabel(occ.iucnStatus))}>{getPreferredTerritorialRedList(occ.aliStatuses)?.value || (isPlantTaxon(occ) ? "To confirm" : getIucnLabel(occ.iucnStatus))}</span>{occ.frenchProtected && <Shield className="ml-1 inline h-3 w-3 text-amber-600" aria-label="Protected group in France" />}</td>
         <td className="px-2 py-2.5 text-right text-[10px] tabular-nums text-slate-500">{occ.lastObservationYear || "—"}<span className="ml-1 text-slate-300">{occ.observationCount ? `×${occ.observationCount}` : ""}</span></td>
-        <td className="px-2 py-2.5"><button type="button" onClick={onSelect} aria-expanded={selected} aria-label={`${selected ? "Masquer" : "Afficher"} les détails de ${occ.scientificName}`} className="rounded p-1 text-slate-400 transition-colors hover:bg-teal-100 hover:text-teal-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500">{selected ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}</button></td>
+        <td className="px-2 py-2.5"><button type="button" onClick={onSelect} aria-expanded={selected} aria-label={`${selected ? "Hide" : "Show"} details for ${occ.scientificName}`} className="rounded p-1 text-slate-400 transition-colors hover:bg-teal-100 hover:text-teal-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500">{selected ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}</button></td>
       </tr>
-      {selected && <tr className="bg-teal-50/50"><td colSpan={6} className="px-3 pb-3"><div className="border-l-2 border-teal-500 pl-3"><SpeciesCard occ={occ} isSelected onSelect={onSelect} centerCoords={centerCoords} /><div className="mt-2 flex gap-1.5 text-[11px] text-slate-600" data-testid={`action-${occ.scientificName}`}><ClipboardList className="mt-0.5 h-3 w-3 shrink-0 text-teal-700" /><span><strong>Action recommandée :</strong> {occ.isInvasive ? "Espèce exotique envahissante : prévoir une gestion/limitation, sans valeur patrimoniale de conservation." : occ.enjeuLevel === "a_confirmer" ? `Groupe protégé — statut national non vérifié : ${recommendedAction(getTaxonGroupId(occ))} Comparer avec les listes TAXREF régionales.` : recommendedAction(getTaxonGroupId(occ))}</span></div></div></td></tr>}
+      {selected && <tr className="bg-teal-50/50"><td colSpan={6} className="px-3 pb-3"><div className="border-l-2 border-teal-500 pl-3"><SpeciesCard occ={occ} isSelected onSelect={onSelect} centerCoords={centerCoords} /><div className="mt-2 flex gap-1.5 text-[11px] text-slate-600" data-testid={`action-${occ.scientificName}`}><ClipboardList className="mt-0.5 h-3 w-3 shrink-0 text-teal-700" /><span><strong>Recommended action:</strong> {occ.isInvasive ? "Invasive alien species: plan management or containment; not a conservation designation." : occ.enjeuLevel === "a_confirmer" ? `Protected group — national status unverified: ${recommendedAction(getTaxonGroupId(occ))} Compare against regional TAXREF lists.` : recommendedAction(getTaxonGroupId(occ))}</span></div></div></td></tr>}
     </>
   );
 }
@@ -2794,7 +2881,7 @@ function SpeciesCard({ occ, isSelected, onSelect, centerCoords }: { occ: Occurre
   const distKm = centerCoords
     ? haversineKm(centerCoords[0], centerCoords[1], occ.decimalLatitude, occ.decimalLongitude)
     : undefined;
-  const wikiUrl = `https://fr.wikipedia.org/wiki/${encodeURIComponent(occ.scientificName.split(' ').slice(0, 2).join('_'))}`;
+  const wikiUrl = `https://en.wikipedia.org/wiki/${encodeURIComponent(occ.scientificName.split(' ').slice(0, 2).join('_'))}`;
   const aliUrl = occ.cdNom
     ? `https://alispecies.io/taxon/${occ.cdNom}`
     : `/api/ali/redirect?q=${encodeURIComponent(occ.scientificName.split(' ').slice(0, 2).join(' '))}`;
@@ -2833,7 +2920,7 @@ function SpeciesCard({ occ, isSelected, onSelect, centerCoords }: { occ: Occurre
               rel="noopener noreferrer"
               onClick={(e) => e.stopPropagation()}
               className="flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded text-teal-700 hover:bg-teal-50 hover:text-teal-800 transition-colors"
-              title="Ouvrir la fiche sur ALI Species (référentiel français)"
+              title="Open listing on ALI Species (French reference source)"
               data-testid={`link-ali-${occ.scientificName}`}
             >
               <span>ALI Species</span>
@@ -2844,8 +2931,8 @@ function SpeciesCard({ occ, isSelected, onSelect, centerCoords }: { occ: Occurre
               target="_blank"
               rel="noopener noreferrer"
               className="flex items-center justify-center text-xs w-6 h-6 rounded text-gray-500 hover:bg-gray-100 hover:text-gray-700 transition-colors"
-              title="Voir sur Wikipédia"
-               aria-label={`Ouvrir la page Wikipédia de ${occ.scientificName}`}
+              title="View on Wikipedia"
+               aria-label={`Open Wikipedia page for ${occ.scientificName}`}
               onClick={(e) => e.stopPropagation()}
             >
               <BookOpen className="h-3.5 w-3.5" />
@@ -2856,8 +2943,8 @@ function SpeciesCard({ occ, isSelected, onSelect, centerCoords }: { occ: Occurre
                 target="_blank"
                 rel="noopener noreferrer"
                 className="flex items-center justify-center text-xs w-6 h-6 rounded text-gray-500 hover:bg-gray-100 hover:text-gray-700 transition-colors"
-                title="Voir sur GBIF"
-                 aria-label={`Ouvrir la fiche GBIF de ${occ.scientificName}`}
+                title="View on GBIF"
+                 aria-label={`Open GBIF listing for ${occ.scientificName}`}
                 onClick={(e) => e.stopPropagation()}
               >
                 <ExternalLink className="h-3.5 w-3.5" />
@@ -2868,8 +2955,8 @@ function SpeciesCard({ occ, isSelected, onSelect, centerCoords }: { occ: Occurre
               target="_blank"
               rel="noopener noreferrer"
               className="flex items-center justify-center text-xs w-6 h-6 rounded text-gray-500 hover:bg-gray-100 hover:text-gray-700 transition-colors"
-              title="Voir sur iNaturalist"
-               aria-label={`Ouvrir la recherche iNaturalist pour ${occ.scientificName}`}
+              title="View on iNaturalist"
+               aria-label={`Search iNaturalist for ${occ.scientificName}`}
               onClick={(e) => e.stopPropagation()}
               data-testid={`link-inat-${occ.scientificName}`}
             >
@@ -2878,7 +2965,7 @@ function SpeciesCard({ occ, isSelected, onSelect, centerCoords }: { occ: Occurre
           </div>
         </div>
         <div className="text-xs text-muted-foreground italic truncate">
-          {occ.vernacularName || "Nom vernaculaire N/A"}
+          {occ.vernacularName || "Common name unavailable"}
         </div>
         <div className="mt-1.5 flex flex-wrap gap-1">
           {/* Statuts territoriaux ALI (liste rouge régionale/nationale, protection…) */}
@@ -2904,7 +2991,7 @@ function SpeciesCard({ occ, isSelected, onSelect, centerCoords }: { occ: Occurre
           {(!isPlantTaxon(occ) || !!getPreferredTerritorialRedList(occ.aliStatuses)) && <StatusBadge status={occ.iucnStatus} />}
           {isPlantTaxon(occ) && !getPreferredTerritorialRedList(occ.aliStatuses) && (
             <span className="rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-[10px] font-medium text-slate-600">
-              Statut territorial à confirmer
+              Territorial status to confirm
             </span>
           )}
           {/* Badge patrimonialité (heuristique, si pas de données ALI ou tableau vide) */}
@@ -2914,27 +3001,27 @@ function SpeciesCard({ occ, isSelected, onSelect, centerCoords }: { occ: Occurre
               <span
                 className={`text-[10px] font-medium px-2 py-0.5 rounded-full border ${patri.color}`}
                 title={occ.isInvasive
-                  ? "Espèce exotique envahissante (EEE) : sans valeur patrimoniale de conservation."
-                  : "Patrimonialité estimée (heuristique — statut national non vérifié)"}
+                  ? "Invasive alien species: not a conservation status."
+                  : "Estimated conservation value (heuristic — national status unverified)"}
                 data-testid={`badge-patrimonialite-${occ.scientificName}`}
               >
-                {occ.isInvasive ? patri.label : `~Patri. ${patri.label}`}
+                {occ.isInvasive ? patri.label : `~Conservation ${patri.label}`}
               </span>
             );
           })()}
           {occ.frenchProtected && (!occ.aliStatuses || occ.aliStatuses.length === 0) && (
             <span
               className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-orange-100 text-orange-700 border border-orange-200"
-              title="Groupe protégé en France (heuristique — statut national à vérifier par inventaire)"
+              title="Protected group in France (heuristic — verify national status by survey)"
               data-testid={`badge-french-protected-${occ.scientificName}`}
             >
-                Groupe protégé
+                Protected group
             </span>
           )}
           {/* Habitat */}
           {occ.habitatType === "marine" && (
             <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-blue-50 text-blue-600 border border-blue-200">
-              Marin
+              Marine
             </span>
           )}
           {taxonGroup && (
@@ -2961,22 +3048,22 @@ function SpeciesCard({ occ, isSelected, onSelect, centerCoords }: { occ: Occurre
         {/* Métadonnées d'observation */}
         <div className="mt-2 pt-2 border-t border-gray-100/80 flex flex-wrap gap-x-3 gap-y-0.5 text-[10px] text-gray-400">
           {distKm !== undefined && (
-            <span className="flex items-center gap-0.5" title="Distance approximative depuis le centre de l'aire d'étude">
+            <span className="flex items-center gap-0.5" title="Approximate distance from study area centre">
               <MapPin className="h-2.5 w-2.5 shrink-0" /> {fmtDist(distKm)}
             </span>
           )}
           {occ.lastObservationYear && (
-            <span className="flex items-center gap-0.5" title="Année de la dernière observation">
+            <span className="flex items-center gap-0.5" title="Year of last observation">
               <Calendar className="h-2.5 w-2.5 shrink-0" /> {occ.lastObservationYear}
             </span>
           )}
           {occ.observationCount != null && occ.observationCount > 0 && (
-            <span title={`${occ.observationCount} occurrence${occ.observationCount > 1 ? "s" : ""} dans l'aire`}>
+            <span title={`${occ.observationCount} occurrence${occ.observationCount > 1 ? "s" : ""} in the area`}>
               ×{occ.observationCount} obs.
             </span>
           )}
           {occ.source && (
-            <span className="uppercase tracking-wide font-mono text-[9px]" title={occ.source === "inaturalist" ? "iNaturalist — science participative" : "GBIF — agrégateur institutionnel"}>
+            <span className="uppercase tracking-wide font-mono text-[9px]" title={occ.source === "inaturalist" ? "iNaturalist — citizen science" : "GBIF — institutional aggregator"}>
               {occ.source === "inaturalist" ? "iNat" : "GBIF"}
             </span>
           )}
@@ -3020,7 +3107,7 @@ function StatusBadge({ status }: { status: string | undefined }) {
       className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${getStatusStyle()}`}
       title={getIucnFullLabel(status)}
     >
-      {label}{status ? " · mondiale" : ""}
+      {label}{status ? " · global" : ""}
     </span>
   );
 }
@@ -3044,10 +3131,10 @@ function safeHttpUrl(raw: string | null): string | null {
 
 
 const GRADE_STYLES: Record<string, { badge: string; label: string }> = {
-  A: { badge: "bg-red-100 text-red-700", label: "Population majeure (grade A)" },
-  B: { badge: "bg-orange-100 text-orange-700", label: "Population importante (grade B)" },
-  C: { badge: "bg-amber-100 text-amber-700", label: "Population significative (grade C)" },
-  D: { badge: "bg-gray-100 text-gray-500", label: "Présence non significative (grade D)" },
+  A: { badge: "bg-red-100 text-red-700", label: "Major population (grade A)" },
+  B: { badge: "bg-orange-100 text-orange-700", label: "Important population (grade B)" },
+  C: { badge: "bg-amber-100 text-amber-700", label: "Significant population (grade C)" },
+  D: { badge: "bg-gray-100 text-gray-500", label: "Non-significant presence (grade D)" },
 };
 
 function NaturaSpeciesList({ code, index }: { code: string; index: number }) {
@@ -3082,18 +3169,18 @@ function NaturaSpeciesList({ code, index }: { code: string; index: number }) {
         data-testid={`button-natura-species-${index}`}
       >
         {expanded ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
-        Espèces justifiant le classement (grade A/B/C/D)
+        Species supporting designation (grades A/B/C/D)
       </button>
       {expanded && (
         <div className="mt-1 pl-4 border-l border-emerald-200" data-testid={`list-natura-species-${index}`}>
           {loading && (
             <div className="flex items-center gap-1.5 text-[11px] text-emerald-600 py-1">
-              <Loader2 className="h-3 w-3 animate-spin" /> Chargement des espèces…
+              <Loader2 className="h-3 w-3 animate-spin" /> Loading species…
             </div>
           )}
-          {error && <p className="text-[11px] text-red-600 py-1" role="alert">Espèces indisponibles pour ce site.</p>}
+          {error && <p className="text-[11px] text-red-600 py-1" role="alert">Species unavailable for this site.</p>}
           {loaded && !error && species.length === 0 && (
-            <p className="text-[11px] text-gray-400 py-1">Aucune espèce désignatrice (grade A/B/C/D) référencée.</p>
+            <p className="text-[11px] text-gray-400 py-1">No designating species (grade A/B/C/D) referenced.</p>
           )}
           {loaded && species.length > 0 && (
             <ul className="space-y-0.5 py-1">
@@ -3167,19 +3254,19 @@ function PotentialSpeciesRow({
           </button>
         </td>
         <td className="px-2 py-2.5 text-[10px] font-medium text-slate-600">{SPECIES_GROUP_FR[item.speciesGroup] ?? item.speciesGroup}</td>
-        <td className="px-2 py-2.5"><span className={`inline-flex rounded border px-1.5 py-0.5 text-[9px] font-bold ${style.badge}`}>{item.status}</span></td>
-        <td className="px-2 py-2.5">{item.observed ? <span className="inline-flex rounded border border-teal-200 bg-teal-50 px-1.5 py-0.5 text-[9px] font-bold text-teal-800">Occurrence publique documentée</span> : <span className="text-[10px] font-semibold text-slate-600">Potentielle</span>}</td>
+        <td className="px-2 py-2.5"><span className={`inline-flex rounded border px-1.5 py-0.5 text-[9px] font-bold ${style.badge}`}>{POTENTIAL_STATUS_LABEL[item.status]}</span></td>
+        <td className="px-2 py-2.5">{item.observed ? <span className="inline-flex rounded border border-teal-200 bg-teal-50 px-1.5 py-0.5 text-[9px] font-bold text-teal-800">Documented public occurrence</span> : <span className="text-[10px] font-semibold text-slate-600">Potential</span>}</td>
         <td className="px-2 py-2.5">
           <div className="flex items-center justify-end gap-1.5">
-            <div className="h-1.5 w-12 overflow-hidden rounded-full bg-slate-100" role="meter" aria-label={`Score de compatibilité de ${item.scientificName}`} aria-valuemin={0} aria-valuemax={100} aria-valuenow={item.score ?? undefined} aria-valuetext={item.score === null ? "Non évalué" : `${item.score} sur 100`}>
+            <div className="h-1.5 w-12 overflow-hidden rounded-full bg-slate-100" role="meter" aria-label={`Suitability score for ${item.scientificName}`} aria-valuemin={0} aria-valuemax={100} aria-valuenow={item.score ?? undefined} aria-valuetext={item.score === null ? "Not assessed" : `${item.score} out of 100`}>
               <div className={`h-full rounded-full ${style.bar}`} style={{ width: `${item.score ?? 0}%` }} />
             </div>
             <span className="text-[10px] font-bold tabular-nums text-slate-700">{item.score === null ? "—" : item.score}</span>
-            <span className="text-[9px] text-slate-400" title={`Confiance ${item.confidence}`}>{item.confidence.slice(0, 1)}</span>
+            <span className="text-[9px] text-slate-400" title={`Confidence: ${POTENTIAL_CONFIDENCE_LABEL[item.confidence]}`}>{POTENTIAL_CONFIDENCE_LABEL[item.confidence].slice(0, 1)}</span>
           </div>
         </td>
         <td className="px-2 py-2.5">
-          <button type="button" onClick={onToggle} aria-expanded={expanded} aria-label={`${expanded ? "Masquer" : "Afficher"} les éléments de compatibilité de ${item.scientificName}`} className="rounded p-1 text-slate-400 transition-colors hover:bg-teal-100 hover:text-teal-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500">
+          <button type="button" onClick={onToggle} aria-expanded={expanded} aria-label={`${expanded ? "Hide" : "Show"} suitability evidence for ${item.scientificName}`} className="rounded p-1 text-slate-400 transition-colors hover:bg-teal-100 hover:text-teal-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500">
             {expanded ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
           </button>
         </td>
@@ -3189,9 +3276,9 @@ function PotentialSpeciesRow({
           <td colSpan={6} className="px-3 pb-3">
             <div className="grid gap-3 border-l-2 border-teal-500 pl-3 text-[10px] text-slate-600 sm:grid-cols-2">
               <div>
-                <div className="mb-1 font-bold uppercase tracking-wide text-slate-500">Éléments de compatibilité</div>
+                <div className="mb-1 font-bold uppercase tracking-wide text-slate-500">Suitability evidence</div>
                 <ul className="space-y-1">
-                  {item.reasons.length > 0 ? item.reasons.map((reason, index) => <li key={`${reason}-${index}`}>• {reason}</li>) : <li>Aucun élément détaillé disponible.</li>}
+                  {item.reasons.length > 0 ? item.reasons.map((reason, index) => <li key={`${reason}-${index}`}>• {reason}</li>) : <li>No detailed evidence available.</li>}
                 </ul>
               </div>
               <div className="space-y-1">
@@ -3236,21 +3323,21 @@ function PotentialSpeciesTable({ items, testId }: { items: PotentialSpeciesItem[
                   {expanded ? <ChevronUp className="h-4 w-4 shrink-0 text-emerald-700" /> : <ChevronDown className="h-4 w-4 shrink-0 text-slate-400" />}
                 </span>
                 <span className="mt-2 grid grid-cols-2 gap-x-3 gap-y-2">
-                  <span><span className="block text-[9px] font-bold uppercase tracking-wide text-slate-400">Signal</span>{item.observed ? <span className="inline-flex rounded border border-teal-200 bg-teal-50 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide text-teal-800">Occurrence publique documentée</span> : <span className="text-[10px] font-medium text-slate-500">Potentielle</span>}</span>
-                  <span><span className="block text-[9px] font-bold uppercase tracking-wide text-slate-400">Compatibilité</span><span className={`inline-flex rounded border px-1.5 py-0.5 text-[9px] font-bold ${style.badge}`}>{item.status}</span></span>
-                  <span><span className="block text-[9px] font-bold uppercase tracking-wide text-slate-400">Indice</span><span className="flex items-center gap-1.5"><span className="h-1.5 w-12 overflow-hidden rounded-full bg-slate-100" role="meter" aria-label={`Score de compatibilité de ${item.scientificName}`} aria-valuemin={0} aria-valuemax={100} aria-valuenow={item.score ?? undefined} aria-valuetext={item.score === null ? "Non évalué" : `${item.score} sur 100`}><span className={`block h-full rounded-full ${style.bar}`} style={{ width: `${item.score ?? 0}%` }} /></span><span className="text-[10px] font-bold tabular-nums text-slate-700">{item.score === null ? "—" : item.score}</span></span></span>
-                  <span><span className="block text-[9px] font-bold uppercase tracking-wide text-slate-400">Confiance</span><span className="text-[10px] font-medium text-slate-600">{item.confidence}</span></span>
+                  <span><span className="block text-[9px] font-bold uppercase tracking-wide text-slate-400">Signal</span>{item.observed ? <span className="inline-flex rounded border border-teal-200 bg-teal-50 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide text-teal-800">Documented public occurrence</span> : <span className="text-[10px] font-medium text-slate-500">Potential</span>}</span>
+                  <span><span className="block text-[9px] font-bold uppercase tracking-wide text-slate-400">Suitability</span><span className={`inline-flex rounded border px-1.5 py-0.5 text-[9px] font-bold ${style.badge}`}>{POTENTIAL_STATUS_LABEL[item.status]}</span></span>
+                  <span><span className="block text-[9px] font-bold uppercase tracking-wide text-slate-400">Index</span><span className="flex items-center gap-1.5"><span className="h-1.5 w-12 overflow-hidden rounded-full bg-slate-100" role="meter" aria-label={`Suitability score for ${item.scientificName}`} aria-valuemin={0} aria-valuemax={100} aria-valuenow={item.score ?? undefined} aria-valuetext={item.score === null ? "Not assessed" : `${item.score} out of 100`}><span className={`block h-full rounded-full ${style.bar}`} style={{ width: `${item.score ?? 0}%` }} /></span><span className="text-[10px] font-bold tabular-nums text-slate-700">{item.score === null ? "—" : item.score}</span></span></span>
+                  <span><span className="block text-[9px] font-bold uppercase tracking-wide text-slate-400">Confidence</span><span className="text-[10px] font-medium text-slate-600">{POTENTIAL_CONFIDENCE_LABEL[item.confidence]}</span></span>
                 </span>
               </button>
-              {expanded && <div className="grid gap-3 border-l-2 border-emerald-400 px-3 pb-3 pl-3 text-[10px] text-slate-600"><div><div className="mb-1 font-bold uppercase tracking-wide text-slate-500">Éléments de compatibilité</div><ul className="space-y-1">{item.reasons.length > 0 ? item.reasons.map((reason, index) => <li key={`${reason}-${index}`}>• {reason}</li>) : <li>Aucun élément détaillé disponible.</li>}</ul></div><div className="space-y-1"><div><strong>Sites :</strong> {item.sites.length > 0 ? item.sites.map((site) => site.name).join(", ") : "—"}</div><div><strong>Habitats :</strong> {item.habitats.length > 0 ? item.habitats.map((habitat) => habitat.code).join(", ") : "—"}</div></div></div>}
+              {expanded && <div className="grid gap-3 border-l-2 border-emerald-400 px-3 pb-3 pl-3 text-[10px] text-slate-600"><div><div className="mb-1 font-bold uppercase tracking-wide text-slate-500">Suitability evidence</div><ul className="space-y-1">{item.reasons.length > 0 ? item.reasons.map((reason, index) => <li key={`${reason}-${index}`}>• {reason}</li>) : <li>No detailed evidence available.</li>}</ul></div><div className="space-y-1"><div><strong>Sites:</strong> {item.sites.length > 0 ? item.sites.map((site) => site.name).join(", ") : "—"}</div><div><strong>Habitats:</strong> {item.habitats.length > 0 ? item.habitats.map((habitat) => habitat.code).join(", ") : "—"}</div></div></div>}
             </article>
           );
         })}
       </div>
       <div className="hidden overflow-x-auto md:block">
         <table className={SPECIES_TABLE} data-testid={testId}>
-          <caption className="sr-only">Tableau des espèces attendues et de leur indice de compatibilité</caption>
-          <thead className={SPECIES_TABLE_HEAD}><tr><th className="px-3 py-2">Taxon</th><th className="px-2 py-2">Signal</th><th className="px-2 py-2">Compatibilité</th><th className="px-2 py-2">Indice</th><th className="px-2 py-2">Confiance</th><th className="w-8 px-2 py-2"><span className="sr-only">Détails</span></th></tr></thead>
+          <caption className="sr-only">Expected species and suitability index</caption>
+          <thead className={SPECIES_TABLE_HEAD}><tr><th className="px-3 py-2">Taxon</th><th className="px-2 py-2">Signal</th><th className="px-2 py-2">Suitability</th><th className="px-2 py-2">Index</th><th className="px-2 py-2">Confidence</th><th className="w-8 px-2 py-2"><span className="sr-only">Details</span></th></tr></thead>
           <tbody className="divide-y divide-slate-100">{uniqueItems.map((item) => {
             const key = itemKey(item);
             return <PotentialSpeciesRow key={key} item={item} expanded={expandedSpecies === key} onToggle={() => setExpandedSpecies((current) => current === key ? null : key)} />;
@@ -3266,19 +3353,19 @@ const ZNIEFF_STATUS_STYLE: Record<
   { label: string; badge: string; description: string }
 > = {
   D: {
-    label: "D · Déterminante",
+    label: "D · Designating",
     badge: "border-rose-200 bg-rose-50 text-rose-700",
-    description: "Espèce déterminante pour la désignation de la ZNIEFF",
+    description: "Species supporting the ZNIEFF designation",
   },
   E: {
-    label: "E · À enjeux",
+    label: "E · Of concern",
     badge: "border-orange-200 bg-orange-50 text-orange-700",
-    description: "Autre espèce à enjeux",
+    description: "Other species of concern",
   },
   A: {
-    label: "A · Documentée",
+    label: "A · Documented",
     badge: "border-slate-200 bg-slate-50 text-slate-600",
-    description: "Autre espèce documentée dans la ZNIEFF",
+    description: "Other species documented in the ZNIEFF",
   },
 };
 
@@ -3309,9 +3396,9 @@ function ZnieffSpeciesRow({
             {item.alsoObserved && (
               <span
                 className="rounded border border-teal-200 bg-teal-50 px-1.5 py-0.5 text-[9px] font-semibold text-teal-700"
-                title="Une occurrence géolocalisée indépendante est également présente dans l’inventaire"
+                title="An independent georeferenced occurrence is also present in the inventory"
               >
-                Occurrence indépendante
+                Independent occurrence
               </span>
             )}
           </div>
@@ -3352,9 +3439,9 @@ function ZnieffSpeciesRow({
                   target="_blank"
                   rel="noopener noreferrer"
                   className="ml-auto inline-flex items-center gap-1 font-semibold text-slate-600 underline decoration-slate-300 underline-offset-2 hover:text-slate-900"
-                  aria-label={`Voir la fiche officielle de ${zone.name}`}
+                  aria-label={`View official listing for ${zone.name}`}
                 >
-                  Fiche officielle
+                  Official listing
                   <ExternalLink className="h-2.5 w-2.5" />
                 </a>
               )}
@@ -3385,38 +3472,38 @@ function ZnieffDocumentaryBlock({
         <div>
           <div className="flex items-center gap-2">
             <BookOpen className="h-4 w-4 shrink-0 text-slate-600" />
-            <h4 className="text-xs font-bold text-slate-800">Preuves documentaires ZNIEFF</h4>
+            <h4 className="text-xs font-bold text-slate-800">ZNIEFF documentary evidence</h4>
           </div>
           <p className="mt-1 max-w-2xl text-[10px] leading-relaxed text-slate-500">
-            Présence documentée à l’échelle des zones, pas une observation dans l’emprise
-            et aucun bonus de score. La mention « occurrence indépendante » signale seulement
-            un recoupement avec une occurrence géolocalisée de l’inventaire.
+            Documented at the designation level, not an observation within the footprint
+            and not a score bonus. “Independent occurrence” only indicates a match
+            with a georeferenced inventory occurrence.
           </p>
         </div>
         <div className="shrink-0 text-right">
           <div className="text-sm font-bold tabular-nums text-slate-800">{znieff.speciesCount}</div>
-          <div className="text-[9px] uppercase tracking-wide text-slate-400">espèces</div>
+          <div className="text-[9px] uppercase tracking-wide text-slate-400">species</div>
         </div>
       </div>
 
       <div className="mt-2 flex flex-wrap items-center gap-1.5 text-[10px]">
         <span className="rounded border border-slate-200 bg-white px-2 py-1 font-semibold text-slate-600">
-          Échelle : {znieff.siteCount} zone{znieff.siteCount > 1 ? "s" : ""} ZNIEFF
+          Scope: {znieff.siteCount} ZNIEFF zones
         </span>
         {znieff.partial ? (
           <span className="inline-flex items-center gap-1 rounded border border-amber-200 bg-amber-50 px-2 py-1 font-semibold text-amber-800">
             <Info className="h-3 w-3" />
-            Résultat partiel : certaines zones ou espèces peuvent manquer
+            Partial result: some zones or species may be missing
           </span>
         ) : (
           <span className="rounded border border-emerald-200 bg-emerald-50 px-2 py-1 font-semibold text-emerald-700">
-            Données disponibles pour les zones retournées
+            Data available for returned zones
           </span>
         )}
       </div>
 
       <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 border-y border-slate-200 py-2 text-[9px] text-slate-500">
-        <span className="font-semibold text-slate-600">Statuts :</span>
+        <span className="font-semibold text-slate-600">Statuses:</span>
         {(Object.keys(ZNIEFF_STATUS_STYLE) as Array<"D" | "E" | "A">).map((status) => (
           <span key={status} className="inline-flex items-center gap-1" title={ZNIEFF_STATUS_STYLE[status].description}>
             <strong className={`rounded border px-1 py-0.5 ${ZNIEFF_STATUS_STYLE[status].badge}`}>
@@ -3439,7 +3526,7 @@ function ZnieffDocumentaryBlock({
         </ul>
       ) : (
         <p className="mt-2 rounded border border-dashed border-slate-200 bg-white px-3 py-3 text-[11px] italic text-slate-500">
-          Aucune espèce documentée dans les zones ZNIEFF retournées.
+          No species documented in the returned ZNIEFF zones.
         </p>
       )}
       {visibleSpecies.length < znieff.species.length && (
@@ -3448,15 +3535,15 @@ function ZnieffDocumentaryBlock({
           onClick={() => setVisibleCount((count) => count + 250)}
           className="mt-2 w-full rounded border border-slate-200 bg-white px-3 py-2 text-[10px] font-semibold text-slate-600 transition-colors hover:border-slate-300 hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400"
         >
-          Afficher 250 espèces supplémentaires
+          Show 250 more species
         </button>
       )}
 
       <div className="mt-2 flex flex-wrap items-center justify-between gap-2 text-[9px] text-slate-400">
-        <span>{visibleSpecies.length} ligne{visibleSpecies.length > 1 ? "s" : ""} affichée{visibleSpecies.length > 1 ? "s" : ""} sur {znieff.speciesCount} espèce{znieff.speciesCount > 1 ? "s" : ""} documentée{znieff.speciesCount > 1 ? "s" : ""}</span>
+        <span>{visibleSpecies.length} rows shown out of {znieff.speciesCount} documented species</span>
         <span className="inline-flex flex-wrap items-center justify-end gap-x-2 gap-y-1">
           <span>
-            Source mise à jour : {znieff.reference.sourceUpdated}
+            Source updated: {znieff.reference.sourceUpdated}
             {znieff.reference.sourceVersion ? ` · version ${znieff.reference.sourceVersion}` : ""}
           </span>
           {referenceUrl && (
@@ -3466,7 +3553,7 @@ function ZnieffDocumentaryBlock({
               rel="noopener noreferrer"
               className="inline-flex items-center gap-1 font-semibold text-slate-600 underline decoration-slate-300 underline-offset-2 hover:text-slate-900"
             >
-              {znieff.reference.publisher} · Référentiel officiel
+              {znieff.reference.publisher} · Official reference
               <ExternalLink className="h-2.5 w-2.5" />
             </a>
           )}
@@ -3503,14 +3590,14 @@ function PotentialSpeciesSection({
   const potential = currentResult?.species.filter((item) => !item.observed) ?? [];
   const observed = currentResult?.species.filter((item) => item.observed) ?? [];
   const summary = loading
-    ? "Calcul en cours…"
+    ? "Calculating…"
     : error
-      ? "Évaluation indisponible"
+      ? "Assessment unavailable"
       : !currentResult
-        ? "Calcul lancé avec l’inventaire"
+        ? "Calculation started with inventory"
         : currentResult.species.length === 0
-          ? `${currentResult.znieff?.speciesCount ?? 0} espèce${(currentResult.znieff?.speciesCount ?? 0) > 1 ? "s" : ""} documentée${(currentResult.znieff?.speciesCount ?? 0) > 1 ? "s" : ""} en ZNIEFF`
-          : `${currentResult.potentialCount} espèce${currentResult.potentialCount > 1 ? "s" : ""} potentielle${currentResult.potentialCount > 1 ? "s" : ""}, ${currentResult.observedCount} avec occurrence publique documentée${currentResult.znieff?.speciesCount ? ` · ${currentResult.znieff.speciesCount} documentée${currentResult.znieff.speciesCount > 1 ? "s" : ""} en ZNIEFF` : ""}`;
+          ? `${currentResult.znieff?.speciesCount ?? 0} species documented in ZNIEFF`
+          : `${currentResult.potentialCount} potential species, ${currentResult.observedCount} with documented public occurrences${currentResult.znieff?.speciesCount ? ` · ${currentResult.znieff.speciesCount} documented in ZNIEFF` : ""}`;
 
   return (
     <section
@@ -3527,7 +3614,7 @@ function PotentialSpeciesSection({
       >
         <span className="flex items-center gap-2 text-left text-sm font-bold text-gray-800">
           <ListChecks className="h-4 w-4 shrink-0 text-emerald-600" />
-          Espèces potentielles
+          Potential species
         </span>
         <span className="flex min-w-0 items-center gap-2 text-[11px] text-gray-500">
           <span className="truncate">{summary}</span>
@@ -3547,13 +3634,12 @@ function PotentialSpeciesSection({
           className="space-y-3 border-t border-emerald-100 px-4 pb-4 pt-3"
         >
           <div className="rounded-lg border border-sky-100 bg-sky-50 p-2.5 text-[10px] leading-relaxed text-sky-800">
-            <strong>Indice de compatibilité, pas probabilité de présence.</strong>{" "}
-            Le calcul croise les liens Natura 2000 et les correspondances
-            écologiques explicites entre l’espèce et les habitats décrits sur
-            les sites proches. La localisation précise de chaque habitat dans
-            l’emprise n’est pas connue. Les occurrences servent uniquement à
-            distinguer les occurrences publiques documentées des espèces potentielles. La confirmation sur le site exige des relevés de terrain. Ce pré-diagnostic doit être validé
-            par un écologue.
+            <strong>Suitability index, not a probability of presence.</strong>{" "}
+            The calculation combines Natura 2000 links and explicit ecological
+            matches between species and habitats documented at nearby sites.
+            The precise location of each habitat within the footprint is unknown.
+            Occurrences only distinguish documented public records from potential species.
+            Confirming presence requires field surveys and ecologist validation.
             {currentResult?.reference && (
               <>
                 {" "}
@@ -3563,7 +3649,7 @@ function PotentialSpeciesSection({
                   rel="noopener noreferrer"
                   className="font-semibold underline"
                 >
-                  Référentiel {currentResult.reference.publisher} {currentResult.reference.id}
+                  Reference {currentResult.reference.publisher} {currentResult.reference.id}
                 </a>
                 .
               </>
@@ -3576,27 +3662,26 @@ function PotentialSpeciesSection({
               role="status"
             >
               <Loader2 className="h-4 w-4 animate-spin text-emerald-600" />
-              Calcul des compatibilités…
+              Calculating suitability…
             </div>
           )}
           {error && (
             <div className="flex items-start gap-2 rounded-lg border border-red-100 bg-red-50 p-2.5 text-[11px] text-red-700" role="alert">
               <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-              Les données nécessaires sont temporairement indisponibles. Aucun
-              score n’a été inventé.
+              The required data are temporarily unavailable. No score was invented.
             </div>
           )}
           {!loading && !error && currentResult && currentResult.species.length === 0 && (
             <p className="py-2 text-xs italic text-gray-500">
-              Consultation terminée : aucune espèce potentielle n’a été retournée
-              pour les sites Natura 2000 concernés.
+              Consultation complete: no potential species were returned
+              for the relevant Natura 2000 sites.
             </p>
           )}
           {!loading && !error && currentResult && currentResult.partial && (
             <div className="flex items-start gap-2 rounded-lg border border-amber-100 bg-amber-50 p-2.5 text-[10px] text-amber-800">
               <Info className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-              Certaines données d’habitat n’ont pas pu être chargées ; les
-              espèces concernées restent « Non évaluée ».
+              Some habitat data could not be loaded; the affected species
+              remain “Not assessed”.
             </div>
           )}
 
@@ -3606,8 +3691,8 @@ function PotentialSpeciesSection({
             ) : (
               <div className="flex items-start gap-2 rounded-lg border border-slate-200 bg-slate-50 p-2.5 text-[10px] text-slate-600">
                 <Info className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-                Les données documentaires ZNIEFF sont indisponibles pour cette
-                requête. Elles ne sont pas déduites des observations ni du score.
+                ZNIEFF documentary data are unavailable for this request.
+                They are not inferred from occurrences or the score.
               </div>
             )
           )}
@@ -3617,7 +3702,7 @@ function PotentialSpeciesSection({
               <div>
                 <div className="mb-1.5 flex items-center justify-between">
                   <h4 className="text-[11px] font-bold uppercase tracking-wide text-emerald-800">
-                    Espèces potentielles
+                    Potential species
                   </h4>
                   <span className="text-[10px] text-gray-400">
                     {potential.length}
@@ -3627,8 +3712,7 @@ function PotentialSpeciesSection({
                   <PotentialSpeciesTable items={potential} testId="list-potential-species" />
                 ) : (
                   <p className="text-[11px] italic text-gray-500">
-                    Aucune espèce potentielle dans le référentiel
-                    disponible.
+                    No potential species in the available reference data.
                   </p>
                 )}
               </div>
@@ -3636,22 +3720,21 @@ function PotentialSpeciesSection({
               <div className="border-t border-gray-100 pt-3">
                 <div className="mb-1.5 flex items-center justify-between">
                   <h4 className="text-[11px] font-bold uppercase tracking-wide text-teal-800">
-                    Espèces avec occurrence publique parmi les espèces attendues
+                    Expected species with public occurrences
                   </h4>
                   <span className="text-[10px] text-gray-400">
                     {observed.length}
                   </span>
                 </div>
                 <p className="mb-2 text-[10px] leading-snug text-gray-500">
-                  Ce statut est réservé aux espèces disposant d’une occurrence
-                  dans l’inventaire GBIF ou d’un signal iNaturalist dans l’aire.
+                  This status is reserved for species with a GBIF inventory occurrence
+                  or iNaturalist signal within the study area.
                 </p>
                 {observed.length > 0 ? (
                   <PotentialSpeciesTable items={observed} testId="list-observed-potential-species" />
                 ) : (
                   <p className="text-[11px] italic text-gray-500">
-                    Aucune occurrence réelle ne correspond aux espèces
-                    attendues.
+                    No documented occurrence matches the expected species.
                   </p>
                 )}
               </div>
@@ -3664,13 +3747,13 @@ function PotentialSpeciesSection({
 }
 
 const SPECIES_GROUP_FR: Record<string, string> = {
-  Birds: "Oiseaux",
-  Mammals: "Mammifères",
-  Amphibians: "Amphibiens",
+  Birds: "Birds",
+  Mammals: "Mammals",
+  Amphibians: "Amphibians",
   Reptiles: "Reptiles",
-  Fish: "Poissons",
-  Invertebrates: "Invertébrés",
-  Plants: "Plantes",
+  Fish: "Fish",
+  Invertebrates: "Invertebrates",
+  Plants: "Plants",
 };
 
 function Natura2000ExpectedPanel({
@@ -3731,14 +3814,14 @@ function Natura2000ExpectedPanel({
           <div className="flex items-center gap-2">
             <Shield className="h-4 w-4 text-emerald-600" />
             <span className="font-bold text-sm text-emerald-700 text-left">
-              Espèces potentielles Natura 2000
+              Potential Natura 2000 species
             </span>
           </div>
           <div className="flex items-center gap-2">
             {loading && <Loader2 className="h-3.5 w-3.5 animate-spin text-emerald-600" />}
             {loaded && (
               <span className="text-[11px] font-semibold text-emerald-700 bg-emerald-100 rounded-full px-2 py-0.5">
-                {notObserved.length} potentielle{notObserved.length > 1 ? "s" : ""}
+                {notObserved.length} potential
               </span>
             )}
             {expanded ? (
@@ -3753,14 +3836,14 @@ function Natura2000ExpectedPanel({
       {expanded && (
         <div className="mt-3">
           {error && (
-            <p className="text-[11px] text-red-600" role="alert">Espèces potentielles indisponibles.</p>
+            <p className="text-[11px] text-red-600" role="alert">Potential species unavailable.</p>
           )}
           {loaded && !error && (
             <>
               <p className="text-[11px] text-gray-500 mb-2 leading-snug">
-                Espèces justifiant le classement des {siteCount} site{siteCount > 1 ? "s" : ""} Natura 2000 proche
-                {siteCount > 1 ? "s" : ""} (base EEA, France). Les espèces potentielles ne figurent
-                pas parmi les espèces avec occurrence publique documentée mais sont documentées pour ces sites proches.
+                Species supporting designation of {siteCount} nearby Natura 2000 sites
+                (EEA data, France). Potential species are not counted among species with
+                documented public occurrences but are documented at these nearby sites.
               </p>
               <ul className="space-y-1" data-testid="list-natura-expected">
                 {species.map((sp, i) => {
@@ -3777,9 +3860,9 @@ function Natura2000ExpectedPanel({
                             ? "bg-gray-100 text-gray-500"
                             : "bg-emerald-100 text-emerald-700"
                         }`}
-                        title={observed ? "Occurrence publique documentée dans l’aire" : "Espèce potentielle documentée par Natura 2000"}
+                        title={observed ? "Public occurrence documented in the area" : "Potential species documented by Natura 2000"}
                       >
-                        {observed ? "occurrence publique" : "potentielle"}
+                        {observed ? "public occurrence" : "potential"}
                       </span>
                       <span className="flex-1">
                         <span className="italic font-medium">{sp.scientificName}</span>
@@ -3821,11 +3904,11 @@ function SINPPanel({ center }: { center: [number, number] }) {
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <MapPin className="h-4 w-4 text-indigo-600" />
-            <span className="font-bold text-sm text-indigo-700">Plateformes SINP régionales</span>
+            <span className="font-bold text-sm text-indigo-700">Regional SINP platforms</span>
           </div>
           <div className="flex items-center gap-2">
             <span className="text-xs text-indigo-500 bg-indigo-100 px-2 py-0.5 rounded-full">
-              {platforms.length} région{platforms.length > 1 ? 's' : ''}
+              {platforms.length} region{platforms.length > 1 ? 's' : ''}
             </span>
             {expanded ? <ChevronUp className="h-4 w-4 text-indigo-500" /> : <ChevronDown className="h-4 w-4 text-indigo-500" />}
           </div>
@@ -3835,7 +3918,7 @@ function SINPPanel({ center }: { center: [number, number] }) {
       {expanded && (
         <div className="mt-3 space-y-3">
           <p className="text-xs text-indigo-600/70">
-            Complétez votre inventaire avec les données du SINP de votre région :
+            Add data from your region's SINP to your inventory:
           </p>
           {platforms.map((platform) => (
             <div key={platform.code} className="bg-white/70 rounded-lg p-3">
@@ -3875,9 +3958,9 @@ function ConfidencePanel({ confidence }: { confidence: ConfidenceScore }) {
 
   const getConfidenceLabel = () => {
     if (confidence.interpretation === "excellent") return "Excellent";
-    if (confidence.interpretation === "good") return "Bon";
-    if (confidence.interpretation === "moderate") return "Modéré";
-    return "Faible";
+    if (confidence.interpretation === "good") return "Good";
+    if (confidence.interpretation === "moderate") return "Moderate";
+    return "Low";
   };
 
   const getProgressColor = (value: number) => {
@@ -3888,12 +3971,12 @@ function ConfidencePanel({ confidence }: { confidence: ConfidenceScore }) {
   };
 
   const subScores = [
-    { label: "Géographie", value: confidence.geo, icon: MapPin },
-    { label: "Taxonomie", value: confidence.tax, icon: Tag },
-    { label: "Fraîcheur", value: confidence.time, icon: Calendar },
-    { label: "Traçabilité", value: confidence.trace, icon: Link },
-    { label: "Qualité GBIF", value: confidence.issues, icon: Flag },
-    { label: "Unicité", value: confidence.dup, icon: Layers },
+    { label: "Geography", value: confidence.geo, icon: MapPin },
+    { label: "Taxonomy", value: confidence.tax, icon: Tag },
+    { label: "Freshness", value: confidence.time, icon: Calendar },
+    { label: "Traceability", value: confidence.trace, icon: Link },
+    { label: "GBIF quality", value: confidence.issues, icon: Flag },
+    { label: "Uniqueness", value: confidence.dup, icon: Layers },
   ];
 
   return (
@@ -3905,7 +3988,7 @@ function ConfidencePanel({ confidence }: { confidence: ConfidenceScore }) {
         <div className="flex items-center justify-between gap-2 min-w-0">
           <div className="flex items-center gap-2 min-w-0 flex-shrink">
             <Shield className="h-5 w-5 shrink-0" />
-            <span className="font-bold text-sm truncate">Indice de Confiance</span>
+            <span className="font-bold text-sm truncate">Confidence index</span>
           </div>
           <div className="flex items-center gap-1.5 shrink-0">
             <span className="text-xl font-bold leading-none">{confidence.total}</span>
@@ -3941,7 +4024,7 @@ function ConfidencePanel({ confidence }: { confidence: ConfidenceScore }) {
           <div className="text-xs bg-white/60 rounded-lg p-2">
             <p className="font-medium">{confidence.message}</p>
             <p className="mt-1 text-gray-500">
-              {confidence.rawCount} occurrences analysées, {confidence.dedupCount} uniques
+              {confidence.rawCount} occurrences analysed, {confidence.dedupCount} unique
             </p>
           </div>
         </div>

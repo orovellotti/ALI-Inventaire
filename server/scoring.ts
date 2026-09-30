@@ -126,7 +126,7 @@ export function computeEnjeuLevel(params: {
       const globalRank = rankCode(globalIucn);
       if (globalRank >= 4) {
         warnings.push(
-          `LC au niveau national/régional mais ${(globalIucn ?? "").toUpperCase()} mondialement — confirmer la situation locale`,
+          `National/regional LC but global ${(globalIucn ?? "").toUpperCase()} — verify local status`,
         );
       }
       // Protégée mais LC : faible enjeu conservation, à noter
@@ -155,7 +155,7 @@ export function computeEnjeuLevel(params: {
       return {
         enjeuLevel: "a_confirmer",
         enjeuWarnings: [
-          "Flore : aucun statut régional, national ou européen disponible — le statut UICN mondial n’est pas utilisé seul",
+          "Plants: no regional, national or European status available; global IUCN status alone is insufficient",
         ],
       };
     }
@@ -164,7 +164,7 @@ export function computeEnjeuLevel(params: {
     const globalRank = rankCode(globalIucn);
     if (globalRank >= 4) {
       warnings.push(
-        `Aucun statut national/régional trouvé, mais ${(globalIucn ?? "").toUpperCase()} mondialement — vérifier le statut en France`,
+        `No national/regional status found, but global ${(globalIucn ?? "").toUpperCase()} — verify status in France`,
       );
       return { enjeuLevel: "modere", enjeuWarnings: warnings };
     }
@@ -178,7 +178,7 @@ export function computeEnjeuLevel(params: {
     return {
       enjeuLevel: frenchProtected || globalRank > 0 ? "a_confirmer" : "faible",
       enjeuWarnings: [
-        "Flore : statuts régionaux, nationaux et européens non vérifiés — le statut UICN mondial n’est pas utilisé seul",
+        "Plants: regional, national and European statuses unverified; global IUCN status alone is insufficient",
       ],
     };
   }
@@ -189,7 +189,7 @@ export function computeEnjeuLevel(params: {
     return {
       enjeuLevel: "a_confirmer",
       enjeuWarnings: [
-        "Groupe protégé en France, statut national non vérifié — à confirmer par inventaire",
+        "Group protected in France; national status unverified — confirm through field survey",
       ],
     };
   }
@@ -197,21 +197,21 @@ export function computeEnjeuLevel(params: {
   if (globalRank >= 6) {
     // CR/EX mondial sans données nationales
     warnings.push(
-      "Statut UICN mondial uniquement — confirmer le statut national/régional",
+      "Global IUCN status only — confirm national/regional status",
     );
     return { enjeuLevel: "critique", enjeuWarnings: warnings };
   }
   if (globalRank >= 5) {
     // EN mondial
     warnings.push(
-      "Statut UICN mondial uniquement — confirmer le statut national/régional",
+      "Global IUCN status only — confirm national/regional status",
     );
     return { enjeuLevel: "fort", enjeuWarnings: warnings };
   }
   if (globalRank >= 4) {
     // VU mondial
     warnings.push(
-      "Statut UICN mondial uniquement — confirmer le statut national/régional",
+      "Global IUCN status only — confirm national/regional status",
     );
     return { enjeuLevel: "fort", enjeuWarnings: warnings };
   }
@@ -219,7 +219,7 @@ export function computeEnjeuLevel(params: {
     // NT mondial
     const level = frenchProtected ? "fort" : "modere";
     warnings.push(
-      "Statut UICN mondial uniquement — confirmer le statut national/régional",
+      "Global IUCN status only — confirm national/regional status",
     );
     return { enjeuLevel: level, enjeuWarnings: warnings };
   }
@@ -228,7 +228,7 @@ export function computeEnjeuLevel(params: {
     return {
       enjeuLevel: "a_confirmer",
       enjeuWarnings: [
-        "Groupe protégé en France, statut national non vérifié — à confirmer par inventaire",
+        "Group protected in France; national status unverified — confirm through field survey",
       ],
     };
   }
@@ -256,14 +256,14 @@ export function checkConsistency(params: {
     (!aliStatuses || aliStatuses.filter((s) => isThreat(s.value)).length === 0)
   ) {
     warnings.push(
-      "LC mondial classé enjeu fort sans statut national/régional menaçant — vérifier",
+      "Global LC classified as high concern without a threatened national/regional status — verify",
     );
   }
 
   // Espèce protégée classée faible
   if (enjeuLevel === "faible" && frenchProtected) {
     warnings.push(
-      "Groupe protégé en France classé enjeu faible — vérifier le statut réglementaire",
+      "Group protected in France classified as low concern — verify legal status",
     );
   }
 
@@ -276,7 +276,7 @@ export function checkConsistency(params: {
     );
     if (redListsWithoutScope.length > 0) {
       warnings.push(
-        "Certains statuts de liste rouge sont sans territoire précisé",
+        "Some red-list statuses have no specified geographic scope",
       );
     }
   }

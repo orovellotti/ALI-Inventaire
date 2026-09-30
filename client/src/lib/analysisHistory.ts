@@ -57,13 +57,13 @@ export interface AnalysisConversation {
 
 function storageError(detail?: string): Error {
   return new Error(
-    `L'historique local des analyses est indisponible${detail ? ` : ${detail}` : "."}`,
+    `Local analysis history is unavailable${detail ? `: ${detail}` : "."}`,
   );
 }
 
 function getIndexedDb(): IDBFactory {
   if (typeof indexedDB === "undefined") {
-    throw storageError("IndexedDB n'est pas pris en charge par ce navigateur");
+    throw storageError("IndexedDB is not supported by this browser");
   }
   return indexedDB;
 }
@@ -74,7 +74,7 @@ function openDatabase(): Promise<IDBDatabase> {
     try {
       request = getIndexedDb().open(DATABASE_NAME, DATABASE_VERSION);
     } catch {
-      reject(storageError("IndexedDB ne peut pas être ouvert"));
+      reject(storageError("IndexedDB cannot be opened"));
       return;
     }
 
@@ -91,23 +91,23 @@ function openDatabase(): Promise<IDBDatabase> {
       }
     };
     request.onsuccess = () => resolve(request.result);
-    request.onerror = () => reject(storageError("IndexedDB n'a pas pu être ouvert"));
-    request.onblocked = () => reject(storageError("IndexedDB est bloqué par un autre onglet"));
+    request.onerror = () => reject(storageError("IndexedDB could not be opened"));
+    request.onblocked = () => reject(storageError("IndexedDB is blocked by another tab"));
   });
 }
 
 function requestResult<T>(request: IDBRequest<T>): Promise<T> {
   return new Promise((resolve, reject) => {
     request.onsuccess = () => resolve(request.result);
-    request.onerror = () => reject(storageError("une opération de stockage a échoué"));
+    request.onerror = () => reject(storageError("a storage operation failed"));
   });
 }
 
 function transactionDone(transaction: IDBTransaction): Promise<void> {
   return new Promise((resolve, reject) => {
     transaction.oncomplete = () => resolve();
-    transaction.onerror = () => reject(storageError("une opération de stockage a échoué"));
-    transaction.onabort = () => reject(storageError("une opération de stockage a été annulée"));
+    transaction.onerror = () => reject(storageError("a storage operation failed"));
+    transaction.onabort = () => reject(storageError("a storage operation was cancelled"));
   });
 }
 
@@ -250,7 +250,7 @@ export async function listAnalysisConversations(): Promise<AnalysisConversation[
     return sortByMostRecent(values.filter(isValidConversation));
   } catch (error) {
     if (error instanceof Error && error.message.startsWith("L'historique local")) throw error;
-    throw storageError("la lecture a échoué");
+    throw storageError("the read failed");
   } finally {
     database.close();
   }
@@ -266,7 +266,7 @@ export async function getAnalysisConversation(id: string): Promise<AnalysisConve
     return isValidConversation(value) ? value : null;
   } catch (error) {
     if (error instanceof Error && error.message.startsWith("L'historique local")) throw error;
-    throw storageError("la lecture a échoué");
+    throw storageError("the read failed");
   } finally {
     database.close();
   }
@@ -275,7 +275,7 @@ export async function getAnalysisConversation(id: string): Promise<AnalysisConve
 /** Enregistre la conversation et supprime les entrées les plus anciennes au-delà de 20. */
 export async function saveAnalysisConversation(conversation: AnalysisConversation): Promise<void> {
   if (!isValidConversation(conversation)) {
-    throw new Error("La conversation d'analyse à enregistrer est invalide.");
+    throw new Error("The analysis conversation to save is invalid.");
   }
   if (tombstones.has(conversation.id)) return;
 
@@ -303,7 +303,7 @@ export async function saveAnalysisConversation(conversation: AnalysisConversatio
       await transactionDone(transaction);
     } catch (error) {
       if (error instanceof Error && error.message.startsWith("L'historique local")) throw error;
-      throw storageError("l'enregistrement a échoué");
+      throw storageError("saving failed");
     } finally {
       database.close();
     }
@@ -320,7 +320,7 @@ export async function deleteAnalysisConversation(id: string): Promise<void> {
       await transactionDone(transaction);
     } catch (error) {
       if (error instanceof Error && error.message.startsWith("L'historique local")) throw error;
-      throw storageError("la suppression a échoué");
+      throw storageError("deletion failed");
     } finally {
       database.close();
     }
@@ -345,7 +345,7 @@ export async function clearAnalysisConversationsForBuild(buildId: string): Promi
       tombstones.clear();
     } catch (error) {
       if (error instanceof Error && error.message.startsWith("L'historique local")) throw error;
-      throw storageError("la réinitialisation a échoué");
+      throw storageError("reset failed");
     } finally {
       database.close();
     }
@@ -355,7 +355,7 @@ export async function clearAnalysisConversationsForBuild(buildId: string): Promi
 export async function renameAnalysisConversation(id: string, title: string): Promise<AnalysisConversation> {
   const trimmedTitle = title.trim();
   if (!trimmedTitle || trimmedTitle.length > 120) {
-    throw new Error("Le titre de la conversation doit contenir entre 1 et 120 caractères.");
+    throw new Error("The conversation title must contain between 1 and 120 characters.");
   }
 
   return enqueueMutation(async () => {
@@ -382,7 +382,7 @@ export async function renameAnalysisConversation(id: string, title: string): Pro
         (error.message.startsWith("L'historique local") || error.message === "La conversation d'analyse est introuvable.")) {
         throw error;
       }
-      throw storageError("le renommage a échoué");
+      throw storageError("renaming failed");
     } finally {
       database.close();
     }

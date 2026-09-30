@@ -43,7 +43,7 @@ test("n'utilise jamais seul le statut mondial pour classer une plante", () => {
       aliStatuses: undefined,
     });
     assert.equal(result.enjeuLevel, "a_confirmer");
-    assert.match(result.enjeuWarnings.join(" "), /mondial n’est pas utilisé seul/);
+    assert.match(result.enjeuWarnings.join(" "), /global IUCN status alone is insufficient/);
   }
 });
 

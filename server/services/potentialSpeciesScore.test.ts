@@ -92,7 +92,7 @@ test("classe une espèce non observée avec habitat favorable sans affirmer sa p
   assert.equal(result.status, "Potentielle");
   assert.ok(result.score !== null && result.score >= 45 && result.score <= 70);
   assert.equal(result.confidence, "Moyen");
-  assert.ok(result.reasons.some((reason) => reason.includes("Correspondance EEA")));
+  assert.ok(result.reasons.some((reason) => reason.includes("EEA") && reason.includes("match")));
 });
 
 test("l'occurrence réelle est le seul signal qui marque une espèce observée", () => {
@@ -110,7 +110,7 @@ test("l'occurrence réelle est le seul signal qui marque une espèce observée",
   });
   assert.equal(observed.observed, true);
   assert.equal(observed.score, potential.score);
-  assert.match(observed.reasons[0], /Occurrence réelle/);
+  assert.match(observed.reasons[0], /Documented occurrence/);
 });
 
 test("renonce au score quand les habitats sont absents", () => {
@@ -145,7 +145,7 @@ test("renonce au score pour une espèce absente du référentiel", () => {
   });
   assert.equal(result.status, "Non évaluée");
   assert.equal(result.score, null);
-  assert.ok(result.reasons.some((reason) => reason.includes("absente du référentiel")));
+  assert.ok(result.reasons.some((reason) => reason.includes("not represented")));
 });
 
 test("renonce au score quand les références explicites ne partagent aucun groupe", () => {
@@ -162,7 +162,7 @@ test("renonce au score quand les références explicites ne partagent aucun grou
   });
   assert.equal(result.status, "Non évaluée");
   assert.equal(result.score, null);
-  assert.ok(result.reasons.some((reason) => reason.includes("Aucun groupe écologique commun")));
+  assert.ok(result.reasons.some((reason) => reason.includes("No shared ecological group")));
 });
 
 test("renonce à un score partiel si un site associé manque de données", () => {
@@ -182,5 +182,5 @@ test("renonce à un score partiel si un site associé manque de données", () =>
   });
   assert.equal(result.status, "Non évaluée");
   assert.equal(result.score, null);
-  assert.ok(result.reasons.some((reason) => reason.includes("aucun score partiel")));
+  assert.ok(result.reasons.some((reason) => reason.includes("no partial score")));
 });

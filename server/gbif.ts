@@ -6,6 +6,7 @@ import { calculateConfidenceScore, emptyConfidence } from "./confidence";
 import { haversineDistance } from "./lib/geo";
 import { mapWithConcurrency } from "./lib/concurrency";
 import { enrichInventoryWithAliSpeciesMcp } from "./services/aliSpeciesMcp";
+import { getStudyCoverage } from "./services/coverage";
 import {
   searchOccurrences,
   fetchSpeciesMedia,
@@ -46,9 +47,9 @@ function getAlertLevelFromIucn(iucnStatus: string | undefined): AlertLevel {
   return HIGH_ALERT_IUCN.has((iucnStatus ?? "").toUpperCase()) ? "high" : "low";
 }
 
-function fetchINatSafe(lat: number, lng: number, radiusMeters: number, enabled: boolean): Promise<InatResult> {
+function fetchINatSafe(lat: number, lng: number, radiusMeters: number, enabled: boolean, french: boolean): Promise<InatResult> {
   if (!enabled) return Promise.resolve(EMPTY_INAT);
-  return searchINaturalist(lat, lng, radiusMeters).catch(() => EMPTY_INAT);
+  return searchINaturalist(lat, lng, radiusMeters, french).catch(() => EMPTY_INAT);
 }
 
 interface SpeciesObsStats {
@@ -123,7 +124,7 @@ function deriveHabitatType(
   return "terrestrial";
 }
 
-async function enrichSpecies(record: any): Promise<Occurrence> {
+async function enrichSpecies(record: any, french: boolean): Promise<Occurrence> {
   const speciesKey = record.speciesKey || record.taxonKey;
 
   const [mediaResult, iucnResult, namesResult] = speciesKey
@@ -139,9 +140,9 @@ async function enrichSpecies(record: any): Promise<Occurrence> {
     namesResult?.status === "fulfilled" ? namesResult.value : {};
 
   const baseLevel = getAlertLevelFromIucn(iucnStatus);
-  const alertLevel = applyFrenchPriorityBoost(baseLevel, record.family, record.order, record.class);
-  const frenchProtected = isFrenchPriority(record.family, record.order, record.class);
-  const isInvasive = isInvasiveExotic(record.scientificName);
+  const alertLevel = french ? applyFrenchPriorityBoost(baseLevel, record.family, record.order, record.class) : baseLevel;
+  const frenchProtected = french ? isFrenchPriority(record.family, record.order, record.class) : undefined;
+  const isInvasive = french ? isInvasiveExotic(record.scientificName) : undefined;
   const taxonRank: string | undefined = record.taxonRank;
   const habitatType = deriveHabitatType(record.phylum, record.class);
 
@@ -310,7 +311,7 @@ function buildEmptyResult(
 ): InventoryResult {
   const confidence = emptyConfidence();
   if (inat.occurrences.length > 0) {
-    confidence.message = `Aucune donnée GBIF • iNaturalist : ${inat.occurrences.length} espèce(s)`;
+    confidence.message = `No GBIF records • iNaturalist: ${inat.occurrences.length} species`;
   }
   const { consolidated, rawNameCount, duplicatesRemoved } = consolidateByCdRef(inat.occurrences);
   return {
@@ -335,14 +336,16 @@ export async function searchGBIF(
   radiusMeters: number,
   options: SearchOptions = {},
 ): Promise<InventoryResult> {
+  const coverage = await getStudyCoverage(lat, lng);
   const includeINaturalist = options.includeINaturalist !== false;
-  const inatPromise = fetchINatSafe(lat, lng, radiusMeters, includeINaturalist);
+  const inatPromise = fetchINatSafe(lat, lng, radiusMeters, includeINaturalist, coverage.frenchSources);
 
   const rawRecords = await searchOccurrences({ lat, lng, radiusMeters });
 
   if (rawRecords.length === 0) {
     const empty = buildEmptyResult(await inatPromise, lat, lng, radiusMeters);
-    return options.skipAliSpeciesMcp ? empty : enrichInventoryWithAliSpeciesMcp(empty);
+    empty.coverage = coverage;
+    return options.skipAliSpeciesMcp || !coverage.frenchSources ? empty : enrichInventoryWithAliSpeciesMcp(empty);
   }
 
   const confidence = calculateConfidenceScore(rawRecords);
@@ -354,7 +357,7 @@ export async function searchGBIF(
   const enriched = await mapWithConcurrency(
     uniqueRecords,
     SPECIES_ENRICHMENT_CONCURRENCY,
-    enrichSpecies,
+    (record) => enrichSpecies(record, coverage.frenchSources),
   );
   for (const o of enriched) {
     const st = obsStats.get(o.scientificName);
@@ -373,12 +376,13 @@ export async function searchGBIF(
     const inedits = inat.occurrences.filter(
       (i) => !gbifOccurrences.some((g) => g.scientificName === i.scientificName),
     ).length;
-    confidence.message = `${confidence.message} • iNaturalist : +${inedits} espèce(s) inédite(s) sur ${inat.summary.species}`;
+    confidence.message = `${confidence.message} • iNaturalist: +${inedits} additional species out of ${inat.summary.species}`;
   }
 
   const { consolidated, rawNameCount, duplicatesRemoved } = consolidateByCdRef(merged);
 
   const result: InventoryResult = {
+    coverage,
     occurrences: consolidated,
     stats: {
       total: consolidated.length,
@@ -392,7 +396,7 @@ export async function searchGBIF(
     circles: [{ id: "main", center: [lat, lng], radius: radiusMeters, label: "Zone", enabled: true }],
     confidence,
   };
-  return options.skipAliSpeciesMcp ? result : enrichInventoryWithAliSpeciesMcp(result);
+  return options.skipAliSpeciesMcp || !coverage.frenchSources ? result : enrichInventoryWithAliSpeciesMcp(result);
 }
 
 function averageConfidences(scores: ConfidenceScore[], areaCount: number): ConfidenceScore {
@@ -409,7 +413,7 @@ function averageConfidences(scores: ConfidenceScore[], areaCount: number): Confi
     dup: avg("dup"),
     interpretation:
       total >= 80 ? "excellent" : total >= 60 ? "good" : total >= 40 ? "moderate" : "low",
-    message: `Moyenne sur ${areaCount} aires d'étude`,
+    message: `Average across ${areaCount} study areas`,
     rawCount: sum("rawCount"),
     filteredCount: sum("filteredCount"),
     dedupCount: sum("dedupCount"),
@@ -460,6 +464,14 @@ export async function searchGBIFMultiCircle(
   const { consolidated, rawNameCount, duplicatesRemoved } = consolidateByCdRef(merged);
 
   const result: InventoryResult = {
+    coverage: results.every((r) => r.coverage?.countryCode === results[0].coverage?.countryCode)
+      ? results[0].coverage
+      : {
+          countryCode: "MULTIPLE",
+          globalOccurrences: true,
+          frenchSources: false,
+          unavailableSources: ["French sources cannot be applied across multiple countries"],
+        },
     occurrences: consolidated,
     stats: {
       total: consolidated.length,
@@ -473,7 +485,9 @@ export async function searchGBIFMultiCircle(
     circles,
     confidence: averageConfidences(results.map((r) => r.confidence), enabledCircles.length),
   };
-  return options.skipAliSpeciesMcp ? result : enrichInventoryWithAliSpeciesMcp(result);
+  // Never apply French statuses to a mixed-country study.
+  return options.skipAliSpeciesMcp || !result.coverage?.frenchSources
+    ? result : enrichInventoryWithAliSpeciesMcp(result);
 }
 
 export async function fetchSpeciesDetails(taxonKey: number) {

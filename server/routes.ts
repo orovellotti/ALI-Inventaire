@@ -25,6 +25,7 @@ import {
   SlidingWindowCostLimiter,
 } from "./lib/validation";
 import { geocodePlace, reverseGeocode, searchLieuxDits } from "./services/nominatim";
+import { getStudyCoverage, requireFrenchCoverage } from "./services/coverage";
 import { getZonages, getNaturaZones } from "./services/geoservices";
 import { getSpeciesForSite } from "./services/natura2000Species";
 import { storage } from "./storage";
@@ -46,8 +47,8 @@ function createCostControl(limiter: SlidingWindowCostLimiter) {
       res.setHeader("Retry-After", String(decision.retryAfterSeconds));
       res.status(429).json({
         error: decision.reason === "concurrency"
-          ? "Une analyse coûteuse est déjà en cours pour cette adresse."
-          : "Limite temporaire d’analyses atteinte. Réessayez plus tard.",
+          ? "An analysis is already running for this address."
+          : "Temporary analysis limit reached. Please try again later.",
       });
       return;
     }
@@ -61,24 +62,25 @@ const priorityCostControl = createCostControl(new SlidingWindowCostLimiter(10 * 
 const reformatCostControl = createCostControl(new SlidingWindowCostLimiter(10 * 60_000, 3, 1));
 
 const ENDPOINTS_DOC = [
-  { method: "POST", path: "/api/inventory", description: "Inventaire multi-aires (corps JSON avec circles[])" },
-  { method: "GET", path: "/api/inventory/simple?lat=&lng=&radius=", description: "Inventaire simple (un point, un rayon)" },
-  { method: "GET", path: "/api/species/:taxonKey", description: "Détails espèce (image, UICN, nom vernaculaire)" },
-  { method: "GET", path: "/api/geocode?q=", description: "Géocodage (recherche de lieu)" },
-  { method: "GET", path: "/api/lieux-dits?q=", description: "Recherche de lieux-dits (avec polygone si disponible)" },
-  { method: "GET", path: "/api/sinp?lat=&lng=", description: "Plateformes SINP régionales" },
-  { method: "GET", path: "/api/zonages?lat=&lng=&radius=", description: "Zonages environnementaux (ZNIEFF, Natura 2000, réserves, APB…) intersectant l'aire d'étude (IGN/PatriNat)" },
-  { method: "GET", path: "/api/natura-species?code=", description: "Espèces désignatrices (grade A/B/C/D) d'un site Natura 2000 (source EEA, live)" },
-  { method: "GET", path: "/api/natura2000/expected?lat=&lng=&radius=", description: "Espèces désignatrices Natura 2000 attendues autour d'un point (base locale, France)" },
-  { method: "POST", path: "/api/potential-species", description: "Compatibilité Natura 2000 et espèces documentées dans les ZNIEFF locales" },
-  { method: "GET", path: "/api/sinp/all", description: "Toutes les plateformes SINP" },
-  { method: "GET", path: "/api/presets", description: "Presets de projets EIE" },
-  { method: "GET", path: "/api/study-areas", description: "Définitions des aires d'étude" },
-  { method: "GET", path: "/api/taxon-groups", description: "Groupes taxonomiques" },
-  { method: "GET", path: "/api/data-sources", description: "Catalogue d'autres sources de données biodiversité (DataCatalog)" },
-  { method: "POST", path: "/api/llm/priority-species", description: "Analyse IA des espèces à enjeux pour un toponyme (corps : toponym, coords, occurrences)" },
-  { method: "POST", path: "/api/llm/reformat-report", description: "Reformulation IA d'un rapport brut en note de synthèse partageable" },
-  { method: "ALL", path: "/mcp", description: "Serveur MCP (Model Context Protocol) — Streamable HTTP, mode stateless." },
+  { method: "POST", path: "/api/inventory", description: "Worldwide multi-area inventory (JSON circles[])" },
+  { method: "GET", path: "/api/inventory/simple?lat=&lng=&radius=", description: "Worldwide single-location inventory" },
+  { method: "GET", path: "/api/species/:taxonKey", description: "Species details (image, IUCN, available common names)" },
+  { method: "GET", path: "/api/geocode?q=", description: "Worldwide place geocoding" },
+  { method: "GET", path: "/api/coverage?lat=&lng=", description: "Country and source coverage for study coordinates" },
+  { method: "GET", path: "/api/lieux-dits?q=", description: "Worldwide locality search (polygon when available)" },
+  { method: "GET", path: "/api/sinp?lat=&lng=", description: "French regional SINP platforms (coverage included)" },
+  { method: "GET", path: "/api/zonages?lat=&lng=&radius=", description: "French zoning (ZNIEFF, Natura 2000, reserves), France only" },
+  { method: "GET", path: "/api/natura-species?code=", description: "Natura 2000 site species (EEA)" },
+  { method: "GET", path: "/api/natura2000/expected?lat=&lng=&radius=", description: "Nearby Natura 2000 species (France only)" },
+  { method: "POST", path: "/api/potential-species", description: "French Natura 2000 and ZNIEFF potential-species assessment" },
+  { method: "GET", path: "/api/sinp/all", description: "French SINP platform directory" },
+  { method: "GET", path: "/api/presets", description: "Project presets" },
+  { method: "GET", path: "/api/study-areas", description: "Study-area definitions" },
+  { method: "GET", path: "/api/taxon-groups", description: "Taxonomic groups" },
+  { method: "GET", path: "/api/data-sources", description: "Biodiversity data-source directory" },
+  { method: "POST", path: "/api/llm/priority-species", description: "AI-assisted priority species assessment" },
+  { method: "POST", path: "/api/llm/reformat-report", description: "Client-ready English preliminary biodiversity study" },
+  { method: "ALL", path: "/mcp", description: "MCP server — stateless Streamable HTTP" },
 ];
 
 async function fetchDataSources(): Promise<unknown> {
@@ -88,7 +90,7 @@ async function fetchDataSources(): Promise<unknown> {
   const response = await fetch("https://data-catalog-tool.replit.app/api/providers");
   if (!response.ok) {
     if (dataSourcesCache) return dataSourcesCache.data;
-    throw badGateway("Catalogue de sources indisponible");
+    throw badGateway("Data source catalogue unavailable");
   }
   const data = await response.json();
   dataSourcesCache = { data, expires: Date.now() + DATA_SOURCES_TTL_MS };
@@ -104,7 +106,7 @@ function errorHandler(err: unknown, _req: Request, res: Response, _next: NextFun
     res.status(err.status).json({ error: err.message });
     return;
   }
-  const message = err instanceof Error ? err.message : "Erreur serveur";
+  const message = "Internal server error";
   console.error("Unhandled route error:", err);
   res.status(500).json({ error: message });
 }
@@ -135,7 +137,7 @@ export async function registerRoutes(
     const prompt = await getFinalStudyPrompt();
     const trace = createFinalStudyPromptTrace(prompt, "");
     res.json({
-      title: "Prompt système enregistré pour la génération de la pré-étude",
+      title: "Saved system prompt for preliminary study generation",
       prompt,
       characters: trace.systemCharacters,
       fingerprint: trace.systemFingerprint,
@@ -166,7 +168,7 @@ export async function registerRoutes(
       id: `custom-${randomUUID()}`,
       ...server,
     }]).then((registry) => registry.slice(-1));
-    if (!entry.connected) throw new HttpError(400, entry.error || "Serveur MCP inaccessible ou incompatible.");
+    if (!entry.connected) throw new HttpError(400, entry.error || "MCP server unavailable or incompatible.");
     res.json(entry);
   }));
 
@@ -175,7 +177,7 @@ export async function registerRoutes(
     const registry = await getMcpServerRegistry(config.mcpServers);
     for (const agent of config.agents) {
       if (agent.mcpId === "none" && agent.mcpToolIds.length > 0) {
-        throw new HttpError(400, `L’agent ${agent.name} ne peut pas approuver d’outil sans MCP.`);
+        throw new HttpError(400, `Agent ${agent.name} cannot approve tools without an MCP server.`);
       }
       if (agent.mcpId !== "none") {
         const registered = registry.find((entry) => entry.id === agent.mcpId && entry.connected);
@@ -185,7 +187,7 @@ export async function registerRoutes(
             !registered.tools.some((tool) => tool.id === toolId && tool.supported !== false),
           )
         ) {
-          throw new HttpError(400, `La sélection MCP de l’agent ${agent.name} contient un outil non administré.`);
+          throw new HttpError(400, `Agent ${agent.name} selected an MCP tool that has not been approved.`);
         }
       }
     }
@@ -204,7 +206,7 @@ export async function registerRoutes(
       const { circles, includeINaturalist } = inventoryBodySchema.parse(req.body);
       const harness = await getRuntimeHarnessConfig();
       if (!isAgentEnabled(harness, "occurrences")) {
-        throw new HttpError(409, "L’Agent Occurrences est désactivé dans le Harnais.");
+        throw new HttpError(409, "The occurrences analysis is disabled.");
       }
       const result = await searchGBIFMultiCircle(circles, {
         includeINaturalist,
@@ -225,7 +227,7 @@ export async function registerRoutes(
       const { lat, lng, radius, includeINaturalist } = simpleInventoryQuerySchema.parse(req.query);
       const harness = await getRuntimeHarnessConfig();
       if (!isAgentEnabled(harness, "occurrences")) {
-        throw new HttpError(409, "L’Agent Occurrences est désactivé dans le Harnais.");
+        throw new HttpError(409, "The occurrences analysis is disabled.");
       }
       const result = await searchGBIF(lat, lng, radius, {
         includeINaturalist,
@@ -264,11 +266,17 @@ export async function registerRoutes(
     }),
   );
 
+  app.get("/api/coverage", asyncHandler(async (req, res) => {
+    const { lat, lng } = latLngQuerySchema.parse(req.query);
+    res.json(await getStudyCoverage(lat, lng));
+  }));
+
   app.get(
     "/api/sinp",
     asyncHandler(async (req, res) => {
       const { lat, lng } = latLngQuerySchema.parse(req.query);
-      res.json({ platforms: findSINPPlatforms(lat, lng) });
+      const coverage = await getStudyCoverage(lat, lng);
+      res.json({ platforms: coverage.frenchSources ? findSINPPlatforms(lat, lng) : [], coverage });
     }),
   );
 
@@ -281,11 +289,12 @@ export async function registerRoutes(
     asyncHandler(async (req, res) => {
       const harness = await getRuntimeHarnessConfig();
       if (!isAgentEnabled(harness, "zonages")) {
-        throw new HttpError(409, "L’Agent Zonages est désactivé dans le Harnais.");
+        throw new HttpError(409, "The zoning analysis is disabled.");
       }
       const { lat, lng, radius } = zonagesQuerySchema.parse(req.query);
+      const coverage = await requireFrenchCoverage(lat, lng, "French protected-area zoning");
       const includeGeometry = req.query.geometry === "1" || req.query.geometry === "true";
-      res.json(await getZonages(lat, lng, radius, { includeGeometry }));
+      res.json({ ...await getZonages(lat, lng, radius, { includeGeometry }), coverage });
     }),
   );
 
@@ -306,6 +315,7 @@ export async function registerRoutes(
     "/api/natura2000/expected",
     asyncHandler(async (req, res) => {
       const { lat, lng, radius } = zonagesQuerySchema.parse(req.query);
+      await requireFrenchCoverage(lat, lng, "French Natura 2000 site species");
       const zones = await getNaturaZones(lat, lng, radius);
       const codes = Array.from(
         new Set(
@@ -357,9 +367,10 @@ export async function registerRoutes(
     asyncHandler(async (req, res) => {
       const { lat, lng, radius, occurrences, projectArea } =
         potentialSpeciesBodySchema.parse(req.body);
+      await requireFrenchCoverage(lat, lng, "French Natura 2000, ZNIEFF and CARHAB potential species");
       const harness = await getRuntimeHarnessConfig();
       if (!isAgentEnabled(harness, "zonages")) {
-        throw new HttpError(409, "L’Agent Zonages est désactivé dans le Harnais.");
+        throw new HttpError(409, "The zoning analysis is disabled.");
       }
       res.json(await getPotentialSpecies(lat, lng, radius, occurrences, {
         includeHabitats: isAgentOperational(harness, "habitats"),
@@ -395,7 +406,7 @@ export async function registerRoutes(
       const { toponym, coords, occurrences, projectArea } = priorityBodySchema.parse(req.body);
       const harness = await getRuntimeHarnessConfig();
       if (!isAgentEnabled(harness, "occurrences")) {
-        throw new HttpError(409, "L’Agent Occurrences est désactivé dans le Harnais.");
+        throw new HttpError(409, "The occurrences analysis is disabled.");
       }
       res.json(await analyzePrioritySpecies(toponym, coords, occurrences as any, projectArea));
     }),

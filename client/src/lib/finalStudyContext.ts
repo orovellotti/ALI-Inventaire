@@ -45,13 +45,14 @@ export interface FinalStudyContextInput {
 }
 
 export function buildFinalStudyContext(input: FinalStudyContextInput) {
+  const frenchSourcesUnavailable = input.inventory.coverage?.frenchSources === false;
   const inventorySpecies = [...input.inventory.occurrences].sort((a, b) => {
     const rank = { critique: 5, fort: 4, modere: 3, a_confirmer: 2, faible: 1 };
     return (rank[b.enjeuLevel ?? "faible"] - rank[a.enjeuLevel ?? "faible"])
       || ((b.observationCount ?? 0) - (a.observationCount ?? 0))
       || a.scientificName.localeCompare(b.scientificName);
   });
-  const zonageItems = input.zonages?.groups.flatMap((group) =>
+  const zonageItems = (frenchSourcesUnavailable ? null : input.zonages)?.groups.flatMap((group) =>
     group.zonages.map((zonage) => ({
       group: group.label,
       category: zonage.category,
@@ -74,7 +75,11 @@ export function buildFinalStudyContext(input: FinalStudyContextInput) {
 
   return {
     schemaVersion: 1,
-    purpose: "Contexte structuré canonique de la pré-étude ALi Inventaire",
+    purpose: "Canonical structured context for the ALi Inventory desk study",
+    coverage: input.inventory.coverage ?? null,
+    coverageCaveat: frenchSourcesUnavailable
+      ? "France-only zoning, SINP, Natura 2000 / ZNIEFF species, CARHAB habitats and ALI/TAXREF statuses were not queried outside their coverage. Missing data must never be interpreted as zero findings, absence of biodiversity or no local legal protections. Consult applicable local sources and validate in the field."
+      : null,
     request: {
       summary: input.requestSummary,
       place: input.toponym,
@@ -86,7 +91,7 @@ export function buildFinalStudyContext(input: FinalStudyContextInput) {
     inventory: {
       statistics: input.inventory.stats,
       confidence: input.inventory.confidence,
-      aliSpeciesEnrichment: input.inventory.aliSpeciesEnrichment ?? null,
+      aliSpeciesEnrichment: frenchSourcesUnavailable ? null : input.inventory.aliSpeciesEnrichment ?? null,
       species: limited(inventorySpecies, MAX_INVENTORY_SPECIES, (species) => ({
         scientificName: species.scientificName,
         frenchName: species.vernacularName,
@@ -110,23 +115,23 @@ export function buildFinalStudyContext(input: FinalStudyContextInput) {
         },
         habitatType: species.habitatType,
         globalIucnContext: species.iucnStatus,
-        territorialStatuses: species.aliStatuses,
+        territorialStatuses: frenchSourcesUnavailable ? null : species.aliStatuses,
         enjeuLevel: species.enjeuLevel,
         enjeuWarnings: species.enjeuWarnings,
-        invasive: species.isInvasive,
-        protectedInFrance: species.frenchProtected,
+        invasive: frenchSourcesUnavailable ? null : species.isInvasive,
+        protectedInFrance: frenchSourcesUnavailable ? null : species.frenchProtected,
       })),
     },
     zonages: {
-      state: input.states.zonagesLoading ? "loading" : input.zonages ? "complete" : "unavailable",
-      errors: input.zonages?.errors ?? [],
+      state: frenchSourcesUnavailable ? "out_of_coverage" : input.states.zonagesLoading ? "loading" : input.zonages ? "complete" : "unavailable",
+      errors: frenchSourcesUnavailable ? [] : input.zonages?.errors ?? [],
       results: limited(zonageItems, MAX_ZONAGES, (zone) => zone),
     },
     habitats: {
-      consultationState: input.states.habitatConsultation,
-      carhab: input.carhabSummary,
+      consultationState: frenchSourcesUnavailable ? "out_of_coverage" : input.states.habitatConsultation,
+      carhab: frenchSourcesUnavailable ? null : input.carhabSummary,
     },
-    potentialSpecies: input.potentialSpecies
+    potentialSpecies: !frenchSourcesUnavailable && input.potentialSpecies
       ? {
           generatedAt: input.potentialSpecies.generatedAt,
           partial: input.potentialSpecies.partial,
@@ -151,7 +156,7 @@ export function buildFinalStudyContext(input: FinalStudyContextInput) {
               confidence: species.confidence,
               regionalRedList: regionalRedList ?? null,
               issueInterpretation: regionalRedList && ["CR", "EN", "VU"].includes(regionalRedList.value.toUpperCase())
-                ? "Enjeu documentaire potentiel élevé à confirmer sur le terrain ; aucune présence dans l’emprise n’est affirmée."
+                ? "Potentially high desk-based concern requiring field confirmation; presence within the project footprint is not asserted."
                 : undefined,
               reasons: species.reasons.map((reason) => short(reason)),
               sites: species.sites,
@@ -165,11 +170,11 @@ export function buildFinalStudyContext(input: FinalStudyContextInput) {
           },
         }
       : {
-          state: input.states.potentialSpeciesLoading
+          state: frenchSourcesUnavailable ? "out_of_coverage" : input.states.potentialSpeciesLoading
             ? "loading"
             : input.states.potentialSpeciesError ? "error" : "unavailable",
         },
-    priorityAnalysis: input.priorityAnalysis
+    priorityAnalysis: !frenchSourcesUnavailable && input.priorityAnalysis
       ? {
           generatedAt: input.priorityAnalysis.generatedAt,
           species: input.priorityAnalysis.species,
@@ -186,7 +191,7 @@ export function buildFinalStudyContext(input: FinalStudyContextInput) {
         }
       : null,
     harness: {
-      agents: input.harnessConfig?.agents.filter((agent) => agent.enabled).map((agent) => ({
+      agents: (frenchSourcesUnavailable ? [] : input.harnessConfig?.agents.filter((agent) => agent.enabled) ?? []).map((agent) => ({
         id: agent.id,
         name: agent.name,
         description: agent.description,
@@ -198,7 +203,7 @@ export function buildFinalStudyContext(input: FinalStudyContextInput) {
       potentialSpecies: MAX_POTENTIAL_SPECIES,
       znieffSpecies: MAX_ZNIEFF_SPECIES,
       zonages: MAX_ZONAGES,
-      rule: "Chaque section expose totalCount et omittedCount ; aucune omission n’est implicite.",
+      rule: "Each section specifies totalCount and omittedCount; no omission is implicit. An unavailable source is not a zero result.",
     },
   };
 }
@@ -240,7 +245,7 @@ export function serializeFinalStudyContext(
   }
 
   if (serialized.length > MAX_SERIALIZED_CONTEXT_CHARACTERS) {
-    throw new Error("Le contexte scientifique dépasse la taille exploitable, même après agrégation.");
+    throw new Error("The scientific context exceeds the supported size even after aggregation.");
   }
   return serialized;
 }
