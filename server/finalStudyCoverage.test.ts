@@ -44,7 +44,7 @@ test("server-resolved non-French country overrides forged French regional IUCN a
 test("final study fails explicitly when coordinates or country coverage are unknown", async () => {
   await assert.rejects(
     prepareFinalStudyContext("text", JSON.stringify({ request: { place: "France" } })),
-    (error: unknown) => error instanceof HttpError && error.status === 422 && /coordinates/i.test(error.message),
+    (error: unknown) => error instanceof HttpError && error.status === 400 && /coordinates/i.test(error.message),
   );
   const originalFetch = globalThis.fetch;
   globalThis.fetch = async () => new Response(JSON.stringify({
@@ -55,6 +55,40 @@ test("final study fails explicitly when coordinates or country coverage are unkn
       prepareFinalStudyContext("text", JSON.stringify({ request: { center: [11.234, 22.345] } })),
       (error: unknown) => error instanceof HttpError && error.status === 422 && /country/i.test(error.message),
     );
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("malformed consumed nested context fails with 400 before any geographic API", async () => {
+  const originalFetch = globalThis.fetch;
+  let calls = 0;
+  globalThis.fetch = async () => {
+    calls++;
+    throw new Error("No APIs should be called for invalid input");
+  };
+  const invalid = [
+    { request: null },
+    { request: { center: [45, 3], studyAreas: {} } },
+    { request: { center: [45, 3], studyAreas: [null] } },
+    { request: { center: [45, 3], studyAreas: [{ enabled: false, center: "bad" }] } },
+    { request: { center: [45, 3] }, inventory: [] },
+    { request: { center: [45, 3] }, inventory: { species: "bad" } },
+    { request: { center: [45, 3] }, inventory: { species: { items: {} } } },
+    { request: { center: [45, 3] }, inventory: { species: { items: [null] } } },
+    { request: { center: [45, 3] }, inventory: { species: { items: [["nested"]] } } },
+    { request: { center: [45, 3] }, inventory: { species: { items: ["bad"] } } },
+  ];
+  try {
+    for (const context of invalid) {
+      await assert.rejects(
+        prepareFinalStudyContext("report", JSON.stringify(context)),
+        (error: unknown) => error instanceof HttpError && error.status === 400,
+      );
+    }
+    await assert.rejects(prepareFinalStudyContext("report", "{invalid"), (error: unknown) =>
+      error instanceof HttpError && error.status === 400);
+    assert.equal(calls, 0);
   } finally {
     globalThis.fetch = originalFetch;
   }

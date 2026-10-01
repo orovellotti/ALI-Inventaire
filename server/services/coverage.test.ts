@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { coverageForCountry, getStudyCoverage, requireFrenchCoverage } from "./coverage";
+import { reduceStudyCoverage } from "@shared/coverage";
 
 test("global coverage does not imply local French conservation or regulatory coverage", () => {
   const outside = coverageForCountry("GB", "United Kingdom");
@@ -10,6 +11,20 @@ test("global coverage does not imply local French conservation or regulatory cov
   assert.equal(coverageForCountry("fr").frenchSources, true);
   assert.equal(coverageForCountry("GP").frenchSources, true);
   assert.throws(() => coverageForCountry(undefined), /country could not be determined/i);
+});
+
+test("aggregate coverage never enables French classification for mixed countries", () => {
+  const france = coverageForCountry("FR");
+  const uk = coverageForCountry("GB");
+  for (const coverages of [[france, uk], [uk, france]]) {
+    const coverage = reduceStudyCoverage(coverages);
+    assert.equal(coverage.countryCode, "MULTIPLE");
+    assert.equal(coverage.frenchSources, false);
+    assert.ok(coverage.unavailableSources.includes("ALI/TAXREF territorial statuses"));
+  }
+  assert.deepEqual(reduceStudyCoverage([france, france]), france);
+  assert.equal(reduceStudyCoverage([france, { ...france, frenchSources: false }]).frenchSources, false);
+  assert.throws(() => reduceStudyCoverage([]), /verified study coverage/);
 });
 
 test("country is resolved from reverse geocoding before French-only sources can run", async () => {

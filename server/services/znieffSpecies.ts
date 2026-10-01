@@ -38,23 +38,7 @@ function isPublicDeterminationStatus(
  * exemple, « Lutra lutra (Linnaeus, 1758) » et « Lutra lutra ».
  */
 export function canonicalTaxonName(value: string): string {
-  const withoutParenthesizedAuthority = value
-    .normalize("NFKC")
-    .trim()
-    .replace(/\s+\([^)]*\).*$/, "")
-    .replace(/,\s*\d{4}.*$/, "");
-  const tokens = withoutParenthesizedAuthority.split(/\s+/).filter(Boolean);
-  if (tokens.length < 2) return normalizeSpeciesName(value);
-  const kept = tokens.slice(0, 2);
-  const third = tokens[2];
-  if (third && /^[a-zà-öø-ÿ-]+$/.test(third)) {
-    kept.push(third);
-  } else if (third && /^(subsp\.?|ssp\.?|var\.?|f\.?)$/i.test(third)) {
-    kept.push(third);
-    const fourth = tokens[3];
-    if (fourth && /^[a-zà-öø-ÿ-]+$/.test(fourth)) kept.push(fourth);
-  }
-  return normalizeSpeciesName(kept.join(" "));
+  return normalizeSpeciesName(value);
 }
 
 export function buildZnieffReference(

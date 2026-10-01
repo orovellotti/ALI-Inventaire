@@ -31,7 +31,6 @@ interface RawSearchHit {
 }
 
 const searchCache = new Map<string, { hit: AliTaxonHit | null; ts: number }>();
-const statusCache = new Map<number, { statuses: RawAliStatus[]; ts: number }>();
 const CACHE_TTL = 1000 * 60 * 60 * 24;
 
 async function fetchJson(url: string, timeoutMs = TIMEOUT_MS): Promise<unknown> {
@@ -63,18 +62,6 @@ export async function searchAliTaxon(query: string, timeoutMs = TIMEOUT_MS): Pro
 
   searchCache.set(key, { hit, ts: Date.now() });
   return hit;
-}
-
-export async function fetchAliStatuts(cdNom: number): Promise<RawAliStatus[]> {
-  const cached = statusCache.get(cdNom);
-  if (cached && Date.now() - cached.ts < CACHE_TTL) return cached.statuses;
-
-  // Errors propagate (not cached) — see searchAliTaxon.
-  const data = await fetchJson(`${ALI_BASE}/api/taxons/${cdNom}/statuts`);
-  const statuses: RawAliStatus[] = Array.isArray(data) ? (data as RawAliStatus[]) : [];
-
-  statusCache.set(cdNom, { statuses, ts: Date.now() });
-  return statuses;
 }
 
 export { ALI_BASE };

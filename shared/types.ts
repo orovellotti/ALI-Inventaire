@@ -120,6 +120,8 @@ export interface InventoryResult {
   confidence: ConfidenceScore;
   /** Coverage of data sources at the study location; missing fields are not negative findings. */
   coverage?: StudyCoverage;
+  /** Source failure/partial collection is not a negative biodiversity finding. */
+  sourceStatus?: Partial<Record<"gbif" | "inaturalist", InventorySourceStatus>>;
   /** Traçabilité de la phase d'enrichissement territorial ALI Species. */
   aliSpeciesEnrichment?: {
     source: "ALI Species MCP";
@@ -130,11 +132,18 @@ export interface InventoryResult {
     failed: number;
     skipped: number;
     partial: boolean;
+    /** An unavailable enrichment must not look like a verified empty status set. */
+    error?: string;
     /** Noms sans cdNom proposés au résolveur ALI Species. */
     nameResolutionAttempted?: number;
     /** Noms effectivement reliés à un taxon TAXREF canonique. */
     nameResolved?: number;
   };
+}
+
+export interface InventorySourceStatus {
+  state: "complete" | "partial" | "unavailable" | "skipped";
+  error?: string;
 }
 
 export interface StudyCoverage {

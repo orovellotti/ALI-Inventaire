@@ -10,6 +10,7 @@ import {
   EEA_SPECIES_ECOLOGICAL_GROUPS,
   type EeaSpeciesEcologicalGroup,
 } from "../data/eeaEcologicalGroups";
+import { normalizeTaxonIdentity } from "@shared/taxonomy";
 
 export interface PotentialSpeciesSiteEvidence {
   code: string;
@@ -26,11 +27,7 @@ export interface PotentialSpeciesCandidate {
 }
 
 export function normalizeSpeciesName(value: string): string {
-  return value
-    .normalize("NFKC")
-    .trim()
-    .replace(/\s+/g, " ")
-    .toLocaleLowerCase("fr");
+  return normalizeTaxonIdentity(value);
 }
 
 const PREFERENCE_SCORE: Record<string, number> = {

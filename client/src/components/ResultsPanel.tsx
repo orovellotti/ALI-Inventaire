@@ -4,7 +4,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { X, Download, FileText, AlertTriangle, AlertCircle, Leaf, Info, ChevronDown, ChevronUp, ImageOff, Copy, Check, ExternalLink, BookOpen, Shield, ShieldAlert, MapPin, Tag, Calendar, Link, Flag, Layers, Database, Bot, Filter, Table, Sparkles, Loader2, Share2, Mail, MoreHorizontal, Settings2, Search, ChevronLeft, ListChecks, ClipboardList, LayoutGrid, ChevronRight, Gauge, History, Plus, Pencil, Trash2 } from "lucide-react";
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuCheckboxItem } from "@/components/ui/dropdown-menu";
-import { InventoryResult, Occurrence, getIucnLabel, getIucnFullLabel, getPatrimonialite, ConfidenceScore, TAXON_GROUPS, getTaxonGroupId, isMarineSpecies } from "@/lib/gbif";
+import { InventoryResult, Occurrence, getIucnLabel, getIucnFullLabel, getPatrimonialite, ConfidenceScore, TAXON_GROUPS, getTaxonGroupId, isMarineSpecies, getInventorySourceWarnings, getAliEnrichmentWarning } from "@/lib/gbif";
 import { findSINPPlatforms, SINPPlatform } from "@/lib/sinp";
 import { exportCSV, exportExcel } from "@/lib/export";
 import { PrioritySpeciesInline, type Analysis as PrioritySpeciesAnalysis } from "./PrioritySpeciesInline";
@@ -24,8 +24,12 @@ import type { HarnessConfig } from "@shared/harness";
 import { parseCarhabOutput, type CarhabSummary } from "@shared/carhab";
 import { getPreferredTerritorialRedList, isPlantTaxon } from "@shared/iucn";
 import { occurrenceKey, uniqueOccurrences } from "@/lib/resultKeys";
-import { buildFinalStudyContext, serializeFinalStudyContext } from "@/lib/finalStudyContext";
-import React, { useState, useMemo, useEffect, useRef, type ReactNode } from "react";
+import { buildFinalStudyRequestSnapshot } from "@/lib/finalStudyContext";
+import { classifyConcern, concernBucket, concernLabel, CONCERN_INTERPRETATION_RULE } from "@/lib/concern";
+import { selectInventorySpecies, selectPotentialSpecies, selectSupportingSpecies, STUDY_SELECTION_CAVEAT } from "@/lib/studySelectors";
+import { buildWordStudyDocument } from "@/lib/wordStudy";
+import { ReportGenerationGate } from "@/lib/reportGeneration";
+import React, { useState, useMemo, useEffect, useLayoutEffect, useRef, type ReactNode } from "react";
 
 interface NaturaSpeciesItem {
   name: string;
@@ -102,98 +106,6 @@ function formatCarhabSummaryEnglish(summary: CarhabSummary): string {
     ].filter(Boolean).join(" · ");
     return `• [${habitat.code}] ${habitat.label}${metrics ? ` — ${metrics}` : ""}`;
   })].join("\n");
-}
-
-function studyMarkdownToWordHtml(markdown: string): string {
-  const escapeHtml = (value: string) =>
-    value
-      .replaceAll("&", "&amp;")
-      .replaceAll("<", "&lt;")
-      .replaceAll(">", "&gt;");
-  const inline = (value: string) =>
-    escapeHtml(value)
-      .replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>")
-      .replace(/\*([^*]+)\*/g, "<em>$1</em>");
-  const lines = markdown.replace(/\r\n?/g, "\n").split("\n");
-  const html: string[] = [];
-  let paragraph: string[] = [];
-  let listOpen = false;
-  let tableOpen = false;
-
-  const flushParagraph = () => {
-    if (!paragraph.length) return;
-    html.push(`<p>${inline(paragraph.join(" "))}</p>`);
-    paragraph = [];
-  };
-  const closeList = () => {
-    if (listOpen) html.push("</ul>");
-    listOpen = false;
-  };
-  const closeTable = () => {
-    if (tableOpen) html.push("</tbody></table>");
-    tableOpen = false;
-  };
-
-  for (let index = 0; index < lines.length; index += 1) {
-    const rawLine = lines[index].trim();
-    const heading = rawLine.match(/^(#{1,3})\s+(.+)$/);
-    const bullet = rawLine.match(/^[-*]\s+(.+)$/);
-    const cells = rawLine.startsWith("|") && rawLine.endsWith("|")
-      ? rawLine.slice(1, -1).split("|").map((cell) => cell.trim())
-      : null;
-    const nextLine = lines[index + 1]?.trim() ?? "";
-    const nextIsSeparator = /^\|?(?:\s*:?-{3,}:?\s*\|)+\s*$/.test(nextLine);
-    const isSeparator = /^\|?(?:\s*:?-{3,}:?\s*\|)+\s*$/.test(rawLine);
-
-    if (!rawLine) {
-      flushParagraph();
-      closeList();
-      closeTable();
-      continue;
-    }
-    if (heading) {
-      flushParagraph();
-      closeList();
-      closeTable();
-      html.push(`<h${heading[1].length}>${inline(heading[2])}</h${heading[1].length}>`);
-      continue;
-    }
-    if (bullet) {
-      flushParagraph();
-      closeTable();
-      if (!listOpen) {
-        html.push("<ul>");
-        listOpen = true;
-      }
-      html.push(`<li>${inline(bullet[1])}</li>`);
-      continue;
-    }
-    if (isSeparator) continue;
-    if (cells) {
-      flushParagraph();
-      closeList();
-      if (!tableOpen) {
-        html.push("<table>");
-        if (nextIsSeparator) {
-          html.push(`<thead><tr>${cells.map((cell) => `<th>${inline(cell)}</th>`).join("")}</tr></thead><tbody>`);
-          tableOpen = true;
-          index += 1;
-          continue;
-        }
-        html.push("<tbody>");
-        tableOpen = true;
-      }
-      html.push(`<tr>${cells.map((cell) => `<td>${inline(cell)}</td>`).join("")}</tr>`);
-      continue;
-    }
-    closeList();
-    closeTable();
-    paragraph.push(rawLine);
-  }
-  flushParagraph();
-  closeList();
-  closeTable();
-  return html.join("\n");
 }
 
 const GROUP_SEASON: Record<string, string> = {
@@ -307,6 +219,7 @@ export function ResultsPanel({ isOpen, isAnalyzing = false, areaCount = 1, onClo
   } | null>(null);
   const [reformatting, setReformatting] = useState(false);
   const [reformatError, setReformatError] = useState<string | null>(null);
+  const reportGenerationGateRef = useRef(new ReportGenerationGate());
   const [showFilters, setShowFilters] = useState(false);
   const [showAnalysisDetails, setShowAnalysisDetails] = useState(false);
   const [resultView, setResultView] = useState<ResultView>("detail");
@@ -326,6 +239,14 @@ export function ResultsPanel({ isOpen, isAnalyzing = false, areaCount = 1, onClo
     );
     return trace?.output ? parseCarhabOutput(trace.output) : null;
   }, [aiAnalysis]);
+  const consultationWarnings = useMemo(() => [
+    ...getInventorySourceWarnings(results?.sourceStatus),
+    getAliEnrichmentWarning(results?.aliSpeciesEnrichment, "Inventory ALI Species"),
+    getAliEnrichmentWarning(aiAnalysis?.aliSpeciesEnrichment, "Priority-species ALI Species"),
+    aiAnalysis?.coverage?.frenchSources === false
+      ? "Priority analysis: French specialist sources were not consulted for all enabled study areas. Missing statuses, designations or habitats are unknown, not zero findings."
+      : null,
+  ].filter((warning): warning is string => warning !== null), [results, aiAnalysis]);
   const [habitatConsultationState, setHabitatConsultationState] = useState<"idle" | "loading" | "complete" | "error" | "out-of-coverage">("idle");
   const shouldRunHabitatAnalysisRef = useRef(false);
   useEffect(() => {
@@ -405,59 +326,48 @@ export function ResultsPanel({ isOpen, isAnalyzing = false, areaCount = 1, onClo
   }, [assistantOpen]);
 
   const marineCount = useMemo(() => {
-    if (!results) return 0;
-    const seen = new Set<string>();
-    let n = 0;
-    for (const occ of results.occurrences) {
-      const key = occurrenceKey(occ);
-      if (seen.has(key)) continue;
-      seen.add(key);
-      if (isMarineSpecies(occ)) n += 1;
-    }
-    return n;
+    return selectInventorySpecies(results?.occurrences ?? [], { excludeMarine: false }).filter(isMarineSpecies).length;
   }, [results]);
 
+  const taxonFilterKey = Array.from(activeTaxonFilters).sort().join("|");
+  const studyFilters = useMemo(() => ({
+    activeTaxonGroups: taxonFilterKey ? taxonFilterKey.split("|") : [],
+    excludeMarine: !!excludeMarine,
+  }), [taxonFilterKey, excludeMarine]);
+  const marineFilteredSpecies = useMemo(
+    () => selectInventorySpecies(results?.occurrences ?? [], { excludeMarine: !!excludeMarine }),
+    [results, excludeMarine],
+  );
+  const selectedInventorySpecies = useMemo(
+    () => selectInventorySpecies(results?.occurrences ?? [], studyFilters),
+    [results, studyFilters],
+  );
+  const selectedPrioritySpecies = useMemo(
+    () => selectSupportingSpecies(aiAnalysis?.species ?? [], (species) => species.group, studyFilters, results?.occurrences ?? []),
+    [aiAnalysis, studyFilters, results],
+  );
+
   const taxonCounts = useMemo(() => {
-    if (!results) return new Map<string, number>();
-    const uniqueMap = new Map<string, Occurrence>();
-    results.occurrences.forEach((occ) => {
-      if (excludeMarine && isMarineSpecies(occ)) return;
-      const key = occurrenceKey(occ);
-      const existing = uniqueMap.get(key);
-      if (!existing || getAlertPriority(occ.alertLevel) > getAlertPriority(existing.alertLevel)) {
-        uniqueMap.set(key, occ);
-      }
-    });
     const counts = new Map<string, number>();
-    for (const occ of Array.from(uniqueMap.values())) {
+    for (const occ of marineFilteredSpecies) {
       const groupId = getTaxonGroupId(occ);
       counts.set(groupId, (counts.get(groupId) || 0) + 1);
     }
     return counts;
-  }, [results, excludeMarine]);
+  }, [marineFilteredSpecies]);
 
   const groupStats = useMemo(() => {
     const m = new Map<string, { total: number; sensitive: number; protected: number }>();
-    if (!results) return m;
-    const uniqueMap = new Map<string, Occurrence>();
-    results.occurrences.forEach((occ) => {
-      if (excludeMarine && isMarineSpecies(occ)) return;
-      const key = occurrenceKey(occ);
-      const existing = uniqueMap.get(key);
-      if (!existing || getAlertPriority(occ.alertLevel) > getAlertPriority(existing.alertLevel)) {
-        uniqueMap.set(key, occ);
-      }
-    });
-    for (const occ of Array.from(uniqueMap.values())) {
+    for (const occ of marineFilteredSpecies) {
       const g = getTaxonGroupId(occ);
       const s = m.get(g) || { total: 0, sensitive: 0, protected: 0 };
       s.total += 1;
-      if (occ.alertLevel === "high" || occ.alertLevel === "medium") s.sensitive += 1;
+      if (concernBucket(occ) !== "low") s.sensitive += 1;
       if (occ.frenchProtected) s.protected += 1;
       m.set(g, s);
     }
     return m;
-  }, [results, excludeMarine]);
+  }, [marineFilteredSpecies]);
 
   const presentGroups = useMemo(() => {
     return TAXON_GROUPS.filter(g => (taxonCounts.get(g.id) || 0) > 0);
@@ -474,22 +384,6 @@ export function ResultsPanel({ isOpen, isAnalyzing = false, areaCount = 1, onClo
   }, [results]);
 
   const sortedSpecies = useMemo(() => {
-    if (!results) return { high: [] as Occurrence[], medium: [] as Occurrence[], low: [] as Occurrence[] };
-
-    const uniqueMap = new Map<string, Occurrence>();
-    results.occurrences.forEach((occ) => {
-      if (excludeMarine && isMarineSpecies(occ)) return;
-      const key = occurrenceKey(occ);
-      const existing = uniqueMap.get(key);
-      if (!existing || getAlertPriority(occ.alertLevel) > getAlertPriority(existing.alertLevel)) {
-        uniqueMap.set(key, occ);
-      }
-    });
-
-    const unique = Array.from(uniqueMap.values()).filter(occ =>
-      activeTaxonFilters.has(getTaxonGroupId(occ))
-    );
-
     const iucnRank = (status: string | undefined): number => {
       const s = status?.toUpperCase();
       switch (s) {
@@ -512,18 +406,12 @@ export function ResultsPanel({ isOpen, isAnalyzing = false, areaCount = 1, onClo
       return a.scientificName.localeCompare(b.scientificName);
     };
 
-    const bucketFor = (occurrence: Occurrence): "high" | "medium" | "low" => {
-      if (occurrence.enjeuLevel === "critique" || occurrence.enjeuLevel === "fort") return "high";
-      if (occurrence.enjeuLevel === "modere" || occurrence.enjeuLevel === "a_confirmer") return "medium";
-      if (occurrence.enjeuLevel === "faible") return "low";
-      return occurrence.alertLevel;
-    };
     return {
-      high: unique.filter((occurrence) => bucketFor(occurrence) === "high").sort(sortByEnjeu),
-      medium: unique.filter((occurrence) => bucketFor(occurrence) === "medium").sort(sortByEnjeu),
-      low: unique.filter((occurrence) => bucketFor(occurrence) === "low").sort(sortByEnjeu),
+      high: selectedInventorySpecies.filter((occurrence) => concernBucket(occurrence) === "high").sort(sortByEnjeu),
+      medium: selectedInventorySpecies.filter((occurrence) => concernBucket(occurrence) === "medium").sort(sortByEnjeu),
+      low: selectedInventorySpecies.filter((occurrence) => concernBucket(occurrence) === "low").sort(sortByEnjeu),
     };
-  }, [results, activeTaxonFilters, excludeMarine]);
+  }, [selectedInventorySpecies]);
 
   const allFilteredSpecies = useMemo(() => {
     return [...sortedSpecies.high, ...sortedSpecies.medium, ...sortedSpecies.low];
@@ -582,6 +470,7 @@ export function ResultsPanel({ isOpen, isAnalyzing = false, areaCount = 1, onClo
         coords: results.center,
         occurrences,
         projectArea,
+        studyAreas: results.circles.filter((area) => area.enabled),
       }),
       signal: controller.signal,
     })
@@ -613,39 +502,13 @@ export function ResultsPanel({ isOpen, isAnalyzing = false, areaCount = 1, onClo
     const aConfirmer: Occurrence[] = [];
     const faible: Occurrence[] = [];
 
-    function classify(o: Occurrence, defaultHighBucket: boolean) {
-      if (o.isInvasive) { eee.push(o); return; }
-      // Priorité : enjeuLevel territorial (si enrichissement ALI disponible)
-      if (o.enjeuLevel) {
-        switch (o.enjeuLevel) {
-          case "critique":    critique.push(o);    return;
-          case "fort":        fort.push(o);        return;
-          case "modere":      modere.push(o);      return;
-          case "a_confirmer": aConfirmer.push(o);  return;
-          default:            faible.push(o);      return;
-        }
-      }
-      // Repli : heuristique alertLevel + getPatrimonialite (avant enrichissement ALI)
-      if (defaultHighBucket) {
-        if (getPatrimonialite(o.iucnStatus, o.alertLevel, o.isInvasive).level >= 4) {
-          critique.push(o);
-        } else {
-          fort.push(o);
-        }
-      } else {
-        modere.push(o);
-      }
+    const buckets = { critique, fort, modere, a_confirmer: aConfirmer, faible, eee };
+    for (const occurrence of allFilteredSpecies) {
+      buckets[classifyConcern(occurrence)].push(occurrence);
     }
 
-    sortedSpecies.high.forEach((o) => classify(o, true));
-    sortedSpecies.medium.forEach((o) => classify(o, false));
-    sortedSpecies.low.forEach((o) => {
-      if (o.isInvasive) eee.push(o);
-      else faible.push(o);
-    });
-
     return { critique, fort, modere, aConfirmer, faible, eee };
-  }, [sortedSpecies]);
+  }, [allFilteredSpecies]);
 
   /** Espèces prioritaires, par niveau d'enjeu décroissant (critique → fort → modéré → à confirmer). */
   const prioritySpeciesList = useMemo(
@@ -661,24 +524,23 @@ export function ResultsPanel({ isOpen, isAnalyzing = false, areaCount = 1, onClo
   }, [allFilteredSpecies, prioritySpeciesList, speciesScope, speciesQuery]);
 
   const reconciledPotentialSpecies = useMemo(() => {
-    if (!results) return potentialSpecies;
-    return reconcilePotentialSpecies(
-      potentialSpecies,
-      results.occurrences,
-      results.center,
-      results.radius,
+    const reconciled = results ? reconcilePotentialSpecies(
+      potentialSpecies, results.occurrences, results.center, results.radius,
+    ) : potentialSpecies;
+    return selectPotentialSpecies(
+      reconciled, studyFilters, results?.occurrences ?? [],
     );
-  }, [potentialSpecies, results]);
+  }, [potentialSpecies, results, studyFilters]);
 
   const regionalRedListByPotentialName = useMemo(() => {
     const statuses = new Map<string, { value: string; label: string; scope?: string }>();
-    for (const species of aiAnalysis?.species ?? []) {
+    for (const species of selectedPrioritySpecies) {
       if (species.inInventory) continue;
       const regional = species.statuses?.find((status) => status.category === "Liste rouge régionale");
       if (regional) statuses.set(normalizedTaxonName(species.scientificName), regional);
     }
     return statuses;
-  }, [aiAnalysis]);
+  }, [selectedPrioritySpecies]);
 
   const potentialIssueSignals = useMemo(() => {
     if (
@@ -742,23 +604,16 @@ export function ResultsPanel({ isOpen, isAnalyzing = false, areaCount = 1, onClo
     const hi = sortedSpecies.high.length;
     const med = sortedSpecies.medium.length;
     const zc = regionalSourcesUnavailable ? 0 : zonages?.count || 0;
-    const hasMarine = marineCount > 0;
-    const hasTerrestrial = (results?.stats.speciesCount || 0) - marineCount > 0;
+    const hasMarine = allFilteredSpecies.some(isMarineSpecies);
+    const hasTerrestrial = allFilteredSpecies.some((species) => !isMarineSpecies(species));
 
     let recent = 0;
-    let tot = 0;
-    if (results) {
-      const seen = new Set<string>();
-      for (const occ of results.occurrences) {
-        const key = occurrenceKey(occ);
-        if (seen.has(key)) continue;
-        seen.add(key);
-        tot += 1;
-        if (occ.lastObservationYear && occ.lastObservationYear >= CURRENT_YEAR - 5) recent += 1;
-      }
+    const tot = allFilteredSpecies.length;
+    for (const occ of allFilteredSpecies) {
+      if (occ.lastObservationYear && occ.lastObservationYear >= CURRENT_YEAR - 5) recent += 1;
     }
     const recentRatio = tot > 0 ? recent / tot : 0;
-    const aiForts = aiAnalysis ? aiAnalysis.species.filter((s) => s.level === "majeur" || s.level === "fort").length : 0;
+    const aiForts = selectedPrioritySpecies.filter((s) => !s.isInvasive && (s.level === "majeur" || s.level === "fort")).length;
 
     const raw =
       Math.min(40, hi * 8) +
@@ -797,14 +652,14 @@ export function ResultsPanel({ isOpen, isAnalyzing = false, areaCount = 1, onClo
     else if (factors.length === 0) factors.push("Few local concern signals detected");
 
     return { score, label, tone, factors };
-  }, [sortedSpecies, zonages, marineCount, results, aiAnalysis, potentialIssueSignals, regionalSourcesUnavailable]);
+  }, [sortedSpecies, zonages, allFilteredSpecies, selectedPrioritySpecies, potentialIssueSignals, regionalSourcesUnavailable]);
 
   const autoSummary = useMemo(() => {
     if (!results) return "";
-    const sp = results.stats.speciesCount;
-    const sens = results.stats.sensitiveCount;
+    const sp = allFilteredSpecies.length;
+    const sens = sortedSpecies.high.length + sortedSpecies.medium.length;
     const zc = regionalSourcesUnavailable ? 0 : zonages?.count || 0;
-    const parts = [`The consulted sources document ${sp} taxa in the study area, including ${sens} with sensitivity signals`];
+    const parts = [`Within the active filters, the consulted sources document ${sp} taxa in the study area, including ${sens} with sensitivity signals`];
     if (potentialIssueSignals.count > 0) {
       parts.push(
         `and identify ${potentialIssueSignals.count} potential species as concern signals requiring confirmation`,
@@ -821,7 +676,7 @@ export function ResultsPanel({ isOpen, isAnalyzing = false, areaCount = 1, onClo
       text += " Field verification remains useful to confirm or qualify this desk-based assessment.";
     }
     return text;
-  }, [results, zonages, riskScore, potentialIssueSignals, regionalSourcesUnavailable]);
+  }, [results, allFilteredSpecies, sortedSpecies, zonages, riskScore, potentialIssueSignals, regionalSourcesUnavailable]);
 
   const globalLevel = useMemo(
     () => regionalSourcesUnavailable
@@ -944,11 +799,15 @@ export function ResultsPanel({ isOpen, isAnalyzing = false, areaCount = 1, onClo
       });
     };
     const speciesKey = (name: string) => `species::${normalizedTaxonName(name)}`;
+    const concernLevels = {
+      critique: "Critique", fort: "Fort", modere: "Modéré", a_confirmer: "À qualifier",
+    } as const;
+    const inventoryByName = new Map(allFilteredSpecies.map((occurrence) => [speciesKey(occurrence.scientificName), occurrence]));
 
     for (const occurrence of [...sortedSpecies.high, ...sortedSpecies.medium]) {
-      const level: AggregatedIssue["level"] = occurrence.enjeuLevel === "critique"
-        ? "Critique"
-        : occurrence.enjeuLevel === "fort" || occurrence.alertLevel === "high" ? "Fort" : "Modéré";
+      const concern = classifyConcern(occurrence);
+      if (concern === "eee" || concern === "faible") continue;
+      const level = concernLevels[concern];
       upsert(speciesKey(occurrence.scientificName), {
         id: speciesKey(occurrence.scientificName),
         subject: occurrence.scientificName,
@@ -956,12 +815,17 @@ export function ResultsPanel({ isOpen, isAnalyzing = false, areaCount = 1, onClo
         level,
         agents: ["Occurrences", ...(occurrence.aliStatuses?.length ? ["Taxonomy and statuses"] : [])],
         evidence: "Public occurrence documented in the study area",
-        interpretation: occurrence.enjeuWarnings?.join(" ") || "Territorial signal requiring investigation and field confirmation within the footprint.",
+        interpretation: `${concernLabel(occurrence)}. ${occurrence.enjeuWarnings?.join(" ") || "Signal requiring investigation and field confirmation within the footprint."}`,
       });
     }
 
-    for (const species of aiAnalysis?.species ?? []) {
-      const level: AggregatedIssue["level"] = species.level === "majeur" ? "Critique" : species.level === "fort" ? "Fort" : "Modéré";
+    for (const species of selectedPrioritySpecies) {
+      const occurrence = inventoryByName.get(speciesKey(species.scientificName));
+      if (species.isInvasive || occurrence?.isInvasive) continue;
+      const canonical = occurrence?.enjeuLevel ? classifyConcern(occurrence) : null;
+      if (canonical === "faible" || canonical === "eee") continue;
+      const level: AggregatedIssue["level"] = canonical ? concernLevels[canonical]
+        : species.level === "majeur" ? "Critique" : species.level === "fort" ? "Fort" : "Modéré";
       upsert(speciesKey(species.scientificName), {
         id: speciesKey(species.scientificName),
         subject: species.scientificName,
@@ -1020,7 +884,7 @@ export function ResultsPanel({ isOpen, isAnalyzing = false, areaCount = 1, onClo
     return Array.from(rows.values()).sort((a, b) =>
       rank[b.level] - rank[a.level] || a.category.localeCompare(b.category, "en") || a.subject.localeCompare(b.subject, "en"),
     );
-  }, [aiAnalysis, carhabSummary, flatZonages, reconciledPotentialSpecies, regionalRedListByPotentialName, sortedSpecies]);
+  }, [selectedPrioritySpecies, allFilteredSpecies, carhabSummary, flatZonages, reconciledPotentialSpecies, regionalRedListByPotentialName, sortedSpecies]);
 
   // Un clic sur la carte ouvre et centre la ligne correspondante dans la liste.
   useEffect(() => {
@@ -1050,7 +914,7 @@ export function ResultsPanel({ isOpen, isAnalyzing = false, areaCount = 1, onClo
   );
 
   const aVerifierCount = useMemo(
-    () => allFilteredSpecies.filter((o) => o.enjeuLevel === "a_confirmer" || (!o.enjeuLevel && isNotEvaluated(o.iucnStatus))).length,
+    () => allFilteredSpecies.filter((o) => classifyConcern(o) === "a_confirmer" || (!o.enjeuLevel && isNotEvaluated(o.iucnStatus))).length,
     [allFilteredSpecies]
   );
 
@@ -1164,9 +1028,6 @@ export function ResultsPanel({ isOpen, isAnalyzing = false, areaCount = 1, onClo
     const lat = results.center[0].toFixed(5);
     const lng = results.center[1].toFixed(5);
     const mapsLink = `https://www.google.com/maps/@${lat},${lng},14z`;
-    const shareUrl = typeof window !== "undefined"
-      ? `${window.location.origin}/?lat=${lat}&lng=${lng}&radius=${results.radius}`
-      : "";
 
     const fmtSpecies = (o: Occurrence) => {
       const territorial = getPreferredTerritorialRedList(o.aliStatuses);
@@ -1175,7 +1036,7 @@ export function ResultsPanel({ isOpen, isAnalyzing = false, areaCount = 1, onClo
         : isPlantTaxon(o)
           ? "regional/national/European status not provided"
           : getIucnFullLabel(o.iucnStatus);
-      return `• ${o.scientificName}${o.vernacularName ? ` — ${o.vernacularName}` : ""} (${status})`;
+      return `• ${o.scientificName}${o.vernacularName ? ` — ${o.vernacularName}` : ""} — ${concernLabel(o)} (${status})`;
     };
 
     const sectionList = (label: string, list: Occurrence[]) =>
@@ -1219,15 +1080,19 @@ ${formatCarhabSummaryEnglish(carhabSummary)}
 `
       : "";
     const mobilizedSources = [
-      "GBIF",
-      includeINaturalist && "iNaturalist",
+      (results.sourceStatus?.gbif
+        ? ["complete", "partial"].includes(results.sourceStatus.gbif.state)
+        : results.occurrences.some((occ) => occ.source === "gbif")) && "GBIF",
+      (results.sourceStatus?.inaturalist
+        ? ["complete", "partial"].includes(results.sourceStatus.inaturalist.state)
+        : results.occurrences.some((occ) => occ.source === "inaturalist")) && "iNaturalist",
       results.occurrences.some((occ) => occ.iucnStatus) && "IUCN global statuses",
-      !regionalSourcesUnavailable && results.aliSpeciesEnrichment ? "ALI Species / TAXREF" : false,
+      !regionalSourcesUnavailable && (results.aliSpeciesEnrichment || aiAnalysis?.aliSpeciesEnrichment) ? "ALI Species / TAXREF" : false,
       !regionalSourcesUnavailable && zonagesAgentActive && zonages ? "IGN Géoplateforme" : false,
       !regionalSourcesUnavailable && zonagesAgentActive && zonages ? "PatriNat / INPN" : false,
       !regionalSourcesUnavailable && carhabSummary ? "CARHAB" : false,
       !regionalSourcesUnavailable && aiAnalysis?.natura2000?.length ? "Natura 2000 data" : false,
-    ].filter(Boolean).join(", ");
+    ].filter(Boolean).join(", ") || "No source use documented; consult the source states and limitations";
 
     return `ALi INVENTAIRE
 BIODIVERSITY DESK STUDY — FIELD INVESTIGATION REQUIRED
@@ -1246,6 +1111,7 @@ ${configuredAgents}
 ${mcpTraceSection}
 - Sources actually used in this analysis: ${mobilizedSources}.
 ${!regionalSourcesUnavailable && results.aliSpeciesEnrichment ? `- ALI Species MCP territorial enrichment: ${results.aliSpeciesEnrichment.enriched}/${results.aliSpeciesEnrichment.attempted} taxa enriched${results.aliSpeciesEnrichment.region ? ` for ${results.aliSpeciesEnrichment.region}` : results.aliSpeciesEnrichment.territorialScope === "multiple" ? " — multiple regions involved; no single regional Red List assigned" : " — regional territory unresolved"}${results.aliSpeciesEnrichment.partial ? " — partial result; unenriched taxa remain flagged without extrapolation." : "."}` : ""}
+${!regionalSourcesUnavailable && aiAnalysis?.aliSpeciesEnrichment ? `- Priority-species ALI Species enrichment: ${aiAnalysis.aliSpeciesEnrichment.enriched}/${aiAnalysis.aliSpeciesEnrichment.attempted} taxa enriched; ${aiAnalysis.aliSpeciesEnrichment.failed} failed; ${aiAnalysis.aliSpeciesEnrichment.skipped} skipped. Territorial scope: ${aiAnalysis.aliSpeciesEnrichment.territorialScope}${aiAnalysis.aliSpeciesEnrichment.region ? ` (${aiAnalysis.aliSpeciesEnrichment.region})` : ""}. ${aiAnalysis.aliSpeciesEnrichment.partial ? "Partial consultation; missing statuses remain unknown." : "Consultation complete for eligible taxa."}` : ""}
 - Safeguard 1: a record in the desk-study area does not confirm presence within the project footprint.
 - Safeguard 2: ecological suitability suggesting possible presence requires field verification.
 - Safeguard 3: only an appropriate field survey can confirm presence on site.
@@ -1262,23 +1128,32 @@ MISSING INFORMATION TO FLAG IN THIS BIODIVERSITY DESK STUDY
 ${regionalSourcesUnavailable ? "- France-only SINP, zoning, Natura 2000 / ZNIEFF, CARHAB and ALI/TAXREF sources: outside geographic coverage, not findings of zero or absence. Use locally applicable references." : ""}
 
 SUMMARY OF AVAILABLE DATA
-${results.stats.rawNameCount != null ? `${results.stats.rawNameCount} taxonomic names collected — ${results.stats.speciesCount} valid taxa after consolidation${results.stats.duplicatesRemoved ? ` (${results.stats.duplicatesRemoved} duplicate${results.stats.duplicatesRemoved > 1 ? "s" : ""} merged)` : ""}` : `${totalInReport} taxa recorded (GBIF + iNaturalist)`}
-${highCount + mediumCount} sensitive species (high or moderate concerns)
-Data confidence index: ${conf.total}/100 — ${confLabel}
+${totalInReport} documented taxa within the active filters.
+Original unfiltered consultation: ${results.stats.rawNameCount != null ? `${results.stats.rawNameCount} taxonomic names collected — ${results.stats.speciesCount} valid taxa after consolidation${results.stats.duplicatesRemoved ? ` (${results.stats.duplicatesRemoved} duplicate${results.stats.duplicatesRemoved > 1 ? "s" : ""} merged)` : ""}` : `${results.stats.speciesCount} valid taxa`}
+${STUDY_SELECTION_CAVEAT}
+${CONCERN_INTERPRETATION_RULE}
+${highCount + mediumCount} species with high, moderate or unverified concern signals
+Data confidence index (original unfiltered consultation): ${conf.total}/100 — ${confLabel}
 Potential ecological concerns: ${riskScore.label}
 ↳ Biodiversity risk can only be assessed by considering these concerns together with a project's characteristics and pressures.
 ${conf.message ? `↳ ${conf.message}\n` : ""}
+SOURCE CONSULTATION STATES
+${results.sourceStatus ? Object.entries(results.sourceStatus).map(([source, status]) => `- ${source === "gbif" ? "GBIF" : "iNaturalist"}: ${status?.state ?? "unknown"}${status?.error ? ` — ${status.error}` : ""}`).join("\n") : "Source-status metadata was not recorded; a complete consultation cannot be assumed."}
+${consultationWarnings.map((warning) => `- ${warning}`).join("\n")}
 ${regionalSourcesUnavailable ? "HABITATS\nCARHAB was not consulted outside its geographic coverage; habitat presence and extent remain unknown.\n" : aliHabitatReportSection || "HABITATS\nNo CARHAB habitat summary is available; this is not evidence that habitats are absent.\n"}
-${sectionList("🔴 HIGH CONCERNS", sortedSpecies.high)}
-${sectionList("🟠 MODERATE CONCERNS", sortedSpecies.medium)}
-${sectionList("🟢 LOW CONCERNS", sortedSpecies.low)}${aiAnalysis && aiAnalysis.species.length > 0 ? `
+${sectionList("🔴 CRITICAL CONCERNS", enjeuxBuckets.critique)}
+${sectionList("🔴 HIGH CONCERNS", enjeuxBuckets.fort)}
+${sectionList("🟠 MODERATE CONCERNS", enjeuxBuckets.modere)}
+${sectionList("TO CONFIRM", enjeuxBuckets.aConfirmer)}
+${sectionList("🟢 LOW CONCERNS", enjeuxBuckets.faible)}
+${sectionList("INVASIVE ALIEN SPECIES — MANAGEMENT CONCERNS", enjeuxBuckets.eee)}${aiAnalysis && selectedPrioritySpecies.length > 0 ? `
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 ✨ AI ANALYSIS — SPECIES OF CONCERN
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 ${(["A", "C", "B", "D", "E"] as const)
   .map((cls) => {
     const label: Record<string, string> = { A: "Public occurrence documented in the area", B: "Species documented at a reference site", C: "Very likely locally", D: "Potential", E: "Unlikely locally" };
-    const group = aiAnalysis.species.filter((sp) => (sp.evidenceClass ?? "D") === cls);
+    const group = selectedPrioritySpecies.filter((sp) => (sp.evidenceClass ?? "D") === cls);
     if (group.length === 0) return "";
     return `\n[${cls}] ${label[cls]}\n${group
       .map((sp) => `• ${sp.scientificName}${sp.vernacularName ? ` (${sp.vernacularName})` : ""}
@@ -1296,18 +1171,17 @@ ${aiAnalysis.natura2000.map(z => { const desig = (z.species ?? []).filter(s => s
 ⚠ AI summary — requires ecologist validation.
 ` : ""}${zonagesSection}
 POTENTIAL SPECIES
-${regionalSourcesUnavailable ? "French Natura 2000 and ZNIEFF sources were not queried outside their coverage. The number and status of potential species from these sources are unknown; no absence is inferred." : potentialSpeciesLoading ? "Consultation in progress; no conclusions yet." : potentialSpeciesError || !potentialSpecies ? "Source unavailable or not consulted; no absence can be inferred." : `${potentialSpecies.potentialCount} potential species returned by the consulted source. This is not a field-confirmed count; ${potentialSpecies.partial ? "the result is partial." : "a zero result does not establish absence."}`}
+${regionalSourcesUnavailable ? "French Natura 2000 and ZNIEFF sources were not queried outside their coverage. The number and status of potential species from these sources are unknown; no absence is inferred." : potentialSpeciesLoading ? "Consultation in progress; no conclusions yet." : potentialSpeciesError || !reconciledPotentialSpecies ? "Source unavailable or not consulted; no absence can be inferred." : `${reconciledPotentialSpecies.potentialCount} potential species within the active filters. Original source consultation: ${potentialSpecies?.potentialCount ?? "unknown"} potential species. This is not a field-confirmed count; ${reconciledPotentialSpecies.partial ? "the result is partial." : "a zero result does not establish absence."}`}
 SOURCES USED
 ${mobilizedSources.split(", ").join(" • ")}
 
 STATUS AND LIMITATIONS
 This biodiversity desk study was produced by the ALi harness using only the sources listed above.
 It provides a desk-based baseline and sensitivity assessment. It does not replace field surveys, a statutory ecological impact assessment or an ecologist's validation. Regulatory completeness is not guaranteed.
-${shareUrl ? `Repeat this analysis: ${shareUrl}` : ""}
 
 NEXT STEPS
 Discuss field surveys and validation with Natural Solutions experts: https://natural-solutions.eu`;
-  }, [results, sortedSpecies, activeTaxonFilters, presentGroups, isAllActive, aiAnalysis, carhabSummary, toponym, zonages, riskScore, includeINaturalist, harnessConfig, zonagesAgentActive, regionalSourcesUnavailable, potentialSpecies, potentialSpeciesLoading, potentialSpeciesError]);
+  }, [results, sortedSpecies, enjeuxBuckets, studyFilters, activeTaxonFilters, presentGroups, isAllActive, aiAnalysis, selectedPrioritySpecies, carhabSummary, consultationWarnings, toponym, zonages, riskScore, includeINaturalist, harnessConfig, zonagesAgentActive, regionalSourcesUnavailable, potentialSpecies, reconciledPotentialSpecies, potentialSpeciesLoading, potentialSpeciesError]);
 
   const reportSubject = useMemo(() => {
     if (!results) return "ALi Inventaire";
@@ -1343,10 +1217,36 @@ Discuss field surveys and validation with Natural Solutions experts: https://nat
           ? "The CARHAB consultation could not be completed."
           : null;
 
-  useEffect(() => {
+  const reportInputScope = useMemo(() => ({
+    report: reportText,
+    input: results ? {
+      requestSummary,
+      toponym,
+      inventory: results,
+      zonages,
+      potentialSpecies,
+      priorityAnalysis: aiAnalysis,
+      carhabSummary,
+      harnessConfig,
+      filters: { ...studyFilters, includeINaturalist: !!includeINaturalist },
+      states: {
+        zonagesLoading,
+        potentialSpeciesLoading,
+        potentialSpeciesError,
+        habitatConsultation: habitatConsultationState,
+      },
+    } : null,
+  }), [reportText, results, requestSummary, toponym, zonages, potentialSpecies, aiAnalysis, carhabSummary, harnessConfig, studyFilters, includeINaturalist, zonagesLoading, potentialSpeciesLoading, potentialSpeciesError, habitatConsultationState, activeConversationId, isAnalyzing, isOpen]);
+
+  useLayoutEffect(() => {
+    const gate = reportGenerationGateRef.current;
+    gate.setScope(reportInputScope);
     setReformattedReport(null);
+    setReportPromptTrace(null);
     setReformatError(null);
-  }, [reportText]);
+    setReformatting(false);
+    return () => gate.invalidate();
+  }, [reportInputScope]);
 
   const handleCopyReport = () => {
     navigator.clipboard.writeText(activeReportText);
@@ -1374,52 +1274,18 @@ Discuss field surveys and validation with Natural Solutions experts: https://nat
 
   const handleDownloadWordReport = () => {
     if (!reformattedReport) return;
-    const escapeHtml = (value: string) =>
-      value
-        .replaceAll("&", "&amp;")
-        .replaceAll("<", "&lt;")
-        .replaceAll(">", "&gt;");
-    const documentHtml = `<!doctype html>
-<html lang="en">
-<head>
-  <meta charset="utf-8">
-  <title>${escapeHtml(reportSubject)}</title>
-  <style>
-    @page { size: A4; margin: 2.2cm 2cm; }
-    body { font-family: Aptos, Calibri, Arial, sans-serif; color: #243b34; font-size: 11pt; line-height: 1.55; }
-    h1 { color: #174c3f; font-size: 24pt; line-height: 1.15; margin: 0 0 22pt; padding-bottom: 10pt; border-bottom: 2pt solid #b88945; }
-    h2 { color: #1e594a; font-size: 17pt; line-height: 1.25; margin: 24pt 0 9pt; page-break-after: avoid; }
-    h3 { color: #46675d; font-size: 13pt; line-height: 1.3; margin: 16pt 0 7pt; page-break-after: avoid; }
-    p { margin: 0 0 9pt; text-align: justify; }
-    ul { margin: 4pt 0 10pt 18pt; padding: 0; }
-    li { margin-bottom: 4pt; }
-    table { width: 100%; border-collapse: collapse; margin: 10pt 0 16pt; font-size: 9.5pt; }
-    th { color: #fff; background: #1e594a; font-weight: 700; text-align: left; }
-    th, td { border: 1px solid #aebdb7; padding: 6pt; vertical-align: top; }
-    tr:nth-child(even) td { background: #f4f3ec; }
-    .status { padding: 10pt 12pt; border-left: 4pt solid #b88945; background: #f5f2e8; margin: 0 0 22pt; color: #3d524b; font-size: 9.5pt; }
-  </style>
-</head>
-<body>
-  <div class="status"><strong>Document status.</strong> Biodiversity desk study based on available documented information. Field investigations and an ecologist's validation are needed before regulatory use; regulatory completeness is not guaranteed.</div>
-  ${studyMarkdownToWordHtml(reformattedReport)}
-  <h2>Next steps</h2>
-  <p>Discuss field surveys and validation with Natural Solutions experts: <a href="https://natural-solutions.eu">https://natural-solutions.eu</a>. This does not guarantee regulatory completeness.</p>
-</body>
-</html>`;
-    const blob = new Blob(["\ufeff", documentHtml], {
-      type: "application/msword;charset=utf-8",
+    const wordDocument = buildWordStudyDocument({
+      generatedText: reformattedReport,
+      subject: reportSubject,
+      toponym,
+    });
+    const blob = new Blob(["\ufeff", wordDocument.html], {
+      type: wordDocument.mimeType,
     });
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
-    const safePlace = (toponym || "site")
-      .normalize("NFKD")
-      .replace(/[\u0300-\u036f]/g, "")
-      .replace(/[^a-zA-Z0-9]+/g, "-")
-      .replace(/^-+|-+$/g, "")
-      .toLowerCase();
     link.href = url;
-    link.download = `biodiversity-desk-study-ali-${safePlace || "site"}.doc`;
+    link.download = wordDocument.filename;
     document.body.appendChild(link);
     link.click();
     link.remove();
@@ -1427,55 +1293,54 @@ Discuss field surveys and validation with Natural Solutions experts: https://nat
   };
 
   const handleReformatReport = async () => {
+    if (!reportInputScope.input || isAnalyzing) return;
+    const gate = reportGenerationGateRef.current;
+    const request = gate.begin(reportInputScope);
+    if (!request) return;
     setReformatting(true);
+    setReformattedReport(null);
+    setReportPromptTrace(null);
     setReformatError(null);
     try {
-      const finalStudyContext = buildFinalStudyContext({
-        requestSummary,
-        toponym,
-        inventory: results!,
-        zonages,
-        potentialSpecies,
-        priorityAnalysis: aiAnalysis,
-        carhabSummary,
-        harnessConfig,
-        filters: {
-          activeTaxonGroups: Array.from(activeTaxonFilters),
-          excludeMarine: !!excludeMarine,
-          includeINaturalist: !!includeINaturalist,
-        },
-        states: {
-          zonagesLoading,
-          potentialSpeciesLoading,
-          potentialSpeciesError,
-          habitatConsultation: habitatConsultationState,
-        },
-      });
+      // Freeze scientific inputs and request text together, before the first await.
+      const snapshot = buildFinalStudyRequestSnapshot(reportInputScope.report, reportInputScope.input);
       const r = await fetch("/api/llm/reformat-report", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          report: reportText,
-          context: serializeFinalStudyContext(finalStudyContext),
-        }),
+        signal: request.controller.signal,
+        body: JSON.stringify(snapshot),
       });
       if (!r.ok) {
         const err = await r.json().catch(() => ({}));
         throw new Error(err.error || `Error ${r.status}`);
       }
       const data = await r.json();
+      if (!gate.isCurrent(request)) return;
+      if (typeof data.reformatted !== "string" || !data.reformatted.trim()) {
+        throw new Error("AI generation returned no written study. Please retry.");
+      }
       setReformattedReport(data.reformatted);
       setReportPromptTrace(data.promptTrace ?? null);
-    } catch (e: any) {
-      setReformatError(e.message || "AI document generation failed");
+    } catch (error: unknown) {
+      if (!gate.isCurrent(request)) return;
+      setReformatError(error instanceof Error ? error.message : "AI document generation failed");
     } finally {
-      setReformatting(false);
+      if (gate.isCurrent(request)) setReformatting(false);
+      gate.finish(request);
     }
   };
 
   if (!isOpen) return null;
 
   const sourcesLabel = `GBIF${includeINaturalist ? " · iNaturalist" : ""}${results?.occurrences.some((occ) => occ.iucnStatus) ? " · IUCN" : ""}${!regionalSourcesUnavailable && results?.aliSpeciesEnrichment ? " · ALI/TAXREF" : ""}${!regionalSourcesUnavailable && zonages ? " · IGN/INPN" : ""}`;
+  const sourceWarningsNotice = consultationWarnings.length > 0 ? (
+    <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900" role="status" data-testid="study-source-warnings">
+      <p className="font-semibold">Source and enrichment limitations</p>
+      <ul className="mt-1 list-disc space-y-1 pl-4">
+        {consultationWarnings.map((warning) => <li key={warning}>{warning}</li>)}
+      </ul>
+    </div>
+  ) : null;
 
   const assistantSuggestions: string[] = [
     "Summarise this assessment for a non-specialist.",
@@ -1735,7 +1600,7 @@ Discuss field surveys and validation with Natural Solutions experts: https://nat
                    <div className="pt-2" id="analysis-transcript" data-testid="analysis-transcript">
                      <ol className="space-y-3">
                         <li><strong>ALi — coordination</strong><p>Request interpreted, scope checked and analysis delegated to specialist agents.</p></li>
-                        {occurrencesAgentActive && <li><strong>Occurrences agent</strong><p>{results.stats.speciesCount} species consolidated from {results.stats.total} retained records.</p></li>}
+                        {occurrencesAgentActive && <li><strong>Occurrences agent</strong><p>Original consultation: {results.stats.speciesCount} species consolidated from {results.stats.total} retained records, before display filters.</p></li>}
                          {zonagesAgentActive && <li><strong>Designations agent</strong><p>{regionalSourcesUnavailable ? "Not consulted: French source outside geographic coverage, not a zero-designation finding." : zonagesLoading ? "Consulting reference sources." : zonages ? `Consultation complete: ${zonages.count} designations returned.` : "Consultation unavailable: no designation results are shown."}</p></li>}
                          {habitatAgentActive && <li data-testid="analysis-transcript-ali-habitat"><strong>Habitat agent — CARHAB</strong><p>{regionalSourcesUnavailable ? "Not consulted: French source outside geographic coverage; habitat presence is unknown." : aliHabitatStatus ?? "No CARHAB summary recorded for this analysis."}</p></li>}
                          {taxonomyAgentActive && <li><strong>Taxonomy and status agent — ALI Species</strong><p>{regionalSourcesUnavailable ? "Not consulted: French source outside geographic coverage; local status is unknown." : results.aliSpeciesEnrichment ? results.aliSpeciesEnrichment.attempted > 0 ? `${results.aliSpeciesEnrichment.enriched}/${results.aliSpeciesEnrichment.attempted} taxa enriched via ALI Species${results.aliSpeciesEnrichment.nameResolutionAttempted ? `, after resolving ${results.aliSpeciesEnrichment.nameResolved ?? 0}/${results.aliSpeciesEnrichment.nameResolutionAttempted} names in TAXREF` : ""}.` : "No taxa could be matched to TAXREF for ALI Species enrichment." : "No ALI Species summary recorded for this analysis."}</p></li>}
@@ -1748,13 +1613,13 @@ Discuss field surveys and validation with Natural Solutions experts: https://nat
                <Bot className="mt-1 h-5 w-5" aria-hidden="true" />
                <div>
                   <p><strong>Biodiversity desk study summary</strong></p>
-                  <p><strong>Documented evidence:</strong> {results.stats.speciesCount} taxa with public occurrences in the desk-study area. <strong>Potential evidence:</strong> {regionalSourcesUnavailable ? "French-only sources not consulted outside coverage (not a zero result)" : potentialSpeciesLoading ? "assessment in progress" : potentialSpeciesError || !reconciledPotentialSpecies ? "assessment unavailable (not a zero result)" : `${reconciledPotentialSpecies.potentialCount} potential species returned`}. A public occurrence does not confirm presence within the footprint; field surveys are required.</p>
+                  <p><strong>Documented evidence:</strong> {allFilteredSpecies.length} taxa with public occurrences within the active filters. <strong>Potential evidence:</strong> {regionalSourcesUnavailable ? "French-only sources not consulted outside coverage (not a zero result)" : potentialSpeciesLoading ? "assessment in progress" : potentialSpeciesError || !reconciledPotentialSpecies ? "assessment unavailable (not a zero result)" : `${reconciledPotentialSpecies.potentialCount} potential species within the active filters`}. A public occurrence does not confirm presence within the footprint; field surveys are required.</p>
                  <div className="mt-3 flex flex-wrap gap-2" aria-label="Biodiversity desk study key figures">
                    <span className="rounded-full border border-[#d9e1d6] bg-[#edf2e9] px-2.5 py-1 text-[11px] font-semibold text-[#315b4e]">
-                      {results.stats.speciesCount} documented taxa
+                      {allFilteredSpecies.length} documented taxa
                    </span>
                    <span className="rounded-full border border-[#d9e1d6] bg-[#edf2e9] px-2.5 py-1 text-[11px] font-semibold text-[#315b4e]">
-                     {results.stats.sensitiveCount} sensitivity signals
+                     {sortedSpecies.high.length + sortedSpecies.medium.length} sensitivity signals
                    </span>
                    <span className="rounded-full border border-[#d9e1d6] bg-[#edf2e9] px-2.5 py-1 text-[11px] font-semibold text-[#315b4e]">
                       {regionalSourcesUnavailable ? "French designations out of coverage" : zonagesLoading ? "Designations loading" : zonages ? `${zonages.count} designations returned` : "Designations unavailable"}
@@ -1765,6 +1630,7 @@ Discuss field surveys and validation with Natural Solutions experts: https://nat
                  </div>
                </div>
              </section>
+             {sourceWarningsNotice}
              {results.coverage && (
                <div className="rounded-xl border border-sky-200 bg-sky-50 p-3 text-xs text-sky-900" data-testid="study-country-coverage">
                  <strong>Geographic coverage: {results.coverage.country || results.coverage.countryCode || "country unresolved"}.</strong>{" "}
@@ -1925,14 +1791,14 @@ Discuss field surveys and validation with Natural Solutions experts: https://nat
                       <div className="rounded-xl border border-gray-200 bg-white p-4">
                         <div className="grid grid-cols-2 gap-2 text-center sm:grid-cols-5">
                           <div>
-                            <div className="text-xl font-bold text-gray-900" data-testid="text-species-detected">{results.stats.speciesCount}</div>
+                            <div className="text-xl font-bold text-gray-900" data-testid="text-species-detected">{allFilteredSpecies.length}</div>
                             <div className="text-[10px] text-gray-500 leading-tight">taxons</div>
-                            {results.stats.rawNameCount != null && results.stats.rawNameCount !== results.stats.speciesCount && (
-                              <div className="text-[9px] text-gray-400 leading-tight mt-0.5" data-testid="text-raw-names">/{results.stats.rawNameCount}</div>
+                            {results.stats.rawNameCount != null && (
+                              <div className="text-[9px] text-gray-400 leading-tight mt-0.5" data-testid="text-raw-names">{results.stats.rawNameCount} raw names, before filters</div>
                             )}
                           </div>
                           <div>
-                            <div className="text-xl font-bold text-orange-600" data-testid="text-species-sensitive">{results.stats.sensitiveCount}</div>
+                            <div className="text-xl font-bold text-orange-600" data-testid="text-species-sensitive">{sortedSpecies.high.length + sortedSpecies.medium.length}</div>
                             <div className="text-[10px] text-gray-500 leading-tight">sensitive</div>
                           </div>
                           <div>
@@ -2363,6 +2229,7 @@ Discuss field surveys and validation with Natural Solutions experts: https://nat
           </p>
         </> ) : (
           <section role="tabpanel" className="space-y-4" data-testid="panel-aggregated-issues">
+            {sourceWarningsNotice}
             <div className="rounded-xl border border-[#d9e1d6] bg-[#f7f8f3] p-4">
               <div className="flex items-start gap-3">
                 <ListChecks className="mt-0.5 h-5 w-5 shrink-0 text-[#1e594a]" />
@@ -2481,6 +2348,7 @@ Discuss field surveys and validation with Natural Solutions experts: https://nat
                   ) : <PrioritySpeciesInline
                     toponym={toponym || `Point ${results.center[0].toFixed(4)}, ${results.center[1].toFixed(4)}`}
                     coords={results.center}
+                    studyAreas={results.circles}
                     occurrences={allFilteredSpecies}
                     projectArea={projectArea}
                     onAnalysisChange={setAiAnalysis}
@@ -2535,7 +2403,7 @@ Discuss field surveys and validation with Natural Solutions experts: https://nat
           {reformatError && (
             <div className="mt-3 flex items-center gap-2 text-xs text-red-700 bg-red-50 border border-red-200 px-3 py-2 rounded-md" role="alert">
               <span className="flex-1">{reformatError}</span>
-              <button type="button" onClick={() => void handleReformatReport()} className="rounded border border-red-300 px-2 py-1 font-semibold">Retry</button>
+               <button type="button" onClick={() => void handleReformatReport()} disabled={reformatting || isAnalyzing || !results} className="rounded border border-red-300 px-2 py-1 font-semibold">Retry</button>
             </div>
           )}
           {reformatting && <p className="mt-3 text-xs text-teal-700" role="status" aria-live="polite">Generating biodiversity desk study…</p>}
@@ -2605,7 +2473,7 @@ Discuss field surveys and validation with Natural Solutions experts: https://nat
                   <Button
                     variant="outline"
                     onClick={handleReformatReport}
-                    disabled={reformatting}
+                    disabled={reformatting || isAnalyzing || !results}
                     className="gap-2 border-teal-300 text-teal-700 hover:bg-teal-50 hover:text-teal-800"
                     data-testid="button-reformat-report"
                   >
@@ -4031,10 +3899,4 @@ function ConfidencePanel({ confidence }: { confidence: ConfidenceScore }) {
       )}
     </div>
   );
-}
-
-function getAlertPriority(level: "high" | "medium" | "low"): number {
-  if (level === "high") return 3;
-  if (level === "medium") return 2;
-  return 1;
 }

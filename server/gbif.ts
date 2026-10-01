@@ -7,6 +7,9 @@ import { haversineDistance } from "./lib/geo";
 import { mapWithConcurrency } from "./lib/concurrency";
 import { enrichInventoryWithAliSpeciesMcp } from "./services/aliSpeciesMcp";
 import { getStudyCoverage } from "./services/coverage";
+import { reduceStudyCoverage } from "@shared/coverage";
+import { normalizeTaxonIdentity as normalizeName } from "@shared/taxonomy";
+import type { InventorySourceStatus, StudyCoverage } from "@shared/types";
 import {
   searchOccurrences,
   fetchSpeciesMedia,
@@ -34,6 +37,8 @@ const ALERT_PRIORITY: Record<AlertLevel, number> = { high: 3, medium: 2, low: 1 
 interface SearchOptions {
   includeINaturalist?: boolean;
   skipAliSpeciesMcp?: boolean;
+  /** Internally verified aggregate coverage, resolved before classification. */
+  coverage?: StudyCoverage;
 }
 
 type InatResult = Awaited<ReturnType<typeof searchINaturalist>>;
@@ -41,6 +46,7 @@ type InatResult = Awaited<ReturnType<typeof searchINaturalist>>;
 const EMPTY_INAT: InatResult = {
   occurrences: [],
   summary: { records: 0, species: 0 },
+  status: { state: "skipped" },
 };
 
 function getAlertLevelFromIucn(iucnStatus: string | undefined): AlertLevel {
@@ -49,7 +55,10 @@ function getAlertLevelFromIucn(iucnStatus: string | undefined): AlertLevel {
 
 function fetchINatSafe(lat: number, lng: number, radiusMeters: number, enabled: boolean, french: boolean): Promise<InatResult> {
   if (!enabled) return Promise.resolve(EMPTY_INAT);
-  return searchINaturalist(lat, lng, radiusMeters, french).catch(() => EMPTY_INAT);
+  return searchINaturalist(lat, lng, radiusMeters, french).catch((error) => ({
+    ...EMPTY_INAT,
+    status: { state: "unavailable", error: error instanceof Error ? error.message : "iNaturalist collection failed" },
+  }));
 }
 
 interface SpeciesObsStats {
@@ -214,26 +223,6 @@ function countSensitive(occurrences: Occurrence[]): number {
   return occurrences.filter((o) => o.alertLevel === "high" || o.alertLevel === "medium").length;
 }
 
-// Normalise un nom scientifique en retirant l'auteur (parenthèses, patronyme,
-// année), pour rapprocher « Haliotis tuberculata Linnaeus, 1758 » et
-// « Haliotis tuberculata ». Utilisé uniquement en repli quand TAXREF n'a pas
-// fourni de cdRef.
-function normalizeName(name: string): string {
-  const cleaned = name.replace(/\(.*?\)/g, " ").trim();
-  const tokens = cleaned.split(/\s+/);
-  const kept: string[] = [];
-  for (let i = 0; i < tokens.length; i++) {
-    const t = tokens[i];
-    if (i === 0) {
-      kept.push(t);
-      continue;
-    }
-    if (/^[a-zà-ÿ.\-]+$/.test(t)) kept.push(t);
-    else break;
-  }
-  return kept.join(" ").toLowerCase();
-}
-
 interface ConsolidationResult {
   consolidated: Occurrence[];
   rawNameCount: number;
@@ -243,7 +232,7 @@ interface ConsolidationResult {
 // Consolide les occurrences par taxon accepté (cdRef TAXREF), avec repli sur le
 // nom normalisé. Fusionne les doublons « avec / sans auteur » et agrège les noms
 // sources dans sourceNames[].
-function consolidateByCdRef(occurrences: Occurrence[]): ConsolidationResult {
+export function consolidateByCdRef(occurrences: Occurrence[]): ConsolidationResult {
   const rawNameCount = new Set(occurrences.map((o) => o.scientificName)).size;
   const byKey = new Map<string, Occurrence>();
   // Rapproche les variantes d'un même taxon même quand l'une porte un cdRef et
@@ -316,6 +305,7 @@ function buildEmptyResult(
   const { consolidated, rawNameCount, duplicatesRemoved } = consolidateByCdRef(inat.occurrences);
   return {
     occurrences: consolidated,
+    sourceStatus: { gbif: { state: "complete" }, inaturalist: inat.status },
     stats: {
       total: consolidated.length,
       speciesCount: consolidated.length,
@@ -336,7 +326,7 @@ export async function searchGBIF(
   radiusMeters: number,
   options: SearchOptions = {},
 ): Promise<InventoryResult> {
-  const coverage = await getStudyCoverage(lat, lng);
+  const coverage = options.coverage ?? await getStudyCoverage(lat, lng);
   const includeINaturalist = options.includeINaturalist !== false;
   const inatPromise = fetchINatSafe(lat, lng, radiusMeters, includeINaturalist, coverage.frenchSources);
 
@@ -369,7 +359,6 @@ export async function searchGBIF(
   const gbifOccurrences = filterWithinRadius(enriched, lat, lng, radiusMeters);
 
   const inat = await inatPromise;
-  const occurrencesMap = new Map<string, Occurrence>(gbifOccurrences.map((o) => [o.scientificName, o]));
   const merged = mergeInatWithGbif(gbifOccurrences, inat.occurrences);
 
   if (inat.summary.species > 0) {
@@ -383,6 +372,10 @@ export async function searchGBIF(
 
   const result: InventoryResult = {
     coverage,
+    sourceStatus: {
+      gbif: { state: rawRecords.length >= 1000 ? "partial" : "complete" },
+      inaturalist: inat.status,
+    },
     occurrences: consolidated,
     stats: {
       total: consolidated.length,
@@ -433,21 +426,36 @@ function mergeMultiCircleOccurrences(results: InventoryResult[]): Occurrence[] {
   return Array.from(merged.values());
 }
 
+function mergeSourceStatus(results: InventoryResult[], source: "gbif" | "inaturalist"): InventorySourceStatus {
+  const statuses = results.map((result) => result.sourceStatus?.[source]);
+  const state = statuses.every((status) => status?.state === "complete") ? "complete"
+    : statuses.every((status) => status?.state === "skipped") ? "skipped"
+      : statuses.every((status) => status?.state === "unavailable") ? "unavailable" : "partial";
+  const errors = Array.from(new Set(statuses.flatMap((status) => status?.error ? [status.error] : [])));
+  return { state, ...(errors.length ? { error: errors.join(" • ") } : {}) };
+}
+
 export async function searchGBIFMultiCircle(
   circles: BufferCircle[],
   options: SearchOptions = {},
 ): Promise<InventoryResult> {
   const enabledCircles = circles.filter((c) => c.enabled);
   if (enabledCircles.length === 0) throw new Error("No circles enabled");
+  // Resolve the entire study before any per-circle French classification.
+  const coverage = reduceStudyCoverage(await Promise.all(enabledCircles.map(
+    (circle) => getStudyCoverage(circle.center[0], circle.center[1]),
+  )));
 
   if (enabledCircles.length === 1) {
     const c = enabledCircles[0];
     const result = await searchGBIF(c.center[0], c.center[1], c.radius, {
       ...options,
       skipAliSpeciesMcp: true,
+      coverage,
     });
     result.circles = circles;
-    return options.skipAliSpeciesMcp ? result : enrichInventoryWithAliSpeciesMcp(result);
+    return options.skipAliSpeciesMcp || !coverage.frenchSources
+      ? result : enrichInventoryWithAliSpeciesMcp(result);
   }
 
   const results = await mapWithConcurrency(
@@ -456,6 +464,7 @@ export async function searchGBIFMultiCircle(
     (c) => searchGBIF(c.center[0], c.center[1], c.radius, {
       ...options,
       skipAliSpeciesMcp: true,
+      coverage,
     }),
   );
 
@@ -464,14 +473,11 @@ export async function searchGBIFMultiCircle(
   const { consolidated, rawNameCount, duplicatesRemoved } = consolidateByCdRef(merged);
 
   const result: InventoryResult = {
-    coverage: results.every((r) => r.coverage?.countryCode === results[0].coverage?.countryCode)
-      ? results[0].coverage
-      : {
-          countryCode: "MULTIPLE",
-          globalOccurrences: true,
-          frenchSources: false,
-          unavailableSources: ["French sources cannot be applied across multiple countries"],
-        },
+    coverage,
+    sourceStatus: {
+      gbif: mergeSourceStatus(results, "gbif"),
+      inaturalist: mergeSourceStatus(results, "inaturalist"),
+    },
     occurrences: consolidated,
     stats: {
       total: consolidated.length,

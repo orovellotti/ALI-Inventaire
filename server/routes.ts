@@ -403,12 +403,12 @@ export async function registerRoutes(
     "/api/llm/priority-species",
     priorityCostControl,
     asyncHandler(async (req, res) => {
-      const { toponym, coords, occurrences, projectArea } = priorityBodySchema.parse(req.body);
+      const { toponym, coords, occurrences, projectArea, studyAreas } = priorityBodySchema.parse(req.body);
       const harness = await getRuntimeHarnessConfig();
       if (!isAgentEnabled(harness, "occurrences")) {
         throw new HttpError(409, "The occurrences analysis is disabled.");
       }
-      res.json(await analyzePrioritySpecies(toponym, coords, occurrences as any, projectArea));
+      res.json(await analyzePrioritySpecies(toponym, coords, occurrences as any, projectArea, studyAreas));
     }),
   );
 

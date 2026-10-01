@@ -2,6 +2,10 @@ import type { Analysis } from "@/components/PrioritySpeciesInline";
 import type { ZonagesData } from "@/lib/zonages";
 import type { HarnessConfig } from "@shared/harness";
 import type { InventoryResult, PotentialSpeciesResult } from "@shared/types";
+import { classifyConcern, CONCERN_INTERPRETATION_RULE } from "./concern";
+import { reconcilePotentialSpecies } from "./potentialSpecies";
+import { selectInventorySpecies, selectedInventoryCounts, selectPotentialSpecies, selectSupportingSpecies, STUDY_SELECTION_CAVEAT } from "./studySelectors";
+import { getInventorySourceWarnings, getAliEnrichmentWarning } from "./gbif";
 
 const MAX_INVENTORY_SPECIES = 180;
 const MAX_POTENTIAL_SPECIES = 100;
@@ -46,12 +50,21 @@ export interface FinalStudyContextInput {
 
 export function buildFinalStudyContext(input: FinalStudyContextInput) {
   const frenchSourcesUnavailable = input.inventory.coverage?.frenchSources === false;
-  const inventorySpecies = [...input.inventory.occurrences].sort((a, b) => {
-    const rank = { critique: 5, fort: 4, modere: 3, a_confirmer: 2, faible: 1 };
-    return (rank[b.enjeuLevel ?? "faible"] - rank[a.enjeuLevel ?? "faible"])
+  const inventorySpecies = selectInventorySpecies(input.inventory.occurrences, input.filters).sort((a, b) => {
+    const rank = { critique: 5, fort: 4, modere: 3, a_confirmer: 2, faible: 1, eee: 0 };
+    return (rank[classifyConcern(b)] - rank[classifyConcern(a)])
       || ((b.observationCount ?? 0) - (a.observationCount ?? 0))
       || a.scientificName.localeCompare(b.scientificName);
   });
+  const potentialSpecies = selectPotentialSpecies(
+    reconcilePotentialSpecies(input.potentialSpecies, input.inventory.occurrences, input.inventory.center, input.inventory.radius),
+    input.filters,
+    input.inventory.occurrences,
+  );
+  const prioritySpecies = selectSupportingSpecies(
+    input.priorityAnalysis?.species ?? [], (species) => species.group,
+    input.filters, input.inventory.occurrences,
+  );
   const zonageItems = (frenchSourcesUnavailable ? null : input.zonages)?.groups.flatMap((group) =>
     group.zonages.map((zonage) => ({
       group: group.label,
@@ -89,9 +102,22 @@ export function buildFinalStudyContext(input: FinalStudyContextInput) {
       filters: input.filters,
     },
     inventory: {
-      statistics: input.inventory.stats,
+      statistics: selectedInventoryCounts(inventorySpecies),
+      rawStatistics: input.inventory.stats,
       confidence: input.inventory.confidence,
+      sourceStatus: input.inventory.sourceStatus ?? null,
+      sourceWarnings: getInventorySourceWarnings(input.inventory.sourceStatus),
+      sourceStatusRule: "Partial, unavailable or skipped sources are not zero findings. Missing source-status metadata is unknown, not confirmation of a complete consultation.",
+      selection: {
+        rawRecordCount: input.inventory.occurrences.length,
+        selectedTaxonCount: inventorySpecies.length,
+        rule: STUDY_SELECTION_CAVEAT,
+        confidenceScope: "Original unfiltered consultation; confidence was not recomputed for this selection.",
+      },
+      concernInterpretationRule: CONCERN_INTERPRETATION_RULE,
       aliSpeciesEnrichment: frenchSourcesUnavailable ? null : input.inventory.aliSpeciesEnrichment ?? null,
+      enrichmentWarning: frenchSourcesUnavailable ? null : getAliEnrichmentWarning(input.inventory.aliSpeciesEnrichment, "Inventory ALI Species"),
+      enrichmentStatusRule: "Unavailable or partial enrichment and missing enrichment metadata do not establish absence of territorial statuses or a low concern level.",
       species: limited(inventorySpecies, MAX_INVENTORY_SPECIES, (species) => ({
         scientificName: species.scientificName,
         frenchName: species.vernacularName,
@@ -117,6 +143,8 @@ export function buildFinalStudyContext(input: FinalStudyContextInput) {
         globalIucnContext: species.iucnStatus,
         territorialStatuses: frenchSourcesUnavailable ? null : species.aliStatuses,
         enjeuLevel: species.enjeuLevel,
+        displayConcern: classifyConcern(species),
+        concernBasis: species.isInvasive ? "invasive_management" : species.enjeuLevel ? "territorial" : "legacy_heuristic",
         enjeuWarnings: species.enjeuWarnings,
         invasive: frenchSourcesUnavailable ? null : species.isInvasive,
         protectedInFrance: frenchSourcesUnavailable ? null : species.frenchProtected,
@@ -131,19 +159,28 @@ export function buildFinalStudyContext(input: FinalStudyContextInput) {
       consultationState: frenchSourcesUnavailable ? "out_of_coverage" : input.states.habitatConsultation,
       carhab: frenchSourcesUnavailable ? null : input.carhabSummary,
     },
-    potentialSpecies: !frenchSourcesUnavailable && input.potentialSpecies
+    potentialSpecies: !frenchSourcesUnavailable && potentialSpecies
       ? {
-          generatedAt: input.potentialSpecies.generatedAt,
-          partial: input.potentialSpecies.partial,
+          generatedAt: potentialSpecies.generatedAt,
+          partial: potentialSpecies.partial,
+          errors: potentialSpecies.errors ?? [],
           counts: {
-            observed: input.potentialSpecies.observedCount,
-            potential: input.potentialSpecies.potentialCount,
-            evaluated: input.potentialSpecies.evaluatedCount,
-            sites: input.potentialSpecies.siteCount,
-            habitats: input.potentialSpecies.habitatCount,
+            observed: potentialSpecies.observedCount,
+            potential: potentialSpecies.potentialCount,
+            evaluated: potentialSpecies.evaluatedCount,
+            sites: potentialSpecies.siteCount,
+            habitats: potentialSpecies.habitatCount,
           },
-          reference: input.potentialSpecies.reference,
-          species: limited(input.potentialSpecies.species, MAX_POTENTIAL_SPECIES, (species) => {
+          rawCounts: {
+            observed: input.potentialSpecies!.observedCount,
+            potential: input.potentialSpecies!.potentialCount,
+            evaluated: input.potentialSpecies!.evaluatedCount,
+            species: input.potentialSpecies!.species.length,
+            znieffSpecies: input.potentialSpecies!.znieff.speciesCount,
+          },
+          selectionRule: STUDY_SELECTION_CAVEAT,
+          reference: potentialSpecies.reference,
+          species: limited(potentialSpecies.species, MAX_POTENTIAL_SPECIES, (species) => {
             const regionalRedList = regionalRedListBySpecies.get(
               species.scientificName.trim().toLocaleLowerCase("fr").replace(/\s+/g, " "),
             );
@@ -164,9 +201,9 @@ export function buildFinalStudyContext(input: FinalStudyContextInput) {
             };
           }),
           znieffDocumentarySpecies: {
-            partial: input.potentialSpecies.znieff.partial,
-            reference: input.potentialSpecies.znieff.reference,
-            species: limited(input.potentialSpecies.znieff.species, MAX_ZNIEFF_SPECIES, (species) => species),
+            partial: potentialSpecies.znieff.partial,
+            reference: potentialSpecies.znieff.reference,
+            species: limited(potentialSpecies.znieff.species, MAX_ZNIEFF_SPECIES, (species) => species),
           },
         }
       : {
@@ -177,8 +214,21 @@ export function buildFinalStudyContext(input: FinalStudyContextInput) {
     priorityAnalysis: !frenchSourcesUnavailable && input.priorityAnalysis
       ? {
           generatedAt: input.priorityAnalysis.generatedAt,
-          species: input.priorityAnalysis.species,
+          coverage: input.priorityAnalysis.coverage ?? null,
+          aliSpeciesEnrichment: input.priorityAnalysis.aliSpeciesEnrichment ?? null,
+          enrichmentWarning: getAliEnrichmentWarning(input.priorityAnalysis.aliSpeciesEnrichment, "Priority-species ALI Species"),
+          enrichmentStatusRule: "Priority enrichment is a separate source consultation from inventory enrichment. Partial, failed or unrecorded consultation never means a verified empty set of statuses.",
+          coverageWarning: input.priorityAnalysis.coverage?.frenchSources === false
+            ? "French specialist sources were not consulted for the enabled study areas. Missing territorial statuses, designations or habitats are unknown, not zero findings."
+            : null,
+          species: prioritySpecies,
+          selection: {
+            rawSpeciesCount: input.priorityAnalysis.species.length,
+            filteredOutCount: input.priorityAnalysis.species.length - prioritySpecies.length,
+            rule: STUDY_SELECTION_CAVEAT,
+          },
           natura2000: input.priorityAnalysis.natura2000,
+          natura2000Scope: "Original source-site metadata, not filtered project-presence evidence or species conclusions.",
           mcpTrace: input.priorityAnalysis.mcpTrace?.map((trace) => ({
             agentId: trace.agentId,
             mcpId: trace.mcpId,
@@ -248,4 +298,13 @@ export function serializeFinalStudyContext(
     throw new Error("The scientific context exceeds the supported size even after aggregation.");
   }
   return serialized;
+}
+
+/** Materialize the entire request before async work, detached from mutable UI data. */
+export function buildFinalStudyRequestSnapshot(report: string, input: FinalStudyContextInput) {
+  const snapshot = structuredClone(input);
+  return {
+    report,
+    context: serializeFinalStudyContext(buildFinalStudyContext(snapshot)),
+  };
 }

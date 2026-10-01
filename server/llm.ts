@@ -1,8 +1,11 @@
 import OpenAI from "openai";
 import { z } from "zod";
 import { createHash } from "node:crypto";
-import type { Occurrence, ProjectAreaFeatureCollection } from "@shared/types";
-import { fetchSpeciesStatuses, type SpeciesStatus, type Patrimonialite } from "./ali";
+import type { BufferCircle, InventoryResult, Occurrence, ProjectAreaFeatureCollection } from "@shared/types";
+import { type SpeciesStatus, type Patrimonialite } from "./ali";
+import { normalizeTaxonIdentity as normalizeName } from "@shared/taxonomy";
+import { reduceStudyCoverage } from "@shared/coverage";
+import { finalStudyContextSchema, formatZodError } from "./lib/validation";
 import { isInvasiveExotic } from "./invasive";
 import { getNaturaZones, type Zonage } from "./services/geoservices";
 import { getSpeciesForSite, type NaturaGrade } from "./services/natura2000Species";
@@ -20,6 +23,7 @@ import { getRuntimeHarnessConfig, isAgentEnabled, isAgentOperational } from "./h
 import { getStudyCoverage } from "./services/coverage";
 import type { StudyCoverage } from "@shared/types";
 import { HttpError } from "./lib/httpError";
+import { lookupAliSpeciesForStudy } from "./services/aliSpeciesMcp";
 
 const openai = new OpenAI({
   baseURL: process.env.AI_INTEGRATIONS_OPENAI_BASE_URL,
@@ -85,17 +89,6 @@ interface DesignatingInfo {
   name: string;
   designating: boolean;
   grade: NaturaGrade;
-}
-
-function normalizeName(name: string): string {
-  return name
-    .toLowerCase()
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .split(/\s+/)
-    .slice(0, 2)
-    .join(" ")
-    .trim();
 }
 
 function gradeRank(grade: NaturaGrade): number {
@@ -322,6 +315,7 @@ export interface PrioritySpeciesAnalysis {
   generatedAt: string;
   mcpTrace: McpExecutionTrace[];
   coverage?: StudyCoverage;
+  aliSpeciesEnrichment?: NonNullable<InventoryResult["aliSpeciesEnrichment"]>;
 }
 
 const prioritySpeciesSchema = z.object({
@@ -600,8 +594,12 @@ export async function analyzePrioritySpecies(
   coords: [number, number],
   occurrences: Occurrence[],
   projectArea?: ProjectAreaFeatureCollection,
+  studyAreas?: BufferCircle[],
 ): Promise<PrioritySpeciesAnalysis> {
-  const coverage = await getStudyCoverage(coords[0], coords[1]);
+  const centers = [coords, ...(studyAreas ?? []).filter((area) => area.enabled).map((area) => area.center)];
+  const coverage = reduceStudyCoverage(await Promise.all(
+    centers.map(([lat, lng]) => getStudyCoverage(lat, lng)),
+  ));
   const picked = selectRelevantSpecies(occurrences);
   const sample = formatSpeciesForPrompt(picked);
   const uniqueCount = new Set(occurrences.map((o) => o.scientificName)).size;
@@ -777,7 +775,10 @@ export async function analyzePrioritySpecies(
     .slice(0, Math.max(0, MAX_FINAL_SPECIES - reserved.length));
   const ranked = [...filler, ...reserved].sort(byEvidenceThenScore);
 
-  const enriched = taxonomyOperational ? await enrichWithAliStatuses(ranked) : ranked;
+  const aliEnrichment = taxonomyOperational
+    ? await enrichPrioritySpeciesForStudy(ranked, occurrences, centers)
+    : undefined;
+  const enriched = aliEnrichment?.species ?? ranked;
   const classified = enriched
     .map((sp) => classifyAndScore(sp, inventoryNorm, designatingMap, obsNearestM, obsQuality, habitatMap, coverage.frenchSources))
     .sort(byEvidenceThenScore);
@@ -789,43 +790,39 @@ export async function analyzePrioritySpecies(
     generatedAt: new Date().toISOString(),
     mcpTrace,
     coverage,
+    aliSpeciesEnrichment: aliEnrichment?.trace,
   };
 }
 
 // ALI's AI-powered /taxons/search endpoint cannot handle concurrent requests:
 // firing several at once makes them ALL time out. Enrich strictly one-at-a-time.
-const ALI_CONCURRENCY = 1;
-const ALI_ENRICH_BUDGET_MS = 40000;
-
-async function enrichOne(sp: PrioritySpecies): Promise<PrioritySpecies> {
-  for (let attempt = 0; attempt < 2; attempt++) {
-    try {
-      const enrichment = await fetchSpeciesStatuses(sp.scientificName);
-      if (!enrichment) return sp;
-      return { ...sp, aliUrl: enrichment.aliUrl, statuses: enrichment.statuses, patrimonialite: enrichment.patrimonialite };
-    } catch {
-      if (attempt === 0) await new Promise((r) => setTimeout(r, 300));
-    }
-  }
-  return sp;
-}
-
-async function enrichAllBatches(species: PrioritySpecies[]): Promise<PrioritySpecies[]> {
-  const result: PrioritySpecies[] = [];
-  for (let i = 0; i < species.length; i += ALI_CONCURRENCY) {
-    const batch = species.slice(i, i + ALI_CONCURRENCY);
-    result.push(...(await Promise.all(batch.map(enrichOne))));
-  }
-  return result;
-}
-
-async function enrichWithAliStatuses(species: PrioritySpecies[]): Promise<PrioritySpecies[]> {
-  return Promise.race([
-    enrichAllBatches(species),
-    new Promise<PrioritySpecies[]>((resolve) =>
-      setTimeout(() => resolve(species), ALI_ENRICH_BUDGET_MS),
-    ),
-  ]);
+export async function enrichPrioritySpeciesForStudy(
+  species: PrioritySpecies[],
+  occurrences: Occurrence[],
+  centers: [number, number][],
+  options: { budgetMs?: number } = {},
+) {
+  const idsByName = new Map(occurrences.filter((occurrence) => Number.isInteger(occurrence.cdNom))
+    .map((occurrence) => [normalizeName(occurrence.scientificName), occurrence.cdNom]));
+  const taxa = species.map((sp) => ({
+    scientificName: sp.scientificName,
+    cdNom: idsByName.get(normalizeName(sp.scientificName)),
+  }));
+  // The scoped inventory MCP accepts names directly; do not maintain a second
+  // unscoped REST implementation that picks the worst region across France.
+  const { results, trace } = await lookupAliSpeciesForStudy(taxa, centers, { ...options, concurrency: 1 });
+  return {
+    species: species.map((sp, index) => {
+      const enrichment = results.get(taxa[index]);
+      return enrichment ? {
+        ...sp,
+        aliUrl: `https://alispecies.io/?q=${encodeURIComponent(sp.scientificName)}`,
+        statuses: enrichment.statuses,
+        patrimonialite: enrichment.patrimonialite,
+      } : sp;
+    }),
+    trace,
+  };
 }
 
 export interface FinalStudyPromptTrace {
@@ -853,42 +850,28 @@ export async function prepareFinalStudyContext(
   rawReport: string,
   structuredContext: string,
 ): Promise<{ report: string; context: string; coverage: StudyCoverage }> {
-  let context: Record<string, any>;
+  let parsed: unknown;
   try {
-    const parsed = JSON.parse(structuredContext);
-    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) throw new Error("Invalid context");
-    context = parsed;
+    parsed = JSON.parse(structuredContext);
   } catch {
-    throw new HttpError(422, "A structured JSON study context with coordinates is required to determine country coverage.");
+    throw new HttpError(400, "A valid structured JSON study context with coordinates is required.");
   }
+  const validated = finalStudyContextSchema.safeParse(parsed);
+  if (!validated.success) {
+    throw new HttpError(400, `Invalid structured study context (including study coordinates): ${formatZodError(validated.error)}`);
+  }
+  const context = validated.data;
   const center = context.request?.center;
-  if (!Array.isArray(center) || center.length !== 2 ||
-      !center.every((n: unknown) => typeof n === "number" && Number.isFinite(n)) ||
-      center[0] < -90 || center[0] > 90 || center[1] < -180 || center[1] > 180) {
-    throw new HttpError(422, "Valid study coordinates are required to determine country coverage.");
-  }
   const centers: number[][] = [center];
   if (Array.isArray(context.request?.studyAreas)) {
     for (const area of context.request.studyAreas) {
       if (area?.enabled === false) continue;
-      const point = area?.center;
-      if (!Array.isArray(point) || point.length !== 2 ||
-          !point.every((n: unknown) => typeof n === "number" && Number.isFinite(n)) ||
-          point[0] < -90 || point[0] > 90 || point[1] < -180 || point[1] > 180) {
-        throw new HttpError(422, "Valid study-area coordinates are required to determine country coverage.");
-      }
+      const point = area.center;
       if (!centers.some((item) => item[0] === point[0] && item[1] === point[1])) centers.push(point);
     }
   }
   const verified = await Promise.all(centers.map(([lat, lng]) => getStudyCoverage(lat, lng)));
-  const coverage = verified.every((item) => item.countryCode === verified[0].countryCode)
-    ? verified[0]
-    : {
-        countryCode: "MULTIPLE",
-        globalOccurrences: true,
-        frenchSources: false,
-        unavailableSources: ["French sources cannot be applied across multiple countries"],
-      };
+  const coverage = reduceStudyCoverage(verified);
   context.serverCoverage = coverage;
   if (!coverage.frenchSources) {
     // Remove French-specific evidence supplied by a stale or forged client.

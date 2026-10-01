@@ -3,7 +3,8 @@ import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/
 
 import type { AliStatusSummary, InventoryResult, Occurrence } from "@shared/types";
 import { isPlantTaxon } from "@shared/iucn";
-import { normalizeStatuses } from "../ali";
+import { computePatrimonialite, normalizeStatuses, type Patrimonialite, type SpeciesStatus } from "../ali";
+import { mapWithDeadline } from "../lib/concurrency";
 import { checkConsistency, computeEnjeuLevel } from "../scoring";
 import { reverseGeocode } from "./nominatim";
 import type { RawAliStatus } from "./aliApi";
@@ -105,17 +106,13 @@ function parseToolPayload(result: unknown, requestedRegion?: string): McpStatusP
  * qu'une liste rouge d'une autre région ne fausse l'analyse, seul le driver LRR
  * calculé par ALi Species pour le territoire demandé est conservé.
  */
-export function statusesForStudyRegion(
+export function rawStatusesForStudyRegion(
   payload: McpStatusPayload,
   requestedRegion?: string,
-): AliStatusSummary[] {
-  const rawWithoutRegionalRedLists = (payload.statuts ?? []).filter(
+): RawAliStatus[] {
+  const raws = (payload.statuts ?? []).filter(
     (status) => status.cdTypeStatut !== "LRR",
   );
-  const statuses: AliStatusSummary[] = normalizeStatuses(rawWithoutRegionalRedLists).map(
-    ({ category, value, label, tone, scope }) => ({ category, value, label, tone, scope }),
-  );
-
   const regionalDriver = payload.patrimonialite?.drivers?.find(
     (driver) =>
       driver.kind === "redlist" &&
@@ -127,20 +124,150 @@ export function statusesForStudyRegion(
     sameTerritory(payload.territoire, requestedRegion) &&
     regionalDriver?.code
   ) {
-    statuses.unshift({
-      category: "Liste rouge régionale",
-      value: regionalDriver.code,
-      label: regionalDriver.title ?? regionalDriver.label ?? regionalDriver.code,
-      tone: ["EX", "EW", "RE", "CR", "EN"].includes(regionalDriver.code)
-        ? "danger"
-        : ["VU", "NT"].includes(regionalDriver.code)
-          ? "warn"
-          : "neutral",
-      scope: payload.territoire || requestedRegion,
+    raws.push({
+      cdTypeStatut: "LRR",
+      regroupementType: "Liste rouge",
+      codeStatut: regionalDriver.code,
+      labelStatut: regionalDriver.title ?? regionalDriver.label ?? regionalDriver.code,
+      lbAdmTr: payload.territoire || requestedRegion,
     });
   }
 
-  return statuses;
+  return raws;
+}
+
+export function statusesForStudyRegion(
+  payload: McpStatusPayload,
+  requestedRegion?: string,
+): AliStatusSummary[] {
+  return normalizeStatuses(rawStatusesForStudyRegion(payload, requestedRegion)).map(
+    ({ category, value, label, tone, scope }) => ({ category, value, label, tone, scope }),
+  );
+}
+
+interface AliStudyTaxon {
+  scientificName: string;
+  cdNom?: number;
+}
+
+interface AliStudyEnrichment {
+  statuses: SpeciesStatus[];
+  patrimonialite: Patrimonialite;
+  cdNom?: number;
+}
+
+/** Shared inventory/priority lookup: identical territorial rules and deadlines. */
+export async function lookupAliSpeciesForStudy<T extends AliStudyTaxon>(
+  taxa: readonly T[],
+  centers: readonly [number, number][],
+  options: { concurrency?: number; budgetMs?: number } = {},
+): Promise<{
+  results: Map<T, AliStudyEnrichment>;
+  trace: NonNullable<InventoryResult["aliSpeciesEnrichment"]>;
+}> {
+  const deadline = Date.now() + (options.budgetMs ?? PHASE_BUDGET_MS);
+  const uniqueCenters = Array.from(new Map(centers.map(
+    (center) => [`${center[0].toFixed(5)}:${center[1].toFixed(5)}`, center],
+  )).values());
+  const resolvedRegions: string[] = [];
+  const regionDeadline = Math.min(deadline, Date.now() + REGION_LOOKUP_TIMEOUT_MS);
+  const regionAbort = new AbortController();
+  const regionTimer = setTimeout(
+    () => regionAbort.abort(),
+    Math.max(1, regionDeadline - Date.now()),
+  );
+  try {
+    for (const [lat, lng] of uniqueCenters) {
+      if (regionAbort.signal.aborted || Date.now() >= deadline) break;
+      const location = await withTimeout(
+        reverseGeocode(lat, lng, regionAbort.signal),
+        Math.max(1, regionDeadline - Date.now()),
+        "ALI study-region lookup timed out",
+      );
+      if (location.region) resolvedRegions.push(location.region);
+    }
+  } catch {
+    // Unresolved locations must never select another region's red list.
+  } finally {
+    clearTimeout(regionTimer);
+    regionAbort.abort();
+  }
+  const territorial = territorialScopeFromRegions(resolvedRegions, uniqueCenters.length);
+  const results = new Map<T, AliStudyEnrichment>();
+  let attempted = 0;
+  let nameResolutionAttempted = 0;
+  let nameResolved = 0;
+  let client: Client | undefined;
+  const phaseAbort = new AbortController();
+  const phaseTimer = setTimeout(() => phaseAbort.abort(), Math.max(0, deadline - Date.now()));
+  try {
+    if (taxa.length && Date.now() < deadline) {
+      client = new Client({ name: "ali-study-taxon-enrichment", version: "1.0.0" });
+      await withTimeout(
+        client.connect(new StreamableHTTPClientTransport(new URL(ALI_SPECIES_MCP_URL), {
+          requestInit: { signal: phaseAbort.signal },
+        })),
+        Math.min(CONNECT_TIMEOUT_MS, Math.max(1, deadline - Date.now())),
+        "ALI Species MCP connection timed out",
+      );
+      const work = await mapWithDeadline(taxa, options.concurrency ?? CONCURRENCY, deadline, async (taxon, _, signal) => {
+        const resolveByName = !Number.isInteger(taxon.cdNom);
+        if (resolveByName) nameResolutionAttempted++;
+        const result = await client!.callTool(
+          {
+            name: "get_statuts",
+            arguments: {
+              ...(resolveByName ? { scientificName: taxon.scientificName } : { cdNom: taxon.cdNom }),
+              ...(territorial.region ? { region: territorial.region } : {}),
+            },
+          },
+          undefined,
+          { timeout: Math.min(TOOL_TIMEOUT_MS, Math.max(1, deadline - Date.now())), signal },
+        );
+        const payload = parseToolPayload(result, territorial.region);
+        if (!payload) throw new Error("Invalid ALI Species territorial response");
+        const cdNom = payload.resolvedTaxon?.cdRef ?? payload.resolvedTaxon?.cdNom ?? taxon.cdNom;
+        const raws = rawStatusesForStudyRegion(payload, territorial.region);
+        return {
+          statuses: normalizeStatuses(raws),
+          patrimonialite: computePatrimonialite(raws),
+          cdNom: Number.isInteger(cdNom) ? cdNom : undefined,
+        };
+      });
+      attempted = work.attempted;
+      for (const [index, enrichment] of Array.from(work.results)) {
+        const taxon = taxa[index];
+        results.set(taxon, enrichment);
+        if (!Number.isInteger(taxon.cdNom) && enrichment.cdNom) nameResolved++;
+      }
+    }
+  } catch {
+    // Connection/source failure is partial, not a successful empty assessment.
+  } finally {
+    clearTimeout(phaseTimer);
+    phaseAbort.abort();
+    if (client) {
+      await withTimeout(client.close(), 500, "ALI Species MCP close timed out").catch(() => undefined);
+    }
+  }
+  return {
+    results,
+    trace: {
+      source: "ALI Species MCP",
+      region: territorial.region,
+      territorialScope: territorial.scope,
+      attempted,
+      enriched: results.size,
+      failed: attempted - results.size,
+      skipped: taxa.length - attempted,
+      partial: results.size < taxa.length,
+      ...(results.size < taxa.length ? {
+        error: "ALI Species status lookup incomplete or unavailable; missing statuses do not indicate absence of local concern.",
+      } : {}),
+      nameResolutionAttempted,
+      nameResolved,
+    },
+  };
 }
 
 function applyStatuses(
@@ -218,113 +345,23 @@ export async function enrichInventoryWithAliSpeciesMcp(
     };
   }
 
-  const phaseStartedAt = Date.now();
-  const deadline = phaseStartedAt + PHASE_BUDGET_MS;
   const enabledCenters = inventory.circles
     .filter((circle) => circle.enabled)
     .map((circle) => circle.center);
-  const uniqueCenters = Array.from(
-    new Map(
-      (enabledCenters.length ? enabledCenters : [inventory.center])
-        .map((center) => [`${center[0].toFixed(5)}:${center[1].toFixed(5)}`, center]),
-    ).values(),
-  );
-  const resolvedRegions: string[] = [];
-  const regionAbort = new AbortController();
-  const regionTimer = setTimeout(
-    () => regionAbort.abort(),
-    Math.min(REGION_LOOKUP_TIMEOUT_MS, Math.max(1, deadline - Date.now())),
-  );
-  try {
-    for (const center of uniqueCenters) {
-      const location = await reverseGeocode(center[0], center[1], regionAbort.signal);
-      if (location.region) resolvedRegions.push(location.region);
-    }
-  } catch {
-    // Un périmètre non résolu reste sans attribution régionale.
-  } finally {
-    clearTimeout(regionTimer);
-  }
-  const territorial = territorialScopeFromRegions(resolvedRegions, uniqueCenters.length);
-  const region = territorial.region;
   const prioritized = [...inventory.occurrences]
     .sort((a, b) => enrichmentPriority(b) - enrichmentPriority(a))
     .slice(0, MAX_ENRICHED_TAXA);
-  let nameResolutionAttempted = 0;
-  let nameResolved = 0;
-  const statusesByOccurrence = new Map<Occurrence, AliStatusSummary[]>();
-  let attempted = 0;
-  let failed = 0;
-  let cursor = 0;
-  let client: Client | undefined;
-
-  try {
-    client = new Client({ name: "ali-inventaire-taxon-enrichment", version: "1.0.0" });
-    await withTimeout(
-      client.connect(new StreamableHTTPClientTransport(new URL(ALI_SPECIES_MCP_URL))),
-      CONNECT_TIMEOUT_MS,
-      "ALI Species MCP connection timed out",
-    );
-    const workers = Array.from({ length: Math.min(CONCURRENCY, prioritized.length) }, async () => {
-      while (cursor < prioritized.length && Date.now() < deadline) {
-        const occurrence = prioritized[cursor++];
-        attempted++;
-        const resolveByName = !Number.isInteger(occurrence.cdNom);
-        if (resolveByName) nameResolutionAttempted++;
-        try {
-          const remainingMs = Math.max(1, deadline - Date.now());
-          const result = await client!.callTool(
-            {
-              name: "get_statuts",
-              arguments: {
-                ...(resolveByName
-                  ? { scientificName: occurrence.scientificName }
-                  : { cdNom: occurrence.cdNom }),
-                ...(region ? { region } : {}),
-              },
-            },
-            undefined,
-            { timeout: Math.min(TOOL_TIMEOUT_MS, remainingMs) },
-          );
-          const payload = parseToolPayload(result, region);
-          if (!payload) {
-            failed++;
-            continue;
-          }
-          if (resolveByName) {
-            const resolvedCdNom = payload.resolvedTaxon?.cdRef ?? payload.resolvedTaxon?.cdNom;
-            if (Number.isInteger(resolvedCdNom)) {
-              occurrence.cdNom = resolvedCdNom;
-              nameResolved++;
-            }
-          }
-          statusesByOccurrence.set(occurrence, statusesForStudyRegion(payload, region));
-        } catch {
-          failed++;
-        }
-      }
-    });
-    await Promise.all(workers);
-  } catch {
-    attempted = prioritized.length;
-    failed = attempted;
-    nameResolutionAttempted = prioritized.filter(
-      (occurrence) => !Number.isInteger(occurrence.cdNom),
-    ).length;
-  } finally {
-    await client?.close().catch(() => undefined);
-  }
+  const { results, trace } = await lookupAliSpeciesForStudy(
+    prioritized, enabledCenters.length ? enabledCenters : [inventory.center],
+  );
 
   const occurrences = inventory.occurrences.map((occurrence) =>
     applyStatuses(
-      occurrence,
-      statusesByOccurrence.get(occurrence),
-      statusesByOccurrence.has(occurrence),
+      { ...occurrence, cdNom: results.get(occurrence)?.cdNom ?? occurrence.cdNom },
+      results.get(occurrence)?.statuses,
+      results.has(occurrence),
     ),
   );
-  const skipped = inventory.occurrences.length - attempted;
-  const enriched = statusesByOccurrence.size;
-  failed = Math.max(failed, attempted - enriched);
   return {
     ...inventory,
     occurrences,
@@ -338,16 +375,9 @@ export async function enrichInventoryWithAliSpeciesMcp(
       ).length,
     },
     aliSpeciesEnrichment: {
-      source: "ALI Species MCP",
-      region,
-      territorialScope: territorial.scope,
-      attempted,
-      enriched,
-      failed,
-      skipped,
-      partial: failed > 0 || skipped > 0,
-      nameResolutionAttempted,
-      nameResolved,
+      ...trace,
+      skipped: inventory.occurrences.length - trace.attempted,
+      partial: trace.partial || inventory.occurrences.length > prioritized.length,
     },
   };
 }

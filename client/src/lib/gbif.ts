@@ -15,6 +15,22 @@ export type InventoryResult = InventoryResultType;
 export type ProjectPreset = ProjectPresetType;
 export type { EnjeuLevel };
 
+export function getInventorySourceWarnings(sourceStatus: InventoryResult["sourceStatus"]): string[] {
+  return Object.entries(sourceStatus ?? {}).flatMap(([source, status]) => {
+    if (!status || status.state === "complete") return [];
+    const label = source === "gbif" ? "GBIF" : "iNaturalist";
+    return [`${label} consultation: ${status.state}.${status.error ? ` ${status.error}` : ""} Missing or uncollected records are unknown, not a finding of zero species or absence.`];
+  });
+}
+
+export function getAliEnrichmentWarning(
+  enrichment: InventoryResult["aliSpeciesEnrichment"],
+  label = "ALI Species",
+): string | null {
+  if (!enrichment || (!enrichment.partial && !enrichment.error && enrichment.failed === 0)) return null;
+  return `${label}: territorial enrichment is incomplete (${enrichment.enriched}/${enrichment.attempted} taxa enriched; ${enrichment.failed} failed; ${enrichment.skipped} skipped).${enrichment.error ? ` ${enrichment.error}` : ""} Missing statuses are unknown, not verified absent; no low-concern conclusion can be inferred from an unavailable enrichment.`;
+}
+
 export interface TaxonGroup {
   id: string;
   label: string;
@@ -86,6 +102,7 @@ const MARINE_CLASSES = new Set([
 ]);
 
 export function isMarineSpecies(occ: Occurrence): boolean {
+  if (occ.habitatType === "marine") return true;
   if (occ.phylum && MARINE_PHYLA.has(occ.phylum)) return true;
   if (occ.class && MARINE_CLASSES.has(occ.class)) return true;
   return false;

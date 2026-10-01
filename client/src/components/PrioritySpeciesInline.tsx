@@ -1,14 +1,16 @@
 import { Sparkles, AlertTriangle, AlertCircle, Info, Loader2, RefreshCw, ExternalLink, BookOpen, Layers } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
-import type { Occurrence } from "@/lib/gbif";
+import { getAliEnrichmentWarning, type Occurrence, type InventoryResult, type BufferCircle } from "@/lib/gbif";
 import { occurrenceKey } from "@/lib/resultKeys";
 import type { FeatureCollection } from "geojson";
+import type { StudyCoverage } from "@shared/types";
 
 interface Props {
   toponym: string;
   coords: [number, number];
   occurrences: Occurrence[];
   projectArea?: FeatureCollection;
+  studyAreas?: BufferCircle[];
   onAnalysisChange?: (a: Analysis | null) => void;
   initialAnalysis?: Analysis | null;
   /** Lance automatiquement l'analyse à l'affichage (si pas déjà disponible). */
@@ -140,6 +142,8 @@ export interface Analysis {
     output?: string;
   }[];
   generatedAt: string;
+  coverage?: StudyCoverage;
+  aliSpeciesEnrichment?: NonNullable<InventoryResult["aliSpeciesEnrichment"]>;
 }
 
 const LEVEL_STYLE: Record<string, { color: string; icon: typeof AlertTriangle }> = {
@@ -148,12 +152,13 @@ const LEVEL_STYLE: Record<string, { color: string; icon: typeof AlertTriangle }>
   modéré: { color: "text-amber-700 bg-amber-50 border-amber-200", icon: Info },
 };
 
-export function PrioritySpeciesInline({ toponym, coords, occurrences, projectArea, onAnalysisChange, initialAnalysis, autoStart }: Props) {
+export function PrioritySpeciesInline({ toponym, coords, occurrences, projectArea, studyAreas, onAnalysisChange, initialAnalysis, autoStart }: Props) {
   const [analysis, setAnalysis] = useState<Analysis | null>(initialAnalysis ?? null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const lastKeyRef = useRef<string>("");
   const requestIdRef = useRef(0);
+  const enabledStudyAreas = useMemo(() => studyAreas?.filter((area) => area.enabled), [studyAreas]);
 
   const slim = useMemo(() => {
     const d2 = (o: Occurrence) =>
@@ -189,8 +194,8 @@ export function PrioritySpeciesInline({ toponym, coords, occurrences, projectAre
       .map(o => `${o.scientificName}|${o.iucnStatus || ""}|${o.alertLevel || ""}`)
       .sort()
       .join("§");
-    return `${toponym}|${coords[0].toFixed(5)},${coords[1].toFixed(5)}|${projectArea ? "project-area" : "circle"}|${sig}`;
-  }, [toponym, coords, projectArea, slim]);
+    return `${toponym}|${coords[0].toFixed(5)},${coords[1].toFixed(5)}|${projectArea ? "project-area" : "circle"}|${JSON.stringify(enabledStudyAreas ?? [])}|${sig}`;
+  }, [toponym, coords, projectArea, enabledStudyAreas, slim]);
 
   useEffect(() => {
     if (initialAnalysis) setAnalysis(initialAnalysis);
@@ -208,7 +213,7 @@ export function PrioritySpeciesInline({ toponym, coords, occurrences, projectAre
     fetch("/api/llm/priority-species", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ toponym, coords, occurrences: slim, projectArea }),
+      body: JSON.stringify({ toponym, coords, occurrences: slim, projectArea, studyAreas: enabledStudyAreas }),
     })
       .then(async (r) => {
         if (!r.ok) {
@@ -230,6 +235,7 @@ export function PrioritySpeciesInline({ toponym, coords, occurrences, projectAre
         if (myId === requestIdRef.current) setLoading(false);
       });
   };
+  const enrichmentWarning = getAliEnrichmentWarning(analysis?.aliSpeciesEnrichment, "Priority-species ALI Species");
 
   // Lancement automatique à l'affichage (ex. bouton « Expliquer ce diagnostic »)
   useEffect(() => {
@@ -293,6 +299,16 @@ export function PrioritySpeciesInline({ toponym, coords, occurrences, projectAre
 
       {analysis && !loading && (
         <div className="space-y-2">
+          {analysis.coverage?.frenchSources === false && (
+            <p className="rounded-lg border border-amber-200 bg-amber-50 p-2 text-xs text-amber-900" role="status" data-testid="priority-source-coverage-warning">
+              French sources were not consulted because coverage could not be confirmed for every enabled study area. Missing territorial statuses, designations and habitats are unknown, not zero findings; consult locally applicable sources.
+            </p>
+          )}
+          {enrichmentWarning && (
+            <p className="rounded-lg border border-amber-200 bg-amber-50 p-2 text-xs text-amber-900" role="status" data-testid="priority-enrichment-warning">
+              {enrichmentWarning}
+            </p>
+          )}
           {analysis.natura2000 && analysis.natura2000.length > 0 && (
             <div className="rounded-lg border border-amber-200 bg-amber-50/60 p-2.5" data-testid="natura2000-nearby">
               <div className="text-[9px] font-semibold text-amber-700 uppercase tracking-wider mb-1.5 flex items-center gap-1">

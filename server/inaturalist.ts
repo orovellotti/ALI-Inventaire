@@ -1,4 +1,4 @@
-import type { Occurrence } from "@shared/types";
+import type { InventorySourceStatus, Occurrence } from "@shared/types";
 import { applyFrenchPriorityBoost, isFrenchPriority } from "./frenchPriority";
 import { isInvasiveExotic } from "./invasive";
 
@@ -50,10 +50,11 @@ export async function searchINaturalist(
   lng: number,
   radiusMeters: number,
   french = false,
-): Promise<{ occurrences: Occurrence[]; summary: INatRawSummary }> {
+): Promise<{ occurrences: Occurrence[]; summary: INatRawSummary; status: InventorySourceStatus }> {
   const radiusKm = Math.max(0.1, Math.min(radiusMeters / 1000, 100));
   const speciesMap = new Map<string, Occurrence>();
   let totalRecords = 0;
+  let status: InventorySourceStatus = { state: "complete" };
 
   for (let page = 1; page <= MAX_PAGES; page++) {
     const params = new URLSearchParams({
@@ -73,12 +74,18 @@ export async function searchINaturalist(
     try {
       const response = await fetch(`${INAT_SPECIES_COUNTS}?${params.toString()}`, {
         headers: { "User-Agent": "InventaireFlash/1.0 (https://github.com/natural-solutions/inventaire-flash)" },
+        signal: AbortSignal.timeout(12_000),
       });
-      if (!response.ok) break;
+      if (!response.ok) throw new Error(`iNaturalist request failed (HTTP ${response.status})`);
       const data = await response.json();
-      results = Array.isArray(data?.results) ? data.results : [];
+      if (!Array.isArray(data?.results)) throw new Error("Invalid iNaturalist species response");
+      results = data.results;
       total = Number(data?.total_results) || 0;
-    } catch {
+    } catch (error) {
+      status = {
+        state: speciesMap.size ? "partial" : "unavailable",
+        error: error instanceof Error ? error.message : "iNaturalist collection failed",
+      };
       break;
     }
 
@@ -137,6 +144,7 @@ export async function searchINaturalist(
 
     if (results.length < PER_PAGE) break;
     if (page * PER_PAGE >= totalRecords) break;
+    if (page === MAX_PAGES) status = { state: "partial" };
   }
 
   const occurrences = Array.from(speciesMap.values());
@@ -146,6 +154,7 @@ export async function searchINaturalist(
   return {
     occurrences,
     summary: { records: totalRecords, species: occurrences.length },
+    status,
   };
 }
 
@@ -242,6 +251,7 @@ async function enrichLastObservationYears(
     try {
       const response = await fetch(`${INAT_OBSERVATIONS}?${params.toString()}`, {
         headers: { "User-Agent": "InventaireFlash/1.0 (https://github.com/natural-solutions/inventaire-flash)" },
+        signal: AbortSignal.timeout(12_000),
       });
       if (!response.ok) break;
       const data = await response.json();

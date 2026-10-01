@@ -13,6 +13,7 @@ import { searchPlace, reverseGeocode } from "@/lib/geocoding";
 import { parseShapefile, ProjectPolygon } from "@/lib/shapefile";
 import { toZonageMapFeatures } from "@/lib/zonageMap";
 import { occurrenceKey } from "@/lib/resultKeys";
+import { buildStudyRequestSummary, isStudyCoverage, resolveStudyCoverage, snapshotStudyParameters, updateStudyConversation } from "@/lib/studySession";
 import { fetchZonages, type ZonagesData } from "@/lib/zonages";
 import type { PotentialSpeciesResult, StudyCoverage } from "@shared/types";
 import { DEFAULT_HARNESS_CONFIG, type HarnessConfig } from "@shared/harness";
@@ -23,6 +24,7 @@ import {
   renameAnalysisConversation,
   saveAnalysisConversation,
   type AnalysisConversation,
+  type AnalysisConversationParameters,
   type AnalysisConversationStatus,
 } from "@/lib/analysisHistory";
 import { useToast } from "@/hooks/use-toast";
@@ -73,6 +75,7 @@ export default function Home() {
     createDefaultCircles(INITIAL_PLACE.coords)
   );
   const [results, setResults] = useState<InventoryResult | null>(null);
+  const [studyParameters, setStudyParameters] = useState<AnalysisConversationParameters | null>(null);
   const [isSearching, setIsSearching] = useState(false);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [isPanelOpen, setIsPanelOpen] = useState(true);
@@ -141,6 +144,7 @@ export default function Home() {
     potentialSpeciesAbortController.current?.abort();
     potentialSpeciesAbortController.current = null;
     setResults(null);
+    setStudyParameters(null);
     setZonages(null);
     setZonagesLoading(false);
     setPotentialSpecies(null);
@@ -168,18 +172,20 @@ export default function Home() {
     zonagesAbortController.current = null;
     potentialSpeciesAbortController.current = null;
     suppressNextHistorySave.current = true;
+    const parameters = snapshotStudyParameters(conversation.parameters);
+    setStudyParameters(parameters);
     setActiveConversationId(conversation.id);
-    setCenter(conversation.parameters.center);
-    setCircles(conversation.parameters.circles);
-    setCurrentToponym(conversation.parameters.toponym);
-    setActivePresetId(conversation.parameters.activePresetId);
-    setActiveTaxonFilters(new Set(conversation.parameters.activeTaxonFilters));
-    setExcludeMarine(conversation.parameters.excludeMarine);
-    setIncludeINaturalist(conversation.parameters.includeINaturalist);
-    setProjectPolygon(conversation.parameters.projectPolygon);
+    setCenter(parameters.center);
+    setCircles(parameters.circles);
+    setCurrentToponym(parameters.toponym);
+    setActivePresetId(parameters.activePresetId);
+    setActiveTaxonFilters(new Set(parameters.activeTaxonFilters));
+    setExcludeMarine(parameters.excludeMarine);
+    setIncludeINaturalist(parameters.includeINaturalist);
+    setProjectPolygon(parameters.projectPolygon);
     setResults(conversation.results.inventory);
     setCoverage(conversation.results.inventory?.coverage ?? null);
-    setCoverageError(null);
+    setCoverageError(isStudyCoverage(conversation.results.inventory?.coverage) ? null : conversation.agentErrors.coverage ?? null);
     setZonages(conversation.results.zonages);
     setPotentialSpecies(conversation.results.potentialSpecies);
     setZonagesLoading(false);
@@ -211,10 +217,10 @@ export default function Home() {
               ...(!hasInventory
                  ? { inventory: "This analysis was interrupted before the observations agent responded." }
                 : {}),
-              ...(hasInventory && !conversation.results.zonages
+               ...(conversation.results.inventory?.coverage?.frenchSources && !conversation.results.zonages
                  ? { zonages: "This step was interrupted before completion." }
                 : {}),
-              ...(hasInventory && !conversation.results.potentialSpecies
+               ...(conversation.results.inventory?.coverage?.frenchSources && !conversation.results.potentialSpecies
                  ? { potentialSpecies: "This step was interrupted before completion." }
                 : {}),
             },
@@ -277,7 +283,17 @@ export default function Home() {
        toast({ title: "Observations agent disabled", description: "Enable it in the Harness to start an assessment.", variant: "destructive" });
       return;
     }
-    const enabledCircles = circles.filter(c => c.enabled);
+    const parameters = snapshotStudyParameters({
+      toponym: currentToponym,
+      center,
+      circles,
+      activePresetId,
+      activeTaxonFilters: Array.from(activeTaxonFilters),
+      excludeMarine,
+      includeINaturalist,
+      projectPolygon,
+    });
+    const enabledCircles = parameters.circles.filter(c => c.enabled);
     const enabledCount = enabledCircles.length;
     if (enabledCount === 0) {
       toast({
@@ -296,18 +312,9 @@ export default function Home() {
     const initialConversation: AnalysisConversation = {
       version: 1,
       id: conversationId,
-       title: currentToponym.split(",")[0].trim() || "New analysis",
+       title: parameters.toponym.split(",")[0].trim() || "New analysis",
       status: "running",
-      parameters: {
-        toponym: currentToponym,
-        center,
-        circles,
-        activePresetId,
-        activeTaxonFilters: Array.from(activeTaxonFilters),
-        excludeMarine,
-        includeINaturalist,
-        projectPolygon,
-      },
+      parameters,
       results: {
         inventory: null,
         zonages: null,
@@ -318,6 +325,7 @@ export default function Home() {
       updatedAt: now,
     };
     setActiveConversationId(conversationId);
+    setStudyParameters(parameters);
     setConversations((previous) => [initialConversation, ...previous].slice(0, 20));
     setHistoryError(null);
     coverageAbortController.current?.abort();
@@ -346,7 +354,7 @@ export default function Home() {
     setIsAnalyzing(true);
     // Global inventory does not depend on France-specific coverage. Start it
     // immediately, while country coverage is resolved for the regional calls.
-    const inventoryPromise = searchGBIFMultiCircle(circles, { includeINaturalist })
+    const inventoryPromise = searchGBIFMultiCircle(parameters.circles, { includeINaturalist: parameters.includeINaturalist })
       .then((data) => ({ data, error: null as unknown }))
       .catch((error: unknown) => ({ data: null, error }));
 
@@ -357,6 +365,7 @@ export default function Home() {
     }
 
     let resolvedCoverage: StudyCoverage | null = null;
+    let lookupError: string | null = null;
     const coverageTimeout = window.setTimeout(() => coverageController.abort(), 12_000);
     try {
       const params = new URLSearchParams({
@@ -371,68 +380,63 @@ export default function Home() {
         throw new Error(payload.error || `Country coverage lookup failed (${response.status})`);
       }
       const value: StudyCoverage = await response.json();
-      if (typeof value.countryCode !== "string" || typeof value.frenchSources !== "boolean") {
+      if (!isStudyCoverage(value)) {
         throw new Error("Country coverage response was incomplete");
       }
       resolvedCoverage = value;
-      if (requestId === inventoryRequestId.current) setCoverage(value);
     } catch (error) {
-      if (requestId === inventoryRequestId.current) {
-        setCoverageError(
-          `Country coverage could not be verified (${error instanceof Error && error.name !== "AbortError" ? error.message : "request timed out"}). France-only sources were skipped; this is not evidence of absence.`,
-        );
-      }
+      lookupError = `Country coverage could not be verified (${error instanceof Error && error.name !== "AbortError" ? error.message : "request timed out"}). France-only sources were skipped; this is not evidence of absence.`;
     } finally {
       window.clearTimeout(coverageTimeout);
       if (coverageAbortController.current === coverageController) coverageAbortController.current = null;
     }
     if (requestId !== inventoryRequestId.current) return;
 
-    // Never query French-only endpoints outside confirmed French coverage.
-    // An unknown country is not a negative finding; global inventory continues.
-    if (agentEnabled("zonages") && resolvedCoverage?.frenchSources) {
-      setZonagesLoading(true);
-      void fetchZonages(
-      referenceCircle.center[0],
-      referenceCircle.center[1],
-      referenceCircle.radius,
-      zonagesController.signal,
-    )
-      .then((data) => {
-        if (requestId === inventoryRequestId.current) {
-          setZonages(data);
-          setZonagesError(false);
-        }
-      })
-      .catch((error: unknown) => {
-        if (
-          requestId === inventoryRequestId.current &&
-          !(error instanceof DOMException && error.name === "AbortError")
-        ) {
-          setZonages(null);
-          setZonagesError(true);
-        }
-      })
-      .finally(() => {
-        if (requestId === inventoryRequestId.current) setZonagesLoading(false);
-      });
-    }
-
     try {
       const inventoryOutcome = await inventoryPromise;
+      if (requestId !== inventoryRequestId.current) return;
+      const effectiveCoverage = resolveStudyCoverage(inventoryOutcome.data?.coverage, resolvedCoverage, lookupError);
+      setCoverage(effectiveCoverage.coverage);
+      setCoverageError(effectiveCoverage.error);
       if (!inventoryOutcome.data) {
         throw inventoryOutcome.error ?? new Error("Global inventory unavailable");
       }
       const data = inventoryOutcome.data;
-      if (requestId !== inventoryRequestId.current) return;
-      setResults({ ...data, coverage: data.coverage ?? resolvedCoverage ?? undefined });
+      setResults({ ...data, coverage: effectiveCoverage.coverage ?? undefined });
       setAnalysisFailed(false);
       setIsPanelOpen(true);
       toast({
          title: "Inventory complete",
          description: `${data.stats.speciesCount} species found across ${enabledCount} study area${enabledCount > 1 ? 's' : ''}.`,
       });
-      if (agentEnabled("zonages") && resolvedCoverage?.frenchSources) {
+      // Both regional agents use the same coverage as the displayed inventory.
+      // Unknown or foreign coverage never dispatches France-only requests.
+      if (agentEnabled("zonages") && effectiveCoverage.coverage?.frenchSources) {
+        setZonagesLoading(true);
+        void fetchZonages(
+          referenceCircle.center[0],
+          referenceCircle.center[1],
+          referenceCircle.radius,
+          zonagesController.signal,
+        )
+          .then((zonageData) => {
+            if (requestId === inventoryRequestId.current) {
+              setZonages(zonageData);
+              setZonagesError(false);
+            }
+          })
+          .catch((error: unknown) => {
+            if (
+              requestId === inventoryRequestId.current &&
+              !(error instanceof DOMException && error.name === "AbortError")
+            ) {
+              setZonages(null);
+              setZonagesError(true);
+            }
+          })
+          .finally(() => {
+            if (requestId === inventoryRequestId.current) setZonagesLoading(false);
+          });
         setPotentialSpeciesLoading(true);
         void fetch("/api/potential-species", {
           method: "POST",
@@ -442,7 +446,7 @@ export default function Home() {
             lat: referenceCircle.center[0],
             lng: referenceCircle.center[1],
             radius: referenceCircle.radius,
-            projectArea: projectPolygon?.geojson,
+            projectArea: parameters.projectPolygon?.geojson,
             occurrences: data.occurrences.slice(0, 5000).map((occurrence) => ({
               key: occurrence.key,
               scientificName: occurrence.scientificName,
@@ -665,35 +669,25 @@ export default function Home() {
         : analysisFailed
           ? "failed"
           : results
-            ? potentialSpeciesError || zonagesError || potentialSpecies?.partial || Boolean(zonages?.errors.length)
+            ? coverageError || potentialSpeciesError || zonagesError || potentialSpecies?.partial || Boolean(zonages?.errors.length)
               ? "partial"
               : "complete"
             : "draft";
-    const updated: AnalysisConversation = {
-      ...existing,
+    const updated = updateStudyConversation(existing, {
       status,
-      parameters: {
-        toponym: currentToponym,
-        center,
-        circles,
-        activePresetId,
-        activeTaxonFilters: Array.from(activeTaxonFilters),
-        excludeMarine,
-        includeINaturalist,
-        projectPolygon,
-      },
       results: {
         inventory: results,
         zonages,
         potentialSpecies,
       },
       agentErrors: {
+         ...(coverageError ? { coverage: coverageError } : {}),
          ...(analysisFailed ? { inventory: "The observations agent could not complete the inventory." } : {}),
          ...(zonagesError ? { zonages: "The protected-area agent could not retrieve boundaries." } : {}),
          ...(potentialSpeciesError ? { potentialSpecies: "The ecological potential agent is unavailable." } : {}),
       },
       updatedAt: new Date().toISOString(),
-    };
+    });
 
     setConversations((previous) =>
       [updated, ...previous.filter((conversation) => conversation.id !== updated.id)]
@@ -707,20 +701,13 @@ export default function Home() {
       });
   }, [
     activeConversationId,
-    activePresetId,
-    activeTaxonFilters,
     analysisFailed,
-    center,
-    circles,
-    currentToponym,
-    excludeMarine,
+    coverageError,
     historyReady,
-    includeINaturalist,
     isAnalyzing,
     potentialSpecies,
     potentialSpeciesError,
     potentialSpeciesLoading,
-    projectPolygon,
     results,
     zonages,
     zonagesError,
@@ -761,14 +748,17 @@ export default function Home() {
   }, [activeConversationId, resetForNewLocation]);
 
   const requestSummary = useMemo(() => {
-    const enabled = circles.filter((circle) => circle.enabled);
-     const siteLabel = projectPolygon?.name || currentToponym.split(",")[0]?.trim() || "Selected site";
-    const areaLabel = enabled
-       .map((circle) => `${circle.label} (${circle.radius >= 1000 ? `${circle.radius / 1000} km` : `${circle.radius} m`})`)
-      .join(", ");
-     const sources = `GBIF${includeINaturalist ? " and iNaturalist" : ""}`;
-     return `Site: ${siteLabel}. Study areas: ${areaLabel}. Sources: ${sources}.${projectPolygon ? " Imported boundary." : ""}`;
-  }, [circles, currentToponym, includeINaturalist, projectPolygon]);
+    return buildStudyRequestSummary(studyParameters ?? {
+      toponym: currentToponym,
+      center,
+      circles,
+      activePresetId,
+      activeTaxonFilters: Array.from(activeTaxonFilters),
+      excludeMarine,
+      includeINaturalist,
+      projectPolygon,
+    });
+  }, [studyParameters, center, circles, currentToponym, activePresetId, activeTaxonFilters, excludeMarine, includeINaturalist, projectPolygon]);
 
   return (
     <div className="relative h-[100dvh] min-h-[100dvh] w-full overflow-hidden bg-[#f8f7f0]">
@@ -786,7 +776,7 @@ export default function Home() {
           </span>
         </button>
         <div className="absolute left-1/2 hidden -translate-x-1/2 items-center gap-2 md:flex">
-           <span className="h-2 w-2 rounded-full bg-[#c4a642]" aria-hidden="true" /><span className="text-sm font-semibold text-[#315b4e]">{isLocationReady ? currentToponym.split(",")[0] : "New study"}</span><span className="text-xs text-[#7b8c83]">Preliminary biodiversity assessment</span>
+           <span className="h-2 w-2 rounded-full bg-[#c4a642]" aria-hidden="true" /><span className="text-sm font-semibold text-[#315b4e]">{isLocationReady ? (studyParameters?.toponym ?? currentToponym).split(",")[0] : "New study"}</span><span className="text-xs text-[#7b8c83]">Preliminary biodiversity assessment</span>
         </div>
         <div className="ml-auto flex items-center gap-2">
           {authLoaded && !isSignedIn && (
@@ -815,8 +805,8 @@ export default function Home() {
       )}
       
       <Map 
-        center={center} 
-        circles={circles}
+        center={studyParameters?.center ?? center}
+        circles={studyParameters?.circles ?? circles}
         results={results} 
         onMapClick={handleMapClick}
         selectedSpecies={selectedSpecies}
@@ -826,7 +816,7 @@ export default function Home() {
         }}
         activeTaxonFilters={activeTaxonFilters}
         excludeMarine={excludeMarine}
-        projectPolygon={projectPolygon}
+        projectPolygon={studyParameters ? studyParameters.projectPolygon : projectPolygon}
         panelOpen={isPanelOpen}
         panelWidth={680}
         zonageFeatures={zonageFeatures}
@@ -854,7 +844,7 @@ export default function Home() {
         key={locationKey}
         isOpen={isPanelOpen} 
         isAnalyzing={isAnalyzing || zonagesLoading || potentialSpeciesLoading}
-        areaCount={circles.filter((c) => c.enabled).length}
+        areaCount={(studyParameters?.circles ?? circles).filter((c) => c.enabled).length}
         onClose={() => setIsPanelOpen(false)} 
         results={results}
         selectedSpecies={selectedSpecies}
@@ -864,15 +854,15 @@ export default function Home() {
         onToggleAllTaxonFilters={handleToggleAllTaxonFilters}
         excludeMarine={excludeMarine}
         onToggleExcludeMarine={() => setExcludeMarine(v => !v)}
-        includeINaturalist={includeINaturalist}
+        includeINaturalist={studyParameters?.includeINaturalist ?? includeINaturalist}
         onToggleIncludeINaturalist={() => setIncludeINaturalist(v => !v)}
-        toponym={currentToponym}
+        toponym={studyParameters?.toponym ?? currentToponym}
         zonages={zonages}
         zonagesLoading={zonagesLoading}
         potentialSpecies={potentialSpecies}
         potentialSpeciesLoading={potentialSpeciesLoading}
         potentialSpeciesError={potentialSpeciesError}
-        projectArea={projectPolygon?.geojson}
+        projectArea={(studyParameters ? studyParameters.projectPolygon : projectPolygon)?.geojson}
         selectedZonageId={selectedZonageId}
         onSelectZonage={setSelectedZonageId}
         composer={

@@ -2,23 +2,12 @@ import writeExcelFile from "write-excel-file/browser";
 import type { SheetData } from "write-excel-file/browser";
 import { Occurrence, InventoryResult, getIucnLabel, IUCN_SOURCE_LABEL, getTaxonGroupId, TAXON_GROUPS, ConfidenceScore } from "./gbif";
 import { getPreferredTerritorialRedList, isPlantTaxon } from "@shared/iucn";
+import { classifyConcern, concernLabel } from "./concern";
 
 interface ExportOptions {
   results: InventoryResult;
   filteredSpecies: Occurrence[];
   activeTaxonFilters: Set<string>;
-}
-
-function getEnjeuLabel(occ: Occurrence): string {
-  const labels: Record<string, string> = {
-    critique: "Critical",
-    fort: "High",
-    modere: "Moderate",
-    faible: "Low",
-    a_confirmer: "To confirm",
-  };
-  if (occ.enjeuLevel) return labels[occ.enjeuLevel] || "To confirm";
-  return occ.alertLevel === "high" ? "High (heuristic)" : occ.alertLevel === "medium" ? "Moderate (heuristic)" : "Low (heuristic)";
 }
 
 function getTaxonGroupLabel(occ: Occurrence): string {
@@ -39,7 +28,7 @@ export function buildSpeciesRows(species: Occurrence[]) {
     return ({
     "Scientific name": occ.scientificName,
     "Common name": occ.vernacularName || "",
-    "Territorial concern level": getEnjeuLabel(occ),
+    "Territorial concern level": concernLabel(occ),
     "Priority IUCN status": status,
     "Status territory / source": source,
     "IUCN code": territorial?.value || (isPlantTaxon(occ) ? "" : occ.iucnStatus || ""),
@@ -139,29 +128,32 @@ function rowsToSheetData(
   ];
 }
 
-export async function exportExcel({ results, filteredSpecies }: ExportOptions) {
-  const speciesRows = buildSpeciesRows(filteredSpecies);
-  const metaRows = buildMetaRows(results, filteredSpecies.length);
-
+export function buildConcernSummaryRows(filteredSpecies: Occurrence[]) {
+  const counts = (species: Occurrence[]) => {
+    const levels = species.map(classifyConcern);
+    return {
+      "Species count": species.length,
+      "High or critical concerns": levels.filter((level) => level === "fort" || level === "critique").length,
+      "Moderate concerns": levels.filter((level) => level === "modere").length,
+      "To confirm": levels.filter((level) => level === "a_confirmer").length,
+      "Low concerns": levels.filter((level) => level === "faible").length,
+      "Invasive management concerns": levels.filter((level) => level === "eee").length,
+    };
+  };
   const summaryRows = TAXON_GROUPS
     .map(g => ({
       "Group": g.label,
-      "Species count": filteredSpecies.filter(o => getTaxonGroupId(o) === g.id).length,
-      "High or critical concerns": filteredSpecies.filter(o => getTaxonGroupId(o) === g.id && (o.enjeuLevel === "fort" || o.enjeuLevel === "critique")).length,
-      "Moderate concerns": filteredSpecies.filter(o => getTaxonGroupId(o) === g.id && o.enjeuLevel === "modere").length,
-      "To confirm": filteredSpecies.filter(o => getTaxonGroupId(o) === g.id && (!o.enjeuLevel || o.enjeuLevel === "a_confirmer")).length,
-      "Low concerns": filteredSpecies.filter(o => getTaxonGroupId(o) === g.id && o.enjeuLevel === "faible").length,
+      ...counts(filteredSpecies.filter(o => getTaxonGroupId(o) === g.id)),
     }))
     .filter(r => r["Species count"] > 0);
+  summaryRows.push({ "Group": "TOTAL", ...counts(filteredSpecies) });
+  return summaryRows;
+}
 
-  summaryRows.push({
-    "Group": "TOTAL",
-    "Species count": filteredSpecies.length,
-    "High or critical concerns": filteredSpecies.filter(o => o.enjeuLevel === "fort" || o.enjeuLevel === "critique").length,
-    "Moderate concerns": filteredSpecies.filter(o => o.enjeuLevel === "modere").length,
-    "To confirm": filteredSpecies.filter(o => !o.enjeuLevel || o.enjeuLevel === "a_confirmer").length,
-    "Low concerns": filteredSpecies.filter(o => o.enjeuLevel === "faible").length,
-  });
+export async function exportExcel({ results, filteredSpecies }: ExportOptions) {
+  const speciesRows = buildSpeciesRows(filteredSpecies);
+  const metaRows = buildMetaRows(results, filteredSpecies.length);
+  const summaryRows = buildConcernSummaryRows(filteredSpecies);
 
   const blob = await writeExcelFile([
     {
@@ -179,7 +171,7 @@ export async function exportExcel({ results, filteredSpecies }: ExportOptions) {
     {
       data: rowsToSheetData(summaryRows),
       sheet: "Summary",
-      columns: [20, 18, 24, 18, 16, 16].map((width) => ({ width })),
+      columns: [20, 18, 24, 18, 16, 16, 28].map((width) => ({ width })),
       stickyRowsCount: 1,
     },
   ]).toBlob();

@@ -1,5 +1,4 @@
-import { ALI_BASE, searchAliTaxon, fetchAliStatuts, type RawAliStatus } from "./services/aliApi";
-import type { AliStatusSummary } from "@shared/types";
+import { ALI_BASE, searchAliTaxon, type RawAliStatus } from "./services/aliApi";
 
 export type StatusTone = "danger" | "warn" | "info" | "neutral";
 
@@ -17,13 +16,6 @@ export type PatrimonialiteLevel = "majeure" | "forte" | "modérée" | "faible";
 export interface Patrimonialite {
   score: number;
   level: PatrimonialiteLevel;
-}
-
-export interface AliEnrichment {
-  cdNom: number;
-  aliUrl: string;
-  statuses: SpeciesStatus[];
-  patrimonialite: Patrimonialite;
 }
 
 // Réplique fidèle du calcul de patrimonialité d'ALI Species (alispecies.io) :
@@ -250,47 +242,4 @@ export function normalizeStatuses(raws: RawAliStatus[]): SpeciesStatus[] {
   return [...redList, ...others].sort(
     (a, b) => CATEGORY_ORDER.indexOf(a.category) - CATEGORY_ORDER.indexOf(b.category),
   );
-}
-
-export async function fetchSpeciesStatuses(scientificName: string): Promise<AliEnrichment | null> {
-  const hit = await searchAliTaxon(scientificName);
-  if (!hit) return null;
-
-  const raws = await fetchAliStatuts(hit.cdNom);
-  return {
-    cdNom: hit.cdNom,
-    aliUrl: buildTaxonUrl(hit.cdRef ?? hit.cdNom, hit.name),
-    statuses: normalizeStatuses(raws),
-    patrimonialite: computePatrimonialite(raws),
-  };
-}
-
-/**
- * Enrichissement territorial léger pour l'inventaire principal.
- * Retourne un tableau compact AliStatusSummary ou null en cas d'échec/timeout.
- * Utilise le même cache 24h que fetchSpeciesStatuses — pas de requête réseau
- * supplémentaire si l'espèce a déjà été enrichie via le panneau espèces à enjeux.
- *
- * Timeout 4 s (vs 20 s pour l'usage normal) pour ne pas bloquer la réponse
- * inventaire en cas de lenteur ALI.
- */
-export async function fetchAliStatusesForInventory(
-  scientificName: string,
-): Promise<AliStatusSummary[] | null> {
-  try {
-    const result = await Promise.race<AliEnrichment | null>([
-      fetchSpeciesStatuses(scientificName),
-      new Promise<null>((resolve) => setTimeout(() => resolve(null), 4000)),
-    ]);
-    if (!result) return null;
-    return result.statuses.map((s) => ({
-      category: s.category,
-      value: s.value,
-      label: s.label,
-      tone: s.tone,
-      scope: s.scope,
-    }));
-  } catch {
-    return null;
-  }
 }

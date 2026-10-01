@@ -115,6 +115,7 @@ export const priorityBodySchema = z.object({
     .min(1, "'occurrences' must be a non-empty array")
     .max(5000, "Maximum 5,000 occurrences"),
   projectArea: projectAreaSchema.optional(),
+  studyAreas: z.array(bufferCircleSchema).max(10).optional(),
 });
 
 export const potentialSpeciesBodySchema = z.object({
@@ -192,6 +193,22 @@ export class SlidingWindowCostLimiter {
 
 export const MAX_REFORMAT_REPORT_CHARACTERS = 200_000;
 export const MAX_REFORMAT_CONTEXT_CHARACTERS = 120_000;
+
+/** Validate only the shape consumed server-side; preserve other canonical data. */
+export const finalStudyContextSchema = z.object({
+  request: z.object({
+    center: coordsSchema,
+    studyAreas: z.array(z.object({
+      center: coordsSchema,
+      enabled: z.boolean().optional(),
+    }).passthrough()).max(10).optional(),
+  }).passthrough(),
+  inventory: z.object({
+    species: z.object({
+      items: z.array(z.object({}).passthrough()).max(5000),
+    }).passthrough().optional(),
+  }).passthrough().nullable().optional(),
+}).passthrough();
 
 export const reformatBodySchema = z.object({
   report: z
