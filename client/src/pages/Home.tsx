@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect, useMemo, useRef } from "react";
+import { useState, useCallback, useEffect, useMemo, useRef, useReducer } from "react";
 import { Map } from "@/components/Map";
 import { SearchPanel } from "@/components/SearchPanel";
 import { ResultsPanel } from "@/components/ResultsPanel";
@@ -12,6 +12,7 @@ import { searchGBIFMultiCircle, InventoryResult, BufferCircle, STUDY_AREAS, Proj
 import { searchPlace, reverseGeocode } from "@/lib/geocoding";
 import { parseShapefile, ProjectPolygon } from "@/lib/shapefile";
 import { toZonageMapFeatures } from "@/lib/zonageMap";
+import { getHabitatMapEligibility, habitatMapReducer, INITIAL_HABITAT_MAP } from "@/lib/habitatMap";
 import { occurrenceKey } from "@/lib/resultKeys";
 import { buildStudyRequestSummary, isStudyCoverage, resolveStudyCoverage, snapshotStudyParameters, updateStudyConversation } from "@/lib/studySession";
 import { fetchZonages, type ZonagesData } from "@/lib/zonages";
@@ -84,6 +85,9 @@ export default function Home() {
   const [showApi, setShowApi] = useState(false);
   const [showHarness, setShowHarness] = useState(false);
   const [harnessConfig, setHarnessConfig] = useState<HarnessConfig>(DEFAULT_HARNESS_CONFIG);
+  const [runtimeHarnessReady, setRuntimeHarnessReady] = useState(false);
+  const [runtimeHarnessError, setRuntimeHarnessError] = useState(false);
+  const [habitatMap, dispatchHabitatMap] = useReducer(habitatMapReducer, INITIAL_HABITAT_MAP);
   const [showLieuxDits, setShowLieuxDits] = useState(false);
   const [currentToponym, setCurrentToponym] = useState<string>("Location to confirm");
   const [activePresetId, setActivePresetId] = useState("custom");
@@ -101,6 +105,13 @@ export default function Home() {
   const [potentialSpeciesError, setPotentialSpeciesError] = useState(false);
   const [coverage, setCoverage] = useState<StudyCoverage | null>(null);
   const [coverageError, setCoverageError] = useState<string | null>(null);
+  const habitatEligibility = useMemo(
+    () => getHabitatMapEligibility(coverage, runtimeHarnessReady ? harnessConfig : null),
+    [coverage, harnessConfig, runtimeHarnessReady],
+  );
+  useEffect(() => {
+    dispatchHabitatMap({ type: "coverage", studyId: habitatMap.studyId, eligible: Boolean(habitatEligibility.layer) });
+  }, [habitatEligibility.layer, habitatMap.studyId]);
   const [selectedZonageId, setSelectedZonageId] = useState<string | null>(null);
   const [isLoadingShapefile, setIsLoadingShapefile] = useState(false);
   const [isLocationReady, setIsLocationReady] = useState(false);
@@ -120,8 +131,16 @@ export default function Home() {
   const refreshRuntimeHarness = useCallback(() => {
     fetch("/api/runtime/harness")
       .then((response) => response.ok ? response.json() : Promise.reject())
-      .then(setHarnessConfig)
-      .catch(() => undefined);
+      .then((config: HarnessConfig) => {
+        if (!Array.isArray(config.agents)) throw new Error("Invalid runtime Harness");
+        setHarnessConfig(config);
+        setRuntimeHarnessReady(true);
+        setRuntimeHarnessError(false);
+      })
+      .catch(() => {
+        setRuntimeHarnessReady(false);
+        setRuntimeHarnessError(true);
+      });
   }, []);
 
   useEffect(() => {
@@ -137,6 +156,7 @@ export default function Home() {
   const suppressNextHistorySave = useRef(false);
   const resetForNewLocation = useCallback((locationReady = false) => {
     inventoryRequestId.current++;
+    dispatchHabitatMap({ type: "reset" });
     coverageAbortController.current?.abort();
     coverageAbortController.current = null;
     zonagesAbortController.current?.abort();
@@ -165,6 +185,7 @@ export default function Home() {
 
   const restoreConversation = useCallback((conversation: AnalysisConversation) => {
     inventoryRequestId.current++;
+    dispatchHabitatMap({ type: "restore", studyId: conversation.id });
     coverageAbortController.current?.abort();
     coverageAbortController.current = null;
     zonagesAbortController.current?.abort();
@@ -308,6 +329,7 @@ export default function Home() {
     const referenceCircle =
       enabledCircles.find((circle) => circle.id === "immediate") ?? enabledCircles[0];
     const conversationId = createAnalysisConversationId();
+    dispatchHabitatMap({ type: "start", studyId: conversationId });
     const now = new Date().toISOString();
     const initialConversation: AnalysisConversation = {
       version: 1,
@@ -391,6 +413,10 @@ export default function Home() {
       if (coverageAbortController.current === coverageController) coverageAbortController.current = null;
     }
     if (requestId !== inventoryRequestId.current) return;
+    // The map is a direct IGN source backdrop: it need not wait for occurrence
+    // inventory or AI. Completed inventory coverage still takes precedence below.
+    setCoverage(resolvedCoverage);
+    setCoverageError(lookupError);
 
     try {
       const inventoryOutcome = await inventoryPromise;
@@ -819,6 +845,18 @@ export default function Home() {
         projectPolygon={studyParameters ? studyParameters.projectPolygon : projectPolygon}
         panelOpen={isPanelOpen}
         panelWidth={680}
+        habitatLayer={habitatEligibility.layer}
+        habitatEnabled={habitatMap.enabled}
+        habitatStudyId={habitatMap.studyId}
+        habitatExplanation={runtimeHarnessError
+          ? "Habitat layer unavailable: Harness authorization could not be loaded."
+          : habitatEligibility.explanation}
+        onToggleHabitat={(enabled) => dispatchHabitatMap({
+          type: "toggle",
+          studyId: habitatMap.studyId,
+          eligible: Boolean(habitatEligibility.layer),
+          enabled,
+        })}
         zonageFeatures={zonageFeatures}
         selectedZonageId={selectedZonageId}
         onSelectZonage={(id) => {

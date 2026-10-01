@@ -7,6 +7,7 @@ import { InventoryResult, BufferCircle, STUDY_AREAS, getTaxonGroupId, isMarineSp
 import type { ProjectPolygon } from "@/lib/shapefile";
 import { ZonageMapFeature, ZONAGE_MAP_COLORS } from "@/lib/zonageMap";
 import { occurrenceKey, uniqueOccurrences } from "@/lib/resultKeys";
+import { CARHAB_WMS_URL, type CarhabLayer } from "@/lib/habitatMap";
 
 import icon from 'leaflet/dist/images/marker-icon.png';
 import iconShadow from 'leaflet/dist/images/marker-shadow.png';
@@ -35,6 +36,11 @@ interface MapProps {
   zonageFeatures?: ZonageMapFeature[];
   selectedZonageId?: string | null;
   onSelectZonage?: (id: string | null) => void;
+  habitatLayer?: CarhabLayer | null;
+  habitatEnabled?: boolean;
+  habitatStudyId?: string | null;
+  habitatExplanation?: string;
+  onToggleHabitat?: (enabled: boolean) => void;
 }
 
 /** Centre la carte sur l'emprise du zonage sélectionné (avec marge pour le panneau). */
@@ -252,7 +258,47 @@ const OVERLAYS: Record<OverlayId, {
   },
 };
 
-export function Map({ center, circles, results, onMapClick, selectedSpecies, onSelectSpecies, activeTaxonFilters, excludeMarine, projectPolygon, panelOpen, panelWidth, zonageFeatures, selectedZonageId, onSelectZonage }: MapProps) {
+type HabitatTileStatus = "loading" | "loaded" | "error";
+interface HabitatTileProgress {
+  key: string;
+  status: HabitatTileStatus;
+}
+
+function CarhabWmsOverlay({ layer, requestKey, onStatus }: {
+  layer: CarhabLayer;
+  requestKey: string;
+  onStatus: (progress: HabitatTileProgress) => void;
+}) {
+  const eventHandlers = useMemo(() => {
+    let failed = false;
+    return {
+      loading: () => {
+        failed = false;
+        onStatus({ key: requestKey, status: "loading" });
+      },
+      tileerror: () => {
+        failed = true;
+        onStatus({ key: requestKey, status: "error" });
+      },
+      load: () => onStatus({ key: requestKey, status: failed ? "error" : "loaded" }),
+    };
+  }, [requestKey, onStatus]);
+  useEffect(() => {
+    onStatus({ key: requestKey, status: "loading" });
+  }, [requestKey, onStatus]);
+  return (
+    <WMSTileLayer
+      url={CARHAB_WMS_URL}
+      params={{ layers: layer, format: "image/png", transparent: true, version: "1.3.0" }}
+      opacity={0.65}
+      attribution="CARHAB / INPN — IGN Géoplateforme"
+      zIndex={390}
+      eventHandlers={eventHandlers}
+    />
+  );
+}
+
+export function Map({ center, circles, results, onMapClick, selectedSpecies, onSelectSpecies, activeTaxonFilters, excludeMarine, projectPolygon, panelOpen, panelWidth, zonageFeatures, selectedZonageId, onSelectZonage, habitatLayer, habitatEnabled, habitatStudyId, habitatExplanation, onToggleHabitat }: MapProps) {
   const [baseLayer, setBaseLayer] = useState<BaseLayer>(() => {
     try {
       const v = localStorage.getItem("if.baseLayer");
@@ -269,6 +315,11 @@ export function Map({ center, circles, results, onMapClick, selectedSpecies, onS
     } catch { return new Set<OverlayId>(); }
   });
   const [layerPanelOpen, setLayerPanelOpen] = useState(false);
+  const [habitatTileProgress, setHabitatTileProgress] = useState<HabitatTileProgress | null>(null);
+  const habitatVisible = Boolean(habitatLayer && habitatEnabled && habitatStudyId);
+  const habitatRequestKey = `${habitatStudyId}:${habitatLayer}`;
+  const habitatTileStatus = habitatTileProgress?.key === habitatRequestKey ? habitatTileProgress.status : "loading";
+  const overlayCount = activeOverlays.size + (habitatVisible ? 1 : 0);
   const layer = BASE_LAYERS[baseLayer];
 
   const toggleOverlay = (id: OverlayId) => {
@@ -355,6 +406,14 @@ export function Map({ center, circles, results, onMapClick, selectedSpecies, onS
             />
           );
         })}
+        {habitatVisible && habitatLayer && (
+          <CarhabWmsOverlay
+            key={habitatRequestKey}
+            layer={habitatLayer}
+            requestKey={habitatRequestKey}
+            onStatus={setHabitatTileProgress}
+          />
+        )}
 
         <MapController center={center} circles={circles} projectPolygon={projectPolygon} panelOpen={panelOpen} panelWidth={panelWidth} selectedZonageId={selectedZonageId} />
         <MapEvents onMapClick={onMapClick} />
@@ -479,7 +538,7 @@ export function Map({ center, circles, results, onMapClick, selectedSpecies, onS
       </MapContainer>
 
       <div
-        className="absolute bottom-7 left-4 z-[400] hidden max-w-[250px] rounded-lg border border-gray-200 bg-white/95 px-3 py-2 text-[11px] text-gray-700 shadow-md backdrop-blur sm:block"
+        className={`absolute bottom-7 left-4 z-[400] ${habitatVisible ? "block" : "hidden sm:block"} max-w-[250px] rounded-lg border border-gray-200 bg-white/95 px-3 py-2 text-[11px] text-gray-700 shadow-md backdrop-blur`}
          aria-label="Map legend"
       >
          <p className="mb-1.5 font-bold text-[#17483d]">Legend</p>
@@ -502,6 +561,24 @@ export function Map({ center, circles, results, onMapClick, selectedSpecies, onS
               {OVERLAYS[id].shortLabel}
             </p>
           ))}
+          {habitatVisible && (
+            <div className="mt-2 border-t border-gray-200 pt-2" data-testid="carhab-map-legend">
+              <p className="font-semibold text-[#17483d]">HABITAT · CARHAB mapped habitats</p>
+              <p>{habitatLayer === "Habitats_Carhab_Reunion" ? "Réunion" : "France"} · available mapped areas</p>
+              <p role="status" aria-live="polite" className={habitatTileStatus === "error" ? "text-amber-800" : "text-teal-800"} data-testid="carhab-map-status">
+                {habitatTileStatus === "loading"
+                  ? "Loading IGN habitat tiles progressively…"
+                  : habitatTileStatus === "error"
+                    ? "Some IGN habitat tiles could not load. The backdrop may be incomplete."
+                    : "IGN habitat tiles loaded for this view."}
+              </p>
+              <p className="mt-1 text-[10px] text-gray-600">Source backdrop, not field confirmation or a computed overlap with the project. Blank tiles do not establish habitat absence.</p>
+              <div className="mt-1 flex flex-wrap gap-x-2 text-[10px]">
+                <a className="text-teal-700 underline" href="https://inpn.mnhn.fr/programme/carhab" target="_blank" rel="noreferrer">CARHAB / INPN source</a>
+                <a className="text-teal-700 underline" href={`${CARHAB_WMS_URL}?SERVICE=WMS&VERSION=1.3.0&REQUEST=GetLegendGraphic&FORMAT=image%2Fpng&LAYER=${habitatLayer}`} target="_blank" rel="noreferrer">IGN habitat symbology</a>
+              </div>
+            </div>
+          )}
         </div>
       </div>
 
@@ -517,9 +594,9 @@ export function Map({ center, circles, results, onMapClick, selectedSpecies, onS
         >
           <Layers className="h-3.5 w-3.5 text-teal-600" />
            <span>Map layers</span>
-          {activeOverlays.size > 0 && (
+          {overlayCount > 0 && (
             <span className="text-[10px] bg-teal-100 text-teal-700 px-1.5 py-0.5 rounded-full font-bold">
-              {activeOverlays.size}
+              {overlayCount}
             </span>
           )}
           <ChevronDown className={`h-3 w-3 text-gray-400 transition-transform ${layerPanelOpen ? "rotate-180" : ""}`} />
@@ -565,7 +642,7 @@ export function Map({ center, circles, results, onMapClick, selectedSpecies, onS
             </div>
             <div className="px-2 py-1.5 max-h-64 overflow-y-auto bg-gray-50/30">
               {(["Espaces protégés", "Eau", "Habitats / Sol"] as const).map(group => {
-                 const groupLabel = group === "Espaces protégés" ? "Protected areas" : group === "Eau" ? "Water and rivers" : "Land cover";
+                 const groupLabel = group === "Espaces protégés" ? "Protected areas" : group === "Eau" ? "Water and rivers" : "Habitats and land cover";
                 const items = (Object.entries(OVERLAYS) as [OverlayId, typeof OVERLAYS[OverlayId]][])
                   .filter(([, o]) => o.group === group);
                 const Icon = group === "Espaces protégés" ? Trees : group === "Eau" ? Droplets : Building2;
@@ -575,6 +652,25 @@ export function Map({ center, circles, results, onMapClick, selectedSpecies, onS
                       <Icon className="h-3 w-3" />
                       {groupLabel}
                     </div>
+                    {group === "Habitats / Sol" && (
+                      <>
+                        <button
+                          type="button"
+                          onClick={() => onToggleHabitat?.(!habitatVisible)}
+                          disabled={!habitatLayer || !habitatStudyId}
+                          className={`w-full flex items-center gap-2 text-left text-xs px-3 py-1.5 rounded-md transition-colors disabled:cursor-not-allowed disabled:opacity-60 ${habitatVisible ? "bg-white shadow-sm" : "hover:bg-white/60"}`}
+                          data-testid="button-overlay-carhab"
+                          aria-pressed={habitatVisible}
+                          aria-describedby="carhab-map-eligibility"
+                        >
+                          <span className="h-3 w-3 rounded-sm border border-gray-300 shrink-0 flex items-center justify-center" style={habitatVisible ? { backgroundColor: "#4d7c0f", borderColor: "#4d7c0f" } : {}}>
+                            {habitatVisible && <span className="text-white text-[10px] leading-none">✓</span>}
+                          </span>
+                          <span className={habitatVisible ? "text-gray-900 font-medium" : "text-gray-600"}>HABITAT · CARHAB mapped habitats</span>
+                        </button>
+                        <p id="carhab-map-eligibility" className="px-3 pb-2 text-[10px] text-gray-500">{habitatExplanation || "Start a study to verify habitat map eligibility."}</p>
+                      </>
+                    )}
                     {items.map(([id, ov]) => {
                       const isActive = activeOverlays.has(id);
                       return (
@@ -601,10 +697,14 @@ export function Map({ center, circles, results, onMapClick, selectedSpecies, onS
                   </div>
                 );
               })}
-              {activeOverlays.size > 0 && (
+              {overlayCount > 0 && (
                 <button
                   type="button"
-                  onClick={() => { setActiveOverlays(new Set()); try { localStorage.setItem("if.overlays", "[]"); } catch {} }}
+                  onClick={() => {
+                    setActiveOverlays(new Set());
+                    onToggleHabitat?.(false);
+                    try { localStorage.setItem("if.overlays", "[]"); } catch {}
+                  }}
                   className="w-full text-[10px] text-teal-600 hover:text-teal-800 font-semibold uppercase tracking-wider py-1.5 mt-1"
                   data-testid="button-clear-overlays"
                 >
@@ -617,7 +717,7 @@ export function Map({ center, circles, results, onMapClick, selectedSpecies, onS
       </div>
 
       <div className="absolute bottom-1 right-1 bg-white/50 backdrop-blur px-2 py-0.5 text-[10px] text-gray-500 rounded z-[400] pointer-events-none">
-         GBIF · iNat data | {layer.label}{activeOverlays.size > 0 && ` + ${activeOverlays.size} layer${activeOverlays.size > 1 ? "s" : ""}`}
+         GBIF · iNat data | {layer.label}{overlayCount > 0 && ` + ${overlayCount} layer${overlayCount > 1 ? "s" : ""}`}
       </div>
     </div>
   );
